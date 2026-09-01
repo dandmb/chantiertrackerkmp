@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Default / fallback language: English. Any system language other than French resolves here. -->
+<resources>
+    <string name="app_name">ChantierTracker</string>
+    <string name="splash_tagline">Your site under control, even from a distance</string>
+
+    <string name="action_back">Back</string>
+    <string name="field_email_label">Email</string>
+    <string name="field_name_label">Name</string>
+    <string name="field_password_label">Password</string>
+    <string name="field_new_password_label">New password</string>
+    <string name="field_code_label">Verification code</string>
+    <string name="password_show">Show password</string>
+    <string name="password_hide">Hide password</string>
+
+    <string name="welcome_title">Welcome back</string>
+    <string name="welcome_create_account">Create an account</string>
+    <string name="welcome_sign_in">Sign in</string>
+
+    <string name="onboarding_skip">Skip</string>
+    <string name="onboarding_next">Next</string>
+    <string name="onboarding_start">Get started</string>
+    <string name="onboarding_go_to_page">Go to page %1$d</string>
+    <string name="onboarding_p1_title">Track your site from anywhere</string>
+    <string name="onboarding_p1_body">See how your sites are progressing in real time, wherever you happen to be.</string>
+    <string name="onboarding_p2_title">Document every purchase</string>
+    <string name="onboarding_p2_body">Photograph your purchases and work as you go — every expense keeps its proof.</string>
+    <string name="onboarding_p3_title">Stay in control of the budget</string>
+    <string name="onboarding_p3_body">Follow spending, stock and the full history of each site at a glance.</string>
+
+    <string name="login_title">Sign in</string>
+    <string name="login_subtitle">Sign in to keep track of your sites.</string>
+    <string name="login_forgot_password">Forgot password?</string>
+    <string name="login_resend_verification">Resend verification code</string>
+    <string name="login_submit">Sign in</string>
+    <string name="login_no_account_prompt">No account yet?</string>
+    <string name="login_no_account_action">Create one</string>
+    <string name="login_notice_account_activated">Account activated. You can sign in now.</string>
+    <string name="login_notice_password_reset">Password updated. You can sign in now.</string>
+
+    <string name="register_title">Create an account</string>
+    <string name="register_subtitle">A few details to get started.</string>
+    <string name="register_submit">Sign up</string>
+    <string name="register_have_account_prompt">Already have an account?</string>
+    <string name="register_have_account_action">Sign in</string>
+
+    <string name="verify_title">Verify your email</string>
+    <string name="verify_subtitle">Enter the 6-digit code sent to %1$s.</string>
+    <string name="verify_submit">Confirm</string>
+    <string name="verify_resend">Resend code</string>
+    <string name="verify_resending">Sending…</string>
+    <string name="verify_cancel">Cancel verification</string>
+    <string name="verify_code_resent">A new code is on its way.</string>
+
+    <string name="forgot_title">Forgot password</string>
+    <string name="forgot_subtitle">We'll email you a reset code.</string>
+    <string name="forgot_submit">Send the code</string>
+
+    <string name="reset_title">New password</string>
+    <string name="reset_subtitle">Code sent to %1$s.</string>
+    <string name="reset_submit">Reset password</string>
+    <string name="reset_back_to_login">Back to sign in</string>
+
+    <string name="home_greeting">Hello, %1$s</string>
+    <string name="home_greeting_fallback">Welcome</string>
+    <string name="home_platform">Platform: %1$s</string>
+    <string name="home_api">API: %1$s</string>
+    <string name="home_logout">Log out</string>
+
+    <string name="validation_email_required">Email is required.</string>
+    <string name="validation_email_invalid">Enter a valid email address.</string>
+    <string name="validation_password_required">Password is required.</string>
+    <string name="validation_password_too_short">Use at least 12 characters.</string>
+    <string name="validation_password_uppercase">Add an uppercase letter.</string>
+    <string name="validation_password_lowercase">Add a lowercase letter.</string>
+    <string name="validation_password_digit">Add a number.</string>
+    <string name="validation_password_special">Add a special character.</string>
+    <string name="validation_code_required">The code is required.</string>
+    <string name="validation_code_format">The code must be 6 digits.</string>
+    <string name="validation_name_required">Name is required.</string>
+
+    <string name="error_invalid_credentials">Incorrect email or password.</string>
+    <string name="error_email_already_used">This email address is already in use.</string>
+    <string name="error_account_not_verified">Your account isn't activated yet. Check your email.</string>
+    <string name="error_account_locked">Account locked after too many attempts. Try again later.</string>
+    <string name="error_invalid_code">That code is invalid or has expired.</string>
+    <string name="error_validation">Please check the information you entered.</string>
+    <string name="error_rate_limited">Too many attempts. Try again in a few minutes.</string>
+    <string name="error_network">Can't reach the server. Check your connection.</string>
+    <string name="error_unexpected">Something went wrong. Please try again.</string>
+</resources>

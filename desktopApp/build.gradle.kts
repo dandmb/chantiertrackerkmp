@@ -6,6 +6,13 @@ plugins {
     alias(libs.plugins.composeCompiler)
 }
 
+// `./gradlew :desktopApp:run` cible l'environnement de dev ; la distribution packagée reste en prod.
+tasks.withType<JavaExec>().configureEach {
+    if (name == "run" || name == "hotRun") {
+        systemProperty("chantiertracker.debug", "true")
+    }
+}
+
 dependencies {
     implementation(project(":shared"))
 
@@ -21,8 +28,12 @@ compose.desktop {
 
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
-            packageName = "com.dmb.chantiertracker"
+            packageName = "ChantierTracker"
             packageVersion = "1.0.0"
+
+            macOS { iconFile.set(project.file("icons/icon.icns")) }
+            windows { iconFile.set(project.file("icons/icon.ico")) }
+            linux { iconFile.set(project.file("icons/icon.png")) }
         }
     }
 }
