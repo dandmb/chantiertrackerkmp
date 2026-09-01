@@ -6,6 +6,6 @@ import com.dmb.chantiertracker.di.initKoin
 class ChantierTrackerApp : Application() {
     override fun onCreate() {
         super.onCreate()
-        initKoin()
+        initKoin(this)
     }
 }

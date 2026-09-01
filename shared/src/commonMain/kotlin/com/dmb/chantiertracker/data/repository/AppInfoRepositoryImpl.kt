@@ -5,9 +5,11 @@ import com.dmb.chantiertracker.getPlatform
 import com.dmb.chantiertracker.domain.model.AppInfo
 import com.dmb.chantiertracker.domain.repository.AppInfoRepository
 
-class AppInfoRepositoryImpl : AppInfoRepository {
+class AppInfoRepositoryImpl(
+    private val appConfig: AppConfig,
+) : AppInfoRepository {
     override suspend fun getAppInfo(): AppInfo = AppInfo(
         platformName = getPlatform().name,
-        apiBaseUrl = AppConfig.baseUrl,
+        apiBaseUrl = appConfig.baseUrl,
     )
 }

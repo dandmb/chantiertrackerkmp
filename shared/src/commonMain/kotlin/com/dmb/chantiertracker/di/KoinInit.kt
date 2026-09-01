@@ -1,9 +1,11 @@
 package com.dmb.chantiertracker.di
 
+import org.koin.core.KoinApplication
 import org.koin.core.context.startKoin
 
-fun initKoin() {
+fun initKoin(appDeclaration: KoinApplication.() -> Unit = {}) {
     startKoin {
+        appDeclaration()
         modules(appModules())
     }
 }

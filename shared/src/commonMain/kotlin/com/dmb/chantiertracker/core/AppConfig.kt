@@ -1,13 +1,20 @@
 package com.dmb.chantiertracker.core
 
-enum class ApiEnvironment(val baseUrl: String) {
-    Production("https://api.chantiertracker.com/api/v1"),
-    Development("http://localhost:8080/api/v1"),
-}
+enum class ApiEnvironment { Production, Development }
 
-object AppConfig {
-    // TODO(auth): piloter environment + enableNetworkLogging par le build type.
-    val environment: ApiEnvironment = ApiEnvironment.Production
-    val baseUrl: String get() = environment.baseUrl
-    val enableNetworkLogging: Boolean get() = environment != ApiEnvironment.Production
+expect val devApiBaseUrl: String
+
+private const val PROD_API_BASE_URL = "https://api.chantiertracker.com/api/v1"
+
+class AppConfig(buildInfo: BuildInfo) {
+
+    val environment: ApiEnvironment =
+        if (buildInfo.isDebug) ApiEnvironment.Development else ApiEnvironment.Production
+
+    val baseUrl: String = when (environment) {
+        ApiEnvironment.Production -> PROD_API_BASE_URL
+        ApiEnvironment.Development -> devApiBaseUrl
+    }
+
+    val enableNetworkLogging: Boolean = environment != ApiEnvironment.Production
 }

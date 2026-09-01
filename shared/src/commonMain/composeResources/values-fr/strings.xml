@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Français : sélectionné automatiquement quand la langue système est le français. -->
+<resources>
+    <string name="app_name">ChantierTracker</string>
+    <string name="splash_tagline">Ton chantier, sous contrôle, même à distance</string>
+
+    <string name="action_back">Retour</string>
+    <string name="field_email_label">Email</string>
+    <string name="field_name_label">Nom</string>
+    <string name="field_password_label">Mot de passe</string>
+    <string name="field_new_password_label">Nouveau mot de passe</string>
+    <string name="field_code_label">Code de vérification</string>
+    <string name="password_show">Afficher le mot de passe</string>
+    <string name="password_hide">Masquer le mot de passe</string>
+
+    <string name="welcome_title">Bon retour !</string>
+    <string name="welcome_create_account">Créer un compte</string>
+    <string name="welcome_sign_in">Se connecter</string>
+
+    <string name="onboarding_skip">Passer</string>
+    <string name="onboarding_next">Suivant</string>
+    <string name="onboarding_start">Commencer</string>
+    <string name="onboarding_go_to_page">Aller à la page %1$d</string>
+    <string name="onboarding_p1_title">Suis ton chantier à distance</string>
+    <string name="onboarding_p1_body">Vois l'avancement de tes chantiers en temps réel, où que tu sois.</string>
+    <string name="onboarding_p2_title">Documente chaque achat</string>
+    <string name="onboarding_p2_body">Prends en photo tes achats et tes travaux au fil de l'eau : chaque dépense garde sa preuve.</string>
+    <string name="onboarding_p3_title">Garde le contrôle du budget</string>
+    <string name="onboarding_p3_body">Suis les dépenses, le stock et tout l'historique de chaque chantier d'un coup d'œil.</string>
+
+    <string name="login_title">Connexion</string>
+    <string name="login_subtitle">Connectez-vous pour suivre vos chantiers.</string>
+    <string name="login_forgot_password">Mot de passe oublié ?</string>
+    <string name="login_resend_verification">Renvoyer le code de vérification</string>
+    <string name="login_submit">Se connecter</string>
+    <string name="login_no_account_prompt">Pas de compte ?</string>
+    <string name="login_no_account_action">Créer un compte</string>
+    <string name="login_notice_account_activated">Compte activé. Vous pouvez vous connecter.</string>
+    <string name="login_notice_password_reset">Mot de passe mis à jour. Vous pouvez vous connecter.</string>
+
+    <string name="register_title">Créer un compte</string>
+    <string name="register_subtitle">Quelques informations pour démarrer.</string>
+    <string name="register_submit">S'inscrire</string>
+    <string name="register_have_account_prompt">Déjà un compte ?</string>
+    <string name="register_have_account_action">Se connecter</string>
+
+    <string name="verify_title">Vérifiez votre email</string>
+    <string name="verify_subtitle">Saisissez le code à 6 chiffres envoyé à %1$s.</string>
+    <string name="verify_submit">Valider</string>
+    <string name="verify_resend">Renvoyer le code</string>
+    <string name="verify_resending">Envoi…</string>
+    <string name="verify_cancel">Annuler la vérification</string>
+    <string name="verify_code_resent">Un nouveau code est en route.</string>
+
+    <string name="forgot_title">Mot de passe oublié</string>
+    <string name="forgot_subtitle">Recevez un code de réinitialisation par email.</string>
+    <string name="forgot_submit">Envoyer le code</string>
+
+    <string name="reset_title">Nouveau mot de passe</string>
+    <string name="reset_subtitle">Code envoyé à %1$s.</string>
+    <string name="reset_submit">Réinitialiser</string>
+    <string name="reset_back_to_login">Retour à la connexion</string>
+
+    <string name="home_greeting">Bonjour, %1$s</string>
+    <string name="home_greeting_fallback">Bienvenue</string>
+    <string name="home_platform">Plateforme : %1$s</string>
+    <string name="home_api">API : %1$s</string>
+    <string name="home_logout">Déconnexion</string>
+
+    <string name="validation_email_required">L'email est obligatoire.</string>
+    <string name="validation_email_invalid">L'email doit être valide.</string>
+    <string name="validation_password_required">Le mot de passe est obligatoire.</string>
+    <string name="validation_password_too_short">12 caractères minimum.</string>
+    <string name="validation_password_uppercase">Au moins une majuscule.</string>
+    <string name="validation_password_lowercase">Au moins une minuscule.</string>
+    <string name="validation_password_digit">Au moins un chiffre.</string>
+    <string name="validation_password_special">Au moins un caractère spécial.</string>
+    <string name="validation_code_required">Le code est obligatoire.</string>
+    <string name="validation_code_format">Le code doit contenir 6 chiffres.</string>
+    <string name="validation_name_required">Le nom est obligatoire.</string>
+
+    <string name="error_invalid_credentials">Email ou mot de passe incorrect.</string>
+    <string name="error_email_already_used">Cette adresse email est déjà utilisée.</string>
+    <string name="error_account_not_verified">Votre compte n'est pas encore activé. Vérifiez votre email.</string>
+    <string name="error_account_locked">Compte bloqué après trop de tentatives. Réessayez plus tard.</string>
+    <string name="error_invalid_code">Ce code est invalide ou a expiré.</string>
+    <string name="error_validation">Vérifiez les informations saisies.</string>
+    <string name="error_rate_limited">Trop de tentatives. Réessayez dans quelques minutes.</string>
+    <string name="error_network">Connexion au serveur impossible. Vérifiez votre connexion.</string>
+    <string name="error_unexpected">Une erreur est survenue. Réessayez.</string>
+</resources>
