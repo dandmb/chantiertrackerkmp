@@ -70,9 +70,9 @@ class MainScreensSnapshotTest {
     private val outDir = File("build/auth-snapshots").apply { mkdirs() }
 
     private val sampleProjects = listOf(
-        Project(1, "Villa Vidal", null, "Nîmes", ProjectStatus.IN_PROGRESS),
-        Project(2, "Hangar logistique Est", null, "Béziers", ProjectStatus.SUSPENDED),
-        Project(3, "Réfection toiture Marchand", null, null, ProjectStatus.COMPLETED),
+        Project("1", "Villa Vidal", null, "Nîmes", ProjectStatus.IN_PROGRESS),
+        Project("2", "Hangar logistique Est", null, "Béziers", ProjectStatus.SUSPENDED),
+        Project("3", "Réfection toiture Marchand", null, null, ProjectStatus.COMPLETED),
     )
 
     @BeforeTest fun setUp() { installTestMainDispatcher() }
@@ -137,7 +137,7 @@ class MainScreensSnapshotTest {
             topBar = { DetailTopBar(title = title ?: fallbackTitle, onBack = {}) },
         ) { padding ->
             ProjectDetailScreen(
-                projectId = 1,
+                projectLocalId = "1",
                 modifier = Modifier.padding(padding),
                 onProjectNameResolved = { title = it },
                 viewModel = projectVm,
@@ -146,7 +146,7 @@ class MainScreensSnapshotTest {
     }
 
     private fun projectsVm(projects: List<Project>) =
-        ProjectsViewModel(FakeProjectRepository(projects = projects), ProjectSortHolder()).also { it.load() }
+        ProjectsViewModel(FakeProjectRepository(projects = projects), ProjectSortHolder())
 
     private fun settingsVm() = SettingsViewModel(AppConfig(FakeBuildInfo(isDebug = false, appVersion = "1.0")))
 
@@ -157,7 +157,7 @@ class MainScreensSnapshotTest {
         val auth = FakeAuthRepository().apply { emitState(AuthState.Authenticated(user)) }
         val repo = FakeProjectRepository(
             detail = ProjectDetail(
-                id = 1,
+                localId = "1",
                 name = "Villa Vidal",
                 description = "Construction d'une villa individuelle avec piscine et pool house.",
                 location = "Nîmes",
@@ -167,7 +167,7 @@ class MainScreensSnapshotTest {
                 ownerId = if (canEdit) 1L else 999L,
             ),
         )
-        return ProjectDetailViewModel(repo, auth).also { it.load(1) }
+        return ProjectDetailViewModel(repo, auth).also { it.load("1") }
     }
 
     @Test

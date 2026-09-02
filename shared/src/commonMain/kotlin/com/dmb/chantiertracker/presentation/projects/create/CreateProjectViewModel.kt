@@ -70,6 +70,7 @@ class CreateProjectViewModel(
         viewModelScope.launch {
             _state.update { it.copy(isSubmitting = true, formError = null) }
             try {
+                // Written to the local store and returned immediately; the server sync runs in the background.
                 projectRepository.createProject(
                     CreateProjectInput(
                         name = current.name.trim(),
@@ -82,6 +83,8 @@ class CreateProjectViewModel(
                 _state.update { it.copy(isSubmitting = false, created = true) }
             } catch (e: DomainException) {
                 _state.update { it.copy(isSubmitting = false, formError = e) }
+            } catch (e: Throwable) {
+                _state.update { it.copy(isSubmitting = false, formError = DomainException.Unexpected) }
             }
         }
     }

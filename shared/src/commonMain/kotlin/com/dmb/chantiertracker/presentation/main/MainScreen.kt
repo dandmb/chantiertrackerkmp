@@ -119,7 +119,7 @@ fun MainScreen(viewModel: MainViewModel = koinViewModel()) {
             modifier = Modifier.padding(padding),
         ) {
             composable<ProjectsRoute> {
-                ProjectsScreen(onProjectClick = { id -> navController.navigate(ProjectDetailRoute(id)) })
+                ProjectsScreen(onProjectClick = { localId -> navController.navigate(ProjectDetailRoute(localId)) })
             }
             composable<SettingsRoute> {
                 SettingsScreen()
@@ -133,7 +133,7 @@ fun MainScreen(viewModel: MainViewModel = koinViewModel()) {
             }
             composable<ProjectDetailRoute> { entry ->
                 ProjectDetailScreen(
-                    projectId = entry.toRoute<ProjectDetailRoute>().projectId,
+                    projectLocalId = entry.toRoute<ProjectDetailRoute>().projectLocalId,
                     onProjectNameResolved = { detailTitle = it },
                 )
             }

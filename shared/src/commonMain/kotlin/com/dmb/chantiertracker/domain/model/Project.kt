@@ -1,7 +1,7 @@
 package com.dmb.chantiertracker.domain.model
 
 data class Project(
-    val id: Long,
+    val localId: String,
     val name: String,
     val description: String?,
     val location: String?,
@@ -12,14 +12,14 @@ data class Project(
 enum class ProjectStatus { IN_PROGRESS, SUSPENDED, COMPLETED, UNKNOWN }
 
 data class ProjectDetail(
-    val id: Long,
+    val localId: String,
     val name: String,
     val description: String?,
     val location: String?,
     val currency: String,
     val timezone: String,
     val status: ProjectStatus,
-    val ownerId: Long,
+    val ownerId: Long?,
 )
 
 data class ProjectMember(

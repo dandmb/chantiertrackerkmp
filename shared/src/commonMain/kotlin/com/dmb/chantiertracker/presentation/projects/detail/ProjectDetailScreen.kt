@@ -27,7 +27,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dmb.chantiertracker.domain.model.ProjectDetail
-import com.dmb.chantiertracker.presentation.i18n.localizedText
 import com.dmb.chantiertracker.presentation.main.EditIcon
 import com.dmb.chantiertracker.presentation.projects.ProjectLocation
 import com.dmb.chantiertracker.presentation.projects.ProjectStatusBadge
@@ -39,20 +38,21 @@ import com.dmb.chantiertracker.resources.detail_section_members
 import com.dmb.chantiertracker.resources.detail_section_stages
 import com.dmb.chantiertracker.resources.detail_stages_empty
 import com.dmb.chantiertracker.resources.detail_timezone
+import com.dmb.chantiertracker.resources.error_not_found
 import com.dmb.chantiertracker.resources.projects_retry
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
 fun ProjectDetailScreen(
-    projectId: Long,
+    projectLocalId: String,
     modifier: Modifier = Modifier,
     onProjectNameResolved: (String) -> Unit = {},
     viewModel: ProjectDetailViewModel = koinViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
 
-    LaunchedEffect(projectId) { viewModel.load(projectId) }
+    LaunchedEffect(projectLocalId) { viewModel.load(projectLocalId) }
     LaunchedEffect(state.detail?.name) {
         state.detail?.name?.let(onProjectNameResolved)
     }
@@ -60,13 +60,13 @@ fun ProjectDetailScreen(
     Box(modifier.fillMaxSize()) {
         when {
             state.isLoading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
-            state.error != null -> Column(
+            state.isMissing -> Column(
                 modifier = Modifier.align(Alignment.Center).fillMaxWidth().padding(horizontal = 32.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 Text(
-                    text = state.error!!.localizedText(),
+                    text = stringResource(Res.string.error_not_found),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,

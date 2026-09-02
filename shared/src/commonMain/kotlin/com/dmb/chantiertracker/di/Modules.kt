@@ -14,6 +14,7 @@ import com.dmb.chantiertracker.data.remote.createHttpClient
 import com.dmb.chantiertracker.data.remote.httpClientEngine
 import com.dmb.chantiertracker.data.sync.AppCoroutineScope
 import com.dmb.chantiertracker.data.sync.SyncEngine
+import com.dmb.chantiertracker.data.sync.Syncer
 import com.dmb.chantiertracker.presentation.sync.SyncStateHolder
 import com.dmb.chantiertracker.data.repository.AccountRepositoryImpl
 import com.dmb.chantiertracker.data.repository.AuthRepositoryImpl
@@ -73,11 +74,12 @@ val syncModule: Module = module {
             scope = get<AppCoroutineScope>(),
         )
     }
+    single<Syncer> { get<SyncEngine>() }
 }
 
 val dataModule: Module = module {
     single<AuthRepository> { AuthRepositoryImpl(get(), get<TokenStorage>(), get(), get()) }
-    single<ProjectRepository> { ProjectRepositoryImpl(get()) }
+    single<ProjectRepository> { ProjectRepositoryImpl(get(), get(), get<AppCoroutineScope>()) }
     single<AccountRepository> { AccountRepositoryImpl(get()) }
 }
 

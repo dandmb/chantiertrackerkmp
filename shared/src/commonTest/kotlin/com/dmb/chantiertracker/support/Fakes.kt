@@ -75,41 +75,65 @@ class FakeAuthRepository : AuthRepository {
         record("resetPassword:$email:$code:$newPassword")
 }
 
-class FakeProjectRepository(
-    var projects: List<Project> = emptyList(),
-    var error: Throwable? = null,
-    var detail: ProjectDetail? = null,
-    var members: List<ProjectMember> = emptyList(),
-    var createdId: Long = 42L,
-) : ProjectRepository {
-    var calls = 0
+class FakeSyncer : com.dmb.chantiertracker.data.sync.Syncer {
+    var requestCount = 0
         private set
+    var syncCount = 0
+        private set
+    var outcome: com.dmb.chantiertracker.data.sync.SyncOutcome =
+        com.dmb.chantiertracker.data.sync.SyncOutcome.Synced
+    var onSync: (suspend () -> Unit)? = null
+
+    override fun requestSync() { requestCount++ }
+
+    override suspend fun syncNow(): com.dmb.chantiertracker.data.sync.SyncOutcome {
+        syncCount++
+        onSync?.invoke()
+        return outcome
+    }
+}
+
+class FakeProjectRepository(
+    projects: List<Project> = emptyList(),
+    detail: ProjectDetail? = null,
+    members: List<ProjectMember> = emptyList(),
+) : ProjectRepository {
+
+    val projectsFlow = MutableStateFlow(projects)
+    val detailFlow = MutableStateFlow(detail)
+    val membersFlow = MutableStateFlow(members)
+
     val log = mutableListOf<String>()
     var lastCreateInput: CreateProjectInput? = null
+    var refreshCount = 0
+        private set
+    var createError: Throwable? = null
+    var newLocalId = "local-new"
 
-    override suspend fun getProjects(): List<Project> {
-        calls++
-        log += "getProjects"
-        error?.let { throw it }
-        return projects
-    }
+    override fun observeProjects() = projectsFlow
 
-    override suspend fun getProject(id: Long): ProjectDetail {
-        log += "getProject:$id"
-        error?.let { throw it }
-        return detail ?: error("no detail configured on FakeProjectRepository")
-    }
+    override fun observeProject(localId: String) = detailFlow
 
-    override suspend fun getMembers(id: Long): List<ProjectMember> {
-        log += "getMembers:$id"
-        return members
-    }
+    override fun observeMembers(localId: String) = membersFlow
 
-    override suspend fun createProject(input: CreateProjectInput): Long {
+    override suspend fun createProject(input: CreateProjectInput): String {
         log += "createProject:${input.name}"
         lastCreateInput = input
-        error?.let { throw it }
-        return createdId
+        createError?.let { throw it }
+        projectsFlow.value = projectsFlow.value + com.dmb.chantiertracker.domain.model.Project(
+            localId = newLocalId,
+            name = input.name,
+            description = input.description,
+            location = input.location,
+            status = com.dmb.chantiertracker.domain.model.ProjectStatus.IN_PROGRESS,
+            createdAt = null,
+        )
+        return newLocalId
+    }
+
+    override suspend fun refresh() {
+        refreshCount++
+        log += "refresh"
     }
 }
 

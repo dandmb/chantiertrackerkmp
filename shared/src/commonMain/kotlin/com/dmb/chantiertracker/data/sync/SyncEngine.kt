@@ -25,6 +25,12 @@ sealed interface SyncOutcome {
     data class Failed(val cause: DomainException) : SyncOutcome
 }
 
+/** What repositories need from the sync layer: nudge it after a local write, or await a full pass. */
+interface Syncer {
+    fun requestSync()
+    suspend fun syncNow(): SyncOutcome
+}
+
 /**
  * The single place that talks to [ProjectApi]. Repositories read and write
  * Room only; this drains locally-pending rows to the server (push) then
@@ -43,7 +49,7 @@ class SyncEngine(
     private val scope: CoroutineScope,
     private val clock: Clock = SystemClock,
     private val newLocalId: () -> String = { Uuid.random().toString() },
-) {
+) : Syncer {
 
     private val mutex = Mutex()
     private var started = false
@@ -58,11 +64,11 @@ class SyncEngine(
         }
     }
 
-    fun requestSync() {
+    override fun requestSync() {
         scope.launch { syncNow() }
     }
 
-    suspend fun syncNow(): SyncOutcome = mutex.withLock { runSync() }
+    override suspend fun syncNow(): SyncOutcome = mutex.withLock { runSync() }
 
     private suspend fun runSync(): SyncOutcome {
         if (!connectivity.isOnline()) {

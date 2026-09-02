@@ -7,12 +7,17 @@ import com.dmb.chantiertracker.data.local.OnboardingStore
 import com.dmb.chantiertracker.data.local.TokenStorage
 import com.dmb.chantiertracker.data.remote.AccountApi
 import com.dmb.chantiertracker.data.remote.AuthApi
+import com.dmb.chantiertracker.data.local.db.ProjectDao
 import com.dmb.chantiertracker.data.remote.ProjectApi
+import com.dmb.chantiertracker.data.sync.AppCoroutineScope
+import com.dmb.chantiertracker.data.sync.Syncer
 import com.dmb.chantiertracker.domain.repository.AccountRepository
 import com.dmb.chantiertracker.domain.repository.AuthRepository
 import com.dmb.chantiertracker.domain.repository.ProjectRepository
 import com.dmb.chantiertracker.support.FakeBuildInfo
 import com.dmb.chantiertracker.support.FakeOnboardingStore
+import com.dmb.chantiertracker.support.FakeProjectDao
+import com.dmb.chantiertracker.support.FakeSyncer
 import com.dmb.chantiertracker.support.FakeTokenStorage
 import io.ktor.client.HttpClient
 import org.koin.dsl.koinApplication
@@ -29,10 +34,17 @@ class KoinModulesTest {
         single<OnboardingStore> { FakeOnboardingStore() }
     }
 
+    // Stands in for syncModule without a real Room DB (unavailable on the Android host test JVM).
+    private val fakeSyncModule = module {
+        single { AppCoroutineScope() }
+        single<ProjectDao> { FakeProjectDao() }
+        single<Syncer> { FakeSyncer() }
+    }
+
     @Test
     fun graph_resolves_all_shared_dependencies() {
         val koin = koinApplication {
-            modules(fakePlatformModule, networkModule, dataModule, presentationModule)
+            modules(fakePlatformModule, fakeSyncModule, networkModule, dataModule, presentationModule)
         }.koin
 
         assertNotNull(koin.get<AppConfig>())

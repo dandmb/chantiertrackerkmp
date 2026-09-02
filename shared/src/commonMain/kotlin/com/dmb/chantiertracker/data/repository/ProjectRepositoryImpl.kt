@@ -1,11 +1,16 @@
+@file:OptIn(ExperimentalUuidApi::class)
+
 package com.dmb.chantiertracker.data.repository
 
-import com.dmb.chantiertracker.data.remote.ProjectApi
-import com.dmb.chantiertracker.data.remote.apiCall
-import com.dmb.chantiertracker.data.remote.dto.CreateProjectRequestDto
-import com.dmb.chantiertracker.data.remote.dto.MemberDto
-import com.dmb.chantiertracker.data.remote.dto.ProjectDetailDto
-import com.dmb.chantiertracker.data.remote.dto.ProjectDto
+import com.dmb.chantiertracker.data.local.db.PendingOp
+import com.dmb.chantiertracker.data.local.db.ProjectDao
+import com.dmb.chantiertracker.data.local.db.ProjectEntity
+import com.dmb.chantiertracker.data.local.db.ProjectMemberEntity
+import com.dmb.chantiertracker.data.local.db.SyncStatus
+import com.dmb.chantiertracker.data.sync.AppCoroutineScope
+import com.dmb.chantiertracker.data.sync.Clock
+import com.dmb.chantiertracker.data.sync.SystemClock
+import com.dmb.chantiertracker.data.sync.Syncer
 import com.dmb.chantiertracker.domain.model.CreateProjectInput
 import com.dmb.chantiertracker.domain.model.Project
 import com.dmb.chantiertracker.domain.model.ProjectDetail
@@ -13,43 +18,71 @@ import com.dmb.chantiertracker.domain.model.ProjectMember
 import com.dmb.chantiertracker.domain.model.ProjectRole
 import com.dmb.chantiertracker.domain.model.ProjectStatus
 import com.dmb.chantiertracker.domain.repository.ProjectRepository
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
+import kotlin.uuid.ExperimentalUuidApi
+import kotlin.uuid.Uuid
+
+private const val DEFAULT_CURRENCY = "USD"
 
 class ProjectRepositoryImpl(
-    private val api: ProjectApi,
+    private val dao: ProjectDao,
+    private val syncer: Syncer,
+    private val scope: AppCoroutineScope,
+    private val clock: Clock = SystemClock,
+    private val newLocalId: () -> String = { Uuid.random().toString() },
 ) : ProjectRepository {
 
-    override suspend fun getProjects(): List<Project> =
-        apiCall { api.list() }.content.map(ProjectDto::toProject)
+    override fun observeProjects(): Flow<List<Project>> =
+        dao.observeProjects().map { rows -> rows.map(ProjectEntity::toProject) }
 
-    override suspend fun getProject(id: Long): ProjectDetail =
-        apiCall { api.get(id) }.toDetail()
+    override fun observeProject(localId: String): Flow<ProjectDetail?> =
+        dao.observeProject(localId).map { it?.toProjectDetail() }
 
-    override suspend fun getMembers(id: Long): List<ProjectMember> =
-        apiCall { api.members(id) }.content.map(MemberDto::toMember)
+    override fun observeMembers(localId: String): Flow<List<ProjectMember>> =
+        dao.observeMembers(localId).map { rows -> rows.map(ProjectMemberEntity::toMember) }
 
-    override suspend fun createProject(input: CreateProjectInput): Long =
-        apiCall {
-            api.create(
-                CreateProjectRequestDto(
-                    name = input.name,
-                    description = input.description?.ifBlank { null },
-                    location = input.location?.ifBlank { null },
-                    currency = input.currency?.ifBlank { null },
-                    timezone = input.timezone,
-                ),
-            )
-        }.id
+    override suspend fun createProject(input: CreateProjectInput): String {
+        val localId = newLocalId()
+        val now = clock.nowEpochMillis()
+        dao.upsert(
+            ProjectEntity(
+                localId = localId,
+                serverId = null,
+                name = input.name,
+                description = input.description?.ifBlank { null },
+                location = input.location?.ifBlank { null },
+                currency = input.currency?.ifBlank { null } ?: DEFAULT_CURRENCY,
+                timezone = input.timezone,
+                status = ProjectStatus.IN_PROGRESS.name,
+                ownerId = null,
+                createdAt = null,
+                syncStatus = SyncStatus.PENDING,
+                pendingOp = PendingOp.CREATE,
+                locallyModifiedAt = now,
+                lastSyncedAt = null,
+                remoteUpdatedAt = null,
+                lastSyncError = null,
+            ),
+        )
+        syncer.requestSync()
+        return localId
+    }
+
+    override suspend fun refresh() {
+        syncer.syncNow()
+    }
 }
 
-private fun String.toProjectStatus(): ProjectStatus = when (uppercase()) {
+internal fun String.toProjectStatus(): ProjectStatus = when (uppercase()) {
     "IN_PROGRESS" -> ProjectStatus.IN_PROGRESS
     "SUSPENDED" -> ProjectStatus.SUSPENDED
     "COMPLETED" -> ProjectStatus.COMPLETED
     else -> ProjectStatus.UNKNOWN
 }
 
-private fun ProjectDto.toProject(): Project = Project(
-    id = id,
+internal fun ProjectEntity.toProject(): Project = Project(
+    localId = localId,
     name = name,
     description = description,
     location = location,
@@ -57,8 +90,8 @@ private fun ProjectDto.toProject(): Project = Project(
     createdAt = createdAt,
 )
 
-private fun ProjectDetailDto.toDetail(): ProjectDetail = ProjectDetail(
-    id = id,
+internal fun ProjectEntity.toProjectDetail(): ProjectDetail = ProjectDetail(
+    localId = localId,
     name = name,
     description = description,
     location = location,
@@ -68,7 +101,7 @@ private fun ProjectDetailDto.toDetail(): ProjectDetail = ProjectDetail(
     ownerId = ownerId,
 )
 
-private fun MemberDto.toMember(): ProjectMember = ProjectMember(
+internal fun ProjectMemberEntity.toMember(): ProjectMember = ProjectMember(
     userId = userId,
     name = name,
     email = email,

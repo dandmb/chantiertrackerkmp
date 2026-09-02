@@ -46,7 +46,7 @@ class CreateProjectViewModelTest {
 
     @Test
     fun successful_creation_flags_created_and_trims_optional_blanks() = runTest {
-        val repo = FakeProjectRepository(createdId = 91L)
+        val repo = FakeProjectRepository()
         val vm = CreateProjectViewModel(repo)
         vm.onNameChange("  Villa Vidal  ")
         vm.onDescriptionChange("   ")
@@ -66,15 +66,30 @@ class CreateProjectViewModelTest {
     }
 
     @Test
-    fun backend_error_is_surfaced_and_does_not_flag_created() = runTest {
-        val repo = FakeProjectRepository(error = DomainException.PlanLimitReached)
+    fun creation_succeeds_locally_even_with_no_connectivity() = runTest {
+        // Offline-first: the write goes to the local store and the screen advances
+        // immediately; the plan-limit verdict, if any, surfaces later via sync state.
+        val repo = FakeProjectRepository()
         val vm = CreateProjectViewModel(repo)
         vm.onNameChange("Villa")
         vm.submit()
         advanceUntilIdle()
 
-        assertIs<DomainException.PlanLimitReached>(vm.state.value.formError)
-        assertFalse(vm.state.value.created)
+        assertTrue(vm.state.value.created)
+        assertNull(vm.state.value.formError)
         assertEquals(false, vm.state.value.isSubmitting)
+        assertEquals("Villa", repo.lastCreateInput?.name)
+    }
+
+    @Test
+    fun an_unexpected_local_write_failure_is_surfaced() = runTest {
+        val repo = FakeProjectRepository().apply { createError = IllegalStateException("disk full") }
+        val vm = CreateProjectViewModel(repo)
+        vm.onNameChange("Villa")
+        vm.submit()
+        advanceUntilIdle()
+
+        assertIs<DomainException.Unexpected>(vm.state.value.formError)
+        assertFalse(vm.state.value.created)
     }
 }

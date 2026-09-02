@@ -8,12 +8,20 @@ import com.dmb.chantiertracker.data.remote.AuthApi
 import com.dmb.chantiertracker.data.remote.ProjectApi
 import com.dmb.chantiertracker.data.remote.createHttpClient
 import com.dmb.chantiertracker.data.remote.httpClientEngine
+import androidx.room.Room
+import com.dmb.chantiertracker.data.local.db.AppDatabase
+import com.dmb.chantiertracker.data.local.db.buildChantierDatabase
 import com.dmb.chantiertracker.data.repository.AccountRepositoryImpl
 import com.dmb.chantiertracker.data.repository.AuthRepositoryImpl
 import com.dmb.chantiertracker.data.repository.ProjectRepositoryImpl
+import com.dmb.chantiertracker.data.sync.AppCoroutineScope
+import com.dmb.chantiertracker.data.sync.SyncEngine
+import com.dmb.chantiertracker.presentation.sync.SyncStateHolder
 import com.dmb.chantiertracker.domain.model.AuthState
 import com.dmb.chantiertracker.domain.model.CreateProjectInput
 import com.dmb.chantiertracker.domain.model.Plan
+import com.dmb.chantiertracker.support.FakeConnectivityObserver
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import java.net.HttpURLConnection
 import java.net.URI
@@ -44,12 +52,18 @@ class DesktopAuthIntegrationTest {
         onSessionExpired = { holder.update(AuthState.Unauthenticated) },
     )
     private val repo = AuthRepositoryImpl(AuthApi(client), storage, holder, onboarding)
-    private val projectRepo = ProjectRepositoryImpl(ProjectApi(client))
     private val accountRepo = AccountRepositoryImpl(AccountApi(client))
+
+    private val db: AppDatabase = Room.inMemoryDatabaseBuilder<AppDatabase>().buildChantierDatabase()
+    private val appScope = AppCoroutineScope()
+    private val connectivity = FakeConnectivityObserver(initiallyOnline = true)
+    private val syncEngine = SyncEngine(db.projectDao(), ProjectApi(client), connectivity, SyncStateHolder(), appScope)
+    private val projectRepo = ProjectRepositoryImpl(db.projectDao(), syncEngine, appScope)
 
     @AfterTest
     fun cleanUp() {
         client.close()
+        db.close()
         dir.toFile().deleteRecursively()
     }
 
@@ -140,8 +154,9 @@ class DesktopAuthIntegrationTest {
         repo.login("mobile-test@local.dev", "ChantierTest1234!")
         assertIs<AuthState.Authenticated>(holder.state.value)
 
-        // Réponse réelle = Page Spring (`{content:[...], ...}`) — on ne lit que `content`.
-        val projects = projectRepo.getProjects()
+        // Room est la source de vérité : on pull d'abord, puis on lit le store local.
+        projectRepo.refresh()
+        val projects = projectRepo.observeProjects().first()
         assertTrue(projects.all { it.name.isNotBlank() }, "chaque projet a un nom")
 
         // `GET /users/me/plan-usage` → Plan connu (compte de test = FREE par défaut).
@@ -166,7 +181,8 @@ class DesktopAuthIntegrationTest {
         repo.login(email, "ProjectPass1234!")
         assertIs<AuthState.Authenticated>(holder.state.value)
 
-        val newId = projectRepo.createProject(
+        // Écriture locale immédiate…
+        val localId = projectRepo.createProject(
             CreateProjectInput(
                 name = "Villa d'intégration",
                 description = "Créée par le test E2E",
@@ -175,18 +191,19 @@ class DesktopAuthIntegrationTest {
                 timezone = "Europe/Paris",
             ),
         )
+        assertEquals("Villa d'intégration", projectRepo.observeProject(localId).first()?.name)
 
-        val detail = projectRepo.getProject(newId)
+        // …puis synchronisation vers le serveur réel (push du CREATE + pull).
+        syncEngine.syncNow()
+
+        val detail = projectRepo.observeProject(localId).first()!!
         assertEquals("Villa d'intégration", detail.name)
         assertEquals("USD", detail.currency, "devise absente → USD par défaut côté backend")
         assertEquals("Europe/Paris", detail.timezone)
+        assertTrue(db.projectDao().findByLocalId(localId)?.serverId != null, "un id serveur a été attribué au sync")
 
-        // Le créateur est ADMIN sur son projet.
-        val members = projectRepo.getMembers(newId)
-        assertTrue(members.any { it.userId == (holder.state.value as AuthState.Authenticated).user.id })
-
-        // Le projet apparaît maintenant dans la liste.
-        assertTrue(projectRepo.getProjects().any { it.id == newId })
+        // Le projet apparaît dans la liste locale, réconciliée avec le serveur.
+        assertTrue(projectRepo.observeProjects().first().any { it.localId == localId })
     }
 
     private fun backendUp(): Boolean = runCatching {
