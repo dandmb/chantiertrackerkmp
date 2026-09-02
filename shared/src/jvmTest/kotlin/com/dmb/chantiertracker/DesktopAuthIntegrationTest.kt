@@ -12,6 +12,7 @@ import com.dmb.chantiertracker.data.repository.AccountRepositoryImpl
 import com.dmb.chantiertracker.data.repository.AuthRepositoryImpl
 import com.dmb.chantiertracker.data.repository.ProjectRepositoryImpl
 import com.dmb.chantiertracker.domain.model.AuthState
+import com.dmb.chantiertracker.domain.model.CreateProjectInput
 import com.dmb.chantiertracker.domain.model.Plan
 import kotlinx.coroutines.runBlocking
 import java.net.HttpURLConnection
@@ -145,6 +146,47 @@ class DesktopAuthIntegrationTest {
 
         // `GET /users/me/plan-usage` → Plan connu (compte de test = FREE par défaut).
         assertTrue(accountRepo.getCurrentPlan() != Plan.UNKNOWN, "le plan du compte de test doit être reconnu")
+    }
+
+    @Test
+    fun register_create_project_then_open_its_detail() = runBlocking {
+        if (System.getProperty("chantiertracker.integrationTests") != "true") {
+            println("Test d'intégration désactivé (passer -Dchantiertracker.integrationTests=true).")
+            return@runBlocking
+        }
+        if (!backendUp()) {
+            println("Backend localhost:8080 indisponible — test ignoré.")
+            return@runBlocking
+        }
+
+        // Compte neuf : le compte de test est FREE (1 projet max) et en a déjà un.
+        val email = "project-flow-${System.currentTimeMillis()}@local.dev"
+        repo.register(email, "ProjectPass1234!", "Project Flow")
+        repo.verifyEmail(email, latestCodeFor(email))
+        repo.login(email, "ProjectPass1234!")
+        assertIs<AuthState.Authenticated>(holder.state.value)
+
+        val newId = projectRepo.createProject(
+            CreateProjectInput(
+                name = "Villa d'intégration",
+                description = "Créée par le test E2E",
+                location = "Nîmes",
+                currency = null,
+                timezone = "Europe/Paris",
+            ),
+        )
+
+        val detail = projectRepo.getProject(newId)
+        assertEquals("Villa d'intégration", detail.name)
+        assertEquals("USD", detail.currency, "devise absente → USD par défaut côté backend")
+        assertEquals("Europe/Paris", detail.timezone)
+
+        // Le créateur est ADMIN sur son projet.
+        val members = projectRepo.getMembers(newId)
+        assertTrue(members.any { it.userId == (holder.state.value as AuthState.Authenticated).user.id })
+
+        // Le projet apparaît maintenant dans la liste.
+        assertTrue(projectRepo.getProjects().any { it.id == newId })
     }
 
     private fun backendUp(): Boolean = runCatching {

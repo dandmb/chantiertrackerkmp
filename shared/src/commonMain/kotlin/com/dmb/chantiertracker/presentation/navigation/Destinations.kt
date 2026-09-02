@@ -51,3 +51,6 @@ data object SettingsRoute
 
 @Serializable
 data object CreateProjectRoute
+
+@Serializable
+data class ProjectDetailRoute(val projectId: Long)

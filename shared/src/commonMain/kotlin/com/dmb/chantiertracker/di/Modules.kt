@@ -22,7 +22,10 @@ import com.dmb.chantiertracker.presentation.auth.reset.ResetPasswordViewModel
 import com.dmb.chantiertracker.presentation.auth.verify.VerifyEmailViewModel
 import com.dmb.chantiertracker.presentation.main.MainViewModel
 import com.dmb.chantiertracker.presentation.navigation.RootViewModel
+import com.dmb.chantiertracker.presentation.projects.ProjectSortHolder
 import com.dmb.chantiertracker.presentation.projects.ProjectsViewModel
+import com.dmb.chantiertracker.presentation.projects.create.CreateProjectViewModel
+import com.dmb.chantiertracker.presentation.projects.detail.ProjectDetailViewModel
 import com.dmb.chantiertracker.presentation.settings.SettingsViewModel
 import io.ktor.client.HttpClient
 import org.koin.core.module.Module
@@ -56,6 +59,7 @@ val dataModule: Module = module {
 }
 
 val presentationModule: Module = module {
+    single { ProjectSortHolder() }
     viewModelOf(::RootViewModel)
     viewModelOf(::LoginViewModel)
     viewModelOf(::RegisterViewModel)
@@ -64,6 +68,8 @@ val presentationModule: Module = module {
     viewModelOf(::ResetPasswordViewModel)
     viewModelOf(::MainViewModel)
     viewModelOf(::ProjectsViewModel)
+    viewModelOf(::CreateProjectViewModel)
+    viewModelOf(::ProjectDetailViewModel)
     viewModelOf(::SettingsViewModel)
 }
 

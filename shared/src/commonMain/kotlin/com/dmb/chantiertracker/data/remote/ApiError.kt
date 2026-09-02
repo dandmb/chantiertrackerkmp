@@ -28,15 +28,19 @@ private suspend fun ResponseException.toDomainException(): DomainException {
     return when (response.status) {
         HttpStatusCode.Unauthorized -> DomainException.InvalidCredentials
         HttpStatusCode.Conflict -> DomainException.EmailAlreadyUsed
-        HttpStatusCode.Forbidden ->
-            if (detail.contains("verrouillé", ignoreCase = true) || detail.contains("locked", ignoreCase = true)) {
-                DomainException.AccountLocked
-            } else {
-                DomainException.AccountNotVerified
-            }
+        HttpStatusCode.NotFound -> DomainException.NotFound
+        HttpStatusCode.Forbidden -> when {
+            detail.containsAny("verrouillé", "locked") -> DomainException.AccountLocked
+            detail.containsAny("activé", "vérifi", "verif", "activate") -> DomainException.AccountNotVerified
+            detail.containsAny("limite", "plan", "palier", "formule", "limit") -> DomainException.PlanLimitReached
+            else -> DomainException.Forbidden
+        }
         HttpStatusCode.TooManyRequests -> DomainException.RateLimited
         HttpStatusCode.BadRequest ->
             if (hasFieldErrors) DomainException.Validation else DomainException.InvalidCode
         else -> DomainException.Unexpected
     }
 }
+
+private fun String.containsAny(vararg needles: String): Boolean =
+    needles.any { contains(it, ignoreCase = true) }

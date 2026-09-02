@@ -79,13 +79,32 @@
     <string name="projects_retry">Try again</string>
     <string name="projects_new">New project</string>
     <string name="project_open">Open project</string>
+    <string name="sort_button">Sort</string>
+    <string name="sort_newest_first">Newest first</string>
+    <string name="sort_oldest_first">Oldest first</string>
 
     <string name="project_status_in_progress">In progress</string>
     <string name="project_status_suspended">Suspended</string>
     <string name="project_status_completed">Completed</string>
 
     <string name="create_project_title">New project</string>
-    <string name="create_project_placeholder">The project creation form is coming in a later update.</string>
+    <string name="create_name_label">Project name</string>
+    <string name="create_description_label">Description</string>
+    <string name="create_location_label">Location</string>
+    <string name="create_currency_label">Currency</string>
+    <string name="create_currency_hint">EUR, USD, XAF…</string>
+    <string name="create_timezone_label">Time zone</string>
+    <string name="create_timezone_help">Time zone of the site. It sets how days are counted for the person on site.</string>
+    <string name="create_submit">Create project</string>
+
+    <string name="detail_title">Project</string>
+    <string name="detail_edit">Edit</string>
+    <string name="detail_currency">Currency</string>
+    <string name="detail_timezone">Time zone</string>
+    <string name="detail_section_stages">Stages</string>
+    <string name="detail_stages_empty">No stages yet. You'll add them here to break the work down and track its budget.</string>
+    <string name="detail_section_members">Members</string>
+    <string name="detail_members_empty">No members yet. Invite the people who follow this site from here.</string>
 
     <string name="settings_language">Language</string>
     <string name="settings_theme">Theme</string>
@@ -113,6 +132,9 @@
     <string name="error_invalid_code">That code is invalid or has expired.</string>
     <string name="error_validation">Please check the information you entered.</string>
     <string name="error_rate_limited">Too many attempts. Try again in a few minutes.</string>
+    <string name="error_plan_limit">You've reached your plan's project limit.</string>
+    <string name="error_forbidden">You're not allowed to do that.</string>
+    <string name="error_not_found">This project no longer exists, or you don't have access to it.</string>
     <string name="error_network">Can't reach the server. Check your connection.</string>
     <string name="error_unexpected">Something went wrong. Please try again.</string>
 </resources>

@@ -1,6 +1,7 @@
 package com.dmb.chantiertracker.presentation.main
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.DropdownMenu
@@ -41,6 +42,7 @@ fun AppTopBar(
     plan: Plan?,
     onSubscription: () -> Unit,
     onLogout: () -> Unit,
+    leadingActions: @Composable RowScope.() -> Unit = {},
 ) {
     var menuOpen by remember { mutableStateOf(false) }
 
@@ -49,6 +51,7 @@ fun AppTopBar(
             Text(text = stringResource(Res.string.app_name), fontWeight = FontWeight.SemiBold)
         },
         actions = {
+            leadingActions()
             IconButton(onClick = { menuOpen = true }) {
                 Icon(AccountIcon, contentDescription = stringResource(Res.string.menu_open))
             }

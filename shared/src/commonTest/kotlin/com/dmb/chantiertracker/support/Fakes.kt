@@ -5,8 +5,11 @@ import com.dmb.chantiertracker.data.local.AuthTokens
 import com.dmb.chantiertracker.data.local.OnboardingStore
 import com.dmb.chantiertracker.data.local.TokenStorage
 import com.dmb.chantiertracker.domain.model.AuthState
+import com.dmb.chantiertracker.domain.model.CreateProjectInput
 import com.dmb.chantiertracker.domain.model.Plan
 import com.dmb.chantiertracker.domain.model.Project
+import com.dmb.chantiertracker.domain.model.ProjectDetail
+import com.dmb.chantiertracker.domain.model.ProjectMember
 import com.dmb.chantiertracker.domain.repository.AccountRepository
 import com.dmb.chantiertracker.domain.repository.AuthRepository
 import com.dmb.chantiertracker.domain.repository.ProjectRepository
@@ -75,14 +78,38 @@ class FakeAuthRepository : AuthRepository {
 class FakeProjectRepository(
     var projects: List<Project> = emptyList(),
     var error: Throwable? = null,
+    var detail: ProjectDetail? = null,
+    var members: List<ProjectMember> = emptyList(),
+    var createdId: Long = 42L,
 ) : ProjectRepository {
     var calls = 0
         private set
+    val log = mutableListOf<String>()
+    var lastCreateInput: CreateProjectInput? = null
 
     override suspend fun getProjects(): List<Project> {
         calls++
+        log += "getProjects"
         error?.let { throw it }
         return projects
+    }
+
+    override suspend fun getProject(id: Long): ProjectDetail {
+        log += "getProject:$id"
+        error?.let { throw it }
+        return detail ?: error("no detail configured on FakeProjectRepository")
+    }
+
+    override suspend fun getMembers(id: Long): List<ProjectMember> {
+        log += "getMembers:$id"
+        return members
+    }
+
+    override suspend fun createProject(input: CreateProjectInput): Long {
+        log += "createProject:${input.name}"
+        lastCreateInput = input
+        error?.let { throw it }
+        return createdId
     }
 }
 
