@@ -2,8 +2,10 @@ package com.dmb.chantiertracker.data.sync
 
 import com.dmb.chantiertracker.data.local.db.PendingOp
 import com.dmb.chantiertracker.data.local.db.ProjectEntity
+import com.dmb.chantiertracker.data.local.db.ProjectMemberEntity
 import com.dmb.chantiertracker.data.local.db.SyncStatus
 import com.dmb.chantiertracker.data.remote.dto.CreateProjectRequestDto
+import com.dmb.chantiertracker.data.remote.dto.MemberDto
 import com.dmb.chantiertracker.data.remote.dto.ProjectDetailDto
 import com.dmb.chantiertracker.data.remote.dto.ProjectDto
 import com.dmb.chantiertracker.data.remote.dto.UpdateProjectRequestDto
@@ -75,4 +77,12 @@ fun ProjectEntity.toUpdateRequest() = UpdateProjectRequestDto(
     currency = currency,
     timezone = timezone,
     status = status,
+)
+
+fun MemberDto.toEntity(projectLocalId: String) = ProjectMemberEntity(
+    projectLocalId = projectLocalId,
+    userId = userId,
+    name = name,
+    email = email,
+    role = role,
 )

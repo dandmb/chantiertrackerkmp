@@ -25,10 +25,11 @@ sealed interface SyncOutcome {
     data class Failed(val cause: DomainException) : SyncOutcome
 }
 
-/** What repositories need from the sync layer: nudge it after a local write, or await a full pass. */
+/** What repositories need from the sync layer: nudge it after a local write, or await a pass. */
 interface Syncer {
     fun requestSync()
     suspend fun syncNow(): SyncOutcome
+    suspend fun syncProject(localId: String): SyncOutcome
 }
 
 /**
@@ -37,9 +38,11 @@ interface Syncer {
  * reconciles Room with the server's state (pull). Runs on an
  * application-lifetime scope, never a screen's.
  *
- * Conflict resolution is last-write-wins by timestamp: whichever of the local
- * last-edit time and the server `updatedAt` is more recent wins, with no user
- * prompt (ADR-20).
+ * Conflict resolution is optimistic-concurrency, no user prompt (ADR-21): a
+ * pending local edit is pushed as-is unless the server's `updatedAt` has moved
+ * since our last sync of that row, in which case the server version wins and the
+ * local edit is dropped. Comparing the server's own timestamps (not the device
+ * clock) keeps this correct regardless of server/device clock agreement.
  */
 class SyncEngine(
     private val dao: ProjectDao,
@@ -70,6 +73,8 @@ class SyncEngine(
 
     override suspend fun syncNow(): SyncOutcome = mutex.withLock { runSync() }
 
+    override suspend fun syncProject(localId: String): SyncOutcome = mutex.withLock { runProjectSync(localId) }
+
     private suspend fun runSync(): SyncOutcome {
         if (!connectivity.isOnline()) {
             syncState.update(SyncState.Offline)
@@ -89,6 +94,47 @@ class SyncEngine(
         } catch (e: Throwable) {
             syncState.update(SyncState.Error(DomainException.Unexpected))
             SyncOutcome.Failed(DomainException.Unexpected)
+        }
+    }
+
+    private suspend fun runProjectSync(localId: String): SyncOutcome {
+        if (!connectivity.isOnline()) {
+            syncState.update(SyncState.Offline)
+            return SyncOutcome.Skipped
+        }
+        return try {
+            pushPending()
+            val serverId = dao.findByLocalId(localId)?.serverId ?: return SyncOutcome.Skipped
+            pullProject(serverId, localId)
+            SyncOutcome.Synced
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: DomainException) {
+            SyncOutcome.Failed(e)
+        } catch (e: Throwable) {
+            SyncOutcome.Failed(DomainException.Unexpected)
+        }
+    }
+
+    private suspend fun pullProject(serverId: Long, localId: String) {
+        val detail = try {
+            apiCall { api.get(serverId) }
+        } catch (e: DomainException.NotFound) {
+            dao.deleteByLocalId(localId)
+            return
+        }
+        val local = dao.findByLocalId(localId)
+        if (local != null && local.pendingOp == PendingOp.NONE) {
+            dao.upsert(detail.toSyncedEntity(localId = localId, syncedAt = clock.nowEpochMillis(), previous = local))
+        }
+        pullMembers(serverId, localId)
+    }
+
+    private suspend fun pullMembers(serverId: Long, localId: String) {
+        val members = apiCall { api.members(serverId) }.content
+        dao.clearMembers(localId)
+        if (members.isNotEmpty()) {
+            dao.upsertMembers(members.map { it.toEntity(localId) })
         }
     }
 
@@ -126,9 +172,9 @@ class SyncEngine(
             return
         }
 
-        val remoteMillis = parseServerTimestampMillis(remote.updatedAt)
-        if (remoteMillis != null && remoteMillis > entity.locallyModifiedAt) {
-            // Server copy is newer → it wins, the local edit is dropped.
+        if (serverChangedSinceLastSync(remote.updatedAt, entity)) {
+            // A concurrent edit landed on the server since we last synced this row,
+            // so our local edit is based on a stale copy → the server version wins.
             dao.upsert(remote.toSyncedEntity(localId = entity.localId, syncedAt = clock.nowEpochMillis(), previous = entity))
             return
         }
@@ -136,6 +182,15 @@ class SyncEngine(
         val updated = apiCall { api.update(serverId, entity.toUpdateRequest()) }
         dao.upsert(updated.toSyncedEntity(localId = entity.localId, syncedAt = clock.nowEpochMillis(), previous = entity))
     }
+
+    /**
+     * True when the server's `updatedAt` for this row differs from the value we
+     * recorded at our last successful sync. Both sides are server-generated, so
+     * this comparison needs no agreement between the server clock and the
+     * device clock — unlike a wall-clock last-write-wins (see ADR-21).
+     */
+    private fun serverChangedSinceLastSync(serverUpdatedAt: String?, local: ProjectEntity): Boolean =
+        parseServerTimestampMillis(serverUpdatedAt) != local.remoteUpdatedAt
 
     private suspend fun pushDelete(entity: ProjectEntity) {
         val serverId = entity.serverId
@@ -164,13 +219,12 @@ class SyncEngine(
                 local.pendingOp == PendingOp.NONE ->
                     dao.upsert(dto.toSyncedEntity(localId = local.localId, syncedAt = syncedAt, previous = local))
 
-                else -> {
-                    val remoteMillis = parseServerTimestampMillis(dto.updatedAt)
-                    if (remoteMillis != null && remoteMillis > local.locallyModifiedAt) {
-                        dao.upsert(dto.toSyncedEntity(localId = local.localId, syncedAt = syncedAt, previous = local))
-                    }
-                    // else: local edit is newer → keep it pending, it wins on the next push.
-                }
+                serverChangedSinceLastSync(dto.updatedAt, local) ->
+                    // The server row moved on since our last sync → it wins over the pending local edit.
+                    dao.upsert(dto.toSyncedEntity(localId = local.localId, syncedAt = syncedAt, previous = local))
+
+                // else: server unchanged since our last sync → keep the local edit pending, it pushes cleanly.
+                else -> Unit
             }
         }
 

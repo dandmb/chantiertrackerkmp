@@ -12,10 +12,11 @@ val SystemClock = Clock { kotlin.time.Clock.System.now().toEpochMilliseconds() }
 
 /**
  * The backend serialises timestamps as a zoneless ISO `LocalDateTime`
- * (`2026-09-02T10:30:00`). Last-write-wins compares these against the
- * device's own epoch-millis clock, so both sides are read as UTC — the
- * comparison is only as accurate as the server/device clock agreement,
- * which is acceptable for our deliberately simple LWW rule (see ADR-20).
+ * (`2026-09-02T10:30:00`), read here as UTC. Conflict resolution never compares
+ * this to the device clock — it only compares two server-issued `updatedAt`
+ * values to each other (see [SyncEngine] / ADR-21), so a constant server-zone
+ * offset cancels out. Still used to order projects by `createdAt` and to store
+ * `remoteUpdatedAt`.
  */
 fun parseServerTimestampMillis(raw: String?): Long? {
     if (raw.isNullOrBlank()) return null

@@ -25,6 +25,13 @@ class ServerProject(
     var updatedAt: String = "2026-01-01T09:00:00",
 )
 
+class ServerMember(
+    val userId: Long,
+    val name: String,
+    val email: String,
+    val role: String = "ADMIN",
+)
+
 /**
  * A minimal, stateful stand-in for the projects REST API. Tests mutate
  * [projects] / [planLimitReached] directly to set up scenarios, then read
@@ -33,11 +40,16 @@ class ServerProject(
 class FakeProjectBackend {
 
     val projects = mutableListOf<ServerProject>()
+    val members = mutableMapOf<Long, MutableList<ServerMember>>()
     var planLimitReached = false
     var nextId = 100L
     val receivedMethods = mutableListOf<String>()
 
     fun seed(project: ServerProject) = project.also { projects += it }
+
+    fun seedMembers(projectId: Long, vararg member: ServerMember) {
+        members.getOrPut(projectId) { mutableListOf() }.addAll(member)
+    }
 
     fun api(tokenStorage: FakeTokenStorage = FakeTokenStorage(com.dmb.chantiertracker.data.local.AuthTokens("a", "r"))): ProjectApi {
         val client = RecordingMockClient(tokenStorage) { request -> handle(request) }
@@ -48,9 +60,17 @@ class FakeProjectBackend {
         val path = request.url.encodedPath.removePrefix("/api/v1")
         receivedMethods += "${request.method.value} $path"
         val idInPath = Regex("""/projects/(\d+)$""").find(path)?.groupValues?.get(1)?.toLong()
+        val membersProjectId = Regex("""/projects/(\d+)/members$""").find(path)?.groupValues?.get(1)?.toLong()
 
         return when {
             request.method == HttpMethod.Get && path == "/projects" -> respondJson(pageJson())
+
+            request.method == HttpMethod.Get && membersProjectId != null -> {
+                if (projects.none { it.id == membersProjectId }) {
+                    return respondProblem(HttpStatusCode.NotFound, "Projet introuvable.")
+                }
+                respondJson(membersPageJson(membersProjectId))
+            }
 
             request.method == HttpMethod.Get && idInPath != null -> {
                 val project = projects.firstOrNull { it.id == idInPath }
@@ -105,6 +125,14 @@ class FakeProjectBackend {
 
     private fun pageJson(): String =
         """{"content":[${projects.joinToString(",") { listItemJson(it) }}],"totalElements":${projects.size}}"""
+
+    private fun membersPageJson(projectId: Long): String {
+        val list = members[projectId].orEmpty()
+        val items = list.joinToString(",") {
+            """{"userId":${it.userId},"name":${it.name.q()},"email":${it.email.q()},"role":${it.role.q()}}"""
+        }
+        return """{"content":[$items],"totalElements":${list.size}}"""
+    }
 
     private fun listItemJson(p: ServerProject): String = """
         {"id":${p.id},"name":${p.name.q()},"description":${p.description.q()},"location":${p.location.q()},

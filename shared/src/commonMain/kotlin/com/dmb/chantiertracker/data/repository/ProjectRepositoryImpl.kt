@@ -17,6 +17,7 @@ import com.dmb.chantiertracker.domain.model.ProjectDetail
 import com.dmb.chantiertracker.domain.model.ProjectMember
 import com.dmb.chantiertracker.domain.model.ProjectRole
 import com.dmb.chantiertracker.domain.model.ProjectStatus
+import com.dmb.chantiertracker.domain.model.UpdateProjectInput
 import com.dmb.chantiertracker.domain.repository.ProjectRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -69,8 +70,48 @@ class ProjectRepositoryImpl(
         return localId
     }
 
+    override suspend fun updateProject(localId: String, input: UpdateProjectInput) {
+        val existing = dao.findByLocalId(localId) ?: return
+        dao.upsert(
+            existing.copy(
+                name = input.name,
+                description = input.description?.ifBlank { null },
+                location = input.location?.ifBlank { null },
+                currency = input.currency.ifBlank { existing.currency },
+                timezone = input.timezone,
+                status = input.status.name,
+                syncStatus = SyncStatus.PENDING,
+                pendingOp = if (existing.pendingOp == PendingOp.CREATE) PendingOp.CREATE else PendingOp.UPDATE,
+                locallyModifiedAt = clock.nowEpochMillis(),
+                lastSyncError = null,
+            ),
+        )
+        syncer.requestSync()
+    }
+
+    override suspend fun deleteProject(localId: String) {
+        val existing = dao.findByLocalId(localId) ?: return
+        if (existing.serverId == null) {
+            dao.deleteByLocalId(localId)
+            return
+        }
+        dao.upsert(
+            existing.copy(
+                syncStatus = SyncStatus.PENDING,
+                pendingOp = PendingOp.DELETE,
+                locallyModifiedAt = clock.nowEpochMillis(),
+                lastSyncError = null,
+            ),
+        )
+        syncer.requestSync()
+    }
+
     override suspend fun refresh() {
         syncer.syncNow()
+    }
+
+    override suspend fun refreshProject(localId: String) {
+        syncer.syncProject(localId)
     }
 }
 

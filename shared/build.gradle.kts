@@ -116,6 +116,12 @@ room {
     schemaDirectory("$projectDir/schemas")
 }
 
+tasks.withType<Test>().configureEach {
+    System.getProperty("chantiertracker.integrationTests")?.let {
+        systemProperty("chantiertracker.integrationTests", it)
+    }
+}
+
 compose.resources {
     packageOfResClass = "com.dmb.chantiertracker.resources"
 }

@@ -51,11 +51,11 @@ class ProjectDetailViewModel(
                     }
                 }
         }
-        viewModelScope.launch { projectRepository.refresh() }
+        viewModelScope.launch { projectRepository.refreshProject(projectLocalId) }
     }
 
     fun retry() {
-        viewModelScope.launch { projectRepository.refresh() }
+        localId?.let { id -> viewModelScope.launch { projectRepository.refreshProject(id) } }
     }
 
     private fun canEdit(detail: ProjectDetail, members: List<ProjectMember>): Boolean {

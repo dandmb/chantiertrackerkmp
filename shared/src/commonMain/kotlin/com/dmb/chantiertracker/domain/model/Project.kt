@@ -38,3 +38,12 @@ data class CreateProjectInput(
     val currency: String?,
     val timezone: String,
 )
+
+data class UpdateProjectInput(
+    val name: String,
+    val description: String?,
+    val location: String?,
+    val currency: String,
+    val timezone: String,
+    val status: ProjectStatus,
+)

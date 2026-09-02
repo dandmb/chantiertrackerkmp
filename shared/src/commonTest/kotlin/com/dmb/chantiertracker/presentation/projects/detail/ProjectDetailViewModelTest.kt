@@ -53,7 +53,21 @@ class ProjectDetailViewModelTest {
         assertFalse(state.isLoading)
         assertEquals("Villa Vidal", state.detail?.name)
         assertEquals("EUR", state.detail?.currency)
-        assertEquals(1, repo.refreshCount, "opening the screen kicks a background pull")
+        assertEquals(1, repo.refreshProjectCount, "opening the screen kicks a background pull of this project + members")
+        assertEquals(listOf("refreshProject:p5"), repo.log)
+    }
+
+    @Test
+    fun retry_pulls_this_project_again() = runTest {
+        val repo = FakeProjectRepository(detail = null)
+        val vm = ProjectDetailViewModel(repo, auth(userId = 1))
+        vm.load("p5")
+        advanceUntilIdle()
+
+        vm.retry()
+        advanceUntilIdle()
+
+        assertEquals(2, repo.refreshProjectCount)
     }
 
     @Test

@@ -8,6 +8,7 @@ import com.dmb.chantiertracker.support.FakeConnectivityObserver
 import com.dmb.chantiertracker.support.FakeProjectBackend
 import com.dmb.chantiertracker.support.FakeProjectDao
 import com.dmb.chantiertracker.support.MutableClock
+import com.dmb.chantiertracker.support.ServerMember
 import com.dmb.chantiertracker.support.ServerProject
 import com.dmb.chantiertracker.support.localProject
 import com.dmb.chantiertracker.support.serverMillis
@@ -87,19 +88,21 @@ class SyncEngineTest {
         assertTrue(f.backend.receivedMethods.isEmpty())
     }
 
-    // ─── last-write-wins by timestamp ───────────────────────────────────────
+    // ─── optimistic-concurrency conflict resolution (ADR-21) ────────────────
+    // A pending local edit is pushed as-is unless the server's `updatedAt` moved
+    // since our last sync of that row — then the server version wins. No device
+    // clock is involved, so a server running a non-UTC zone can't spuriously
+    // "win" and silently drop a legitimate offline edit.
 
     @Test
-    fun pull_lets_a_newer_server_row_overwrite_a_stale_local_pending_edit() = runTest {
+    fun pull_lets_the_server_win_when_its_row_changed_since_our_last_sync() = runTest {
         val f = Fixture()
-        f.backend.seed(
-            ServerProject(id = 5, name = "Server name", updatedAt = "2026-09-05T10:00:00"),
-        )
+        f.backend.seed(ServerProject(id = 5, name = "Server name", updatedAt = "2026-09-05T10:00:00"))
         f.dao.upsert(
             localProject(
                 "p5", name = "Stale local edit", serverId = 5,
                 pendingOp = PendingOp.UPDATE, syncStatus = SyncStatus.PENDING,
-                locallyModifiedAt = serverMillis("2026-09-02T10:00:00"),
+                remoteUpdatedAt = serverMillis("2026-09-02T10:00:00"),
             ),
         )
         val engine = f.engine(backgroundScope)
@@ -107,13 +110,13 @@ class SyncEngineTest {
         engine.syncNow()
 
         val row = f.dao.findByServerId(5)!!
-        assertEquals("Server name", row.name, "server edit is newer → it wins")
+        assertEquals("Server name", row.name, "server row moved since our sync → it wins")
         assertEquals(SyncStatus.SYNCED, row.syncStatus)
         assertFalse(f.backend.receivedMethods.any { it.startsWith("PATCH") }, "no push of the losing local edit")
     }
 
     @Test
-    fun push_keeps_a_local_edit_that_is_newer_than_the_server_row() = runTest {
+    fun push_applies_the_local_edit_when_the_server_row_is_unchanged_since_our_sync() = runTest {
         val f = Fixture()
         f.backend.seed(ServerProject(id = 7, name = "Old server name", updatedAt = "2026-09-01T10:00:00"))
         f.backend.patchAppliedAt = "2026-09-04T00:00:00"
@@ -121,19 +124,44 @@ class SyncEngineTest {
             localProject(
                 "p7", name = "Fresh local edit", serverId = 7,
                 pendingOp = PendingOp.UPDATE, syncStatus = SyncStatus.PENDING,
-                locallyModifiedAt = serverMillis("2026-09-03T10:00:00"),
+                // We last synced this row while the server said 2026-09-01T10:00:00, and it
+                // hasn't moved since — so our edit is on a fresh base and pushes cleanly.
+                remoteUpdatedAt = serverMillis("2026-09-01T10:00:00"),
             ),
         )
         val engine = f.engine(backgroundScope)
 
         engine.syncNow()
 
-        assertEquals("Fresh local edit", f.backend.projects.single { it.id == 7L }.name, "local edit is newer → it wins")
+        assertEquals("Fresh local edit", f.backend.projects.single { it.id == 7L }.name)
         assertEquals(SyncStatus.SYNCED, f.dao.findByServerId(7)!!.syncStatus)
     }
 
     @Test
-    fun two_concurrent_edits_converge_on_the_more_recently_edited_version() = runTest {
+    fun local_edit_is_dropped_regardless_of_wall_clock_when_the_server_is_ahead() = runTest {
+        // Regression: the server serialises `updatedAt` in a non-UTC zone, so parsed
+        // as UTC it looks hours "ahead" of the device clock — but it has NOT changed
+        // since our sync, so the local edit must still be pushed, not silently lost.
+        val f = Fixture(clock = MutableClock(serverMillis("2026-09-02T09:00:00")))
+        f.backend.seed(ServerProject(id = 8, name = "Server", updatedAt = "2026-09-02T11:00:00"))
+        f.backend.patchAppliedAt = "2026-09-02T11:30:00"
+        f.dao.upsert(
+            localProject(
+                "p8", name = "Legit offline edit", serverId = 8,
+                pendingOp = PendingOp.UPDATE, syncStatus = SyncStatus.PENDING,
+                remoteUpdatedAt = serverMillis("2026-09-02T11:00:00"),
+            ),
+        )
+        val engine = f.engine(backgroundScope)
+
+        engine.syncNow()
+
+        assertEquals("Legit offline edit", f.backend.projects.single { it.id == 8L }.name)
+        assertEquals(SyncStatus.SYNCED, f.dao.findByServerId(8)!!.syncStatus)
+    }
+
+    @Test
+    fun two_concurrent_edits_converge_on_the_first_writer() = runTest {
         // One server, two devices that both synced the same base row.
         val backend = FakeProjectBackend()
         backend.seed(ServerProject(id = 9, name = "Base", updatedAt = "2026-09-01T00:00:00"))
@@ -145,32 +173,30 @@ class SyncEngineTest {
         engineA.syncNow()
         engineB.syncNow()
 
-        // A edits early, B edits later (B's is the "most recent" change).
+        // Both edit locally, based on the same synced base (copy() keeps remoteUpdatedAt).
         deviceA.dao.upsert(
             deviceA.dao.findByServerId(9)!!.copy(
                 name = "A edit", pendingOp = PendingOp.UPDATE, syncStatus = SyncStatus.PENDING,
-                locallyModifiedAt = serverMillis("2026-09-10T08:00:00"),
             ),
         )
         deviceB.dao.upsert(
             deviceB.dao.findByServerId(9)!!.copy(
                 name = "B edit", pendingOp = PendingOp.UPDATE, syncStatus = SyncStatus.PENDING,
-                locallyModifiedAt = serverMillis("2026-09-10T20:00:00"),
             ),
         )
 
-        // A syncs first; the server stamps the write between the two edit times.
         backend.patchAppliedAt = "2026-09-10T12:00:00"
         engineA.syncNow()
-        assertEquals("A edit", backend.projects.single { it.id == 9L }.name)
+        assertEquals("A edit", backend.projects.single { it.id == 9L }.name, "A's base is fresh → A's edit lands")
 
-        // B syncs second; B's edit is more recent than the server row → B wins.
+        // B's base is now stale (server moved) → the server (A's) version wins, B's edit is dropped.
         engineB.syncNow()
-        assertEquals("B edit", backend.projects.single { it.id == 9L }.name)
+        assertEquals("A edit", backend.projects.single { it.id == 9L }.name)
+        assertEquals("A edit", deviceB.dao.findByServerId(9)!!.name)
 
-        // A converges on the winning version on its next sync.
+        // A converges on the same version on its next sync.
         engineA.syncNow()
-        assertEquals("B edit", deviceA.dao.findByServerId(9)!!.name)
+        assertEquals("A edit", deviceA.dao.findByServerId(9)!!.name)
     }
 
     // ─── push failures ─────────────────────────────────────────────────────
@@ -232,5 +258,114 @@ class SyncEngineTest {
         assertEquals("Remote only", row.name)
         assertEquals("XAF", row.currency)
         assertEquals(SyncStatus.SYNCED, row.syncStatus)
+    }
+
+    // ─── single-project pull (detail + members) ─────────────────────────────
+
+    @Test
+    fun sync_project_pulls_the_project_and_its_members_into_the_local_store() = runTest {
+        val f = Fixture()
+        f.backend.seed(ServerProject(id = 5, name = "Villa Vidal"))
+        f.backend.seedMembers(
+            5,
+            ServerMember(userId = 1, name = "Owner", email = "o@x.dev", role = "ADMIN"),
+            ServerMember(userId = 2, name = "Sam", email = "s@x.dev", role = "SUPERVISOR"),
+        )
+        f.dao.upsert(
+            localProject("p5", serverId = 5, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED),
+        )
+        val engine = f.engine(backgroundScope)
+
+        assertIs<SyncOutcome.Synced>(engine.syncProject("p5"))
+
+        val members = f.dao.observeMembers("p5").first()
+        assertEquals(listOf(1L, 2L), members.map { it.userId }.sorted())
+        assertEquals("SUPERVISOR", members.single { it.userId == 2L }.role)
+    }
+
+    @Test
+    fun sync_project_replaces_members_that_are_no_longer_on_the_server() = runTest {
+        val f = Fixture()
+        f.backend.seed(ServerProject(id = 5, name = "Villa Vidal"))
+        f.backend.seedMembers(5, ServerMember(userId = 1, name = "Owner", email = "o@x.dev"))
+        f.dao.upsert(localProject("p5", serverId = 5, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+        f.dao.upsertMembers(
+            listOf(
+                com.dmb.chantiertracker.data.local.db.ProjectMemberEntity("p5", 99, "Stale", "z@x.dev", "SUPERVISOR"),
+            ),
+        )
+        val engine = f.engine(backgroundScope)
+
+        engine.syncProject("p5")
+
+        assertEquals(listOf(1L), f.dao.observeMembers("p5").first().map { it.userId })
+    }
+
+    @Test
+    fun sync_project_drops_a_local_row_the_server_no_longer_has() = runTest {
+        val f = Fixture()
+        f.dao.upsert(localProject("p5", serverId = 5, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+        val engine = f.engine(backgroundScope)
+
+        engine.syncProject("p5")
+
+        assertNull(f.dao.findByLocalId("p5"))
+    }
+
+    @Test
+    fun sync_project_while_offline_is_skipped_and_never_touches_the_network() = runTest {
+        val f = Fixture()
+        f.connectivity.setOnline(false)
+        f.dao.upsert(localProject("p5", serverId = 5, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+        val engine = f.engine(backgroundScope)
+
+        assertIs<SyncOutcome.Skipped>(engine.syncProject("p5"))
+        assertTrue(f.backend.receivedMethods.isEmpty())
+        assertEquals(SyncState.Offline, f.syncState.state.value)
+    }
+
+    @Test
+    fun sync_project_still_without_a_server_id_after_the_push_is_skipped() = runTest {
+        val f = Fixture()
+        f.backend.planLimitReached = true
+        f.dao.upsert(localProject("p5", serverId = null, pendingOp = PendingOp.CREATE))
+        val engine = f.engine(backgroundScope)
+
+        assertIs<SyncOutcome.Skipped>(engine.syncProject("p5"))
+        assertEquals(SyncStatus.CONFLICTED, f.dao.findByLocalId("p5")!!.syncStatus)
+        assertFalse(f.backend.receivedMethods.any { it.startsWith("GET /projects/") })
+    }
+
+    @Test
+    fun sync_project_pushes_a_local_only_project_then_pulls_it_back() = runTest {
+        val f = Fixture()
+        f.dao.upsert(localProject("p5", name = "Local only", serverId = null, pendingOp = PendingOp.CREATE))
+        val engine = f.engine(backgroundScope)
+
+        assertIs<SyncOutcome.Synced>(engine.syncProject("p5"))
+
+        val row = f.dao.findByLocalId("p5")!!
+        assertNotNull(row.serverId)
+        assertEquals(SyncStatus.SYNCED, row.syncStatus)
+    }
+
+    @Test
+    fun sync_project_flushes_a_pending_local_edit_before_pulling() = runTest {
+        val f = Fixture()
+        f.backend.seed(ServerProject(id = 5, name = "Old name", updatedAt = "2026-09-01T10:00:00"))
+        f.backend.patchAppliedAt = "2026-09-04T00:00:00"
+        f.dao.upsert(
+            localProject(
+                "p5", name = "Fresh local edit", serverId = 5,
+                pendingOp = PendingOp.UPDATE, syncStatus = SyncStatus.PENDING,
+                remoteUpdatedAt = serverMillis("2026-09-01T10:00:00"),
+            ),
+        )
+        val engine = f.engine(backgroundScope)
+
+        engine.syncProject("p5")
+
+        assertEquals("Fresh local edit", f.backend.projects.single { it.id == 5L }.name)
+        assertEquals(SyncStatus.SYNCED, f.dao.findByLocalId("p5")!!.syncStatus)
     }
 }

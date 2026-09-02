@@ -10,6 +10,7 @@ import com.dmb.chantiertracker.domain.model.Plan
 import com.dmb.chantiertracker.domain.model.Project
 import com.dmb.chantiertracker.domain.model.ProjectDetail
 import com.dmb.chantiertracker.domain.model.ProjectMember
+import com.dmb.chantiertracker.domain.model.UpdateProjectInput
 import com.dmb.chantiertracker.domain.repository.AccountRepository
 import com.dmb.chantiertracker.domain.repository.AuthRepository
 import com.dmb.chantiertracker.domain.repository.ProjectRepository
@@ -80,6 +81,7 @@ class FakeSyncer : com.dmb.chantiertracker.data.sync.Syncer {
         private set
     var syncCount = 0
         private set
+    val syncedProjects = mutableListOf<String>()
     var outcome: com.dmb.chantiertracker.data.sync.SyncOutcome =
         com.dmb.chantiertracker.data.sync.SyncOutcome.Synced
     var onSync: (suspend () -> Unit)? = null
@@ -88,6 +90,12 @@ class FakeSyncer : com.dmb.chantiertracker.data.sync.Syncer {
 
     override suspend fun syncNow(): com.dmb.chantiertracker.data.sync.SyncOutcome {
         syncCount++
+        onSync?.invoke()
+        return outcome
+    }
+
+    override suspend fun syncProject(localId: String): com.dmb.chantiertracker.data.sync.SyncOutcome {
+        syncedProjects += localId
         onSync?.invoke()
         return outcome
     }
@@ -105,7 +113,10 @@ class FakeProjectRepository(
 
     val log = mutableListOf<String>()
     var lastCreateInput: CreateProjectInput? = null
+    var lastUpdateInput: UpdateProjectInput? = null
     var refreshCount = 0
+        private set
+    var refreshProjectCount = 0
         private set
     var createError: Throwable? = null
     var newLocalId = "local-new"
@@ -131,9 +142,23 @@ class FakeProjectRepository(
         return newLocalId
     }
 
+    override suspend fun updateProject(localId: String, input: UpdateProjectInput) {
+        log += "updateProject:$localId:${input.name}"
+        lastUpdateInput = input
+    }
+
+    override suspend fun deleteProject(localId: String) {
+        log += "deleteProject:$localId"
+    }
+
     override suspend fun refresh() {
         refreshCount++
         log += "refresh"
+    }
+
+    override suspend fun refreshProject(localId: String) {
+        refreshProjectCount++
+        log += "refreshProject:$localId"
     }
 }
 
