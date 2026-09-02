@@ -5,11 +5,18 @@ import com.dmb.chantiertracker.data.local.AuthTokens
 import com.dmb.chantiertracker.data.local.OnboardingStore
 import com.dmb.chantiertracker.data.local.TokenStorage
 import com.dmb.chantiertracker.domain.model.AuthState
+import com.dmb.chantiertracker.domain.model.Plan
+import com.dmb.chantiertracker.domain.model.Project
+import com.dmb.chantiertracker.domain.repository.AccountRepository
 import com.dmb.chantiertracker.domain.repository.AuthRepository
+import com.dmb.chantiertracker.domain.repository.ProjectRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
-class FakeBuildInfo(override val isDebug: Boolean) : BuildInfo
+class FakeBuildInfo(
+    override val isDebug: Boolean,
+    override val appVersion: String = "1.0-test",
+) : BuildInfo
 
 class FakeTokenStorage(initial: AuthTokens? = null) : TokenStorage {
     var tokens: AuthTokens? = initial
@@ -63,4 +70,28 @@ class FakeAuthRepository : AuthRepository {
     override suspend fun forgotPassword(email: String) = record("forgotPassword:$email")
     override suspend fun resetPassword(email: String, code: String, newPassword: String) =
         record("resetPassword:$email:$code:$newPassword")
+}
+
+class FakeProjectRepository(
+    var projects: List<Project> = emptyList(),
+    var error: Throwable? = null,
+) : ProjectRepository {
+    var calls = 0
+        private set
+
+    override suspend fun getProjects(): List<Project> {
+        calls++
+        error?.let { throw it }
+        return projects
+    }
+}
+
+class FakeAccountRepository(
+    var plan: Plan = Plan.FREE,
+    var error: Throwable? = null,
+) : AccountRepository {
+    override suspend fun getCurrentPlan(): Plan {
+        error?.let { throw it }
+        return plan
+    }
 }

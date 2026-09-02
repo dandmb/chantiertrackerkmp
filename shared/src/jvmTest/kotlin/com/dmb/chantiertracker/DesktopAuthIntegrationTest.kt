@@ -3,11 +3,16 @@ package com.dmb.chantiertracker
 import com.dmb.chantiertracker.data.AuthStateHolder
 import com.dmb.chantiertracker.data.local.DesktopOnboardingStore
 import com.dmb.chantiertracker.data.local.DesktopTokenStorage
+import com.dmb.chantiertracker.data.remote.AccountApi
 import com.dmb.chantiertracker.data.remote.AuthApi
+import com.dmb.chantiertracker.data.remote.ProjectApi
 import com.dmb.chantiertracker.data.remote.createHttpClient
 import com.dmb.chantiertracker.data.remote.httpClientEngine
+import com.dmb.chantiertracker.data.repository.AccountRepositoryImpl
 import com.dmb.chantiertracker.data.repository.AuthRepositoryImpl
+import com.dmb.chantiertracker.data.repository.ProjectRepositoryImpl
 import com.dmb.chantiertracker.domain.model.AuthState
+import com.dmb.chantiertracker.domain.model.Plan
 import kotlinx.coroutines.runBlocking
 import java.net.HttpURLConnection
 import java.net.URI
@@ -38,6 +43,8 @@ class DesktopAuthIntegrationTest {
         onSessionExpired = { holder.update(AuthState.Unauthenticated) },
     )
     private val repo = AuthRepositoryImpl(AuthApi(client), storage, holder, onboarding)
+    private val projectRepo = ProjectRepositoryImpl(ProjectApi(client))
+    private val accountRepo = AccountRepositoryImpl(AccountApi(client))
 
     @AfterTest
     fun cleanUp() {
@@ -116,6 +123,28 @@ class DesktopAuthIntegrationTest {
         val authed = holder.state.value
         assertIs<AuthState.Authenticated>(authed)
         assertEquals("Reset Flow", authed.user.name)
+    }
+
+    @Test
+    fun logged_in_user_lists_projects_and_reads_plan() = runBlocking {
+        if (System.getProperty("chantiertracker.integrationTests") != "true") {
+            println("Test d'intégration désactivé (passer -Dchantiertracker.integrationTests=true).")
+            return@runBlocking
+        }
+        if (!backendUp()) {
+            println("Backend localhost:8080 indisponible — test ignoré.")
+            return@runBlocking
+        }
+
+        repo.login("mobile-test@local.dev", "ChantierTest1234!")
+        assertIs<AuthState.Authenticated>(holder.state.value)
+
+        // Réponse réelle = Page Spring (`{content:[...], ...}`) — on ne lit que `content`.
+        val projects = projectRepo.getProjects()
+        assertTrue(projects.all { it.name.isNotBlank() }, "chaque projet a un nom")
+
+        // `GET /users/me/plan-usage` → Plan connu (compte de test = FREE par défaut).
+        assertTrue(accountRepo.getCurrentPlan() != Plan.UNKNOWN, "le plan du compte de test doit être reconnu")
     }
 
     private fun backendUp(): Boolean = runCatching {

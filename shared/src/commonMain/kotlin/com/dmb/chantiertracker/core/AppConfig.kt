@@ -17,4 +17,6 @@ class AppConfig(buildInfo: BuildInfo) {
     }
 
     val enableNetworkLogging: Boolean = environment != ApiEnvironment.Production
+
+    val appVersion: String = buildInfo.appVersion
 }

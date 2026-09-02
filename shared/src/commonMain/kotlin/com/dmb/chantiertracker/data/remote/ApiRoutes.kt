@@ -10,4 +10,6 @@ object ApiRoutes {
     const val AUTH_FORGOT_PASSWORD = "auth/forgot-password"
     const val AUTH_RESET_PASSWORD = "auth/reset-password"
     const val USERS_ME = "users/me"
+    const val USERS_ME_PLAN_USAGE = "users/me/plan-usage"
+    const val PROJECTS = "projects"
 }

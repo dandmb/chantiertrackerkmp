@@ -15,7 +15,7 @@ import com.dmb.chantiertracker.presentation.auth.register.RegisterScreen
 import com.dmb.chantiertracker.presentation.auth.reset.ResetPasswordScreen
 import com.dmb.chantiertracker.presentation.auth.verify.VerifyEmailScreen
 import com.dmb.chantiertracker.presentation.auth.welcome.WelcomeScreen
-import com.dmb.chantiertracker.presentation.home.HomeScreen
+import com.dmb.chantiertracker.presentation.main.MainScreen
 import com.dmb.chantiertracker.presentation.onboarding.OnboardingScreen
 import com.dmb.chantiertracker.presentation.splash.SplashScreen
 import org.koin.compose.viewmodel.koinViewModel
@@ -30,7 +30,7 @@ fun RootNavHost(viewModel: RootViewModel = koinViewModel()) {
 
     when {
         authState is AuthState.Unknown || hasLoggedInBefore == null || hasSeenOnboarding == null -> SplashScreen()
-        authState is AuthState.Authenticated -> MainNavHost()
+        authState is AuthState.Authenticated -> MainScreen()
         else -> AuthNavHost(
             startPoint = when {
                 hasLoggedInBefore == true -> AuthStartPoint.Login
@@ -39,14 +39,6 @@ fun RootNavHost(viewModel: RootViewModel = koinViewModel()) {
             },
             onOnboardingFinished = viewModel::markOnboardingSeen,
         )
-    }
-}
-
-@Composable
-private fun MainNavHost() {
-    val navController = rememberNavController()
-    NavHost(navController = navController, startDestination = HomeRoute) {
-        composable<HomeRoute> { HomeScreen() }
     }
 }
 
