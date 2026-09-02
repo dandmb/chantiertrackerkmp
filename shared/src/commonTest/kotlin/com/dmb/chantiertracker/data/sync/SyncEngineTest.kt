@@ -4,6 +4,7 @@ import com.dmb.chantiertracker.data.local.db.PendingOp
 import com.dmb.chantiertracker.data.local.db.SyncStatus
 import com.dmb.chantiertracker.presentation.sync.SyncState
 import com.dmb.chantiertracker.presentation.sync.SyncStateHolder
+import com.dmb.chantiertracker.support.FakeBackgroundSync
 import com.dmb.chantiertracker.support.FakeConnectivityObserver
 import com.dmb.chantiertracker.support.FakeProjectBackend
 import com.dmb.chantiertracker.support.FakeProjectDao
@@ -14,7 +15,11 @@ import com.dmb.chantiertracker.support.localProject
 import com.dmb.chantiertracker.support.serverMillis
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.minutes
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -31,9 +36,10 @@ class SyncEngineTest {
         val connectivity: FakeConnectivityObserver = FakeConnectivityObserver(),
         val clock: MutableClock = MutableClock(serverMillis("2026-09-02T09:00:00")),
         val syncState: SyncStateHolder = SyncStateHolder(),
+        val backgroundSync: FakeBackgroundSync = FakeBackgroundSync(),
     ) {
         var idSeq = 0
-        fun engine(scope: CoroutineScope) = SyncEngine(
+        fun engine(scope: CoroutineScope, catchUpInterval: Duration = 15.minutes) = SyncEngine(
             dao = dao,
             api = backend.api(),
             connectivity = connectivity,
@@ -41,6 +47,8 @@ class SyncEngineTest {
             scope = scope,
             clock = clock,
             newLocalId = { "pulled-${idSeq++}" },
+            backgroundSync = backgroundSync,
+            catchUpInterval = catchUpInterval,
         )
     }
 
@@ -367,5 +375,64 @@ class SyncEngineTest {
 
         assertEquals("Fresh local edit", f.backend.projects.single { it.id == 5L }.name)
         assertEquals(SyncStatus.SYNCED, f.dao.findByLocalId("p5")!!.syncStatus)
+    }
+
+    // ─── background catch-up (ADR-22) ──────────────────────────────────────
+
+    @Test
+    fun a_pass_that_cannot_finish_hands_the_queue_to_the_os_scheduler() = runTest {
+        val f = Fixture()
+        f.connectivity.setOnline(false)
+        f.dao.upsert(localProject("p1", pendingOp = PendingOp.CREATE))
+        val engine = f.engine(backgroundScope)
+
+        assertIs<SyncOutcome.Skipped>(engine.syncNowOrDeferToOs())
+
+        assertEquals(1, f.backgroundSync.expeditedCount, "offline write → hand the queue to the OS scheduler")
+    }
+
+    @Test
+    fun a_pass_that_succeeds_schedules_no_background_work() = runTest {
+        val f = Fixture()
+        f.dao.upsert(localProject("p1", pendingOp = PendingOp.CREATE))
+        val engine = f.engine(backgroundScope)
+
+        assertIs<SyncOutcome.Synced>(engine.syncNowOrDeferToOs())
+
+        assertEquals(SyncStatus.SYNCED, f.dao.findByLocalId("p1")!!.syncStatus)
+        assertEquals(0, f.backgroundSync.expeditedCount)
+    }
+
+    @Test
+    fun start_runs_a_catch_up_pass_every_interval_with_no_connectivity_change() = runTest {
+        val f = Fixture()
+        f.connectivity.setOnline(false) // keep the pass cheap: no real HTTP, just an offline no-op
+        val engine = f.engine(backgroundScope, catchUpInterval = 5.minutes)
+
+        engine.start()
+        runCurrent()
+        val afterStart = f.connectivity.isOnlineChecks
+
+        advanceTimeBy(16.minutes) // three 5-minute ticks
+        runCurrent()
+
+        assertEquals(3, f.connectivity.isOnlineChecks - afterStart, "one catch-up pass per interval")
+    }
+
+    @Test
+    fun start_is_idempotent() = runTest {
+        val f = Fixture()
+        f.connectivity.setOnline(false)
+        val engine = f.engine(backgroundScope, catchUpInterval = 5.minutes)
+
+        engine.start()
+        engine.start()
+        runCurrent()
+        val afterStart = f.connectivity.isOnlineChecks
+
+        advanceTimeBy(6.minutes)
+        runCurrent()
+
+        assertEquals(1, f.connectivity.isOnlineChecks - afterStart, "one periodic loop, not two")
     }
 }

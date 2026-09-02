@@ -15,6 +15,7 @@ import com.dmb.chantiertracker.data.remote.httpClientEngine
 import com.dmb.chantiertracker.data.sync.AppCoroutineScope
 import com.dmb.chantiertracker.data.sync.SyncEngine
 import com.dmb.chantiertracker.data.sync.Syncer
+import com.dmb.chantiertracker.data.sync.backgroundSyncModule
 import com.dmb.chantiertracker.presentation.sync.SyncStateHolder
 import com.dmb.chantiertracker.data.repository.AccountRepositoryImpl
 import com.dmb.chantiertracker.data.repository.AuthRepositoryImpl
@@ -72,6 +73,7 @@ val syncModule: Module = module {
             connectivity = get(),
             syncState = get(),
             scope = get<AppCoroutineScope>(),
+            backgroundSync = get(),
         )
     }
     single<Syncer> { get<SyncEngine>() }
@@ -102,6 +104,7 @@ fun appModules(): List<Module> = listOf(
     platformModule(),
     networkModule,
     syncModule,
+    backgroundSyncModule(),
     dataModule,
     presentationModule,
 )

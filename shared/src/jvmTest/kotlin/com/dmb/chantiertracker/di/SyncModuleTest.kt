@@ -8,8 +8,10 @@ import com.dmb.chantiertracker.data.local.OnboardingStore
 import com.dmb.chantiertracker.data.local.TokenStorage
 import com.dmb.chantiertracker.data.local.db.AppDatabase
 import com.dmb.chantiertracker.data.local.db.ProjectDao
+import com.dmb.chantiertracker.data.sync.BackgroundSync
 import com.dmb.chantiertracker.data.sync.ConnectivityObserver
 import com.dmb.chantiertracker.data.sync.SyncEngine
+import com.dmb.chantiertracker.data.sync.backgroundSyncModule
 import com.dmb.chantiertracker.support.FakeBuildInfo
 import com.dmb.chantiertracker.support.FakeConnectivityObserver
 import com.dmb.chantiertracker.support.FakeOnboardingStore
@@ -34,7 +36,7 @@ class SyncModuleTest {
     @Test
     fun sync_module_exposes_a_single_database_and_dao() {
         val koin = koinApplication {
-            modules(fakePlatformModule, networkModule, syncModule, dataModule, presentationModule)
+            modules(fakePlatformModule, networkModule, syncModule, backgroundSyncModule(), dataModule, presentationModule)
         }.koin
 
         val db = koin.get<AppDatabase>()
@@ -42,6 +44,7 @@ class SyncModuleTest {
         assertSame(db, koin.get<AppDatabase>())
         assertSame(db.projectDao(), koin.get<ProjectDao>())
         assertNotNull(koin.get<AppConfig>())
+        assertNotNull(koin.get<BackgroundSync>())
         assertNotNull(koin.get<SyncEngine>())
         assertSame(koin.get<SyncEngine>(), koin.get<SyncEngine>())
 
@@ -50,7 +53,7 @@ class SyncModuleTest {
     }
 
     @Test
-    fun app_modules_count_includes_sync_module() {
-        assertEquals(5, appModules().size)
+    fun app_modules_count_includes_sync_and_background_modules() {
+        assertEquals(6, appModules().size)
     }
 }

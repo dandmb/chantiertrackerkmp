@@ -51,6 +51,7 @@ kotlin {
             implementation(libs.ktor.client.okhttp)
             implementation(libs.koin.android)
             implementation(libs.androidx.security.crypto)
+            implementation(libs.androidx.work.runtime)
             implementation(libs.connectivity.device)
         }
         iosMain.dependencies {

@@ -22,7 +22,13 @@ class FakeConnectivityObserver(initiallyOnline: Boolean = true) : ConnectivityOb
     private val _online = MutableStateFlow(initiallyOnline)
     override val online: StateFlow<Boolean> = _online.asStateFlow()
 
-    override suspend fun isOnline(): Boolean = _online.value
+    var isOnlineChecks = 0
+        private set
+
+    override suspend fun isOnline(): Boolean {
+        isOnlineChecks++
+        return _online.value
+    }
 
     fun setOnline(online: Boolean) {
         _online.value = online

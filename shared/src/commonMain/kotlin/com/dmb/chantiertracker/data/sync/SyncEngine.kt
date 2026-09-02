@@ -13,9 +13,13 @@ import com.dmb.chantiertracker.presentation.sync.SyncState
 import com.dmb.chantiertracker.presentation.sync.SyncStateHolder
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.minutes
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
@@ -43,6 +47,10 @@ interface Syncer {
  * since our last sync of that row, in which case the server version wins and the
  * local edit is dropped. Comparing the server's own timestamps (not the device
  * clock) keeps this correct regardless of server/device clock agreement.
+ *
+ * [start] also runs an in-process catch-up loop every [catchUpInterval]; on
+ * Android/iOS the OS scheduler (via [backgroundSync]) handles catch-up while the
+ * app is backgrounded, on Desktop this loop is the whole mechanism (ADR-22).
  */
 class SyncEngine(
     private val dao: ProjectDao,
@@ -52,6 +60,8 @@ class SyncEngine(
     private val scope: CoroutineScope,
     private val clock: Clock = SystemClock,
     private val newLocalId: () -> String = { Uuid.random().toString() },
+    private val backgroundSync: BackgroundSync = NoOpBackgroundSync,
+    private val catchUpInterval: Duration = 15.minutes,
 ) : Syncer {
 
     private val mutex = Mutex()
@@ -65,11 +75,21 @@ class SyncEngine(
                 if (online) syncNow() else syncState.update(SyncState.Offline)
             }
         }
+        scope.launch {
+            while (isActive) {
+                delay(catchUpInterval)
+                syncNow()
+            }
+        }
     }
 
     override fun requestSync() {
-        scope.launch { syncNow() }
+        scope.launch { syncNowOrDeferToOs() }
     }
+
+    /** One in-process pass; if it can't finish (offline / server error), hand the queue to the OS scheduler. */
+    internal suspend fun syncNowOrDeferToOs(): SyncOutcome =
+        syncNow().also { if (it != SyncOutcome.Synced) backgroundSync.requestExpeditedSync() }
 
     override suspend fun syncNow(): SyncOutcome = mutex.withLock { runSync() }
 

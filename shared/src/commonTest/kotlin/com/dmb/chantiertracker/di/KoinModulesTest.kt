@@ -61,7 +61,7 @@ class KoinModulesTest {
     }
 
     @Test
-    fun app_modules_include_platform_module() {
-        assertEquals(5, appModules().size)
+    fun app_modules_include_platform_and_background_sync_modules() {
+        assertEquals(6, appModules().size)
     }
 }

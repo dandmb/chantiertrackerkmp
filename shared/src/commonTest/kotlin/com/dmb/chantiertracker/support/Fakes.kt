@@ -76,6 +76,16 @@ class FakeAuthRepository : AuthRepository {
         record("resetPassword:$email:$code:$newPassword")
 }
 
+class FakeBackgroundSync : com.dmb.chantiertracker.data.sync.BackgroundSync {
+    var ensurePeriodicCount = 0
+        private set
+    var expeditedCount = 0
+        private set
+
+    override fun ensurePeriodicSync() { ensurePeriodicCount++ }
+    override fun requestExpeditedSync() { expeditedCount++ }
+}
+
 class FakeSyncer : com.dmb.chantiertracker.data.sync.Syncer {
     var requestCount = 0
         private set
