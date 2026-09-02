@@ -13,6 +13,10 @@ data class ProjectDto(
     val location: String? = null,
     val status: String,
     val createdAt: String? = null,
+    val updatedAt: String? = null,
+    val currency: String? = null,
+    val timezone: String? = null,
+    val ownerId: Long? = null,
 )
 
 @Serializable
@@ -25,6 +29,18 @@ data class ProjectDetailDto(
     val timezone: String,
     val ownerId: Long,
     val status: String,
+    val createdAt: String? = null,
+    val updatedAt: String? = null,
+)
+
+@Serializable
+data class UpdateProjectRequestDto(
+    val name: String? = null,
+    val description: String? = null,
+    val location: String? = null,
+    val currency: String? = null,
+    val timezone: String? = null,
+    val status: String? = null,
 )
 
 @Serializable

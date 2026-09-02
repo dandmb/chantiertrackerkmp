@@ -50,6 +50,6 @@ class KoinModulesTest {
 
     @Test
     fun app_modules_include_platform_module() {
-        assertEquals(4, appModules().size)
+        assertEquals(5, appModules().size)
     }
 }

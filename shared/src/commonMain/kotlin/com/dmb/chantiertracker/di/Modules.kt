@@ -3,11 +3,18 @@ package com.dmb.chantiertracker.di
 import com.dmb.chantiertracker.core.AppConfig
 import com.dmb.chantiertracker.data.AuthStateHolder
 import com.dmb.chantiertracker.data.local.TokenStorage
+import com.dmb.chantiertracker.data.local.db.AppDatabase
+import com.dmb.chantiertracker.data.local.db.ProjectDao
+import com.dmb.chantiertracker.data.local.db.buildChantierDatabase
+import androidx.room.RoomDatabase
 import com.dmb.chantiertracker.data.remote.AccountApi
 import com.dmb.chantiertracker.data.remote.AuthApi
 import com.dmb.chantiertracker.data.remote.ProjectApi
 import com.dmb.chantiertracker.data.remote.createHttpClient
 import com.dmb.chantiertracker.data.remote.httpClientEngine
+import com.dmb.chantiertracker.data.sync.AppCoroutineScope
+import com.dmb.chantiertracker.data.sync.SyncEngine
+import com.dmb.chantiertracker.presentation.sync.SyncStateHolder
 import com.dmb.chantiertracker.data.repository.AccountRepositoryImpl
 import com.dmb.chantiertracker.data.repository.AuthRepositoryImpl
 import com.dmb.chantiertracker.data.repository.ProjectRepositoryImpl
@@ -52,6 +59,22 @@ val networkModule: Module = module {
     singleOf(::AccountApi)
 }
 
+val syncModule: Module = module {
+    single<AppDatabase> { get<RoomDatabase.Builder<AppDatabase>>().buildChantierDatabase() }
+    single<ProjectDao> { get<AppDatabase>().projectDao() }
+    single { AppCoroutineScope() }
+    single { SyncStateHolder() }
+    single {
+        SyncEngine(
+            dao = get(),
+            api = get(),
+            connectivity = get(),
+            syncState = get(),
+            scope = get<AppCoroutineScope>(),
+        )
+    }
+}
+
 val dataModule: Module = module {
     single<AuthRepository> { AuthRepositoryImpl(get(), get<TokenStorage>(), get(), get()) }
     single<ProjectRepository> { ProjectRepositoryImpl(get()) }
@@ -76,6 +99,7 @@ val presentationModule: Module = module {
 fun appModules(): List<Module> = listOf(
     platformModule(),
     networkModule,
+    syncModule,
     dataModule,
     presentationModule,
 )
