@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.StateFlow
 class FakeBuildInfo(
     override val isDebug: Boolean,
     override val appVersion: String = "1.0-test",
+    override val isStaging: Boolean = false,
 ) : BuildInfo
 
 class FakeTokenStorage(initial: AuthTokens? = null) : TokenStorage {

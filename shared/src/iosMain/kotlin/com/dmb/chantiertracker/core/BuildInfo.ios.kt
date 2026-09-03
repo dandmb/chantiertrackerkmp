@@ -12,4 +12,6 @@ class IosBuildInfo : BuildInfo {
 
     override val appVersion: String =
         NSBundle.mainBundle.objectForInfoDictionaryKey("CFBundleShortVersionString") as? String ?: "?"
+
+    override val isStaging: Boolean = false
 }

@@ -3,6 +3,7 @@
 <resources>
     <string name="app_name">ChantierTracker</string>
     <string name="splash_tagline">Your site under control, even from a distance</string>
+    <string name="staging_banner">PRE-PROD · LIVE DATA</string>
 
     <string name="action_back">Back</string>
     <string name="field_email_label">Email</string>

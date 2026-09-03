@@ -1,0 +1,111 @@
+# Reusable: the shared module's automated test suite.
+# Called by ci.yml (on dev) and cd-stage.yml (on stage, gate before distribution).
+#
+# The opt-in backend integration tests (DesktopAuthIntegrationTest,
+# -Dchantiertracker.integrationTests=true) are NOT run here — they need a live
+# local backend and stay a manual/local check.
+
+name: Shared tests
+
+on:
+  workflow_call:
+    inputs:
+      run-ios:
+        description: "Also run :shared:iosSimulatorArm64Test on a macOS runner"
+        type: boolean
+        default: true
+      cache-read-only:
+        description: "Do not write to the shared Gradle cache (use on PR runs)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  jvm-android:
+    name: JVM + Android host tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: "platforms;android-36 build-tools;36.0.0"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: ${{ inputs.cache-read-only }}
+
+      - name: JVM tests (:shared:jvmTest)
+        run: ./gradlew :shared:jvmTest --stacktrace
+
+      - name: Android host tests (:shared:testAndroidHostTest)
+        # Run even if the JVM step failed, so a single run surfaces both.
+        if: ${{ !cancelled() }}
+        run: ./gradlew :shared:testAndroidHostTest --stacktrace
+
+      - name: Upload test reports
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: jvm-android-test-reports
+          path: |
+            shared/build/reports/tests/
+            shared/build/test-results/
+          if-no-files-found: warn
+
+  ios:
+    name: iOS simulator tests
+    if: ${{ inputs.run-ios }}
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Android SDK
+        # The shared module applies the Android KMP plugin, so Gradle needs the
+        # SDK to configure the project even for the iOS-only test task.
+        uses: android-actions/setup-android@v3
+        with:
+          packages: "platforms;android-36 build-tools;36.0.0"
+
+      - name: Cache Kotlin/Native (~/.konan)
+        uses: actions/cache@v4
+        with:
+          path: ~/.konan
+          key: konan-${{ runner.os }}-${{ hashFiles('gradle/libs.versions.toml', 'gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: konan-${{ runner.os }}-
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: ${{ inputs.cache-read-only }}
+
+      - name: iOS simulator tests (:shared:iosSimulatorArm64Test)
+        run: ./gradlew :shared:iosSimulatorArm64Test --stacktrace
+
+      - name: Upload test reports
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-test-reports
+          path: |
+            shared/build/reports/tests/
+            shared/build/test-results/
+          if-no-files-found: warn

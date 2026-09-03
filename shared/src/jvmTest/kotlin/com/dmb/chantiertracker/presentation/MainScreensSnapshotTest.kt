@@ -239,6 +239,15 @@ class MainScreensSnapshotTest {
             }
         }
         for (locale in listOf("fr", "en")) {
+            snapshot("21-staging-banner", locale) {
+                AppChrome(showStagingBanner = true) {
+                    Chrome(MainTab.Projects) { m ->
+                        ProjectsScreen(onProjectClick = {}, modifier = m, viewModel = projectsVm(sampleProjects))
+                    }
+                }
+            }
+        }
+        for (locale in listOf("fr", "en")) {
             snapshot("14-create-project", locale) {
                 DetailChrome(
                     title = if (locale == "fr") "Nouveau projet" else "New project",

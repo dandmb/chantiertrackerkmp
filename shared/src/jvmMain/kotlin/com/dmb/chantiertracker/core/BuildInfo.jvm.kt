@@ -10,4 +10,6 @@ class DesktopBuildInfo : BuildInfo {
         System.getProperty("chantiertracker.appVersion")
             ?: DesktopBuildInfo::class.java.`package`?.implementationVersion
             ?: "dev"
+
+    override val isStaging: Boolean = false
 }

@@ -3,6 +3,7 @@
 <resources>
     <string name="app_name">ChantierTracker</string>
     <string name="splash_tagline">Ton chantier, sous contrôle, même à distance</string>
+    <string name="staging_banner">PRÉPROD · DONNÉES RÉELLES</string>
 
     <string name="action_back">Retour</string>
     <string name="field_email_label">Email</string>

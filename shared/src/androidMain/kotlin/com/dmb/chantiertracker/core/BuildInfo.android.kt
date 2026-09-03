@@ -12,4 +12,8 @@ class AndroidBuildInfo(context: Context) : BuildInfo {
     override val appVersion: String =
         runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }
             .getOrNull() ?: "?"
+
+    // The staging build type sets applicationIdSuffix ".staging" (androidApp/build.gradle.kts) —
+    // no BuildConfig flag needed, same "detect per platform without a plugin" approach as isDebug.
+    override val isStaging: Boolean = context.packageName.endsWith(".staging")
 }

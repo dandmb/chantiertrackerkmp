@@ -18,4 +18,9 @@ captures
 **/xcshareddata/WorkspaceSettings.xcsettings
 node_modules/
 
+# Signing material — never committed; CI injects it from secrets (see .github/workflows/cd-stage.yml)
+*.jks
+*.keystore
+*.p12
+
 MOBILE_CONTEXT.md
