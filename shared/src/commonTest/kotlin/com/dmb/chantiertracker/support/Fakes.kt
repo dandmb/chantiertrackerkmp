@@ -92,6 +92,7 @@ class FakeSyncer : com.dmb.chantiertracker.data.sync.Syncer {
     var syncCount = 0
         private set
     val syncedProjects = mutableListOf<String>()
+    val syncedStages = mutableListOf<String>()
     var outcome: com.dmb.chantiertracker.data.sync.SyncOutcome =
         com.dmb.chantiertracker.data.sync.SyncOutcome.Synced
     var onSync: (suspend () -> Unit)? = null
@@ -106,6 +107,12 @@ class FakeSyncer : com.dmb.chantiertracker.data.sync.Syncer {
 
     override suspend fun syncProject(localId: String): com.dmb.chantiertracker.data.sync.SyncOutcome {
         syncedProjects += localId
+        onSync?.invoke()
+        return outcome
+    }
+
+    override suspend fun syncStage(stageLocalId: String): com.dmb.chantiertracker.data.sync.SyncOutcome {
+        syncedStages += stageLocalId
         onSync?.invoke()
         return outcome
     }
@@ -171,6 +178,55 @@ class FakeProjectRepository(
     override suspend fun refreshProject(localId: String) {
         refreshProjectCount++
         log += "refreshProject:$localId"
+    }
+}
+
+class FakeStageRepository(
+    stages: List<com.dmb.chantiertracker.domain.model.Stage> = emptyList(),
+    detail: com.dmb.chantiertracker.domain.model.StageDetail? = null,
+) : com.dmb.chantiertracker.domain.repository.StageRepository {
+
+    val stagesFlow = MutableStateFlow(stages)
+    val detailFlow = MutableStateFlow(detail)
+
+    val log = mutableListOf<String>()
+    var lastCreateInput: com.dmb.chantiertracker.domain.model.CreateStageInput? = null
+    var lastUpdateInput: com.dmb.chantiertracker.domain.model.UpdateStageInput? = null
+    var createError: Throwable? = null
+    var newLocalId = "stage-new"
+    var refreshStagesCount = 0
+        private set
+    var refreshStageCount = 0
+        private set
+
+    override fun observeStages(projectLocalId: String) = stagesFlow
+
+    override fun observeStage(stageLocalId: String) = detailFlow
+
+    override suspend fun createStage(input: com.dmb.chantiertracker.domain.model.CreateStageInput): String {
+        log += "createStage:${input.name}"
+        lastCreateInput = input
+        createError?.let { throw it }
+        return newLocalId
+    }
+
+    override suspend fun updateStage(stageLocalId: String, input: com.dmb.chantiertracker.domain.model.UpdateStageInput) {
+        log += "updateStage:$stageLocalId:${input.name}"
+        lastUpdateInput = input
+    }
+
+    override suspend fun deleteStage(stageLocalId: String) {
+        log += "deleteStage:$stageLocalId"
+    }
+
+    override suspend fun refreshStages(projectLocalId: String) {
+        refreshStagesCount++
+        log += "refreshStages:$projectLocalId"
+    }
+
+    override suspend fun refreshStage(stageLocalId: String) {
+        refreshStageCount++
+        log += "refreshStage:$stageLocalId"
     }
 }
 

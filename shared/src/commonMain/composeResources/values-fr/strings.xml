@@ -103,8 +103,33 @@
     <string name="detail_timezone">Fuseau horaire</string>
     <string name="detail_section_stages">Étapes</string>
     <string name="detail_stages_empty">Aucune étape pour l'instant. Tu les ajouteras ici pour découper le chantier et suivre son budget.</string>
+    <string name="detail_stages_add">Nouvelle étape</string>
     <string name="detail_section_members">Membres</string>
     <string name="detail_members_empty">Aucun membre pour l'instant. Invite ici les personnes qui suivent ce chantier.</string>
+
+    <string name="stage_status_in_progress">En cours</string>
+    <string name="stage_status_completed">Terminée</string>
+    <string name="stage_card_budget">Budget : %1$s</string>
+
+    <string name="project_location_unset">Localisation non renseignée</string>
+
+    <string name="create_stage_title">Nouvelle étape</string>
+    <string name="create_stage_name_label">Nom de l'étape</string>
+    <string name="create_stage_budget_label">Budget prévisionnel</string>
+    <string name="create_stage_start_date_label">Date de début</string>
+    <string name="create_stage_end_date_label">Date de fin</string>
+    <string name="create_stage_date_hint">AAAA-MM-JJ</string>
+    <string name="create_stage_submit">Créer l'étape</string>
+
+    <string name="stage_detail_title">Étape</string>
+    <string name="stage_detail_budget">Budget prévisionnel</string>
+    <string name="stage_detail_dates">Dates</string>
+    <string name="value_not_set">Non renseigné</string>
+    <string name="stage_detail_section_days">Journées</string>
+    <string name="stage_detail_days_empty">Aucune journée enregistrée pour l'instant. Les achats et travaux du jour apparaîtront ici.</string>
+
+    <string name="validation_date_format">Utilise le format AAAA-MM-JJ.</string>
+    <string name="validation_amount_invalid">Saisis un montant valide.</string>
 
     <string name="settings_language">Langue</string>
     <string name="settings_theme">Thème</string>

@@ -9,6 +9,7 @@ import com.dmb.chantiertracker.domain.model.ProjectStatus
 import com.dmb.chantiertracker.domain.model.User
 import com.dmb.chantiertracker.support.FakeAuthRepository
 import com.dmb.chantiertracker.support.FakeProjectRepository
+import com.dmb.chantiertracker.support.FakeStageRepository
 import com.dmb.chantiertracker.support.installTestMainDispatcher
 import com.dmb.chantiertracker.support.resetTestMainDispatcher
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -45,7 +46,7 @@ class ProjectDetailViewModelTest {
     @Test
     fun observes_detail_from_the_local_store() = runTest {
         val repo = FakeProjectRepository(detail = detail(ownerId = 1))
-        val vm = ProjectDetailViewModel(repo, auth(userId = 1))
+        val vm = ProjectDetailViewModel(repo, FakeStageRepository(), auth(userId = 1))
         vm.load("p5")
         advanceUntilIdle()
 
@@ -60,7 +61,7 @@ class ProjectDetailViewModelTest {
     @Test
     fun retry_pulls_this_project_again() = runTest {
         val repo = FakeProjectRepository(detail = null)
-        val vm = ProjectDetailViewModel(repo, auth(userId = 1))
+        val vm = ProjectDetailViewModel(repo, FakeStageRepository(), auth(userId = 1))
         vm.load("p5")
         advanceUntilIdle()
 
@@ -73,7 +74,7 @@ class ProjectDetailViewModelTest {
     @Test
     fun owner_can_edit_without_consulting_members() = runTest {
         val repo = FakeProjectRepository(detail = detail(ownerId = 7))
-        val vm = ProjectDetailViewModel(repo, auth(userId = 7))
+        val vm = ProjectDetailViewModel(repo, FakeStageRepository(), auth(userId = 7))
         vm.load("p5")
         advanceUntilIdle()
 
@@ -86,7 +87,7 @@ class ProjectDetailViewModelTest {
             detail = detail(ownerId = 7),
             members = listOf(ProjectMember(userId = 9, name = "Anna", email = "a@x.dev", role = ProjectRole.ADMIN)),
         )
-        val vm = ProjectDetailViewModel(repo, auth(userId = 9))
+        val vm = ProjectDetailViewModel(repo, FakeStageRepository(), auth(userId = 9))
         vm.load("p5")
         advanceUntilIdle()
 
@@ -99,7 +100,7 @@ class ProjectDetailViewModelTest {
             detail = detail(ownerId = 7),
             members = listOf(ProjectMember(userId = 9, name = "Anna", email = "a@x.dev", role = ProjectRole.SUPERVISOR)),
         )
-        val vm = ProjectDetailViewModel(repo, auth(userId = 9))
+        val vm = ProjectDetailViewModel(repo, FakeStageRepository(), auth(userId = 9))
         vm.load("p5")
         advanceUntilIdle()
 
@@ -109,7 +110,7 @@ class ProjectDetailViewModelTest {
     @Test
     fun a_missing_project_is_flagged_once_loading_settles() = runTest {
         val repo = FakeProjectRepository(detail = null)
-        val vm = ProjectDetailViewModel(repo, auth(userId = 1))
+        val vm = ProjectDetailViewModel(repo, FakeStageRepository(), auth(userId = 1))
         vm.load("gone")
         advanceUntilIdle()
 
@@ -120,7 +121,7 @@ class ProjectDetailViewModelTest {
     @Test
     fun the_project_reappearing_in_the_store_clears_the_missing_state() = runTest {
         val repo = FakeProjectRepository(detail = null)
-        val vm = ProjectDetailViewModel(repo, auth(userId = 1))
+        val vm = ProjectDetailViewModel(repo, FakeStageRepository(), auth(userId = 1))
         vm.load("p5")
         advanceUntilIdle()
         assertTrue(vm.state.value.isMissing)

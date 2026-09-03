@@ -103,8 +103,33 @@
     <string name="detail_timezone">Time zone</string>
     <string name="detail_section_stages">Stages</string>
     <string name="detail_stages_empty">No stages yet. You'll add them here to break the work down and track its budget.</string>
+    <string name="detail_stages_add">New stage</string>
     <string name="detail_section_members">Members</string>
     <string name="detail_members_empty">No members yet. Invite the people who follow this site from here.</string>
+
+    <string name="stage_status_in_progress">In progress</string>
+    <string name="stage_status_completed">Completed</string>
+    <string name="stage_card_budget">Budget: %1$s</string>
+
+    <string name="project_location_unset">Location not set</string>
+
+    <string name="create_stage_title">New stage</string>
+    <string name="create_stage_name_label">Stage name</string>
+    <string name="create_stage_budget_label">Forecast budget</string>
+    <string name="create_stage_start_date_label">Start date</string>
+    <string name="create_stage_end_date_label">End date</string>
+    <string name="create_stage_date_hint">YYYY-MM-DD</string>
+    <string name="create_stage_submit">Create stage</string>
+
+    <string name="stage_detail_title">Stage</string>
+    <string name="stage_detail_budget">Forecast budget</string>
+    <string name="stage_detail_dates">Dates</string>
+    <string name="value_not_set">Not set</string>
+    <string name="stage_detail_section_days">Days</string>
+    <string name="stage_detail_days_empty">No days logged yet. Daily purchases and work will show up here.</string>
+
+    <string name="validation_date_format">Use the format YYYY-MM-DD.</string>
+    <string name="validation_amount_invalid">Enter a valid amount.</string>
 
     <string name="settings_language">Language</string>
     <string name="settings_theme">Theme</string>
