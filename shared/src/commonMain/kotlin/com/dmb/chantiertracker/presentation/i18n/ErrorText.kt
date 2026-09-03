@@ -6,9 +6,12 @@ import com.dmb.chantiertracker.resources.Res
 import com.dmb.chantiertracker.resources.error_account_locked
 import com.dmb.chantiertracker.resources.error_account_not_verified
 import com.dmb.chantiertracker.resources.error_email_already_used
+import com.dmb.chantiertracker.resources.error_forbidden
 import com.dmb.chantiertracker.resources.error_invalid_code
 import com.dmb.chantiertracker.resources.error_invalid_credentials
 import com.dmb.chantiertracker.resources.error_network
+import com.dmb.chantiertracker.resources.error_not_found
+import com.dmb.chantiertracker.resources.error_plan_limit
 import com.dmb.chantiertracker.resources.error_rate_limited
 import com.dmb.chantiertracker.resources.error_unexpected
 import com.dmb.chantiertracker.resources.error_validation
@@ -23,6 +26,9 @@ fun DomainException.textRes(): StringResource = when (this) {
     DomainException.InvalidCode -> Res.string.error_invalid_code
     DomainException.Validation -> Res.string.error_validation
     DomainException.RateLimited -> Res.string.error_rate_limited
+    DomainException.PlanLimitReached -> Res.string.error_plan_limit
+    DomainException.Forbidden -> Res.string.error_forbidden
+    DomainException.NotFound -> Res.string.error_not_found
     DomainException.Network -> Res.string.error_network
     DomainException.Unexpected -> Res.string.error_unexpected
 }

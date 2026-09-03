@@ -44,4 +44,13 @@ data object ForgotPasswordRoute
 data class ResetPasswordRoute(val email: String)
 
 @Serializable
-data object HomeRoute
+data object ProjectsRoute
+
+@Serializable
+data object SettingsRoute
+
+@Serializable
+data object CreateProjectRoute
+
+@Serializable
+data class ProjectDetailRoute(val projectLocalId: String)

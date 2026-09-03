@@ -13,6 +13,9 @@ sealed class DomainException : Exception() {
     data object InvalidCode : DomainException()
     data object Validation : DomainException()
     data object RateLimited : DomainException()
+    data object PlanLimitReached : DomainException()
+    data object Forbidden : DomainException()
+    data object NotFound : DomainException()
     data object Network : DomainException()
     data object Unexpected : DomainException()
 

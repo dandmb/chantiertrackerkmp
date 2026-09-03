@@ -61,11 +61,57 @@
     <string name="reset_submit">Réinitialiser</string>
     <string name="reset_back_to_login">Retour à la connexion</string>
 
-    <string name="home_greeting">Bonjour, %1$s</string>
-    <string name="home_greeting_fallback">Bienvenue</string>
-    <string name="home_platform">Plateforme : %1$s</string>
-    <string name="home_api">API : %1$s</string>
-    <string name="home_logout">Déconnexion</string>
+    <string name="nav_projects">Projets</string>
+    <string name="nav_settings">Paramètres</string>
+
+    <string name="menu_open">Menu du compte</string>
+    <string name="menu_subscription">Mon abonnement</string>
+    <string name="menu_logout">Déconnexion</string>
+
+    <string name="plan_free">Formule Gratuite</string>
+    <string name="plan_semi_flex">Formule Semi-Flex</string>
+    <string name="plan_liberte">Formule Liberté</string>
+    <string name="plan_unknown">—</string>
+
+    <string name="projects_empty_title">Aucun projet pour l'instant</string>
+    <string name="projects_empty_body">Crée ton premier projet, puis invite la personne qui suit le chantier — ou fais tout toi-même si tu préfères.</string>
+    <string name="projects_error">Impossible de charger tes projets.</string>
+    <string name="projects_retry">Réessayer</string>
+    <string name="projects_new">Nouveau projet</string>
+    <string name="project_open">Ouvrir le projet</string>
+    <string name="sort_button">Trier</string>
+    <string name="sort_newest_first">Plus récent d'abord</string>
+    <string name="sort_oldest_first">Plus ancien d'abord</string>
+
+    <string name="project_status_in_progress">En cours</string>
+    <string name="project_status_suspended">Suspendu</string>
+    <string name="project_status_completed">Terminé</string>
+
+    <string name="create_project_title">Nouveau projet</string>
+    <string name="create_name_label">Nom du projet</string>
+    <string name="create_description_label">Description</string>
+    <string name="create_location_label">Localisation</string>
+    <string name="create_currency_label">Devise</string>
+    <string name="create_currency_hint">EUR, USD, XAF…</string>
+    <string name="create_timezone_label">Fuseau horaire</string>
+    <string name="create_timezone_help">Fuseau horaire du chantier. Il détermine comment sont comptées les journées pour la personne sur place.</string>
+    <string name="create_submit">Créer le projet</string>
+
+    <string name="detail_title">Projet</string>
+    <string name="detail_edit">Modifier</string>
+    <string name="detail_currency">Devise</string>
+    <string name="detail_timezone">Fuseau horaire</string>
+    <string name="detail_section_stages">Étapes</string>
+    <string name="detail_stages_empty">Aucune étape pour l'instant. Tu les ajouteras ici pour découper le chantier et suivre son budget.</string>
+    <string name="detail_section_members">Membres</string>
+    <string name="detail_members_empty">Aucun membre pour l'instant. Invite ici les personnes qui suivent ce chantier.</string>
+
+    <string name="settings_language">Langue</string>
+    <string name="settings_theme">Thème</string>
+    <string name="settings_theme_system">Système</string>
+    <string name="settings_version">Version de l'app</string>
+    <string name="language_french">Français</string>
+    <string name="language_english">Anglais</string>
 
     <string name="validation_email_required">L'email est obligatoire.</string>
     <string name="validation_email_invalid">L'email doit être valide.</string>
@@ -86,6 +132,9 @@
     <string name="error_invalid_code">Ce code est invalide ou a expiré.</string>
     <string name="error_validation">Vérifiez les informations saisies.</string>
     <string name="error_rate_limited">Trop de tentatives. Réessayez dans quelques minutes.</string>
+    <string name="error_plan_limit">Vous avez atteint la limite de projets de votre formule.</string>
+    <string name="error_forbidden">Vous n'êtes pas autorisé à effectuer cette action.</string>
+    <string name="error_not_found">Ce projet n'existe plus, ou vous n'y avez pas accès.</string>
     <string name="error_network">Connexion au serveur impossible. Vérifiez votre connexion.</string>
     <string name="error_unexpected">Une erreur est survenue. Réessayez.</string>
 </resources>

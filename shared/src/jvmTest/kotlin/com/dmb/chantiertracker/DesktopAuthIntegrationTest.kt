@@ -3,12 +3,35 @@ package com.dmb.chantiertracker
 import com.dmb.chantiertracker.data.AuthStateHolder
 import com.dmb.chantiertracker.data.local.DesktopOnboardingStore
 import com.dmb.chantiertracker.data.local.DesktopTokenStorage
+import com.dmb.chantiertracker.data.remote.AccountApi
 import com.dmb.chantiertracker.data.remote.AuthApi
+import com.dmb.chantiertracker.data.remote.ProjectApi
 import com.dmb.chantiertracker.data.remote.createHttpClient
 import com.dmb.chantiertracker.data.remote.httpClientEngine
+import androidx.room.Room
+import com.dmb.chantiertracker.data.local.db.AppDatabase
+import com.dmb.chantiertracker.data.local.db.PendingOp
+import com.dmb.chantiertracker.data.local.db.buildChantierDatabase
+import com.dmb.chantiertracker.data.repository.AccountRepositoryImpl
 import com.dmb.chantiertracker.data.repository.AuthRepositoryImpl
+import com.dmb.chantiertracker.data.repository.ProjectRepositoryImpl
+import com.dmb.chantiertracker.data.sync.AppCoroutineScope
+import com.dmb.chantiertracker.data.sync.SyncEngine
+import com.dmb.chantiertracker.presentation.sync.SyncStateHolder
 import com.dmb.chantiertracker.domain.model.AuthState
+import com.dmb.chantiertracker.domain.model.CreateProjectInput
+import com.dmb.chantiertracker.domain.model.Plan
+import com.dmb.chantiertracker.domain.model.ProjectRole
+import com.dmb.chantiertracker.domain.model.ProjectStatus
+import com.dmb.chantiertracker.domain.model.UpdateProjectInput
+import com.dmb.chantiertracker.support.FakeConnectivityObserver
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import java.net.HttpURLConnection
 import java.net.URI
 import java.nio.file.Files
@@ -38,10 +61,18 @@ class DesktopAuthIntegrationTest {
         onSessionExpired = { holder.update(AuthState.Unauthenticated) },
     )
     private val repo = AuthRepositoryImpl(AuthApi(client), storage, holder, onboarding)
+    private val accountRepo = AccountRepositoryImpl(AccountApi(client))
+
+    private val db: AppDatabase = Room.inMemoryDatabaseBuilder<AppDatabase>().buildChantierDatabase()
+    private val appScope = AppCoroutineScope()
+    private val connectivity = FakeConnectivityObserver(initiallyOnline = true)
+    private val syncEngine = SyncEngine(db.projectDao(), ProjectApi(client), connectivity, SyncStateHolder(), appScope)
+    private val projectRepo = ProjectRepositoryImpl(db.projectDao(), syncEngine, appScope)
 
     @AfterTest
     fun cleanUp() {
         client.close()
+        db.close()
         dir.toFile().deleteRecursively()
     }
 
@@ -103,19 +134,139 @@ class DesktopAuthIntegrationTest {
         val newPassword = "SecondPass5678!"
 
         repo.register(email, firstPassword, "Reset Flow")
-        repo.verifyEmail(email, latestCodeFor(email))
+        val verifyCode = latestCodeFor(email)
+        repo.verifyEmail(email, verifyCode)
         repo.login(email, firstPassword)
         assertIs<AuthState.Authenticated>(holder.state.value)
 
         // Le reset révoque tous les tokens serveur — l'ancien couple est encore sur disque.
         repo.forgotPassword(email)
-        repo.resetPassword(email, latestCodeFor(email), newPassword)
+        repo.resetPassword(email, latestCodeFor(email, differentFrom = verifyCode), newPassword)
 
         // Le cœur du bug #1 : se reconnecter avec le NOUVEAU mot de passe doit réussir.
         repo.login(email, newPassword)
         val authed = holder.state.value
         assertIs<AuthState.Authenticated>(authed)
         assertEquals("Reset Flow", authed.user.name)
+    }
+
+    @Test
+    fun logged_in_user_lists_projects_and_reads_plan() = runBlocking {
+        if (System.getProperty("chantiertracker.integrationTests") != "true") {
+            println("Test d'intégration désactivé (passer -Dchantiertracker.integrationTests=true).")
+            return@runBlocking
+        }
+        if (!backendUp()) {
+            println("Backend localhost:8080 indisponible — test ignoré.")
+            return@runBlocking
+        }
+
+        repo.login("mobile-test@local.dev", "ChantierTest1234!")
+        assertIs<AuthState.Authenticated>(holder.state.value)
+
+        // Room est la source de vérité : on pull d'abord, puis on lit le store local.
+        projectRepo.refresh()
+        val projects = projectRepo.observeProjects().first()
+        assertTrue(projects.all { it.name.isNotBlank() }, "chaque projet a un nom")
+
+        // `GET /users/me/plan-usage` → Plan connu (compte de test = FREE par défaut).
+        assertTrue(accountRepo.getCurrentPlan() != Plan.UNKNOWN, "le plan du compte de test doit être reconnu")
+    }
+
+    @Test
+    fun register_create_project_then_open_its_detail() = runBlocking {
+        if (System.getProperty("chantiertracker.integrationTests") != "true") {
+            println("Test d'intégration désactivé (passer -Dchantiertracker.integrationTests=true).")
+            return@runBlocking
+        }
+        if (!backendUp()) {
+            println("Backend localhost:8080 indisponible — test ignoré.")
+            return@runBlocking
+        }
+
+        // Compte neuf : le compte de test est FREE (1 projet max) et en a déjà un.
+        val email = "project-flow-${System.currentTimeMillis()}@local.dev"
+        repo.register(email, "ProjectPass1234!", "Project Flow")
+        repo.verifyEmail(email, latestCodeFor(email))
+        repo.login(email, "ProjectPass1234!")
+        assertIs<AuthState.Authenticated>(holder.state.value)
+
+        // Écriture locale immédiate…
+        val localId = projectRepo.createProject(
+            CreateProjectInput(
+                name = "Villa d'intégration",
+                description = "Créée par le test E2E",
+                location = "Nîmes",
+                currency = null,
+                timezone = "Europe/Paris",
+            ),
+        )
+        assertEquals("Villa d'intégration", projectRepo.observeProject(localId).first()?.name)
+
+        // …puis synchronisation vers le serveur réel (push du CREATE + pull).
+        syncEngine.syncNow()
+
+        val detail = projectRepo.observeProject(localId).first()!!
+        assertEquals("Villa d'intégration", detail.name)
+        assertEquals("USD", detail.currency, "devise absente → USD par défaut côté backend")
+        assertEquals("Europe/Paris", detail.timezone)
+        assertTrue(db.projectDao().findByLocalId(localId)?.serverId != null, "un id serveur a été attribué au sync")
+
+        // Le projet apparaît dans la liste locale, réconciliée avec le serveur.
+        assertTrue(projectRepo.observeProjects().first().any { it.localId == localId })
+    }
+
+    @Test
+    fun create_pull_members_edit_offline_then_delete() = runBlocking {
+        if (System.getProperty("chantiertracker.integrationTests") != "true") {
+            println("Test d'intégration désactivé (passer -Dchantiertracker.integrationTests=true).")
+            return@runBlocking
+        }
+        if (!backendUp()) {
+            println("Backend localhost:8080 indisponible — test ignoré.")
+            return@runBlocking
+        }
+
+        val email = "project-md-${System.currentTimeMillis()}@local.dev"
+        repo.register(email, "ProjectPass1234!", "Project MD")
+        repo.verifyEmail(email, latestCodeFor(email))
+        repo.login(email, "ProjectPass1234!")
+
+        val localId = projectRepo.createProject(
+            CreateProjectInput("Chantier E2E", null, "Nîmes", null, "Europe/Paris"),
+        )
+        syncEngine.syncNow()
+        val serverId = db.projectDao().findByLocalId(localId)?.serverId
+        assertTrue(serverId != null, "un id serveur a été attribué au sync")
+
+        // Pull ciblé du projet + de ses membres (nouveau en Phase D) : le créateur est ADMIN.
+        projectRepo.refreshProject(localId)
+        val members = projectRepo.observeMembers(localId).first()
+        assertTrue(members.any { it.email == email && it.role == ProjectRole.ADMIN }, "le créateur est membre ADMIN")
+
+        // Hors ligne : l'édition reste locale, en attente — pas de push concurrent.
+        connectivity.setOnline(false)
+        projectRepo.updateProject(
+            localId,
+            UpdateProjectInput("Chantier E2E renommé", "Édité par le test", "Nîmes", "EUR", "Europe/Paris", ProjectStatus.SUSPENDED),
+        )
+        assertEquals(PendingOp.UPDATE, db.projectDao().findByLocalId(localId)!!.pendingOp)
+        assertEquals("SUSPENDED", db.projectDao().findByLocalId(localId)!!.status)
+
+        // Retour en ligne : l'édition est poussée (le backend sérialise updatedAt en fuseau
+        // serveur ≠ UTC — le fix ADR-21 ne s'appuie plus sur l'horloge appareil).
+        connectivity.setOnline(true)
+        syncEngine.syncNow()
+        assertEquals("Chantier E2E renommé", ProjectApi(client).get(serverId!!).name, "l'édition offline a bien atteint le serveur")
+        assertEquals(PendingOp.NONE, db.projectDao().findByLocalId(localId)!!.pendingOp)
+
+        // Suppression : push DELETE inconditionnel → disparue des deux côtés.
+        projectRepo.deleteProject(localId)
+        syncEngine.syncNow()
+        assertEquals(null, db.projectDao().findByLocalId(localId))
+        assertTrue(projectRepo.observeProjects().first().none { it.localId == localId })
+        val stillOnServer = runCatching { ProjectApi(client).get(serverId!!) }.isSuccess
+        assertTrue(!stillOnServer, "le projet a bien été supprimé côté serveur")
     }
 
     private fun backendUp(): Boolean = runCatching {
@@ -125,12 +276,23 @@ class DesktopAuthIntegrationTest {
         conn.responseCode in 200..499
     }.getOrDefault(false)
 
-    private fun latestCodeFor(email: String): String {
-        val json = URI("http://localhost:1080/email").toURL().readText()
-        val entries = json.split("{\"id\":").drop(1)
-        val match = entries.lastOrNull { it.contains(email) }
-            ?: error("Aucun email pour $email dans MailDev")
-        return Regex("\\b\\d{6}\\b").find(match)?.value
-            ?: error("Aucun code à 6 chiffres pour $email")
+    private fun latestCodeFor(email: String, differentFrom: String? = null): String {
+        val sixDigits = Regex("""\b\d{6}\b""")
+        repeat(20) {
+            val messages = runCatching {
+                Json.parseToJsonElement(URI("http://localhost:1080/email").toURL().readText()).jsonArray
+            }.getOrNull() ?: emptyList()
+            val message = messages.lastOrNull { el ->
+                val o = el.jsonObject
+                listOf("to", "envelope", "headers").any { key -> o[key]?.toString()?.contains(email) == true }
+            }
+            val body = message?.jsonObject?.let { o ->
+                (o["text"] ?: o["html"])?.jsonPrimitive?.contentOrNull
+            }
+            val code = body?.let { sixDigits.find(it)?.value }
+            if (code != null && code != differentFrom) return code
+            Thread.sleep(300)
+        }
+        error("Aucun code à 6 chiffres pour $email dans MailDev")
     }
 }
