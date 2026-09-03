@@ -8,15 +8,19 @@ import com.dmb.chantiertracker.data.local.TokenStorage
 import com.dmb.chantiertracker.data.remote.AccountApi
 import com.dmb.chantiertracker.data.remote.AuthApi
 import com.dmb.chantiertracker.data.local.db.ProjectDao
+import com.dmb.chantiertracker.data.local.db.StageDao
 import com.dmb.chantiertracker.data.remote.ProjectApi
+import com.dmb.chantiertracker.data.remote.StageApi
 import com.dmb.chantiertracker.data.sync.AppCoroutineScope
 import com.dmb.chantiertracker.data.sync.Syncer
 import com.dmb.chantiertracker.domain.repository.AccountRepository
 import com.dmb.chantiertracker.domain.repository.AuthRepository
 import com.dmb.chantiertracker.domain.repository.ProjectRepository
+import com.dmb.chantiertracker.domain.repository.StageRepository
 import com.dmb.chantiertracker.support.FakeBuildInfo
 import com.dmb.chantiertracker.support.FakeOnboardingStore
 import com.dmb.chantiertracker.support.FakeProjectDao
+import com.dmb.chantiertracker.support.FakeStageDao
 import com.dmb.chantiertracker.support.FakeSyncer
 import com.dmb.chantiertracker.support.FakeTokenStorage
 import io.ktor.client.HttpClient
@@ -38,6 +42,7 @@ class KoinModulesTest {
     private val fakeSyncModule = module {
         single { AppCoroutineScope() }
         single<ProjectDao> { FakeProjectDao() }
+        single<StageDao> { FakeStageDao() }
         single<Syncer> { FakeSyncer() }
     }
 
@@ -52,9 +57,11 @@ class KoinModulesTest {
         assertNotNull(koin.get<HttpClient>())
         assertNotNull(koin.get<AuthApi>())
         assertNotNull(koin.get<ProjectApi>())
+        assertNotNull(koin.get<StageApi>())
         assertNotNull(koin.get<AccountApi>())
         assertNotNull(koin.get<AuthRepository>())
         assertNotNull(koin.get<ProjectRepository>())
+        assertNotNull(koin.get<StageRepository>())
         assertNotNull(koin.get<AccountRepository>())
 
         koin.close()

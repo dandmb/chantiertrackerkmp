@@ -31,6 +31,9 @@ import com.dmb.chantiertracker.domain.model.Project
 import com.dmb.chantiertracker.domain.model.ProjectDetail
 import com.dmb.chantiertracker.domain.model.ProjectSort
 import com.dmb.chantiertracker.domain.model.ProjectStatus
+import com.dmb.chantiertracker.domain.model.Stage
+import com.dmb.chantiertracker.domain.model.StageDetail
+import com.dmb.chantiertracker.domain.model.StageStatus
 import com.dmb.chantiertracker.domain.model.User
 import com.dmb.chantiertracker.presentation.i18n.AppEnvironment
 import com.dmb.chantiertracker.presentation.i18n.customAppLocale
@@ -51,11 +54,16 @@ import com.dmb.chantiertracker.presentation.projects.detail.ProjectDetailScreen
 import com.dmb.chantiertracker.presentation.projects.detail.ProjectDetailViewModel
 import com.dmb.chantiertracker.presentation.settings.SettingsScreen
 import com.dmb.chantiertracker.presentation.settings.SettingsViewModel
+import com.dmb.chantiertracker.presentation.stages.create.CreateStageScreen
+import com.dmb.chantiertracker.presentation.stages.create.CreateStageViewModel
+import com.dmb.chantiertracker.presentation.stages.detail.StageDetailScreen
+import com.dmb.chantiertracker.presentation.stages.detail.StageDetailViewModel
 import com.dmb.chantiertracker.presentation.theme.AppTheme
 import com.dmb.chantiertracker.support.FakeAccountRepository
 import com.dmb.chantiertracker.support.FakeAuthRepository
 import com.dmb.chantiertracker.support.FakeBuildInfo
 import com.dmb.chantiertracker.support.FakeProjectRepository
+import com.dmb.chantiertracker.support.FakeStageRepository
 import com.dmb.chantiertracker.support.installTestMainDispatcher
 import com.dmb.chantiertracker.support.resetTestMainDispatcher
 import java.io.File
@@ -152,6 +160,11 @@ class MainScreensSnapshotTest {
 
     private fun createProjectVm() = CreateProjectViewModel(FakeProjectRepository())
 
+    private val sampleStages = listOf(
+        Stage("s1", "1", "Gros œuvre", 18000.0, StageStatus.IN_PROGRESS),
+        Stage("s2", "1", "Toiture", null, StageStatus.COMPLETED),
+    )
+
     private fun detailVm(canEdit: Boolean): ProjectDetailViewModel {
         val user = User(1, "jean@chantier.dev", "Jean Marchand", true, GlobalRole.USER)
         val auth = FakeAuthRepository().apply { emitState(AuthState.Authenticated(user)) }
@@ -167,7 +180,40 @@ class MainScreensSnapshotTest {
                 ownerId = if (canEdit) 1L else 999L,
             ),
         )
-        return ProjectDetailViewModel(repo, auth).also { it.load("1") }
+        return ProjectDetailViewModel(repo, FakeStageRepository(stages = sampleStages), auth).also { it.load("1") }
+    }
+
+    private fun createStageVm(canSetBudget: Boolean): CreateStageViewModel {
+        val user = User(1, "jean@chantier.dev", "Jean Marchand", true, GlobalRole.USER)
+        val auth = FakeAuthRepository().apply { emitState(AuthState.Authenticated(user)) }
+        val projectRepo = FakeProjectRepository(
+            detail = ProjectDetail(
+                localId = "1", name = "Villa Vidal", description = null, location = "Nîmes",
+                currency = "EUR", timezone = "Europe/Paris", status = ProjectStatus.IN_PROGRESS,
+                ownerId = if (canSetBudget) 1L else 999L,
+            ),
+        )
+        return CreateStageViewModel(FakeStageRepository(), projectRepo, auth).also { it.start("1") }
+    }
+
+    private fun stageDetailVm(withBudget: Boolean = true): StageDetailViewModel {
+        val repo = FakeStageRepository(
+            detail = StageDetail(
+                localId = "s1", projectLocalId = "1", name = "Gros œuvre",
+                description = "Fondations, dalle, élévation des murs porteurs.",
+                estimatedBudget = if (withBudget) 18000.0 else null,
+                startDate = if (withBudget) "2026-02-01" else null,
+                endDate = if (withBudget) "2026-05-15" else null,
+                status = StageStatus.IN_PROGRESS,
+            ),
+        )
+        val projectRepo = FakeProjectRepository(
+            detail = ProjectDetail(
+                localId = "1", name = "Villa Vidal", description = null, location = "Nîmes",
+                currency = "EUR", timezone = "Europe/Paris", status = ProjectStatus.IN_PROGRESS, ownerId = 1L,
+            ),
+        )
+        return StageDetailViewModel(repo, projectRepo).also { it.load("s1") }
     }
 
     @Test
@@ -203,6 +249,21 @@ class MainScreensSnapshotTest {
                     fallbackTitle = if (locale == "fr") "Projet" else "Project",
                     projectVm = detailVm(canEdit = true),
                 )
+            }
+            snapshot("18-create-stage", locale) {
+                DetailChrome(
+                    title = if (locale == "fr") "Nouvelle étape" else "New stage",
+                ) { m -> CreateStageScreen(projectLocalId = "1", onCreated = {}, modifier = m, viewModel = createStageVm(canSetBudget = true)) }
+            }
+            snapshot("19-stage-detail", locale) {
+                DetailChrome(
+                    title = if (locale == "fr") "Étape" else "Stage",
+                ) { m -> StageDetailScreen(stageLocalId = "s1", modifier = m, viewModel = stageDetailVm()) }
+            }
+            snapshot("20-stage-detail-no-budget", locale) {
+                DetailChrome(
+                    title = if (locale == "fr") "Étape" else "Stage",
+                ) { m -> StageDetailScreen(stageLocalId = "s1", modifier = m, viewModel = stageDetailVm(withBudget = false)) }
             }
         }
         for (locale in listOf("fr", "en")) {

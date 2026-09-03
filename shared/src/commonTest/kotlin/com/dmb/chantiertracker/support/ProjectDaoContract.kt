@@ -4,6 +4,7 @@ import com.dmb.chantiertracker.data.local.db.AppDatabase
 import com.dmb.chantiertracker.data.local.db.PendingOp
 import com.dmb.chantiertracker.data.local.db.ProjectEntity
 import com.dmb.chantiertracker.data.local.db.ProjectMemberEntity
+import com.dmb.chantiertracker.data.local.db.StageEntity
 import com.dmb.chantiertracker.data.local.db.SyncStatus
 import kotlinx.coroutines.flow.first
 import kotlin.test.assertEquals
@@ -69,4 +70,63 @@ suspend fun verifyProjectDaoContract(db: AppDatabase) {
     dao.clearMembers("p1")
     assertTrue("members cleared for p1") { dao.observeMembers("p1").first().isEmpty() }
     assertEquals(1, dao.observeMembers("p2").first().size)
+}
+
+private fun sampleStage(
+    localId: String,
+    projectLocalId: String,
+    serverId: Long? = null,
+    startDate: String? = null,
+    op: PendingOp = PendingOp.CREATE,
+) = StageEntity(
+    localId = localId,
+    serverId = serverId,
+    projectLocalId = projectLocalId,
+    name = "Étape $localId",
+    description = null,
+    estimatedBudget = null,
+    startDate = startDate,
+    endDate = null,
+    status = "IN_PROGRESS",
+    syncStatus = if (op == PendingOp.NONE) SyncStatus.SYNCED else SyncStatus.PENDING,
+    pendingOp = op,
+    locallyModifiedAt = 1_000L,
+    lastSyncedAt = null,
+    remoteUpdatedAt = null,
+    lastSyncError = null,
+)
+
+/** Shared behavioural checks for [com.dmb.chantiertracker.data.local.db.StageDao] on a real [AppDatabase]. */
+suspend fun verifyStageDaoContract(db: AppDatabase) {
+    val projectDao = db.projectDao()
+    val dao = db.stageDao()
+
+    // A stage row needs its parent project to exist (foreign key).
+    projectDao.upsert(sample("host-a", serverId = 1L, op = PendingOp.NONE))
+    projectDao.upsert(sample("host-b", serverId = 2L, op = PendingOp.NONE))
+
+    dao.upsert(sampleStage("s-late", "host-a", startDate = "2026-05-01"))
+    dao.upsert(sampleStage("s-early", "host-a", startDate = "2026-01-01"))
+    dao.upsert(sampleStage("s-nodate", "host-a"))
+    dao.upsert(sampleStage("s-synced", "host-a", serverId = 90L, op = PendingOp.NONE))
+    dao.upsert(sampleStage("s-gone", "host-a", serverId = 91L, op = PendingOp.DELETE))
+    dao.upsert(sampleStage("s-other", "host-b"))
+
+    assertEquals("Étape s-synced", dao.findByServerId(90L)?.name)
+    assertEquals(
+        listOf("s-early", "s-gone", "s-late", "s-nodate"),
+        dao.findPending().filter { it.projectLocalId == "host-a" }.map { it.localId }.sorted(),
+    )
+
+    val visibleA = dao.observeStagesForProject("host-a").first().map { it.localId }
+    assertEquals(listOf("s-early", "s-late", "s-nodate", "s-synced"), visibleA, "dated first (asc), then undated by name; DELETE hidden")
+    assertEquals(listOf("s-other"), dao.observeStagesForProject("host-b").first().map { it.localId })
+
+    dao.deleteByLocalId("s-early")
+    assertNull(dao.findByLocalId("s-early"))
+
+    // Deleting the parent project cascades to its stages.
+    projectDao.deleteByLocalId("host-a")
+    assertTrue("stages cascade-deleted with their project") { dao.findForProject("host-a").isEmpty() }
+    assertEquals(listOf("s-other"), dao.findForProject("host-b").map { it.localId })
 }

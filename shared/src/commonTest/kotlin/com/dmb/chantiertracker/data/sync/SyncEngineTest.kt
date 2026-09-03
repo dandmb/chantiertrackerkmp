@@ -8,10 +8,13 @@ import com.dmb.chantiertracker.support.FakeBackgroundSync
 import com.dmb.chantiertracker.support.FakeConnectivityObserver
 import com.dmb.chantiertracker.support.FakeProjectBackend
 import com.dmb.chantiertracker.support.FakeProjectDao
+import com.dmb.chantiertracker.support.FakeStageDao
 import com.dmb.chantiertracker.support.MutableClock
 import com.dmb.chantiertracker.support.ServerMember
 import com.dmb.chantiertracker.support.ServerProject
+import com.dmb.chantiertracker.support.ServerStage
 import com.dmb.chantiertracker.support.localProject
+import com.dmb.chantiertracker.support.localStage
 import com.dmb.chantiertracker.support.serverMillis
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.first
@@ -32,6 +35,7 @@ class SyncEngineTest {
 
     private class Fixture(
         val dao: FakeProjectDao = FakeProjectDao(),
+        val stageDao: FakeStageDao = FakeStageDao(),
         val backend: FakeProjectBackend = FakeProjectBackend(),
         val connectivity: FakeConnectivityObserver = FakeConnectivityObserver(),
         val clock: MutableClock = MutableClock(serverMillis("2026-09-02T09:00:00")),
@@ -42,6 +46,8 @@ class SyncEngineTest {
         fun engine(scope: CoroutineScope, catchUpInterval: Duration = 15.minutes) = SyncEngine(
             dao = dao,
             api = backend.api(),
+            stageDao = stageDao,
+            stageApi = backend.stageApi(),
             connectivity = connectivity,
             syncState = syncState,
             scope = scope,
@@ -417,6 +423,130 @@ class SyncEngineTest {
         runCurrent()
 
         assertEquals(3, f.connectivity.isOnlineChecks - afterStart, "one catch-up pass per interval")
+    }
+
+    // ─── stages (children of a project) ────────────────────────────────────
+
+    @Test
+    fun a_stage_created_on_a_not_yet_synced_project_waits_then_pushes_once_the_project_has_a_server_id() = runTest {
+        val f = Fixture()
+        f.connectivity.setOnline(false)
+        f.dao.upsert(localProject("proj-1", name = "Villa", pendingOp = PendingOp.CREATE))
+        f.stageDao.upsert(localStage("st-1", projectLocalId = "proj-1", name = "Fondations", pendingOp = PendingOp.CREATE))
+        val engine = f.engine(backgroundScope)
+
+        assertIs<SyncOutcome.Skipped>(engine.syncNow())
+        assertTrue(f.backend.stages.isEmpty(), "nothing pushed while offline")
+
+        f.connectivity.setOnline(true)
+        assertIs<SyncOutcome.Synced>(engine.syncNow())
+
+        val project = f.dao.findByLocalId("proj-1")!!
+        assertNotNull(project.serverId)
+        val stage = f.stageDao.findByLocalId("st-1")!!
+        assertEquals(SyncStatus.SYNCED, stage.syncStatus)
+        assertEquals(PendingOp.NONE, stage.pendingOp)
+        assertEquals(project.serverId, f.backend.stages.single().projectId)
+        assertEquals("Fondations", f.backend.stages.single().name)
+    }
+
+    @Test
+    fun a_pending_stage_whose_parent_project_fails_to_push_stays_pending_not_errored() = runTest {
+        val f = Fixture()
+        f.backend.planLimitReached = true
+        f.dao.upsert(localProject("proj-1", pendingOp = PendingOp.CREATE))
+        f.stageDao.upsert(localStage("st-1", projectLocalId = "proj-1", pendingOp = PendingOp.CREATE))
+        val engine = f.engine(backgroundScope)
+
+        engine.syncNow()
+
+        val stage = f.stageDao.findByLocalId("st-1")!!
+        assertEquals(SyncStatus.PENDING, stage.syncStatus, "parent not on the server yet → stage still queued, no error")
+        assertNull(stage.serverId)
+        assertTrue(f.backend.stages.isEmpty())
+    }
+
+    @Test
+    fun sync_project_pulls_the_project_stages_into_the_local_store() = runTest {
+        val f = Fixture()
+        f.backend.seed(ServerProject(id = 5, name = "Villa Vidal"))
+        f.backend.seedStage(ServerStage(id = 90, projectId = 5, name = "Gros œuvre", estimatedBudget = 12000.0))
+        f.backend.seedStage(ServerStage(id = 91, projectId = 5, name = "Toiture"))
+        f.dao.upsert(localProject("p5", serverId = 5, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+        val engine = f.engine(backgroundScope)
+
+        assertIs<SyncOutcome.Synced>(engine.syncProject("p5"))
+
+        val stages = f.stageDao.findForProject("p5")
+        assertEquals(listOf(90L, 91L), stages.mapNotNull { it.serverId }.sorted())
+        assertEquals(12000.0, stages.single { it.serverId == 90L }.estimatedBudget)
+    }
+
+    @Test
+    fun pull_stages_leaves_a_pending_local_edit_in_place() = runTest {
+        val f = Fixture()
+        f.backend.seed(ServerProject(id = 5, name = "Villa"))
+        f.backend.seedStage(ServerStage(id = 90, projectId = 5, name = "Server name"))
+        f.dao.upsert(localProject("p5", serverId = 5, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+        f.stageDao.upsert(
+            localStage(
+                "st-1", projectLocalId = "p5", name = "Local edit", serverId = 90,
+                pendingOp = PendingOp.UPDATE, syncStatus = SyncStatus.PENDING,
+            ),
+        )
+        val engine = f.engine(backgroundScope)
+
+        engine.syncProject("p5")
+
+        assertEquals("Local edit", f.stageDao.findByServerId(90)!!.name, "pending local edit survives the pull")
+        assertEquals("Local edit", f.backend.stages.single { it.id == 90L }.name, "then wins on push (last-writer)")
+    }
+
+    @Test
+    fun pending_stage_delete_is_pushed_and_the_row_removed_locally() = runTest {
+        val f = Fixture()
+        f.backend.seed(ServerProject(id = 5, name = "Villa"))
+        f.backend.seedStage(ServerStage(id = 90, projectId = 5, name = "To remove"))
+        f.dao.upsert(localProject("p5", serverId = 5, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+        f.stageDao.upsert(
+            localStage("st-1", projectLocalId = "p5", serverId = 90, pendingOp = PendingOp.DELETE, syncStatus = SyncStatus.PENDING),
+        )
+        val engine = f.engine(backgroundScope)
+
+        engine.syncNow()
+
+        assertNull(f.stageDao.findByLocalId("st-1"))
+        assertTrue(f.backend.stages.none { it.id == 90L })
+    }
+
+    @Test
+    fun sync_stage_pulls_one_stage_and_drops_it_on_404() = runTest {
+        val f = Fixture()
+        f.dao.upsert(localProject("p5", serverId = 5, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+        f.stageDao.upsert(localStage("gone", projectLocalId = "p5", serverId = 777, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+        val engine = f.engine(backgroundScope)
+
+        assertIs<SyncOutcome.Synced>(engine.syncStage("gone"))
+        assertNull(f.stageDao.findByLocalId("gone"))
+    }
+
+    @Test
+    fun a_stage_edit_rejected_by_the_server_is_flagged_conflicted_not_dropped() = runTest {
+        val f = Fixture()
+        f.backend.seed(ServerProject(id = 5, name = "Villa"))
+        f.backend.seedStage(ServerStage(id = 90, projectId = 5, name = "Original"))
+        f.backend.stageWriteForbidden = true
+        f.dao.upsert(localProject("p5", serverId = 5, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+        f.stageDao.upsert(
+            localStage("st-1", projectLocalId = "p5", name = "Edited", serverId = 90, pendingOp = PendingOp.UPDATE, syncStatus = SyncStatus.PENDING),
+        )
+        val engine = f.engine(backgroundScope)
+
+        engine.syncNow()
+
+        val stage = f.stageDao.findByLocalId("st-1")!!
+        assertEquals(SyncStatus.CONFLICTED, stage.syncStatus)
+        assertEquals(SyncError.REJECTED, stage.lastSyncError)
     }
 
     @Test

@@ -66,7 +66,15 @@ class DesktopAuthIntegrationTest {
     private val db: AppDatabase = Room.inMemoryDatabaseBuilder<AppDatabase>().buildChantierDatabase()
     private val appScope = AppCoroutineScope()
     private val connectivity = FakeConnectivityObserver(initiallyOnline = true)
-    private val syncEngine = SyncEngine(db.projectDao(), ProjectApi(client), connectivity, SyncStateHolder(), appScope)
+    private val syncEngine = SyncEngine(
+        db.projectDao(),
+        ProjectApi(client),
+        db.stageDao(),
+        com.dmb.chantiertracker.data.remote.StageApi(client),
+        connectivity,
+        SyncStateHolder(),
+        appScope,
+    )
     private val projectRepo = ProjectRepositoryImpl(db.projectDao(), syncEngine, appScope)
 
     @AfterTest

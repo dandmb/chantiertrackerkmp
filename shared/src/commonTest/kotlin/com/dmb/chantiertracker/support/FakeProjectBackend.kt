@@ -32,6 +32,18 @@ class ServerMember(
     val role: String = "ADMIN",
 )
 
+class ServerStage(
+    val id: Long,
+    val projectId: Long,
+    var name: String,
+    var description: String? = null,
+    var estimatedBudget: Double? = null,
+    var startDate: String? = null,
+    var endDate: String? = null,
+    var status: String = "IN_PROGRESS",
+    var createdAt: String = "2026-01-01T09:00:00",
+)
+
 /**
  * A minimal, stateful stand-in for the projects REST API. Tests mutate
  * [projects] / [planLimitReached] directly to set up scenarios, then read
@@ -41,8 +53,16 @@ class FakeProjectBackend {
 
     val projects = mutableListOf<ServerProject>()
     val members = mutableMapOf<Long, MutableList<ServerMember>>()
+    val stages = mutableListOf<ServerStage>()
     var planLimitReached = false
     var nextId = 100L
+    var nextStageId = 500L
+
+    /** When false, a POST stage drops any `estimatedBudget` (mirrors a SUPERVISOR creating a stage). */
+    var stageBudgetAllowed = true
+
+    /** When true, PATCH/DELETE on a stage answers 403 (mirrors a non-ADMIN pushing a stage edit). */
+    var stageWriteForbidden = false
     val receivedMethods = mutableListOf<String>()
 
     fun seed(project: ServerProject) = project.also { projects += it }
@@ -51,18 +71,82 @@ class FakeProjectBackend {
         members.getOrPut(projectId) { mutableListOf() }.addAll(member)
     }
 
-    fun api(tokenStorage: FakeTokenStorage = FakeTokenStorage(com.dmb.chantiertracker.data.local.AuthTokens("a", "r"))): ProjectApi {
-        val client = RecordingMockClient(tokenStorage) { request -> handle(request) }
-        return ProjectApi(client.client)
-    }
+    fun seedStage(stage: ServerStage) = stage.also { stages += it }
+
+    private fun client(tokenStorage: FakeTokenStorage) =
+        RecordingMockClient(tokenStorage) { request -> handle(request) }.client
+
+    fun api(tokenStorage: FakeTokenStorage = FakeTokenStorage(com.dmb.chantiertracker.data.local.AuthTokens("a", "r"))): ProjectApi =
+        ProjectApi(client(tokenStorage))
+
+    fun stageApi(tokenStorage: FakeTokenStorage = FakeTokenStorage(com.dmb.chantiertracker.data.local.AuthTokens("a", "r"))): com.dmb.chantiertracker.data.remote.StageApi =
+        com.dmb.chantiertracker.data.remote.StageApi(client(tokenStorage))
 
     private suspend fun MockRequestHandleScope.handle(request: HttpRequestData): HttpResponseData {
         val path = request.url.encodedPath.removePrefix("/api/v1")
         receivedMethods += "${request.method.value} $path"
         val idInPath = Regex("""/projects/(\d+)$""").find(path)?.groupValues?.get(1)?.toLong()
         val membersProjectId = Regex("""/projects/(\d+)/members$""").find(path)?.groupValues?.get(1)?.toLong()
+        val stagesProjectId = Regex("""/projects/(\d+)/stages$""").find(path)?.groupValues?.get(1)?.toLong()
+        val stageId = Regex("""/stages/(\d+)$""").find(path)?.groupValues?.get(1)?.toLong()
 
         return when {
+            request.method == HttpMethod.Get && stagesProjectId != null -> {
+                if (projects.none { it.id == stagesProjectId }) {
+                    return respondProblem(HttpStatusCode.NotFound, "Projet introuvable.")
+                }
+                respondJson(stagesPageJson(stagesProjectId))
+            }
+
+            request.method == HttpMethod.Post && stagesProjectId != null -> {
+                if (projects.none { it.id == stagesProjectId }) {
+                    return respondProblem(HttpStatusCode.NotFound, "Projet introuvable.")
+                }
+                val body = request.jsonBody()
+                val created = ServerStage(
+                    id = nextStageId++,
+                    projectId = stagesProjectId,
+                    name = body.string("name") ?: "sans nom",
+                    description = body.string("description"),
+                    estimatedBudget = if (stageBudgetAllowed) body.number("estimatedBudget") else null,
+                    startDate = body.string("startDate"),
+                    endDate = body.string("endDate"),
+                    createdAt = "2026-06-01T08:00:00",
+                )
+                stages += created
+                respondJson(stageJson(created), HttpStatusCode.Created)
+            }
+
+            request.method == HttpMethod.Get && stageId != null -> {
+                val stage = stages.firstOrNull { it.id == stageId }
+                    ?: return respondProblem(HttpStatusCode.NotFound, "Étape introuvable.")
+                respondJson(stageJson(stage))
+            }
+
+            request.method == HttpMethod.Patch && stageId != null -> {
+                if (stageWriteForbidden) {
+                    return respondProblem(HttpStatusCode.Forbidden, "Action réservée à un administrateur.")
+                }
+                val stage = stages.firstOrNull { it.id == stageId }
+                    ?: return respondProblem(HttpStatusCode.NotFound, "Étape introuvable.")
+                val body = request.jsonBody()
+                body.string("name")?.let { stage.name = it }
+                body.string("description")?.let { stage.description = it }
+                body.number("estimatedBudget")?.let { stage.estimatedBudget = it }
+                body.string("startDate")?.let { stage.startDate = it }
+                body.string("endDate")?.let { stage.endDate = it }
+                body.string("status")?.let { stage.status = it }
+                respondJson(stageJson(stage))
+            }
+
+            request.method == HttpMethod.Delete && stageId != null -> {
+                if (stageWriteForbidden) {
+                    return respondProblem(HttpStatusCode.Forbidden, "Action réservée à un administrateur.")
+                }
+                stages.removeAll { it.id == stageId }
+                respondJson("", HttpStatusCode.NoContent)
+            }
+
             request.method == HttpMethod.Get && path == "/projects" -> respondJson(pageJson())
 
             request.method == HttpMethod.Get && membersProjectId != null -> {
@@ -146,6 +230,18 @@ class FakeProjectBackend {
          "status":${p.status.q()},"createdAt":${p.createdAt.q()},"updatedAt":${p.updatedAt.q()},
          "totalEstimatedBudget":null,"totalSpent":null}
     """.trimIndent()
+
+    private fun stagesPageJson(projectId: Long): String {
+        val list = stages.filter { it.projectId == projectId }
+        return """{"content":[${list.joinToString(",") { stageJson(it) }}],"totalElements":${list.size}}"""
+    }
+
+    private fun stageJson(s: ServerStage): String = """
+        {"id":${s.id},"projectId":${s.projectId},"name":${s.name.q()},"description":${s.description.q()},
+         "estimatedBudget":${s.estimatedBudget ?: "null"},"spentAmount":0,"spentPercentage":null,
+         "startDate":${s.startDate.q()},"endDate":${s.endDate.q()},"status":${s.status.q()},
+         "createdAt":${s.createdAt.q()}}
+    """.trimIndent()
 }
 
 private val json = Json { ignoreUnknownKeys = true }
@@ -154,5 +250,7 @@ private suspend fun HttpRequestData.jsonBody(): JsonObject =
     json.parseToJsonElement(body.toByteArray().decodeToString()) as JsonObject
 
 private fun JsonObject.string(key: String): String? = this[key]?.jsonPrimitive?.contentOrNull
+
+private fun JsonObject.number(key: String): Double? = this[key]?.jsonPrimitive?.contentOrNull?.toDoubleOrNull()
 
 private fun String?.q(): String = if (this == null) "null" else "\"" + replace("\"", "\\\"") + "\""

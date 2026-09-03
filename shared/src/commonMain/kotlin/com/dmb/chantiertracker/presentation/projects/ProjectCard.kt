@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.dp
 import com.dmb.chantiertracker.domain.model.Project
 import com.dmb.chantiertracker.presentation.main.ChevronRightIcon
 import com.dmb.chantiertracker.resources.Res
+import com.dmb.chantiertracker.resources.project_location_unset
 import com.dmb.chantiertracker.resources.project_open
 import org.jetbrains.compose.resources.stringResource
 
@@ -45,9 +46,11 @@ fun ProjectCard(project: Project, onClick: () -> Unit, modifier: Modifier = Modi
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                if (!project.location.isNullOrBlank()) {
-                    ProjectLocation(project.location, style = MaterialTheme.typography.bodySmall)
-                }
+                ProjectLocation(
+                    location = project.location?.takeIf { it.isNotBlank() }
+                        ?: stringResource(Res.string.project_location_unset),
+                    style = MaterialTheme.typography.bodySmall,
+                )
                 ProjectStatusBadge(project.status)
             }
             Icon(
