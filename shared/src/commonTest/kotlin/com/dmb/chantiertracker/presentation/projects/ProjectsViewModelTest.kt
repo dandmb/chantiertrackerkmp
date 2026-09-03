@@ -6,6 +6,7 @@ import com.dmb.chantiertracker.domain.model.ProjectStatus
 import com.dmb.chantiertracker.support.FakeProjectRepository
 import com.dmb.chantiertracker.support.installTestMainDispatcher
 import com.dmb.chantiertracker.support.resetTestMainDispatcher
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
@@ -85,6 +86,43 @@ class ProjectsViewModelTest {
         vm.onEnter()
         advanceUntilIdle()
 
+        assertEquals(1, repo.refreshCount)
+    }
+
+    @Test
+    fun pull_to_refresh_triggers_a_sync_and_shows_the_indicator_until_it_settles() = runTest {
+        val gate = CompletableDeferred<Unit>()
+        val repo = FakeProjectRepository(projects = listOf(older, newer))
+        repo.onRefresh = { gate.await() }
+        val vm = vm(repo)
+        advanceUntilIdle()
+        assertFalse(vm.state.value.isRefreshing)
+
+        vm.refresh()
+        advanceUntilIdle()
+
+        assertTrue(vm.state.value.isRefreshing, "l'indicateur reste pendant la synchro")
+        assertEquals(1, repo.refreshCount, "le geste délègue à repo.refresh()")
+        assertEquals(listOf(newer, older), vm.state.value.projects, "la liste locale reste affichée pendant l'opération")
+
+        gate.complete(Unit)
+        advanceUntilIdle()
+
+        assertFalse(vm.state.value.isRefreshing, "l'indicateur disparaît une fois la synchro terminée")
+    }
+
+    @Test
+    fun pull_to_refresh_clears_the_indicator_when_the_sync_is_a_no_op() = runTest {
+        // Hors ligne, syncNow() renvoie Skipped presque instantanément : l'indicateur doit se fermer.
+        val repo = FakeProjectRepository(projects = listOf(older))
+        val vm = vm(repo)
+        advanceUntilIdle()
+
+        vm.refresh()
+        advanceUntilIdle()
+
+        assertFalse(vm.state.value.isRefreshing)
+        assertEquals(listOf(older), vm.state.value.projects)
         assertEquals(1, repo.refreshCount)
     }
 }

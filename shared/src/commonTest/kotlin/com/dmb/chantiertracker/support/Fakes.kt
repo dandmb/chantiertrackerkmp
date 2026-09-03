@@ -130,6 +130,7 @@ class FakeProjectRepository(
         private set
     var createError: Throwable? = null
     var newLocalId = "local-new"
+    var onRefresh: (suspend () -> Unit)? = null
 
     override fun observeProjects() = projectsFlow
 
@@ -164,6 +165,7 @@ class FakeProjectRepository(
     override suspend fun refresh() {
         refreshCount++
         log += "refresh"
+        onRefresh?.invoke()
     }
 
     override suspend fun refreshProject(localId: String) {

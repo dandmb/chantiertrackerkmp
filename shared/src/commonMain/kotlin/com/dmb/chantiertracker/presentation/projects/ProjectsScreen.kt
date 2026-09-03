@@ -1,17 +1,19 @@
 package com.dmb.chantiertracker.presentation.projects
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -28,6 +30,7 @@ import com.dmb.chantiertracker.resources.projects_empty_title
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProjectsScreen(
     onProjectClick: (projectLocalId: String) -> Unit,
@@ -38,10 +41,14 @@ fun ProjectsScreen(
 
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { viewModel.onEnter() }
 
-    Box(modifier.fillMaxSize()) {
+    PullToRefreshBox(
+        isRefreshing = state.isRefreshing,
+        onRefresh = viewModel::refresh,
+        modifier = modifier.fillMaxSize(),
+    ) {
         when {
             state.isLoading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
-            state.isEmpty -> EmptyState(Modifier.align(Alignment.Center))
+            state.isEmpty -> EmptyState()
             else -> LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(16.dp),
@@ -57,10 +64,14 @@ fun ProjectsScreen(
 
 @Composable
 private fun EmptyState(modifier: Modifier = Modifier) {
+    // Scrollable so the pull-to-refresh gesture is available on the empty state too.
     Column(
-        modifier = modifier.fillMaxWidth().padding(horizontal = 32.dp),
+        modifier = modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 32.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically),
     ) {
         Text(
             text = stringResource(Res.string.projects_empty_title),

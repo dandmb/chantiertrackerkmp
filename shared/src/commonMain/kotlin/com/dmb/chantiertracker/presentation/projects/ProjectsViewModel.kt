@@ -15,6 +15,7 @@ import kotlinx.coroutines.launch
 data class ProjectsUiState(
     val isLoading: Boolean = true,
     val projects: List<Project> = emptyList(),
+    val isRefreshing: Boolean = false,
 ) {
     val isEmpty: Boolean get() = !isLoading && projects.isEmpty()
 }
@@ -29,16 +30,34 @@ class ProjectsViewModel(
 
     val sort: StateFlow<ProjectSort> = sortHolder.sort
 
+    private val _isRefreshing = MutableStateFlow(false)
+
     init {
         viewModelScope.launch {
-            combine(projectRepository.observeProjects(), sortHolder.sort) { projects, sort ->
-                ProjectsUiState(isLoading = false, projects = projects.applySort(sort))
+            combine(
+                projectRepository.observeProjects(),
+                sortHolder.sort,
+                _isRefreshing,
+            ) { projects, sort, isRefreshing ->
+                ProjectsUiState(isLoading = false, projects = projects.applySort(sort), isRefreshing = isRefreshing)
             }.collect { _state.value = it }
         }
     }
 
-    /** Called on each screen entry: kicks a background pull. The list itself always comes from the local store. */
+    /** Called on each screen entry: kicks a silent background pull. The list itself always comes from the local store. */
     fun onEnter() {
         viewModelScope.launch { projectRepository.refresh() }
+    }
+
+    /** Pull-to-refresh: the same background pull, but with a visible indicator until it settles. */
+    fun refresh() {
+        viewModelScope.launch {
+            _isRefreshing.value = true
+            try {
+                projectRepository.refresh()
+            } finally {
+                _isRefreshing.value = false
+            }
+        }
     }
 }
