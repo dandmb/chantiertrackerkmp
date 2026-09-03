@@ -5,11 +5,18 @@
 # Required secrets (repo or `stage` environment):
 #   FIREBASE_APP_ID            Firebase Android App ID, e.g. 1:123...:android:abc...
 #                              (registered for the package com.dmb.chantiertracker.staging)
-#   FIREBASE_SERVICE_ACCOUNT   full JSON key of a service account with the
-#                              "Firebase App Distribution Admin" role
+#   FIREBASE_SERVICE_ACCOUNT   the RAW (not base64) JSON key file of a service
+#                              account with the "Firebase App Distribution Admin"
+#                              role — paste the file's contents verbatim, one line
+#                              per line, without reformatting the `private_key`.
 #   FIREBASE_TESTER_GROUP      tester group alias to distribute to
 #   ANDROID_KEYSTORE_BASE64    base64 of the distribution keystore (.jks)
 #   ANDROID_KEYSTORE_PASSWORD  / ANDROID_KEY_ALIAS / ANDROID_KEY_PASSWORD
+#
+# firebase-tools authenticates from GOOGLE_APPLICATION_CREDENTIALS (a service
+# account key file) — no `firebase login` / FIREBASE_TOKEN needed. It does NOT
+# use google-services.json (that's a build-time SDK config; the app has no
+# Firebase SDK, so the file is genuinely not needed anywhere).
 
 name: CD — stage
 
@@ -81,14 +88,47 @@ jobs:
           test -n "$apk" || { echo "::error::no signed staging APK produced"; exit 1; }
           echo "path=$apk" >> "$GITHUB_OUTPUT"
 
-      - name: Distribute to Firebase App Distribution
+      - name: Write & check Firebase service account
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          sa="$RUNNER_TEMP/firebase-service-account.json"
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$sa"
+
+          if [ ! -s "$sa" ]; then
+            echo "::error::FIREBASE_SERVICE_ACCOUNT is empty — the secret is missing, misnamed, or not visible to the 'stage' environment."
+            exit 1
+          fi
+          echo "service account file: $(wc -c < "$sa") bytes"
+
+          if ! jq -e 'type == "object"' "$sa" >/dev/null 2>&1; then
+            if base64 -d < "$sa" 2>/dev/null | jq -e 'type == "object"' >/dev/null 2>&1; then
+              base64 -d < "$sa" > "$sa.decoded" && mv "$sa.decoded" "$sa"
+              echo "::warning::FIREBASE_SERVICE_ACCOUNT was base64-encoded; decoded it. Store the RAW JSON instead (see workflow header)."
+            else
+              echo "::error::FIREBASE_SERVICE_ACCOUNT is not valid JSON — truncated on paste, or the private_key was reformatted with real line breaks. Re-copy the key file's exact contents."
+              exit 1
+            fi
+          fi
+
+          type=$(jq -r '.type // empty' "$sa")
+          project_id=$(jq -r '.project_id // empty' "$sa")
+          has_key=$(jq -r 'if .private_key then "yes" else "no" end' "$sa")
+          echo "type=$type project_id=$project_id private_key=$has_key"
+          if [ "$type" != "service_account" ] || [ -z "$project_id" ] || [ "$has_key" != "yes" ]; then
+            echo "::error::not a complete service-account key (need type=service_account + project_id + private_key). Wrong file? (an OAuth client or an API key JSON won't work.)"
+            exit 1
+          fi
+
+      - name: Distribute to Firebase App Distribution
+        env:
           FIREBASE_APP_ID: ${{ secrets.FIREBASE_APP_ID }}
           FIREBASE_TESTER_GROUP: ${{ secrets.FIREBASE_TESTER_GROUP }}
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-service-account.json
         run: |
-          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$GOOGLE_APPLICATION_CREDENTIALS"
+          test -n "$FIREBASE_APP_ID" || { echo "::error::FIREBASE_APP_ID secret is missing"; exit 1; }
+          test -n "$FIREBASE_TESTER_GROUP" || { echo "::error::FIREBASE_TESTER_GROUP secret is missing"; exit 1; }
+          test -s "$GOOGLE_APPLICATION_CREDENTIALS" || { echo "::error::service account file missing"; exit 1; }
           notes="$(git log -1 --pretty=%s) (${GITHUB_SHA::7})"
           npx --yes firebase-tools@latest appdistribution:distribute "${{ steps.apk.outputs.path }}" \
             --app "$FIREBASE_APP_ID" \
