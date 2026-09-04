@@ -101,7 +101,7 @@
     <string name="create_submit">Créer le projet</string>
 
     <string name="detail_title">Projet</string>
-    <string name="detail_edit">Modifier</string>
+    <string name="detail_edit_project">Modifier le projet</string>
     <string name="detail_currency">Devise</string>
     <string name="detail_timezone">Fuseau horaire</string>
     <string name="detail_section_stages">Étapes</string>
@@ -109,6 +109,18 @@
     <string name="detail_stages_add">Nouvelle étape</string>
     <string name="detail_section_members">Membres</string>
     <string name="detail_members_empty">Aucun membre pour l'instant. Invite ici les personnes qui suivent ce chantier.</string>
+
+    <string name="detail_danger_zone">Zone de danger</string>
+    <string name="detail_danger_zone_body">Supprime définitivement ce projet et tout son contenu (étapes, entrées, matériaux, historique).</string>
+    <string name="detail_delete_project">Supprimer le projet</string>
+
+    <string name="edit_project_title">Modifier le projet</string>
+    <string name="edit_project_submit">Enregistrer</string>
+
+    <string name="delete_project_title">Supprimer %1$s</string>
+    <string name="delete_project_warning">Cette action est irréversible et supprime tout le contenu du projet : étapes, entrées, matériaux et historique.</string>
+    <string name="delete_project_confirm_prompt">Pour confirmer, saisis exactement le nom du projet : %1$s</string>
+    <string name="delete_project_confirm_button">Supprimer définitivement</string>
 
     <string name="stage_status_in_progress">En cours</string>
     <string name="stage_status_completed">Terminée</string>

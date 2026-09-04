@@ -1,24 +1,21 @@
-package com.dmb.chantiertracker.presentation.projects.create
+package com.dmb.chantiertracker.presentation.projects.edit
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.dmb.chantiertracker.core.deviceTimeZoneId
-import com.dmb.chantiertracker.domain.model.AuthState
-import com.dmb.chantiertracker.domain.model.CreateProjectInput
 import com.dmb.chantiertracker.domain.model.DomainException
-import com.dmb.chantiertracker.domain.repository.AccountRepository
-import com.dmb.chantiertracker.domain.repository.AuthRepository
+import com.dmb.chantiertracker.domain.model.ProjectDetail
+import com.dmb.chantiertracker.domain.model.UpdateProjectInput
 import com.dmb.chantiertracker.domain.repository.ProjectRepository
 import com.dmb.chantiertracker.presentation.auth.validateName
 import com.dmb.chantiertracker.presentation.projects.timezoneOptionsWith
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.StringResource
 
-data class CreateProjectUiState(
+data class EditProjectUiState(
+    val prefilled: Boolean = false,
     val name: String = "",
     val description: String = "",
     val location: String = "",
@@ -28,41 +25,50 @@ data class CreateProjectUiState(
     val nameError: StringResource? = null,
     val formError: DomainException? = null,
     val isSubmitting: Boolean = false,
-    val created: Boolean = false,
-    val atProjectLimit: Boolean = false,
+    val saved: Boolean = false,
+    val isMissing: Boolean = false,
 )
 
-class CreateProjectViewModel(
+class EditProjectViewModel(
     private val projectRepository: ProjectRepository,
-    private val accountRepository: AccountRepository,
-    private val authRepository: AuthRepository,
 ) : ViewModel() {
 
-    private val _state = MutableStateFlow(initialState())
+    private val _state = MutableStateFlow(EditProjectUiState())
     val state = _state.asStateFlow()
 
-    init {
-        val currentUserId = (authRepository.authState.value as? AuthState.Authenticated)?.user?.id
-        if (currentUserId != null) {
-            viewModelScope.launch {
-                combine(
-                    accountRepository.observePlanUsage(),
-                    projectRepository.observeActiveProjectCount(currentUserId),
-                ) { usage, count -> usage?.isAtProjectLimit(count) == true }
-                    .collect { atLimit -> _state.update { it.copy(atProjectLimit = atLimit) } }
+    private var localId: String? = null
+    private var currentStatus = com.dmb.chantiertracker.domain.model.ProjectStatus.IN_PROGRESS
+
+    fun load(projectLocalId: String) {
+        if (localId == projectLocalId) return
+        localId = projectLocalId
+
+        viewModelScope.launch {
+            projectRepository.observeProject(projectLocalId).collect { detail ->
+                if (detail == null) {
+                    if (!_state.value.prefilled) _state.update { it.copy(isMissing = true) }
+                    return@collect
+                }
+                // Prefill once — later background syncs must not clobber the user's edits.
+                if (!_state.value.prefilled) prefill(detail)
+                currentStatus = detail.status
             }
         }
-        // Best-effort: get the latest plan/limit before the user can hit "Create".
-        viewModelScope.launch { accountRepository.refreshPlanUsage() }
     }
 
-    private fun initialState(): CreateProjectUiState {
-        val device = runCatching { deviceTimeZoneId() }.getOrNull()
-        val options = timezoneOptionsWith(device)
-        return CreateProjectUiState(
-            timezone = device?.takeIf { it in options } ?: options.first(),
-            timezoneOptions = options,
-        )
+    private fun prefill(detail: ProjectDetail) {
+        _state.update {
+            it.copy(
+                prefilled = true,
+                isMissing = false,
+                name = detail.name,
+                description = detail.description.orEmpty(),
+                location = detail.location.orEmpty(),
+                currency = detail.currency,
+                timezone = detail.timezone,
+                timezoneOptions = timezoneOptionsWith(detail.timezone),
+            )
+        }
     }
 
     fun onNameChange(value: String) = _state.update { it.copy(name = value, nameError = null, formError = null) }
@@ -73,8 +79,9 @@ class CreateProjectViewModel(
 
     fun submit() {
         val current = _state.value
-        // Plan limit reached → never touch Room, never nudge the syncer (ADR-25).
-        if (current.atProjectLimit) return
+        val id = localId ?: return
+        if (!current.prefilled) return
+
         val nameError = validateName(current.name.trim())
         if (nameError != null) {
             _state.update { it.copy(nameError = nameError) }
@@ -83,17 +90,18 @@ class CreateProjectViewModel(
         viewModelScope.launch {
             _state.update { it.copy(isSubmitting = true, formError = null) }
             try {
-                // Written to the local store and returned immediately; the server sync runs in the background.
-                projectRepository.createProject(
-                    CreateProjectInput(
+                projectRepository.updateProject(
+                    id,
+                    UpdateProjectInput(
                         name = current.name.trim(),
                         description = current.description.trim().ifBlank { null },
                         location = current.location.trim().ifBlank { null },
-                        currency = current.currency.trim().ifBlank { null },
+                        currency = current.currency.trim(),
                         timezone = current.timezone,
+                        status = currentStatus,
                     ),
                 )
-                _state.update { it.copy(isSubmitting = false, created = true) }
+                _state.update { it.copy(isSubmitting = false, saved = true) }
             } catch (e: DomainException) {
                 _state.update { it.copy(isSubmitting = false, formError = e) }
             } catch (e: Throwable) {

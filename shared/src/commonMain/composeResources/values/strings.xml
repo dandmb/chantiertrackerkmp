@@ -101,7 +101,7 @@
     <string name="create_submit">Create project</string>
 
     <string name="detail_title">Project</string>
-    <string name="detail_edit">Edit</string>
+    <string name="detail_edit_project">Edit project</string>
     <string name="detail_currency">Currency</string>
     <string name="detail_timezone">Time zone</string>
     <string name="detail_section_stages">Stages</string>
@@ -109,6 +109,18 @@
     <string name="detail_stages_add">New stage</string>
     <string name="detail_section_members">Members</string>
     <string name="detail_members_empty">No members yet. Invite the people who follow this site from here.</string>
+
+    <string name="detail_danger_zone">Danger zone</string>
+    <string name="detail_danger_zone_body">Permanently deletes this project and everything in it (stages, entries, materials, history).</string>
+    <string name="detail_delete_project">Delete project</string>
+
+    <string name="edit_project_title">Edit project</string>
+    <string name="edit_project_submit">Save</string>
+
+    <string name="delete_project_title">Delete %1$s</string>
+    <string name="delete_project_warning">This action is irreversible and deletes all the project's content: stages, entries, materials and history.</string>
+    <string name="delete_project_confirm_prompt">To confirm, type the project name exactly: %1$s</string>
+    <string name="delete_project_confirm_button">Delete permanently</string>
 
     <string name="stage_status_in_progress">In progress</string>
     <string name="stage_status_completed">Completed</string>

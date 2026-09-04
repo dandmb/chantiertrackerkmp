@@ -40,6 +40,7 @@ import com.dmb.chantiertracker.presentation.projects.ProjectSortHolder
 import com.dmb.chantiertracker.presentation.projects.ProjectsViewModel
 import com.dmb.chantiertracker.presentation.projects.create.CreateProjectViewModel
 import com.dmb.chantiertracker.presentation.projects.detail.ProjectDetailViewModel
+import com.dmb.chantiertracker.presentation.projects.edit.EditProjectViewModel
 import com.dmb.chantiertracker.presentation.stages.create.CreateStageViewModel
 import com.dmb.chantiertracker.presentation.stages.detail.StageDetailViewModel
 import com.dmb.chantiertracker.presentation.settings.SettingsViewModel
@@ -110,6 +111,7 @@ val presentationModule: Module = module {
     viewModelOf(::ProjectsViewModel)
     viewModelOf(::CreateProjectViewModel)
     viewModelOf(::ProjectDetailViewModel)
+    viewModelOf(::EditProjectViewModel)
     viewModelOf(::CreateStageViewModel)
     viewModelOf(::StageDetailViewModel)
     viewModelOf(::SettingsViewModel)
