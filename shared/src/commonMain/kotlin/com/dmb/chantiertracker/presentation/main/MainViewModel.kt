@@ -35,9 +35,11 @@ class MainViewModel(
             }
         }
         viewModelScope.launch {
-            runCatching { accountRepository.getCurrentPlan() }
-                .onSuccess { plan -> _state.update { it.copy(plan = plan) } }
+            accountRepository.observePlanUsage().collect { usage ->
+                _state.update { it.copy(plan = usage?.plan) }
+            }
         }
+        viewModelScope.launch { accountRepository.refreshPlanUsage() }
     }
 
     fun logout() {

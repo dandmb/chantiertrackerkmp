@@ -4,6 +4,7 @@ import com.dmb.chantiertracker.core.AppConfig
 import com.dmb.chantiertracker.data.AuthStateHolder
 import com.dmb.chantiertracker.data.local.TokenStorage
 import com.dmb.chantiertracker.data.local.db.AppDatabase
+import com.dmb.chantiertracker.data.local.db.PlanUsageDao
 import com.dmb.chantiertracker.data.local.db.ProjectDao
 import com.dmb.chantiertracker.data.local.db.StageDao
 import com.dmb.chantiertracker.data.local.db.buildChantierDatabase
@@ -72,6 +73,7 @@ val syncModule: Module = module {
     single<AppDatabase> { get<RoomDatabase.Builder<AppDatabase>>().buildChantierDatabase() }
     single<ProjectDao> { get<AppDatabase>().projectDao() }
     single<StageDao> { get<AppDatabase>().stageDao() }
+    single<PlanUsageDao> { get<AppDatabase>().planUsageDao() }
     single { AppCoroutineScope() }
     single { SyncStateHolder() }
     single {
@@ -93,7 +95,7 @@ val dataModule: Module = module {
     single<AuthRepository> { AuthRepositoryImpl(get(), get<TokenStorage>(), get(), get()) }
     single<ProjectRepository> { ProjectRepositoryImpl(get(), get(), get<AppCoroutineScope>()) }
     single<StageRepository> { StageRepositoryImpl(get(), get(), get<AppCoroutineScope>()) }
-    single<AccountRepository> { AccountRepositoryImpl(get()) }
+    single<AccountRepository> { AccountRepositoryImpl(get(), get()) }
 }
 
 val presentationModule: Module = module {

@@ -31,6 +31,15 @@ class FakeProjectDao(initial: List<ProjectEntity> = emptyList()) : ProjectDao {
     override suspend fun findPending(): List<ProjectEntity> =
         projects.value.values.filter { it.syncStatus != SyncStatus.SYNCED }
 
+    override fun observeActiveOwnedCount(ownerId: Long): Flow<Int> =
+        projects.map { rows ->
+            rows.values.count {
+                it.status == "IN_PROGRESS" &&
+                    it.pendingOp != PendingOp.DELETE &&
+                    (it.ownerId == ownerId || it.ownerId == null)
+            }
+        }
+
     override suspend fun findAll(): List<ProjectEntity> = projects.value.values.toList()
 
     override suspend fun upsert(project: ProjectEntity) {

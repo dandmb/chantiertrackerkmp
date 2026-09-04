@@ -69,3 +69,9 @@ val CheckIcon: ImageVector = icon(
     "Check",
     "M9,16.17L4.83,12l-1.42,1.41L9,19 21,7l-1.41,-1.41z",
 )
+
+val CalendarIcon: ImageVector = icon(
+    "Event",
+    "M17,12h-5v5h5v-5zM16,1v2L8,3L8,1L6,1v2L5,3c-1.11,0 -1.99,0.9 -1.99,2L3,19c0,1.1 0.89,2 2,2h14c1.1,0 " +
+        "2,-0.9 2,-2L21,5c0,-1.1 -0.9,-2 -2,-2h-1L18,1h-2zM19,19L5,19L5,8h14v11z",
+)

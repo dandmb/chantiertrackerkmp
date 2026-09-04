@@ -23,6 +23,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.dmb.chantiertracker.domain.model.DomainException
 import com.dmb.chantiertracker.presentation.auth.components.AuthPrimaryButton
 import com.dmb.chantiertracker.presentation.auth.components.ErrorBanner
 import com.dmb.chantiertracker.presentation.i18n.localizedText
@@ -45,6 +46,7 @@ fun CreateProjectScreen(
     viewModel: CreateProjectViewModel = koinViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val locked = state.isSubmitting || state.atProjectLimit
 
     LaunchedEffect(state.created) {
         if (state.created) onCreated()
@@ -57,6 +59,9 @@ fun CreateProjectScreen(
             .padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
+        if (state.atProjectLimit) {
+            ErrorBanner(DomainException.PlanLimitReached.localizedText())
+        }
         state.formError?.let { ErrorBanner(it.localizedText()) }
 
         OutlinedTextField(
@@ -67,7 +72,7 @@ fun CreateProjectScreen(
             singleLine = true,
             isError = state.nameError != null,
             supportingText = state.nameError?.let { { Text(stringResource(it)) } },
-            enabled = !state.isSubmitting,
+            enabled = !locked,
         )
 
         OutlinedTextField(
@@ -76,7 +81,7 @@ fun CreateProjectScreen(
             modifier = Modifier.fillMaxWidth(),
             label = { Text(stringResource(Res.string.create_description_label)) },
             minLines = 3,
-            enabled = !state.isSubmitting,
+            enabled = !locked,
         )
 
         OutlinedTextField(
@@ -85,7 +90,7 @@ fun CreateProjectScreen(
             modifier = Modifier.fillMaxWidth(),
             label = { Text(stringResource(Res.string.create_location_label)) },
             singleLine = true,
-            enabled = !state.isSubmitting,
+            enabled = !locked,
         )
 
         OutlinedTextField(
@@ -95,13 +100,13 @@ fun CreateProjectScreen(
             label = { Text(stringResource(Res.string.create_currency_label)) },
             placeholder = { Text(stringResource(Res.string.create_currency_hint)) },
             singleLine = true,
-            enabled = !state.isSubmitting,
+            enabled = !locked,
         )
 
         TimezoneField(
             value = state.timezone,
             options = state.timezoneOptions,
-            enabled = !state.isSubmitting,
+            enabled = !locked,
             onSelect = viewModel::onTimezoneChange,
         )
         Text(
@@ -114,6 +119,7 @@ fun CreateProjectScreen(
             text = stringResource(Res.string.create_submit),
             onClick = viewModel::submit,
             loading = state.isSubmitting,
+            enabled = !state.atProjectLimit,
         )
     }
 }

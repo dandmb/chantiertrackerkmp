@@ -12,6 +12,9 @@ interface ProjectRepository {
     fun observeProject(localId: String): Flow<ProjectDetail?>
     fun observeMembers(localId: String): Flow<List<ProjectMember>>
 
+    /** Count of the current user's own active (IN_PROGRESS) projects, from the local store — the plan-limit numerator (ADR-25). */
+    fun observeActiveProjectCount(ownerId: Long): Flow<Int>
+
     /** Writes the project to the local store immediately and returns its stable local id. Sync happens in the background. */
     suspend fun createProject(input: CreateProjectInput): String
 
