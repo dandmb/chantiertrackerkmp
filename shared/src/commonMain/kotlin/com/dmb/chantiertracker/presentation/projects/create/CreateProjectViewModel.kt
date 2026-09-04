@@ -3,12 +3,16 @@ package com.dmb.chantiertracker.presentation.projects.create
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.dmb.chantiertracker.core.deviceTimeZoneId
+import com.dmb.chantiertracker.domain.model.AuthState
 import com.dmb.chantiertracker.domain.model.CreateProjectInput
 import com.dmb.chantiertracker.domain.model.DomainException
+import com.dmb.chantiertracker.domain.repository.AccountRepository
+import com.dmb.chantiertracker.domain.repository.AuthRepository
 import com.dmb.chantiertracker.domain.repository.ProjectRepository
 import com.dmb.chantiertracker.presentation.auth.validateName
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.StringResource
@@ -33,14 +37,32 @@ data class CreateProjectUiState(
     val formError: DomainException? = null,
     val isSubmitting: Boolean = false,
     val created: Boolean = false,
+    val atProjectLimit: Boolean = false,
 )
 
 class CreateProjectViewModel(
     private val projectRepository: ProjectRepository,
+    private val accountRepository: AccountRepository,
+    private val authRepository: AuthRepository,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(initialState())
     val state = _state.asStateFlow()
+
+    init {
+        val currentUserId = (authRepository.authState.value as? AuthState.Authenticated)?.user?.id
+        if (currentUserId != null) {
+            viewModelScope.launch {
+                combine(
+                    accountRepository.observePlanUsage(),
+                    projectRepository.observeActiveProjectCount(currentUserId),
+                ) { usage, count -> usage?.isAtProjectLimit(count) == true }
+                    .collect { atLimit -> _state.update { it.copy(atProjectLimit = atLimit) } }
+            }
+        }
+        // Best-effort: get the latest plan/limit before the user can hit "Create".
+        viewModelScope.launch { accountRepository.refreshPlanUsage() }
+    }
 
     private fun initialState(): CreateProjectUiState {
         val device = runCatching { deviceTimeZoneId() }.getOrNull()
@@ -62,6 +84,8 @@ class CreateProjectViewModel(
 
     fun submit() {
         val current = _state.value
+        // Plan limit reached → never touch Room, never nudge the syncer (ADR-25).
+        if (current.atProjectLimit) return
         val nameError = validateName(current.name.trim())
         if (nameError != null) {
             _state.update { it.copy(nameError = nameError) }

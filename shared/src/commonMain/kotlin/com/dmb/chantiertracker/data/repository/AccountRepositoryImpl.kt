@@ -1,18 +1,50 @@
 package com.dmb.chantiertracker.data.repository
 
+import com.dmb.chantiertracker.data.local.db.PlanUsageDao
+import com.dmb.chantiertracker.data.local.db.PlanUsageEntity
 import com.dmb.chantiertracker.data.remote.AccountApi
 import com.dmb.chantiertracker.data.remote.apiCall
+import com.dmb.chantiertracker.data.sync.Clock
+import com.dmb.chantiertracker.data.sync.SystemClock
 import com.dmb.chantiertracker.domain.model.Plan
+import com.dmb.chantiertracker.domain.model.PlanUsage
 import com.dmb.chantiertracker.domain.repository.AccountRepository
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 
 class AccountRepositoryImpl(
     private val api: AccountApi,
+    private val dao: PlanUsageDao,
+    private val clock: Clock = SystemClock,
 ) : AccountRepository {
 
-    override suspend fun getCurrentPlan(): Plan = when (apiCall { api.planUsage() }.plan.uppercase()) {
-        "FREE" -> Plan.FREE
-        "SEMI_FLEX" -> Plan.SEMI_FLEX
-        "LIBERTE" -> Plan.LIBERTE
-        else -> Plan.UNKNOWN
+    override fun observePlanUsage(): Flow<PlanUsage?> =
+        dao.observe().map { it?.toPlanUsage() }
+
+    override suspend fun refreshPlanUsage() {
+        val dto = try {
+            apiCall { api.planUsage() }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            return
+        }
+        dao.upsert(
+            PlanUsageEntity(
+                plan = dto.plan.uppercase(),
+                projectsLimit = dto.projectsLimit,
+                refreshedAt = clock.nowEpochMillis(),
+            ),
+        )
     }
 }
+
+internal fun String.toPlan(): Plan = when (uppercase()) {
+    "FREE" -> Plan.FREE
+    "SEMI_FLEX" -> Plan.SEMI_FLEX
+    "LIBERTE" -> Plan.LIBERTE
+    else -> Plan.UNKNOWN
+}
+
+internal fun PlanUsageEntity.toPlanUsage(): PlanUsage = PlanUsage(plan.toPlan(), projectsLimit)

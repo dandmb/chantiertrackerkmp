@@ -7,6 +7,7 @@ import com.dmb.chantiertracker.data.local.OnboardingStore
 import com.dmb.chantiertracker.data.local.TokenStorage
 import com.dmb.chantiertracker.data.remote.AccountApi
 import com.dmb.chantiertracker.data.remote.AuthApi
+import com.dmb.chantiertracker.data.local.db.PlanUsageDao
 import com.dmb.chantiertracker.data.local.db.ProjectDao
 import com.dmb.chantiertracker.data.local.db.StageDao
 import com.dmb.chantiertracker.data.remote.ProjectApi
@@ -19,6 +20,7 @@ import com.dmb.chantiertracker.domain.repository.ProjectRepository
 import com.dmb.chantiertracker.domain.repository.StageRepository
 import com.dmb.chantiertracker.support.FakeBuildInfo
 import com.dmb.chantiertracker.support.FakeOnboardingStore
+import com.dmb.chantiertracker.support.FakePlanUsageDao
 import com.dmb.chantiertracker.support.FakeProjectDao
 import com.dmb.chantiertracker.support.FakeStageDao
 import com.dmb.chantiertracker.support.FakeSyncer
@@ -43,6 +45,7 @@ class KoinModulesTest {
         single { AppCoroutineScope() }
         single<ProjectDao> { FakeProjectDao() }
         single<StageDao> { FakeStageDao() }
+        single<PlanUsageDao> { FakePlanUsageDao() }
         single<Syncer> { FakeSyncer() }
     }
 

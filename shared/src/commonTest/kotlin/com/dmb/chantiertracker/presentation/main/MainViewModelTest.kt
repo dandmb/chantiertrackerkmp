@@ -3,6 +3,7 @@ package com.dmb.chantiertracker.presentation.main
 import com.dmb.chantiertracker.domain.model.AuthState
 import com.dmb.chantiertracker.domain.model.GlobalRole
 import com.dmb.chantiertracker.domain.model.Plan
+import com.dmb.chantiertracker.domain.model.PlanUsage
 import com.dmb.chantiertracker.domain.model.User
 import com.dmb.chantiertracker.support.FakeAccountRepository
 import com.dmb.chantiertracker.support.FakeAuthRepository
@@ -15,6 +16,7 @@ import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -26,9 +28,10 @@ class MainViewModelTest {
     private val user = User(1, "jean@chantier.dev", "Jean", true, GlobalRole.USER)
 
     @Test
-    fun exposes_account_identity_and_plan() = runTest {
+    fun exposes_account_identity_and_the_last_known_plan() = runTest {
         val auth = FakeAuthRepository()
-        val vm = MainViewModel(auth, FakeAccountRepository(plan = Plan.LIBERTE))
+        val account = FakeAccountRepository(planUsage = PlanUsage(Plan.LIBERTE, null))
+        val vm = MainViewModel(auth, account)
         auth.emitState(AuthState.Authenticated(user))
         advanceUntilIdle()
 
@@ -36,16 +39,17 @@ class MainViewModelTest {
         assertEquals("Jean", state.userName)
         assertEquals("jean@chantier.dev", state.email)
         assertEquals(Plan.LIBERTE, state.plan)
+        assertEquals(1, account.refreshCount, "opening the app kicks a plan refresh")
     }
 
     @Test
-    fun plan_failure_is_swallowed() = runTest {
+    fun plan_stays_null_until_it_is_known() = runTest {
         val auth = FakeAuthRepository()
-        val vm = MainViewModel(auth, FakeAccountRepository(error = RuntimeException("boom")))
+        val vm = MainViewModel(auth, FakeAccountRepository(planUsage = null))
         auth.emitState(AuthState.Authenticated(user))
         advanceUntilIdle()
 
-        assertEquals(null, vm.state.value.plan)
+        assertNull(vm.state.value.plan)
         assertEquals("Jean", vm.state.value.userName)
     }
 

@@ -9,6 +9,7 @@ import com.dmb.chantiertracker.domain.model.ProjectStatus
 import com.dmb.chantiertracker.domain.model.User
 import com.dmb.chantiertracker.resources.Res
 import com.dmb.chantiertracker.resources.validation_date_format
+import com.dmb.chantiertracker.resources.validation_end_before_start
 import com.dmb.chantiertracker.resources.validation_name_required
 import com.dmb.chantiertracker.support.FakeAuthRepository
 import com.dmb.chantiertracker.support.FakeProjectRepository
@@ -92,7 +93,8 @@ class CreateStageViewModelTest {
     }
 
     @Test
-    fun a_malformed_date_blocks_submission() = runTest {
+    fun a_malformed_date_still_blocks_submission_defensively() = runTest {
+        // The calendar picker can't produce this, but the guard stays in the VM.
         val stages = FakeStageRepository()
         val v = vm(stages = stages)
         v.start("p1")
@@ -108,6 +110,35 @@ class CreateStageViewModelTest {
     }
 
     @Test
+    fun an_end_date_before_the_start_date_blocks_submission() = runTest {
+        val stages = FakeStageRepository()
+        val v = vm(stages = stages)
+        v.start("p1")
+        advanceUntilIdle()
+
+        v.onNameChange("Fondations")
+        v.onStartDateChange("2027-05-10")
+        v.onEndDateChange("2027-05-01")
+        v.submit()
+        advanceUntilIdle()
+
+        assertEquals(Res.string.validation_end_before_start, v.state.value.endDateError)
+        assertTrue(stages.log.isEmpty())
+    }
+
+    @Test
+    fun moving_the_start_past_a_chosen_end_clears_the_end() = runTest {
+        val v = vm()
+        v.start("p1")
+        advanceUntilIdle()
+
+        v.onEndDateChange("2027-05-01")
+        v.onStartDateChange("2027-06-01")
+
+        assertEquals("", v.state.value.endDate)
+    }
+
+    @Test
     fun successful_creation_flags_created_and_trims_optional_blanks() = runTest {
         val stages = FakeStageRepository()
         val v = vm(stages = stages, projects = FakeProjectRepository(detail = detail(ownerId = 1)))
@@ -117,7 +148,8 @@ class CreateStageViewModelTest {
         v.onNameChange("  Gros œuvre  ")
         v.onDescriptionChange("   ")
         v.onBudgetChange("12000")
-        v.onStartDateChange("2026-02-01")
+        v.onStartDateChange("2027-02-01")
+        v.onEndDateChange("2027-05-15")
         v.submit()
         advanceUntilIdle()
 
@@ -127,8 +159,8 @@ class CreateStageViewModelTest {
         assertEquals("Gros œuvre", input.name)
         assertNull(input.description)
         assertEquals(12000.0, input.estimatedBudget)
-        assertEquals("2026-02-01", input.startDate)
-        assertNull(input.endDate)
+        assertEquals("2027-02-01", input.startDate)
+        assertEquals("2027-05-15", input.endDate)
     }
 
     @Test

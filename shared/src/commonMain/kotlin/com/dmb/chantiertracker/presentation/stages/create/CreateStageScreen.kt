@@ -14,21 +14,25 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.dmb.chantiertracker.presentation.DateField
+import com.dmb.chantiertracker.presentation.parseIsoDateOrNull
+import com.dmb.chantiertracker.presentation.todayInSystemZone
 import com.dmb.chantiertracker.presentation.auth.components.AuthPrimaryButton
 import com.dmb.chantiertracker.presentation.auth.components.ErrorBanner
 import com.dmb.chantiertracker.presentation.i18n.localizedText
 import com.dmb.chantiertracker.resources.Res
 import com.dmb.chantiertracker.resources.create_description_label
 import com.dmb.chantiertracker.resources.create_stage_budget_label
-import com.dmb.chantiertracker.resources.create_stage_date_hint
 import com.dmb.chantiertracker.resources.create_stage_end_date_label
 import com.dmb.chantiertracker.resources.create_stage_name_label
 import com.dmb.chantiertracker.resources.create_stage_start_date_label
 import com.dmb.chantiertracker.resources.create_stage_submit
+import com.dmb.chantiertracker.resources.date_field_placeholder
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -40,6 +44,8 @@ fun CreateStageScreen(
     viewModel: CreateStageViewModel = koinViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val today = remember { todayInSystemZone() }
+    val startDate = parseIsoDateOrNull(state.startDate)
 
     LaunchedEffect(projectLocalId) { viewModel.start(projectLocalId) }
     LaunchedEffect(state.created) {
@@ -89,28 +95,28 @@ fun CreateStageScreen(
             )
         }
 
-        OutlinedTextField(
+        DateField(
+            label = stringResource(Res.string.create_stage_start_date_label),
             value = state.startDate,
             onValueChange = viewModel::onStartDateChange,
+            minDate = today,
             modifier = Modifier.fillMaxWidth(),
-            label = { Text(stringResource(Res.string.create_stage_start_date_label)) },
-            placeholder = { Text(stringResource(Res.string.create_stage_date_hint)) },
-            singleLine = true,
+            placeholder = stringResource(Res.string.date_field_placeholder),
+            enabled = !state.isSubmitting,
             isError = state.startDateError != null,
             supportingText = state.startDateError?.let { { Text(stringResource(it)) } },
-            enabled = !state.isSubmitting,
         )
 
-        OutlinedTextField(
+        DateField(
+            label = stringResource(Res.string.create_stage_end_date_label),
             value = state.endDate,
             onValueChange = viewModel::onEndDateChange,
+            minDate = startDate?.let { maxOf(it, today) } ?: today,
             modifier = Modifier.fillMaxWidth(),
-            label = { Text(stringResource(Res.string.create_stage_end_date_label)) },
-            placeholder = { Text(stringResource(Res.string.create_stage_date_hint)) },
-            singleLine = true,
+            placeholder = stringResource(Res.string.date_field_placeholder),
+            enabled = !state.isSubmitting,
             isError = state.endDateError != null,
             supportingText = state.endDateError?.let { { Text(stringResource(it)) } },
-            enabled = !state.isSubmitting,
         )
 
         AuthPrimaryButton(

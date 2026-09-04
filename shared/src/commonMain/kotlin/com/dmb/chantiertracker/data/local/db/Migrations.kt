@@ -37,3 +37,21 @@ val MIGRATION_1_2 = object : Migration(1, 2) {
         )
     }
 }
+
+/**
+ * v2 → v3 : ajout de la table `plan_usage` (une ligne, `id = 0`) — plan et limite
+ * de projets du compte, dernière valeur connue, pour bloquer la création hors ligne
+ * (ADR-25). `createSql` à garder identique à `shared/schemas/…/3.json`.
+ */
+val MIGRATION_2_3 = object : Migration(2, 3) {
+    override fun migrate(connection: SQLiteConnection) {
+        connection.execSQL(
+            "CREATE TABLE IF NOT EXISTS `plan_usage` (" +
+                "`id` INTEGER NOT NULL, " +
+                "`plan` TEXT NOT NULL, " +
+                "`projectsLimit` INTEGER, " +
+                "`refreshedAt` INTEGER NOT NULL, " +
+                "PRIMARY KEY(`id`))",
+        )
+    }
+}

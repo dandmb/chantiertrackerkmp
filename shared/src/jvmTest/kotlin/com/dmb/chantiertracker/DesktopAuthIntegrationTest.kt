@@ -61,9 +61,9 @@ class DesktopAuthIntegrationTest {
         onSessionExpired = { holder.update(AuthState.Unauthenticated) },
     )
     private val repo = AuthRepositoryImpl(AuthApi(client), storage, holder, onboarding)
-    private val accountRepo = AccountRepositoryImpl(AccountApi(client))
 
     private val db: AppDatabase = Room.inMemoryDatabaseBuilder<AppDatabase>().buildChantierDatabase()
+    private val accountRepo = AccountRepositoryImpl(AccountApi(client), db.planUsageDao())
     private val appScope = AppCoroutineScope()
     private val connectivity = FakeConnectivityObserver(initiallyOnline = true)
     private val syncEngine = SyncEngine(
@@ -177,8 +177,38 @@ class DesktopAuthIntegrationTest {
         val projects = projectRepo.observeProjects().first()
         assertTrue(projects.all { it.name.isNotBlank() }, "chaque projet a un nom")
 
-        // `GET /users/me/plan-usage` → Plan connu (compte de test = FREE par défaut).
-        assertTrue(accountRepo.getCurrentPlan() != Plan.UNKNOWN, "le plan du compte de test doit être reconnu")
+        // `GET /users/me/plan-usage` → persisté en Room, plan connu (compte de test = FREE).
+        accountRepo.refreshPlanUsage()
+        val usage = accountRepo.observePlanUsage().first()
+        assertTrue(usage != null && usage.plan != Plan.UNKNOWN, "le plan du compte de test doit être reconnu")
+        assertEquals(1, usage!!.projectsLimit, "FREE → 1 projet actif max (PlanLimitService)")
+    }
+
+    @Test
+    fun the_free_test_account_is_at_its_project_limit_locally() = runBlocking {
+        if (System.getProperty("chantiertracker.integrationTests") != "true") {
+            println("Test d'intégration désactivé (passer -Dchantiertracker.integrationTests=true).")
+            return@runBlocking
+        }
+        if (!backendUp()) {
+            println("Backend localhost:8080 indisponible — test ignoré.")
+            return@runBlocking
+        }
+
+        repo.login("mobile-test@local.dev", "ChantierTest1234!")
+        val userId = (holder.state.value as AuthState.Authenticated).user.id
+
+        // Room = source de vérité : on tire la liste + le plan depuis le vrai backend.
+        projectRepo.refresh()
+        accountRepo.refreshPlanUsage()
+
+        val usage = accountRepo.observePlanUsage().first()!!
+        val activeOwned = projectRepo.observeActiveProjectCount(userId).first()
+
+        assertEquals(Plan.FREE, usage.plan)
+        assertEquals(1, usage.projectsLimit)
+        assertEquals(1, activeOwned, "le compte de test possède déjà 1 projet actif")
+        assertTrue(usage.isAtProjectLimit(activeOwned), "limite atteinte → la création doit être bloquée en amont")
     }
 
     @Test

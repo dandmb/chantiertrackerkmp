@@ -6,6 +6,8 @@
     <string name="staging_banner">PRÉPROD · DONNÉES RÉELLES</string>
 
     <string name="action_back">Retour</string>
+    <string name="action_ok">OK</string>
+    <string name="action_cancel">Annuler</string>
     <string name="field_email_label">Email</string>
     <string name="field_name_label">Nom</string>
     <string name="field_password_label">Mot de passe</string>
@@ -119,7 +121,7 @@
     <string name="create_stage_budget_label">Budget prévisionnel</string>
     <string name="create_stage_start_date_label">Date de début</string>
     <string name="create_stage_end_date_label">Date de fin</string>
-    <string name="create_stage_date_hint">AAAA-MM-JJ</string>
+    <string name="date_field_placeholder">Choisir une date</string>
     <string name="create_stage_submit">Créer l'étape</string>
 
     <string name="stage_detail_title">Étape</string>
@@ -131,6 +133,7 @@
 
     <string name="validation_date_format">Utilise le format AAAA-MM-JJ.</string>
     <string name="validation_amount_invalid">Saisis un montant valide.</string>
+    <string name="validation_end_before_start">La date de fin ne peut pas précéder la date de début.</string>
 
     <string name="settings_language">Langue</string>
     <string name="settings_theme">Thème</string>
@@ -158,7 +161,7 @@
     <string name="error_invalid_code">Ce code est invalide ou a expiré.</string>
     <string name="error_validation">Vérifiez les informations saisies.</string>
     <string name="error_rate_limited">Trop de tentatives. Réessayez dans quelques minutes.</string>
-    <string name="error_plan_limit">Vous avez atteint la limite de projets de votre formule.</string>
+    <string name="error_plan_limit">Vous avez atteint la limite de projets de votre formule. Passez à un palier supérieur pour en créer davantage.</string>
     <string name="error_forbidden">Vous n'êtes pas autorisé à effectuer cette action.</string>
     <string name="error_not_found">Ce projet n'existe plus, ou vous n'y avez pas accès.</string>
     <string name="error_network">Connexion au serveur impossible. Vérifiez votre connexion.</string>

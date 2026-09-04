@@ -7,6 +7,7 @@ import com.dmb.chantiertracker.core.BuildInfo
 import com.dmb.chantiertracker.data.local.OnboardingStore
 import com.dmb.chantiertracker.data.local.TokenStorage
 import com.dmb.chantiertracker.data.local.db.AppDatabase
+import com.dmb.chantiertracker.data.local.db.PlanUsageDao
 import com.dmb.chantiertracker.data.local.db.ProjectDao
 import com.dmb.chantiertracker.data.local.db.StageDao
 import com.dmb.chantiertracker.data.sync.BackgroundSync
@@ -45,6 +46,7 @@ class SyncModuleTest {
         assertSame(db, koin.get<AppDatabase>())
         assertSame(db.projectDao(), koin.get<ProjectDao>())
         assertSame(db.stageDao(), koin.get<StageDao>())
+        assertSame(db.planUsageDao(), koin.get<PlanUsageDao>())
         assertNotNull(koin.get<AppConfig>())
         assertNotNull(koin.get<BackgroundSync>())
         assertNotNull(koin.get<SyncEngine>())

@@ -40,6 +40,14 @@ data class ProjectMemberEntity(
     val role: String,
 )
 
+@Entity(tableName = "plan_usage")
+data class PlanUsageEntity(
+    @PrimaryKey val id: Int = 0,
+    val plan: String,
+    val projectsLimit: Int?,
+    val refreshedAt: Long,
+)
+
 @Entity(
     tableName = "stages",
     foreignKeys = [

@@ -5,12 +5,15 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.material3.DatePicker
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.Surface
+import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -27,6 +30,7 @@ import com.dmb.chantiertracker.core.AppConfig
 import com.dmb.chantiertracker.domain.model.AuthState
 import com.dmb.chantiertracker.domain.model.GlobalRole
 import com.dmb.chantiertracker.domain.model.Plan
+import com.dmb.chantiertracker.domain.model.PlanUsage
 import com.dmb.chantiertracker.domain.model.Project
 import com.dmb.chantiertracker.domain.model.ProjectDetail
 import com.dmb.chantiertracker.domain.model.ProjectSort
@@ -65,6 +69,7 @@ import com.dmb.chantiertracker.support.FakeBuildInfo
 import com.dmb.chantiertracker.support.FakeProjectRepository
 import com.dmb.chantiertracker.support.FakeStageRepository
 import com.dmb.chantiertracker.support.installTestMainDispatcher
+import kotlinx.datetime.LocalDate
 import com.dmb.chantiertracker.support.resetTestMainDispatcher
 import java.io.File
 import javax.imageio.ImageIO
@@ -158,7 +163,17 @@ class MainScreensSnapshotTest {
 
     private fun settingsVm() = SettingsViewModel(AppConfig(FakeBuildInfo(isDebug = false, appVersion = "1.0")))
 
-    private fun createProjectVm() = CreateProjectViewModel(FakeProjectRepository())
+    private fun authedRepo() = FakeAuthRepository().apply {
+        emitState(AuthState.Authenticated(User(1, "jean@chantier.dev", "Jean", true, GlobalRole.USER)))
+    }
+
+    private fun createProjectVm(atLimit: Boolean = false): CreateProjectViewModel {
+        val projects = FakeProjectRepository().apply { if (atLimit) activeProjectCountFlow.value = 1 }
+        val account = FakeAccountRepository(
+            planUsage = if (atLimit) PlanUsage(Plan.FREE, projectsLimit = 1) else null,
+        )
+        return CreateProjectViewModel(projects, account, authedRepo())
+    }
 
     private val sampleStages = listOf(
         Stage("s1", "1", "Gros œuvre", 18000.0, StageStatus.IN_PROGRESS),
@@ -253,6 +268,11 @@ class MainScreensSnapshotTest {
                     title = if (locale == "fr") "Nouveau projet" else "New project",
                 ) { m -> CreateProjectScreen(onCreated = {}, modifier = m, viewModel = createProjectVm()) }
             }
+            snapshot("23-create-project-plan-limit", locale) {
+                DetailChrome(
+                    title = if (locale == "fr") "Nouveau projet" else "New project",
+                ) { m -> CreateProjectScreen(onCreated = {}, modifier = m, viewModel = createProjectVm(atLimit = true)) }
+            }
             snapshot("16-project-detail", locale) {
                 ProjectDetailChrome(
                     fallbackTitle = if (locale == "fr") "Projet" else "Project",
@@ -273,6 +293,9 @@ class MainScreensSnapshotTest {
                 DetailChrome(
                     title = if (locale == "fr") "Étape" else "Stage",
                 ) { m -> StageDetailScreen(stageLocalId = "s1", modifier = m, viewModel = stageDetailVm(withBudget = false)) }
+            }
+            snapshot("22-stage-date-picker", locale) {
+                Box(Modifier.padding(16.dp)) { StageDatePickerPreview() }
             }
         }
         for (locale in listOf("fr", "en")) {
@@ -302,5 +325,19 @@ class MainScreensSnapshotTest {
                 Column(Modifier.width(260.dp)) { content() }
             }
         }
+    }
+
+    /** The calendar that DateField opens, floored at a fixed "today" so the past days read as disabled. */
+    @Composable
+    private fun StageDatePickerPreview() {
+        val floorMillis = LocalDate(2026, 9, 4).toUtcMillis()
+        val state = rememberDatePickerState(
+            initialDisplayedMonthMillis = floorMillis,
+            selectableDates = object : SelectableDates {
+                override fun isSelectableDate(utcTimeMillis: Long) = utcTimeMillis >= floorMillis
+                override fun isSelectableYear(year: Int) = year >= 2026
+            },
+        )
+        DatePicker(state = state, showModeToggle = false)
     }
 }
