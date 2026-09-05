@@ -35,10 +35,14 @@ import com.dmb.chantiertracker.domain.model.DailyLog
 import com.dmb.chantiertracker.domain.model.DailyLogDetail
 import com.dmb.chantiertracker.domain.model.EntryType
 import com.dmb.chantiertracker.domain.model.GlobalRole
+import com.dmb.chantiertracker.domain.model.Invitation
+import com.dmb.chantiertracker.domain.model.InvitationStatus
 import com.dmb.chantiertracker.domain.model.Plan
 import com.dmb.chantiertracker.domain.model.PlanUsage
 import com.dmb.chantiertracker.domain.model.Project
 import com.dmb.chantiertracker.domain.model.ProjectDetail
+import com.dmb.chantiertracker.domain.model.ProjectMember
+import com.dmb.chantiertracker.domain.model.ProjectRole
 import com.dmb.chantiertracker.domain.model.ProjectSort
 import com.dmb.chantiertracker.domain.model.ProjectStatus
 import com.dmb.chantiertracker.domain.model.Stage
@@ -227,8 +231,17 @@ class MainScreensSnapshotTest {
                 status = ProjectStatus.IN_PROGRESS,
                 ownerId = if (canEdit) 1L else 999L,
             ),
+            members = listOf(
+                ProjectMember(userId = 1, name = "Jean Marchand", email = "jean@chantier.dev", role = ProjectRole.ADMIN),
+                ProjectMember(userId = 2, name = "Sam Ferreira", email = "sam@chantier.dev", role = ProjectRole.SUPERVISOR),
+            ),
         )
-        return ProjectDetailViewModel(repo, FakeStageRepository(stages = sampleStages), auth).also { it.load("1") }
+        val invitations = com.dmb.chantiertracker.support.FakeInvitationRepository(
+            listOf(
+                Invitation(1, "1", "lea@chantier.dev", ProjectRole.SUPERVISOR, 1L, "2026-09-01T10:00:00", null, InvitationStatus.PENDING),
+            ),
+        )
+        return ProjectDetailViewModel(repo, FakeStageRepository(stages = sampleStages), invitations, auth).also { it.load("1") }
     }
 
     private fun editProjectVm(): com.dmb.chantiertracker.presentation.projects.edit.EditProjectViewModel {

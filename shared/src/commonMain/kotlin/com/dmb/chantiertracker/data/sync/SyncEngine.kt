@@ -11,6 +11,7 @@ import com.dmb.chantiertracker.data.local.db.DailyEntryDao
 import com.dmb.chantiertracker.data.local.db.DailyEntryEntity
 import com.dmb.chantiertracker.data.local.db.DailyLogDao
 import com.dmb.chantiertracker.data.local.db.DailyLogEntity
+import com.dmb.chantiertracker.data.local.db.InvitationDao
 import com.dmb.chantiertracker.data.local.db.MaterialDao
 import com.dmb.chantiertracker.data.local.db.MaterialEntity
 import com.dmb.chantiertracker.data.local.db.PendingOp
@@ -24,6 +25,7 @@ import com.dmb.chantiertracker.data.local.db.SyncStatus
 import com.dmb.chantiertracker.data.remote.AttachmentApi
 import com.dmb.chantiertracker.data.remote.ConsumptionLineApi
 import com.dmb.chantiertracker.data.remote.DailyLogApi
+import com.dmb.chantiertracker.data.remote.InvitationApi
 import com.dmb.chantiertracker.data.remote.MaterialApi
 import com.dmb.chantiertracker.data.remote.ProjectApi
 import com.dmb.chantiertracker.data.remote.PurchaseLineApi
@@ -92,6 +94,8 @@ class SyncEngine(
     private val attachmentDao: AttachmentDao,
     private val attachmentApi: AttachmentApi,
     private val attachmentFileStore: AttachmentFileStore,
+    private val invitationDao: InvitationDao,
+    private val invitationApi: InvitationApi,
     private val connectivity: ConnectivityObserver,
     private val syncState: SyncStateHolder,
     private val scope: CoroutineScope,
@@ -189,6 +193,7 @@ class SyncEngine(
             dao.upsert(detail.toSyncedEntity(localId = localId, syncedAt = clock.nowEpochMillis(), previous = local))
         }
         pullMembers(serverId, localId)
+        pullInvitations(serverId, localId)
         pullStages(serverId, localId)
         pullMaterials(serverId, localId)
         // Log *summaries* only (existence + server id per day); a day's entries,
@@ -309,6 +314,25 @@ class SyncEngine(
         dao.clearMembers(localId)
         if (members.isNotEmpty()) {
             dao.upsertMembers(members.map { it.toEntity(localId) })
+        }
+    }
+
+    // ADMIN-only server-side. A non-admin (SUPERVISOR) gets 403 — clear the
+    // local cache so a demoted user stops seeing stale invitations; any other
+    // error is transient, leave the cache as-is.
+    private suspend fun pullInvitations(serverId: Long, localId: String) {
+        val invitations = try {
+            apiCall { invitationApi.list(serverId) }.content
+        } catch (e: DomainException.Forbidden) {
+            invitationDao.clearForProject(localId)
+            return
+        } catch (e: DomainException.NotFound) {
+            invitationDao.clearForProject(localId)
+            return
+        }
+        invitationDao.clearForProject(localId)
+        if (invitations.isNotEmpty()) {
+            invitationDao.upsertAll(invitations.map { it.toEntity(localId) })
         }
     }
 

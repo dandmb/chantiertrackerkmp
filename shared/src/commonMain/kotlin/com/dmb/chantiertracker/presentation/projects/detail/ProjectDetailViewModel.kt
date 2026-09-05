@@ -3,11 +3,14 @@ package com.dmb.chantiertracker.presentation.projects.detail
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.dmb.chantiertracker.domain.model.AuthState
+import com.dmb.chantiertracker.domain.model.Invitation
+import com.dmb.chantiertracker.domain.model.InvitationStatus
 import com.dmb.chantiertracker.domain.model.ProjectDetail
 import com.dmb.chantiertracker.domain.model.ProjectMember
 import com.dmb.chantiertracker.domain.model.Stage
 import com.dmb.chantiertracker.domain.model.projectAdmin
 import com.dmb.chantiertracker.domain.repository.AuthRepository
+import com.dmb.chantiertracker.domain.repository.InvitationRepository
 import com.dmb.chantiertracker.domain.repository.ProjectRepository
 import com.dmb.chantiertracker.domain.repository.StageRepository
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -21,15 +24,20 @@ data class ProjectDetailUiState(
     val detail: ProjectDetail? = null,
     val canEdit: Boolean = false,
     val stages: List<Stage> = emptyList(),
+    val members: List<ProjectMember> = emptyList(),
+    val pendingInvitations: List<Invitation> = emptyList(),
     val isDeleting: Boolean = false,
     val deleted: Boolean = false,
 ) {
     val isMissing: Boolean get() = !isLoading && detail == null && !deleted
+    // For a project, being able to edit == being an ADMIN (projectAdmin).
+    val isAdmin: Boolean get() = canEdit
 }
 
 class ProjectDetailViewModel(
     private val projectRepository: ProjectRepository,
     private val stageRepository: StageRepository,
+    private val invitationRepository: InvitationRepository,
     private val authRepository: AuthRepository,
 ) : ViewModel() {
 
@@ -47,14 +55,17 @@ class ProjectDetailViewModel(
                 projectRepository.observeProject(projectLocalId),
                 projectRepository.observeMembers(projectLocalId),
                 stageRepository.observeStages(projectLocalId),
-            ) { detail, members, stages -> Triple(detail, members, stages) }
-                .collect { (detail, members, stages) ->
+                invitationRepository.observeInvitations(projectLocalId),
+            ) { detail, members, stages, invitations -> Loaded(detail, members, stages, invitations) }
+                .collect { loaded ->
                     _state.update {
                         it.copy(
                             isLoading = false,
-                            detail = detail,
-                            canEdit = detail != null && canEdit(detail, members),
-                            stages = stages,
+                            detail = loaded.detail,
+                            canEdit = loaded.detail != null && canEdit(loaded.detail, loaded.members),
+                            stages = loaded.stages,
+                            members = loaded.members,
+                            pendingInvitations = loaded.invitations.filter { inv -> inv.status == InvitationStatus.PENDING },
                         )
                     }
                 }
@@ -82,4 +93,11 @@ class ProjectDetailViewModel(
         val currentUserId = (authRepository.authState.value as? AuthState.Authenticated)?.user?.id
         return projectAdmin(detail.ownerId, members, currentUserId)
     }
+
+    private data class Loaded(
+        val detail: ProjectDetail?,
+        val members: List<ProjectMember>,
+        val stages: List<Stage>,
+        val invitations: List<Invitation>,
+    )
 }

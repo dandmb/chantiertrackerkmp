@@ -112,7 +112,12 @@
     <string name="detail_stages_empty">Aucune étape pour l'instant. Tu les ajouteras ici pour découper le chantier et suivre son budget.</string>
     <string name="detail_stages_add">Nouvelle étape</string>
     <string name="detail_section_members">Membres</string>
-    <string name="detail_members_empty">Aucun membre pour l'instant. Invite ici les personnes qui suivent ce chantier.</string>
+    <string name="detail_members_empty">Aucun membre pour l'instant.</string>
+    <string name="detail_invitations_title">Invitations en attente</string>
+    <string name="detail_invitations_empty">Aucune invitation en attente.</string>
+    <string name="detail_invitation_sent_on">Envoyée le %1$s</string>
+    <string name="role_admin">Admin</string>
+    <string name="role_supervisor">Superviseur</string>
 
     <string name="detail_danger_zone">Zone de danger</string>
     <string name="detail_danger_zone_body">Supprime définitivement ce projet et tout son contenu (étapes, entrées, matériaux, historique).</string>

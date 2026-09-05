@@ -43,6 +43,7 @@ class SyncEngineTest {
         val consumptionLineDao: com.dmb.chantiertracker.support.FakeConsumptionLineDao = com.dmb.chantiertracker.support.FakeConsumptionLineDao(),
         val attachmentDao: com.dmb.chantiertracker.support.FakeAttachmentDao = com.dmb.chantiertracker.support.FakeAttachmentDao(),
         val fileStore: com.dmb.chantiertracker.support.FakeAttachmentFileStore = com.dmb.chantiertracker.support.FakeAttachmentFileStore(),
+        val invitationDao: com.dmb.chantiertracker.support.FakeInvitationDao = com.dmb.chantiertracker.support.FakeInvitationDao(),
         val backend: FakeProjectBackend = FakeProjectBackend(),
         val connectivity: FakeConnectivityObserver = FakeConnectivityObserver(),
         val clock: MutableClock = MutableClock(serverMillis("2026-09-02T09:00:00")),
@@ -67,6 +68,8 @@ class SyncEngineTest {
             attachmentDao = attachmentDao,
             attachmentApi = backend.attachmentApi(),
             attachmentFileStore = fileStore,
+            invitationDao = invitationDao,
+            invitationApi = backend.invitationApi(),
             connectivity = connectivity,
             syncState = syncState,
             scope = scope,
@@ -332,6 +335,33 @@ class SyncEngineTest {
         engine.syncProject("p5")
 
         assertEquals(listOf(1L), f.dao.observeMembers("p5").first().map { it.userId })
+    }
+
+    @Test
+    fun sync_project_pulls_pending_invitations_into_the_local_cache() = runTest {
+        val f = Fixture()
+        f.backend.seed(ServerProject(id = 5, name = "Villa Vidal"))
+        f.backend.seedInvitation(com.dmb.chantiertracker.support.ServerInvitation(id = 1_200, projectId = 5, email = "sam@x.dev"))
+        f.dao.upsert(localProject("p5", serverId = 5, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+        val engine = f.engine(backgroundScope)
+
+        assertIs<SyncOutcome.Synced>(engine.syncProject("p5"))
+
+        assertEquals(listOf("sam@x.dev"), f.invitationDao.findForProject("p5").map { it.email })
+    }
+
+    @Test
+    fun sync_project_clears_the_invitation_cache_when_the_server_answers_403() = runTest {
+        val f = Fixture()
+        f.backend.seed(ServerProject(id = 5, name = "Villa Vidal"))
+        f.dao.upsert(localProject("p5", serverId = 5, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+        f.invitationDao.upsertAll(listOf(com.dmb.chantiertracker.support.localInvitation(1, projectLocalId = "p5")))
+        f.backend.invitationsForbidden = true
+        val engine = f.engine(backgroundScope)
+
+        engine.syncProject("p5")
+
+        assertEquals(emptyList(), f.invitationDao.findForProject("p5"), "a demoted user stops seeing stale invitations")
     }
 
     @Test

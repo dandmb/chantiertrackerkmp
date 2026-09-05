@@ -392,6 +392,15 @@ class FakeAttachmentRepository(
     }
 }
 
+class FakeInvitationRepository(
+    invitations: List<com.dmb.chantiertracker.domain.model.Invitation> = emptyList(),
+) : com.dmb.chantiertracker.domain.repository.InvitationRepository {
+
+    val invitationsFlow = MutableStateFlow(invitations)
+
+    override fun observeInvitations(projectLocalId: String) = invitationsFlow
+}
+
 class FakeAccountRepository(
     planUsage: com.dmb.chantiertracker.domain.model.PlanUsage? = null,
 ) : AccountRepository {

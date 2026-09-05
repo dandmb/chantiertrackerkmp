@@ -34,8 +34,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.dmb.chantiertracker.domain.model.Invitation
 import com.dmb.chantiertracker.domain.model.ProjectDetail
+import com.dmb.chantiertracker.domain.model.ProjectMember
+import com.dmb.chantiertracker.domain.model.ProjectRole
 import com.dmb.chantiertracker.domain.model.Stage
+import com.dmb.chantiertracker.presentation.formatIsoDate
 import com.dmb.chantiertracker.presentation.main.AddIcon
 import com.dmb.chantiertracker.presentation.main.ChevronRightIcon
 import com.dmb.chantiertracker.presentation.main.EditIcon
@@ -49,8 +53,13 @@ import com.dmb.chantiertracker.resources.detail_danger_zone
 import com.dmb.chantiertracker.resources.detail_danger_zone_body
 import com.dmb.chantiertracker.resources.detail_delete_project
 import com.dmb.chantiertracker.resources.detail_edit_project
+import com.dmb.chantiertracker.resources.detail_invitation_sent_on
+import com.dmb.chantiertracker.resources.detail_invitations_empty
+import com.dmb.chantiertracker.resources.detail_invitations_title
 import com.dmb.chantiertracker.resources.detail_members_empty
 import com.dmb.chantiertracker.resources.detail_section_members
+import com.dmb.chantiertracker.resources.role_admin
+import com.dmb.chantiertracker.resources.role_supervisor
 import com.dmb.chantiertracker.resources.detail_section_stages
 import com.dmb.chantiertracker.resources.detail_stages_add
 import com.dmb.chantiertracker.resources.detail_stages_empty
@@ -102,8 +111,11 @@ fun ProjectDetailScreen(
             state.detail != null -> DetailContent(
                 detail = state.detail!!,
                 canEdit = state.canEdit,
+                isAdmin = state.isAdmin,
                 isDeleting = state.isDeleting,
                 stages = state.stages,
+                members = state.members,
+                pendingInvitations = state.pendingInvitations,
                 onAddStage = { onAddStage(state.detail!!.localId) },
                 onStageClick = onStageClick,
                 onEditProject = { onEditProject(state.detail!!.localId) },
@@ -117,8 +129,11 @@ fun ProjectDetailScreen(
 private fun DetailContent(
     detail: ProjectDetail,
     canEdit: Boolean,
+    isAdmin: Boolean,
     isDeleting: Boolean,
     stages: List<Stage>,
+    members: List<ProjectMember>,
+    pendingInvitations: List<Invitation>,
     onAddStage: () -> Unit,
     onStageClick: (String) -> Unit,
     onEditProject: () -> Unit,
@@ -179,10 +194,7 @@ private fun DetailContent(
             onStageClick = onStageClick,
         )
 
-        Section(
-            title = stringResource(Res.string.detail_section_members),
-            emptyMessage = stringResource(Res.string.detail_members_empty),
-        )
+        MembersSection(members = members, pendingInvitations = pendingInvitations, isAdmin = isAdmin)
 
         if (canEdit) {
             DangerZone(projectName = detail.name, isDeleting = isDeleting, onDeleteConfirmed = onDeleteConfirmed)
@@ -329,20 +341,89 @@ private fun InfoRow(label: String, value: String) {
 }
 
 @Composable
-private fun Section(title: String, emptyMessage: String) {
+private fun MembersSection(
+    members: List<ProjectMember>,
+    pendingInvitations: List<Invitation>,
+    isAdmin: Boolean,
+) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-        Surface(
-            color = MaterialTheme.colorScheme.surfaceVariant,
-            shape = MaterialTheme.shapes.medium,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Text(
-                text = emptyMessage,
-                modifier = Modifier.padding(16.dp),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+        Text(
+            stringResource(Res.string.detail_section_members),
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+        )
+
+        if (members.isEmpty()) {
+            EmptyHint(stringResource(Res.string.detail_members_empty))
+        } else {
+            members.forEach { member ->
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(member.name, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                        Text(member.email, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    RoleBadge(member.role)
+                }
+            }
         }
+
+        if (isAdmin) {
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant, modifier = Modifier.padding(vertical = 8.dp))
+            Text(
+                stringResource(Res.string.detail_invitations_title),
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+            )
+            if (pendingInvitations.isEmpty()) {
+                EmptyHint(stringResource(Res.string.detail_invitations_empty))
+            } else {
+                pendingInvitations.forEach { invitation ->
+                    Column(Modifier.fillMaxWidth()) {
+                        Text(invitation.email, style = MaterialTheme.typography.bodyMedium)
+                        Text(
+                            invitation.createdAt?.let { stringResource(Res.string.detail_invitation_sent_on, formatIsoDate(it.substringBefore('T'))) }.orEmpty(),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RoleBadge(role: ProjectRole) {
+    val label = when (role) {
+        ProjectRole.ADMIN -> stringResource(Res.string.role_admin)
+        ProjectRole.SUPERVISOR -> stringResource(Res.string.role_supervisor)
+        ProjectRole.UNKNOWN -> "—"
+    }
+    Surface(
+        color = if (role == ProjectRole.ADMIN) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceVariant,
+        shape = RoundedCornerShape(50),
+    ) {
+        Text(
+            label,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+            style = MaterialTheme.typography.labelMedium,
+            color = if (role == ProjectRole.ADMIN) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Composable
+private fun EmptyHint(text: String) {
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        shape = MaterialTheme.shapes.medium,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Text(
+            text = text,
+            modifier = Modifier.padding(16.dp),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }

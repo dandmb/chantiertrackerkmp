@@ -7,7 +7,10 @@ import com.dmb.chantiertracker.domain.model.ProjectMember
 import com.dmb.chantiertracker.domain.model.ProjectRole
 import com.dmb.chantiertracker.domain.model.ProjectStatus
 import com.dmb.chantiertracker.domain.model.User
+import com.dmb.chantiertracker.domain.model.Invitation
+import com.dmb.chantiertracker.domain.model.InvitationStatus
 import com.dmb.chantiertracker.support.FakeAuthRepository
+import com.dmb.chantiertracker.support.FakeInvitationRepository
 import com.dmb.chantiertracker.support.FakeProjectRepository
 import com.dmb.chantiertracker.support.FakeStageRepository
 import com.dmb.chantiertracker.support.installTestMainDispatcher
@@ -46,7 +49,7 @@ class ProjectDetailViewModelTest {
     @Test
     fun observes_detail_from_the_local_store() = runTest {
         val repo = FakeProjectRepository(detail = detail(ownerId = 1))
-        val vm = ProjectDetailViewModel(repo, FakeStageRepository(), auth(userId = 1))
+        val vm = ProjectDetailViewModel(repo, FakeStageRepository(), FakeInvitationRepository(), auth(userId = 1))
         vm.load("p5")
         advanceUntilIdle()
 
@@ -61,7 +64,7 @@ class ProjectDetailViewModelTest {
     @Test
     fun retry_pulls_this_project_again() = runTest {
         val repo = FakeProjectRepository(detail = null)
-        val vm = ProjectDetailViewModel(repo, FakeStageRepository(), auth(userId = 1))
+        val vm = ProjectDetailViewModel(repo, FakeStageRepository(), FakeInvitationRepository(), auth(userId = 1))
         vm.load("p5")
         advanceUntilIdle()
 
@@ -74,7 +77,7 @@ class ProjectDetailViewModelTest {
     @Test
     fun owner_can_edit_without_consulting_members() = runTest {
         val repo = FakeProjectRepository(detail = detail(ownerId = 7))
-        val vm = ProjectDetailViewModel(repo, FakeStageRepository(), auth(userId = 7))
+        val vm = ProjectDetailViewModel(repo, FakeStageRepository(), FakeInvitationRepository(), auth(userId = 7))
         vm.load("p5")
         advanceUntilIdle()
 
@@ -87,7 +90,7 @@ class ProjectDetailViewModelTest {
             detail = detail(ownerId = 7),
             members = listOf(ProjectMember(userId = 9, name = "Anna", email = "a@x.dev", role = ProjectRole.ADMIN)),
         )
-        val vm = ProjectDetailViewModel(repo, FakeStageRepository(), auth(userId = 9))
+        val vm = ProjectDetailViewModel(repo, FakeStageRepository(), FakeInvitationRepository(), auth(userId = 9))
         vm.load("p5")
         advanceUntilIdle()
 
@@ -100,7 +103,7 @@ class ProjectDetailViewModelTest {
             detail = detail(ownerId = 7),
             members = listOf(ProjectMember(userId = 9, name = "Anna", email = "a@x.dev", role = ProjectRole.SUPERVISOR)),
         )
-        val vm = ProjectDetailViewModel(repo, FakeStageRepository(), auth(userId = 9))
+        val vm = ProjectDetailViewModel(repo, FakeStageRepository(), FakeInvitationRepository(), auth(userId = 9))
         vm.load("p5")
         advanceUntilIdle()
 
@@ -110,7 +113,7 @@ class ProjectDetailViewModelTest {
     @Test
     fun a_missing_project_is_flagged_once_loading_settles() = runTest {
         val repo = FakeProjectRepository(detail = null)
-        val vm = ProjectDetailViewModel(repo, FakeStageRepository(), auth(userId = 1))
+        val vm = ProjectDetailViewModel(repo, FakeStageRepository(), FakeInvitationRepository(), auth(userId = 1))
         vm.load("gone")
         advanceUntilIdle()
 
@@ -121,7 +124,7 @@ class ProjectDetailViewModelTest {
     @Test
     fun the_project_reappearing_in_the_store_clears_the_missing_state() = runTest {
         val repo = FakeProjectRepository(detail = null)
-        val vm = ProjectDetailViewModel(repo, FakeStageRepository(), auth(userId = 1))
+        val vm = ProjectDetailViewModel(repo, FakeStageRepository(), FakeInvitationRepository(), auth(userId = 1))
         vm.load("p5")
         advanceUntilIdle()
         assertTrue(vm.state.value.isMissing)
@@ -136,7 +139,7 @@ class ProjectDetailViewModelTest {
     @Test
     fun delete_delegates_to_the_repository_and_flags_deleted() = runTest {
         val repo = FakeProjectRepository(detail = detail(ownerId = 1))
-        val vm = ProjectDetailViewModel(repo, FakeStageRepository(), auth(userId = 1))
+        val vm = ProjectDetailViewModel(repo, FakeStageRepository(), FakeInvitationRepository(), auth(userId = 1))
         vm.load("p5")
         advanceUntilIdle()
 
@@ -151,7 +154,7 @@ class ProjectDetailViewModelTest {
     @Test
     fun the_row_going_null_after_a_delete_does_not_flip_to_missing() = runTest {
         val repo = FakeProjectRepository(detail = detail(ownerId = 1))
-        val vm = ProjectDetailViewModel(repo, FakeStageRepository(), auth(userId = 1))
+        val vm = ProjectDetailViewModel(repo, FakeStageRepository(), FakeInvitationRepository(), auth(userId = 1))
         vm.load("p5")
         advanceUntilIdle()
 
@@ -165,9 +168,52 @@ class ProjectDetailViewModelTest {
     }
 
     @Test
+    fun members_are_exposed_from_the_local_store() = runTest {
+        val members = listOf(
+            ProjectMember(userId = 1, name = "Jean", email = "j@x.dev", role = ProjectRole.ADMIN),
+            ProjectMember(userId = 9, name = "Sam", email = "s@x.dev", role = ProjectRole.SUPERVISOR),
+        )
+        val repo = FakeProjectRepository(detail = detail(ownerId = 1), members = members)
+        val vm = ProjectDetailViewModel(repo, FakeStageRepository(), FakeInvitationRepository(), auth(userId = 1))
+        vm.load("p5")
+        advanceUntilIdle()
+
+        assertEquals(listOf("Jean", "Sam"), vm.state.value.members.map { it.name })
+    }
+
+    @Test
+    fun only_pending_invitations_are_exposed_and_only_to_an_admin() = runTest {
+        val invitations = listOf(
+            Invitation(1, "p5", "sam@x.dev", ProjectRole.SUPERVISOR, 1L, "2026-09-01T10:00:00", null, InvitationStatus.PENDING),
+            Invitation(2, "p5", "old@x.dev", ProjectRole.SUPERVISOR, 1L, "2026-08-01T10:00:00", null, InvitationStatus.ACCEPTED),
+            Invitation(3, "p5", "gone@x.dev", ProjectRole.SUPERVISOR, 1L, "2026-07-01T10:00:00", null, InvitationStatus.EXPIRED),
+        )
+        val repo = FakeProjectRepository(detail = detail(ownerId = 1))
+        val vm = ProjectDetailViewModel(repo, FakeStageRepository(), FakeInvitationRepository(invitations), auth(userId = 1))
+        vm.load("p5")
+        advanceUntilIdle()
+
+        assertEquals(listOf("sam@x.dev"), vm.state.value.pendingInvitations.map { it.email })
+        assertTrue(vm.state.value.isAdmin)
+    }
+
+    @Test
+    fun a_supervisor_is_not_admin_so_the_screen_hides_invitations() = runTest {
+        val repo = FakeProjectRepository(
+            detail = detail(ownerId = 7),
+            members = listOf(ProjectMember(userId = 9, name = "Sam", email = "s@x.dev", role = ProjectRole.SUPERVISOR)),
+        )
+        val vm = ProjectDetailViewModel(repo, FakeStageRepository(), FakeInvitationRepository(), auth(userId = 9))
+        vm.load("p5")
+        advanceUntilIdle()
+
+        assertFalse(vm.state.value.isAdmin)
+    }
+
+    @Test
     fun delete_is_ignored_while_already_deleting() = runTest {
         val repo = FakeProjectRepository(detail = detail(ownerId = 1))
-        val vm = ProjectDetailViewModel(repo, FakeStageRepository(), auth(userId = 1))
+        val vm = ProjectDetailViewModel(repo, FakeStageRepository(), FakeInvitationRepository(), auth(userId = 1))
         vm.load("p5")
         advanceUntilIdle()
 

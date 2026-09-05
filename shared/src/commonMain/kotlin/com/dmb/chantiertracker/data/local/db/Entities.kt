@@ -40,6 +40,32 @@ data class ProjectMemberEntity(
     val role: String,
 )
 
+// Read-through cache of a project's invitations (server id as PK — never
+// created locally, see ADR-32). Replaced wholesale on each pull, like
+// project_members.
+@Entity(
+    tableName = "invitations",
+    foreignKeys = [
+        ForeignKey(
+            entity = ProjectEntity::class,
+            parentColumns = ["localId"],
+            childColumns = ["projectLocalId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+    ],
+    indices = [Index("projectLocalId")],
+)
+data class InvitationEntity(
+    @PrimaryKey val id: Long,
+    val projectLocalId: String,
+    val email: String,
+    val role: String,
+    val invitedById: Long?,
+    val createdAt: String?,
+    val expiresAt: String?,
+    val status: String,
+)
+
 @Entity(tableName = "plan_usage")
 data class PlanUsageEntity(
     @PrimaryKey val id: Int = 0,
