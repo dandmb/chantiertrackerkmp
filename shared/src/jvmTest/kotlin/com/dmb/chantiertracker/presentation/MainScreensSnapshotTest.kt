@@ -74,6 +74,7 @@ import com.dmb.chantiertracker.presentation.stages.detail.StageDetailScreen
 import com.dmb.chantiertracker.presentation.stages.detail.StageDetailViewModel
 import com.dmb.chantiertracker.presentation.theme.AppTheme
 import com.dmb.chantiertracker.support.FakeAccountRepository
+import com.dmb.chantiertracker.support.FakeAttachmentRepository
 import com.dmb.chantiertracker.support.FakeAuthRepository
 import com.dmb.chantiertracker.support.FakeBuildInfo
 import com.dmb.chantiertracker.support.FakeConsumptionLineRepository
@@ -327,7 +328,30 @@ class MainScreensSnapshotTest {
         val consumptionLines = FakeConsumptionLineRepository(
             lines = listOf(com.dmb.chantiertracker.domain.model.ConsumptionLine("cl1", "e2", "m1", quantity = 4.0)),
         )
-        return DailyLogViewModel(logs, stageRepo, projectRepo, auth, materials, purchaseLines, consumptionLines).also { it.load("log-1") }
+        val attachments = FakeAttachmentRepository(
+            attachments = listOf(
+                com.dmb.chantiertracker.domain.model.Attachment(
+                    localId = "att1", entryLocalId = "e1", localPath = sampleAttachmentPath(),
+                    originalName = "facture-ciment.jpg", mimeType = "image/jpeg", sizeBytes = 2_048L, uploadedAt = 0L,
+                ),
+            ),
+        )
+        return DailyLogViewModel(logs, stageRepo, projectRepo, auth, materials, purchaseLines, consumptionLines, attachments).also { it.load("log-1") }
+    }
+
+    // A real (tiny, solid-color) PNG on disk — the snapshot exercises the actual
+    // decodeToImageBitmap() pipeline instead of falling back to the placeholder,
+    // so it visually confirms a real photo renders, not just the empty-state layout.
+    private fun sampleAttachmentPath(): String {
+        val file = File.createTempFile("snapshot-attachment", ".png").apply { deleteOnExit() }
+        val image = java.awt.image.BufferedImage(64, 64, java.awt.image.BufferedImage.TYPE_INT_RGB)
+        image.createGraphics().apply {
+            color = java.awt.Color(139, 74, 59)
+            fillRect(0, 0, 64, 64)
+            dispose()
+        }
+        ImageIO.write(image, "png", file)
+        return file.absolutePath
     }
 
     @Test

@@ -353,6 +353,34 @@ class FakeConsumptionLineRepository(
     }
 }
 
+class FakeAttachmentRepository(
+    attachments: List<com.dmb.chantiertracker.domain.model.Attachment> = emptyList(),
+) : com.dmb.chantiertracker.domain.repository.AttachmentRepository {
+
+    val attachmentsFlow = MutableStateFlow(attachments)
+    val log = mutableListOf<String>()
+    var newLocalId = "attachment-new"
+
+    override fun observeAttachments(entryLocalId: String) = attachmentsFlow
+
+    override suspend fun addAttachment(entryLocalId: String, bytes: ByteArray, originalName: String, mimeType: String): com.dmb.chantiertracker.domain.model.Attachment {
+        log += "addAttachment:$entryLocalId:$originalName:$mimeType:${bytes.size}"
+        return com.dmb.chantiertracker.domain.model.Attachment(
+            localId = newLocalId,
+            entryLocalId = entryLocalId,
+            localPath = "fake-attachments/$newLocalId.jpg",
+            originalName = originalName,
+            mimeType = mimeType,
+            sizeBytes = bytes.size.toLong(),
+            uploadedAt = 0L,
+        )
+    }
+
+    override suspend fun deleteAttachment(attachmentLocalId: String) {
+        log += "deleteAttachment:$attachmentLocalId"
+    }
+}
+
 class FakeAccountRepository(
     planUsage: com.dmb.chantiertracker.domain.model.PlanUsage? = null,
 ) : AccountRepository {

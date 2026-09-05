@@ -2,8 +2,11 @@ package com.dmb.chantiertracker.di
 
 import com.dmb.chantiertracker.core.AppConfig
 import com.dmb.chantiertracker.data.AuthStateHolder
+import com.dmb.chantiertracker.data.local.AttachmentFileStore
+import com.dmb.chantiertracker.data.local.FileKitAttachmentFileStore
 import com.dmb.chantiertracker.data.local.TokenStorage
 import com.dmb.chantiertracker.data.local.db.AppDatabase
+import com.dmb.chantiertracker.data.local.db.AttachmentDao
 import com.dmb.chantiertracker.data.local.db.ConsumptionLineDao
 import com.dmb.chantiertracker.data.local.db.DailyEntryDao
 import com.dmb.chantiertracker.data.local.db.DailyLogDao
@@ -26,6 +29,7 @@ import com.dmb.chantiertracker.data.sync.Syncer
 import com.dmb.chantiertracker.data.sync.backgroundSyncModule
 import com.dmb.chantiertracker.presentation.sync.SyncStateHolder
 import com.dmb.chantiertracker.data.repository.AccountRepositoryImpl
+import com.dmb.chantiertracker.data.repository.AttachmentRepositoryImpl
 import com.dmb.chantiertracker.data.repository.AuthRepositoryImpl
 import com.dmb.chantiertracker.data.repository.ConsumptionLineRepositoryImpl
 import com.dmb.chantiertracker.data.repository.DailyLogRepositoryImpl
@@ -35,6 +39,7 @@ import com.dmb.chantiertracker.data.repository.PurchaseLineRepositoryImpl
 import com.dmb.chantiertracker.data.repository.StageRepositoryImpl
 import com.dmb.chantiertracker.domain.model.AuthState
 import com.dmb.chantiertracker.domain.repository.AccountRepository
+import com.dmb.chantiertracker.domain.repository.AttachmentRepository
 import com.dmb.chantiertracker.domain.repository.AuthRepository
 import com.dmb.chantiertracker.domain.repository.ConsumptionLineRepository
 import com.dmb.chantiertracker.domain.repository.DailyLogRepository
@@ -94,6 +99,8 @@ val syncModule: Module = module {
     single<MaterialDao> { get<AppDatabase>().materialDao() }
     single<PurchaseLineDao> { get<AppDatabase>().purchaseLineDao() }
     single<ConsumptionLineDao> { get<AppDatabase>().consumptionLineDao() }
+    single<AttachmentDao> { get<AppDatabase>().attachmentDao() }
+    single<AttachmentFileStore> { FileKitAttachmentFileStore(newFileName = { kotlin.uuid.Uuid.random().toString() }) }
     single { AppCoroutineScope() }
     single { SyncStateHolder() }
     single {
@@ -120,6 +127,7 @@ val dataModule: Module = module {
     single<MaterialRepository> { MaterialRepositoryImpl(get(), get(), get(), get(), get<AppCoroutineScope>()) }
     single<PurchaseLineRepository> { PurchaseLineRepositoryImpl(get(), get(), get<AppCoroutineScope>()) }
     single<ConsumptionLineRepository> { ConsumptionLineRepositoryImpl(get(), get(), get<AppCoroutineScope>()) }
+    single<AttachmentRepository> { AttachmentRepositoryImpl(get(), get(), get(), get<AppCoroutineScope>()) }
 }
 
 val presentationModule: Module = module {

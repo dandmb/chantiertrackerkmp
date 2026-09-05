@@ -230,3 +230,38 @@ data class ConsumptionLineEntity(
     val remoteUpdatedAt: Long?,
     val lastSyncError: String?,
 )
+
+// A justificatif photo, always attached to a PURCHASE entry (backend rejects
+// uploads on a WORK entry — EntryTypeMismatchException). `localPath` points at
+// a copy of the picked photo under FileKit.filesDir — Room stores only that
+// path, never the bytes. Compression happens server-side (see CONTEXTE.md §9
+// bis) once Étape 4 actually uploads this row, so the raw bytes are kept
+// as-is locally.
+@Entity(
+    tableName = "attachments",
+    foreignKeys = [
+        ForeignKey(
+            entity = DailyEntryEntity::class,
+            parentColumns = ["localId"],
+            childColumns = ["entryLocalId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+    ],
+    indices = [Index("entryLocalId")],
+)
+data class AttachmentEntity(
+    @PrimaryKey val localId: String,
+    val serverId: Long?,
+    val entryLocalId: String,
+    val localPath: String,
+    val originalName: String,
+    val mimeType: String,
+    val sizeBytes: Long,
+    val uploadedAt: Long,
+    val syncStatus: SyncStatus,
+    val pendingOp: PendingOp,
+    val locallyModifiedAt: Long,
+    val lastSyncedAt: Long?,
+    val remoteUpdatedAt: Long?,
+    val lastSyncError: String?,
+)

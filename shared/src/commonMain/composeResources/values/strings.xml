@@ -173,6 +173,13 @@
     <string name="consumption_line_add_title">Add a consumed material</string>
     <string name="consumption_line_edit_title">Edit consumed material</string>
 
+    <string name="attachments_title">Attachments</string>
+    <string name="attachment_add">Add a photo</string>
+    <string name="attachments_empty">No photo yet.</string>
+    <string name="attachment_upload_error">Couldn\'t add this photo.</string>
+    <string name="attachment_delete">Delete photo</string>
+    <string name="attachment_close">Close</string>
+
     <string name="material_label">Material</string>
     <string name="material_name_label">Name</string>
     <string name="material_unit_label">Unit</string>

@@ -1,5 +1,6 @@
 package com.dmb.chantiertracker.presentation.logs
 
+import com.dmb.chantiertracker.domain.model.Attachment
 import com.dmb.chantiertracker.domain.model.AuthState
 import com.dmb.chantiertracker.domain.model.ConsumptionLine
 import com.dmb.chantiertracker.domain.model.DailyEntry
@@ -19,6 +20,7 @@ import com.dmb.chantiertracker.domain.model.User
 import com.dmb.chantiertracker.presentation.todayIn
 import com.dmb.chantiertracker.resources.Res
 import com.dmb.chantiertracker.resources.entry_summary_required_work
+import com.dmb.chantiertracker.support.FakeAttachmentRepository
 import com.dmb.chantiertracker.support.FakeAuthRepository
 import com.dmb.chantiertracker.support.FakeConsumptionLineRepository
 import com.dmb.chantiertracker.support.FakeDailyLogRepository
@@ -81,7 +83,8 @@ class DailyLogViewModelTest {
         materials: FakeMaterialRepository = FakeMaterialRepository(),
         purchaseLines: FakePurchaseLineRepository = FakePurchaseLineRepository(),
         consumptionLines: FakeConsumptionLineRepository = FakeConsumptionLineRepository(),
-    ) = DailyLogViewModel(logs, stages, projects, authRepo, materials, purchaseLines, consumptionLines)
+        attachments: FakeAttachmentRepository = FakeAttachmentRepository(),
+    ) = DailyLogViewModel(logs, stages, projects, authRepo, materials, purchaseLines, consumptionLines, attachments)
 
     @Test
     fun observes_the_log_and_kicks_a_pull() = runTest {
@@ -435,5 +438,48 @@ class DailyLogViewModelTest {
         advanceUntilIdle()
 
         assertEquals(listOf("deleteLine:cl1"), consumptionLines.log)
+    }
+
+    // ─── attachments (justificatifs — PURCHASE entry only) ──────────────────
+
+    @Test
+    fun attachments_are_exposed_from_the_purchase_entry() = runTest {
+        val purchaseEntry = DailyEntry("e1", "log-1", EntryType.PURCHASE, summary = null)
+        val logs = FakeDailyLogRepository(detail = logDetail(entries = listOf(purchaseEntry)))
+        val attachments = FakeAttachmentRepository(
+            attachments = listOf(Attachment("a1", "e1", "fake-attachments/a1.jpg", "facture.jpg", "image/jpeg", 1_024L, 0L)),
+        )
+        val v = vm(logs, attachments = attachments)
+        v.load("log-1")
+        advanceUntilIdle()
+
+        assertEquals(listOf("a1"), v.state.value.attachments.map { it.localId })
+    }
+
+    @Test
+    fun add_attachment_delegates_to_the_repository() = runTest {
+        val logs = FakeDailyLogRepository(detail = logDetail())
+        val attachments = FakeAttachmentRepository()
+        val v = vm(logs, attachments = attachments)
+        v.load("log-1")
+        advanceUntilIdle()
+
+        v.addAttachment("e1", byteArrayOf(1, 2, 3), "facture.jpg", "image/jpeg")
+
+        assertEquals("addAttachment:e1:facture.jpg:image/jpeg:3", attachments.log.single())
+    }
+
+    @Test
+    fun delete_attachment_delegates_to_the_repository() = runTest {
+        val logs = FakeDailyLogRepository(detail = logDetail())
+        val attachments = FakeAttachmentRepository()
+        val v = vm(logs, attachments = attachments)
+        v.load("log-1")
+        advanceUntilIdle()
+
+        v.deleteAttachment("a1")
+        advanceUntilIdle()
+
+        assertEquals(listOf("deleteAttachment:a1"), attachments.log)
     }
 }

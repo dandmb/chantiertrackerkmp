@@ -17,8 +17,9 @@ import androidx.sqlite.driver.bundled.BundledSQLiteDriver
         MaterialEntity::class,
         PurchaseLineEntity::class,
         ConsumptionLineEntity::class,
+        AttachmentEntity::class,
     ],
-    version = 5,
+    version = 6,
     exportSchema = true,
 )
 @ConstructedBy(AppDatabaseConstructor::class)
@@ -31,6 +32,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun materialDao(): MaterialDao
     abstract fun purchaseLineDao(): PurchaseLineDao
     abstract fun consumptionLineDao(): ConsumptionLineDao
+    abstract fun attachmentDao(): AttachmentDao
 }
 
 @Suppress("KotlinNoActualForExpect", "NO_ACTUAL_FOR_EXPECT", "EXPECT_ACTUAL_CLASSIFIERS_ARE_IN_BETA_WARNING")
@@ -40,5 +42,5 @@ expect object AppDatabaseConstructor : RoomDatabaseConstructor<AppDatabase> {
 
 fun RoomDatabase.Builder<AppDatabase>.buildChantierDatabase(): AppDatabase =
     setDriver(BundledSQLiteDriver())
-        .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+        .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
         .build()

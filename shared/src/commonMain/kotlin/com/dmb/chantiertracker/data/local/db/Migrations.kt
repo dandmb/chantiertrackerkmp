@@ -202,3 +202,37 @@ val MIGRATION_4_5 = object : Migration(4, 5) {
         )
     }
 }
+
+/**
+ * v5 → v6 : ajout de `attachments` (photos justificatives d'une entrée ACHAT).
+ * `localPath` pointe vers une copie du fichier sous `FileKit.filesDir` — les
+ * octets ne sont jamais stockés en base (voir ADR-29). `createSql` à garder
+ * identique à `shared/schemas/…/6.json`.
+ */
+val MIGRATION_5_6 = object : Migration(5, 6) {
+    override fun migrate(connection: SQLiteConnection) {
+        connection.execSQL(
+            "CREATE TABLE IF NOT EXISTS `attachments` (" +
+                "`localId` TEXT NOT NULL, " +
+                "`serverId` INTEGER, " +
+                "`entryLocalId` TEXT NOT NULL, " +
+                "`localPath` TEXT NOT NULL, " +
+                "`originalName` TEXT NOT NULL, " +
+                "`mimeType` TEXT NOT NULL, " +
+                "`sizeBytes` INTEGER NOT NULL, " +
+                "`uploadedAt` INTEGER NOT NULL, " +
+                "`syncStatus` TEXT NOT NULL, " +
+                "`pendingOp` TEXT NOT NULL, " +
+                "`locallyModifiedAt` INTEGER NOT NULL, " +
+                "`lastSyncedAt` INTEGER, " +
+                "`remoteUpdatedAt` INTEGER, " +
+                "`lastSyncError` TEXT, " +
+                "PRIMARY KEY(`localId`), " +
+                "FOREIGN KEY(`entryLocalId`) REFERENCES `daily_entries`(`localId`) " +
+                "ON UPDATE NO ACTION ON DELETE CASCADE )",
+        )
+        connection.execSQL(
+            "CREATE INDEX IF NOT EXISTS `index_attachments_entryLocalId` ON `attachments` (`entryLocalId`)",
+        )
+    }
+}

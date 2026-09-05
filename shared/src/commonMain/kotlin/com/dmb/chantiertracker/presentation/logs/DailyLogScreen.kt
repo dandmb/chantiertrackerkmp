@@ -1,15 +1,22 @@
 package com.dmb.chantiertracker.presentation.logs
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
@@ -36,12 +43,18 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.decodeToImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.dmb.chantiertracker.domain.model.Attachment
 import com.dmb.chantiertracker.domain.model.ConsumptionLine
 import com.dmb.chantiertracker.domain.model.DailyEntry
 import com.dmb.chantiertracker.domain.model.EntryType
@@ -51,6 +64,7 @@ import com.dmb.chantiertracker.domain.model.PurchaseLine
 import com.dmb.chantiertracker.presentation.format.formatAmount
 import com.dmb.chantiertracker.presentation.format.formatMoney
 import com.dmb.chantiertracker.presentation.main.AddIcon
+import com.dmb.chantiertracker.presentation.main.CloseIcon
 import com.dmb.chantiertracker.presentation.main.ConstructionIcon
 import com.dmb.chantiertracker.presentation.main.DeleteIcon
 import com.dmb.chantiertracker.presentation.main.EditIcon
@@ -60,6 +74,12 @@ import com.dmb.chantiertracker.resources.action_cancel
 import com.dmb.chantiertracker.resources.action_create
 import com.dmb.chantiertracker.resources.action_delete
 import com.dmb.chantiertracker.resources.action_save
+import com.dmb.chantiertracker.resources.attachment_add
+import com.dmb.chantiertracker.resources.attachment_close
+import com.dmb.chantiertracker.resources.attachment_delete
+import com.dmb.chantiertracker.resources.attachment_upload_error
+import com.dmb.chantiertracker.resources.attachments_empty
+import com.dmb.chantiertracker.resources.attachments_title
 import com.dmb.chantiertracker.resources.consumption_line_add
 import com.dmb.chantiertracker.resources.consumption_line_add_title
 import com.dmb.chantiertracker.resources.consumption_line_edit_title
@@ -97,6 +117,12 @@ import com.dmb.chantiertracker.resources.supplier_label
 import com.dmb.chantiertracker.resources.total_price_label
 import com.dmb.chantiertracker.resources.unit_price_label
 import com.dmb.chantiertracker.resources.validation_stock_exceeded
+import io.github.vinceglb.filekit.PlatformFile
+import io.github.vinceglb.filekit.dialogs.FileKitType
+import io.github.vinceglb.filekit.dialogs.compose.rememberFilePickerLauncher
+import io.github.vinceglb.filekit.mimeType
+import io.github.vinceglb.filekit.name
+import io.github.vinceglb.filekit.readBytes
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
@@ -171,6 +197,12 @@ private fun DailyLogContent(state: DailyLogUiState, viewModel: DailyLogViewModel
                     currency = state.currency,
                     canEdit = state.canEdit,
                     isAdmin = state.isAdmin,
+                    viewModel = viewModel,
+                )
+                AttachmentsSection(
+                    entryLocalId = purchaseEntry.localId,
+                    attachments = state.attachments,
+                    canEdit = state.canEdit,
                     viewModel = viewModel,
                 )
             }
@@ -822,3 +854,147 @@ private fun ConsumptionLineFormDialog(
 
 private fun toInputString(value: Double): String =
     if (value == value.toLong().toDouble()) value.toLong().toString() else value.toString()
+
+// ─── attachments (justificatifs — PURCHASE entry only) ────────────────────────
+
+@Composable
+private fun AttachmentsSection(
+    entryLocalId: String,
+    attachments: List<Attachment>,
+    canEdit: Boolean,
+    viewModel: DailyLogViewModel,
+) {
+    var zoomedAttachment by remember { mutableStateOf<Attachment?>(null) }
+    var uploadError by remember { mutableStateOf(false) }
+    var isUploading by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
+    val pickerLauncher = rememberFilePickerLauncher(type = FileKitType.Image) { picked ->
+        if (picked == null) return@rememberFilePickerLauncher
+        scope.launch {
+            isUploading = true
+            uploadError = false
+            runCatching {
+                val bytes = picked.readBytes()
+                val mime = runCatching { picked.mimeType() }.getOrNull()
+                val mimeString = mime?.let { "${it.primaryType}/${it.subtype}" } ?: "image/jpeg"
+                viewModel.addAttachment(entryLocalId, bytes, picked.name, mimeString)
+            }.onFailure { uploadError = true }
+            isUploading = false
+        }
+    }
+
+    Column(Modifier.padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Text(stringResource(Res.string.attachments_title), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (canEdit) {
+                TextButton(onClick = { pickerLauncher.launch() }, enabled = !isUploading) {
+                    if (isUploading) {
+                        CircularProgressIndicator(modifier = Modifier.size(16.dp))
+                    } else {
+                        Icon(AddIcon, contentDescription = null, modifier = Modifier.size(16.dp))
+                    }
+                    Text(text = stringResource(Res.string.attachment_add), modifier = Modifier.padding(start = 4.dp))
+                }
+            }
+        }
+
+        if (uploadError) {
+            Text(stringResource(Res.string.attachment_upload_error), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+        }
+
+        if (attachments.isEmpty()) {
+            Text(stringResource(Res.string.attachments_empty), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        } else {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                attachments.forEach { attachment ->
+                    AttachmentThumbnail(
+                        attachment = attachment,
+                        canEdit = canEdit,
+                        onClick = { zoomedAttachment = attachment },
+                        onDelete = { viewModel.deleteAttachment(attachment.localId) },
+                    )
+                }
+            }
+        }
+    }
+
+    zoomedAttachment?.let { attachment ->
+        AttachmentZoomDialog(attachment = attachment, onDismiss = { zoomedAttachment = null })
+    }
+}
+
+@Composable
+private fun AttachmentThumbnail(attachment: Attachment, canEdit: Boolean, onClick: () -> Unit, onDelete: () -> Unit) {
+    val bitmap by loadAttachmentBitmap(attachment)
+
+    Box(Modifier.size(72.dp)) {
+        Surface(
+            shape = RoundedCornerShape(8.dp),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+            modifier = Modifier.fillMaxSize().clickable(onClick = onClick),
+        ) {
+            val loaded = bitmap
+            if (loaded != null) {
+                Image(
+                    bitmap = loaded,
+                    contentDescription = attachment.originalName,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+        }
+        if (canEdit) {
+            IconButton(
+                onClick = onDelete,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .size(22.dp)
+                    .background(MaterialTheme.colorScheme.surface, CircleShape)
+                    .border(BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant), CircleShape),
+            ) {
+                Icon(DeleteIcon, contentDescription = stringResource(Res.string.attachment_delete), modifier = Modifier.size(14.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun AttachmentZoomDialog(attachment: Attachment, onDismiss: () -> Unit) {
+    val bitmap by loadAttachmentBitmap(attachment)
+
+    Dialog(onDismissRequest = onDismiss) {
+        Box(Modifier.fillMaxWidth()) {
+            val loaded = bitmap
+            if (loaded != null) {
+                Image(
+                    bitmap = loaded,
+                    contentDescription = attachment.originalName,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            } else {
+                CircularProgressIndicator(Modifier.align(Alignment.Center).padding(48.dp))
+            }
+            IconButton(
+                onClick = onDismiss,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .background(MaterialTheme.colorScheme.surface, CircleShape),
+            ) {
+                Icon(CloseIcon, contentDescription = stringResource(Res.string.attachment_close))
+            }
+        }
+    }
+}
+
+// Decodes the locally-stored photo off the main flow of composition — the file
+// I/O + JPEG decode happen once per distinct localPath (remember keyed on it),
+// not on every recomposition. Null while loading or if decoding fails (e.g. a
+// codec Skiko/BitmapFactory can't read); callers show a placeholder either way.
+@Composable
+private fun loadAttachmentBitmap(attachment: Attachment) = remember(attachment.localPath) { mutableStateOf<ImageBitmap?>(null) }.also { state ->
+    LaunchedEffect(attachment.localPath) {
+        state.value = runCatching { PlatformFile(attachment.localPath).readBytes().decodeToImageBitmap() }.getOrNull()
+    }
+}

@@ -2,6 +2,7 @@ package com.dmb.chantiertracker.presentation.logs
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.dmb.chantiertracker.domain.model.Attachment
 import com.dmb.chantiertracker.domain.model.AuthState
 import com.dmb.chantiertracker.domain.model.ConsumptionLine
 import com.dmb.chantiertracker.domain.model.CreateConsumptionLineInput
@@ -16,6 +17,7 @@ import com.dmb.chantiertracker.domain.model.StageStatus
 import com.dmb.chantiertracker.domain.model.UpdateConsumptionLineInput
 import com.dmb.chantiertracker.domain.model.UpdatePurchaseLineInput
 import com.dmb.chantiertracker.domain.model.projectAdmin
+import com.dmb.chantiertracker.domain.repository.AttachmentRepository
 import com.dmb.chantiertracker.domain.repository.AuthRepository
 import com.dmb.chantiertracker.domain.repository.ConsumptionLineRepository
 import com.dmb.chantiertracker.domain.repository.DailyLogRepository
@@ -47,6 +49,7 @@ data class DailyLogUiState(
     val stock: List<MaterialStock> = emptyList(),
     val purchaseLines: List<PurchaseLine> = emptyList(),
     val consumptionLines: List<ConsumptionLine> = emptyList(),
+    val attachments: List<Attachment> = emptyList(),
     val editingEntryLocalId: String? = null,
     val summaryError: StringResource? = null,
     val isSubmitting: Boolean = false,
@@ -71,6 +74,7 @@ class DailyLogViewModel(
     private val materialRepository: MaterialRepository,
     private val purchaseLineRepository: PurchaseLineRepository,
     private val consumptionLineRepository: ConsumptionLineRepository,
+    private val attachmentRepository: AttachmentRepository,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(DailyLogUiState())
@@ -100,7 +104,8 @@ class DailyLogViewModel(
             combine(
                 purchaseEntryId?.let(purchaseLineRepository::observeLines) ?: flowOf(emptyList()),
                 workEntryId?.let(consumptionLineRepository::observeLines) ?: flowOf(emptyList()),
-            ) { p, c -> p to c }
+                purchaseEntryId?.let(attachmentRepository::observeAttachments) ?: flowOf(emptyList()),
+            ) { p, c, a -> Triple(p, c, a) }
         }
 
         viewModelScope.launch {
@@ -118,6 +123,7 @@ class DailyLogViewModel(
                             stock = materialsStock.second,
                             purchaseLines = lines.first,
                             consumptionLines = lines.second,
+                            attachments = lines.third,
                         )
                     }
                 }
@@ -246,5 +252,19 @@ class DailyLogViewModel(
 
     fun deleteConsumptionLine(lineLocalId: String) {
         viewModelScope.launch { consumptionLineRepository.deleteLine(lineLocalId) }
+    }
+
+    // ─── attachments (justificatifs — PURCHASE entry only) ──────────────────
+    // Deleting one follows canEdit, not isAdmin: unlike a purchase/consumption
+    // line, a mis-attached photo has no effect on stock or budget, so the
+    // backend doesn't reserve its deletion to an ADMIN (see
+    // EntryWriteAccessService / CONTEXTE.md "Suppression").
+
+    suspend fun addAttachment(entryLocalId: String, bytes: ByteArray, originalName: String, mimeType: String) {
+        attachmentRepository.addAttachment(entryLocalId, bytes, originalName, mimeType)
+    }
+
+    fun deleteAttachment(attachmentLocalId: String) {
+        viewModelScope.launch { attachmentRepository.deleteAttachment(attachmentLocalId) }
     }
 }

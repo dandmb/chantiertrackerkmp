@@ -1,5 +1,6 @@
 package com.dmb.chantiertracker.support
 
+import com.dmb.chantiertracker.data.local.db.AttachmentEntity
 import com.dmb.chantiertracker.data.local.db.ConsumptionLineEntity
 import com.dmb.chantiertracker.data.local.db.MaterialEntity
 import com.dmb.chantiertracker.data.local.db.PendingOp
@@ -51,6 +52,35 @@ fun localPurchaseLine(
     totalPrice = totalPrice,
     supplier = supplier,
     createdAt = null,
+    syncStatus = syncStatus,
+    pendingOp = pendingOp,
+    locallyModifiedAt = locallyModifiedAt,
+    lastSyncedAt = null,
+    remoteUpdatedAt = null,
+    lastSyncError = null,
+)
+
+fun localAttachment(
+    localId: String,
+    entryLocalId: String = "entry-1",
+    localPath: String = "fake-attachments/$localId.jpg",
+    originalName: String = "photo-$localId.jpg",
+    mimeType: String = "image/jpeg",
+    sizeBytes: Long = 1_024L,
+    uploadedAt: Long = 1_700_000_000_000L,
+    serverId: Long? = null,
+    pendingOp: PendingOp = PendingOp.CREATE,
+    syncStatus: SyncStatus = SyncStatus.PENDING,
+    locallyModifiedAt: Long = 1_700_000_000_000L,
+) = AttachmentEntity(
+    localId = localId,
+    serverId = serverId,
+    entryLocalId = entryLocalId,
+    localPath = localPath,
+    originalName = originalName,
+    mimeType = mimeType,
+    sizeBytes = sizeBytes,
+    uploadedAt = uploadedAt,
     syncStatus = syncStatus,
     pendingOp = pendingOp,
     locallyModifiedAt = locallyModifiedAt,

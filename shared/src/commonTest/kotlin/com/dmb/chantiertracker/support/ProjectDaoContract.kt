@@ -249,6 +249,37 @@ suspend fun verifyMaterialAndLineDaoContract(db: AppDatabase) {
     assertEquals("Ciment", materialDao.findByLocalId("m-ciment")?.name, "materials are never cascade-deleted")
 }
 
+/** Shared checks for [com.dmb.chantiertracker.data.local.db.AttachmentDao] on a real [AppDatabase] (ADR-29). */
+suspend fun verifyAttachmentDaoContract(db: AppDatabase) {
+    val projectDao = db.projectDao()
+    val stageDao = db.stageDao()
+    val logDao = db.dailyLogDao()
+    val entryDao = db.dailyEntryDao()
+    val attachmentDao = db.attachmentDao()
+
+    projectDao.upsert(sample("proj-a", serverId = 1L, op = PendingOp.NONE))
+    stageDao.upsert(sampleStage("stage-a", "proj-a"))
+    logDao.upsert(DailyLogEntity("log-a", null, "stage-a", "2026-09-05", 1_000L, null))
+    entryDao.upsert(localDailyEntry("entry-purchase-a", dailyLogLocalId = "log-a", type = "PURCHASE", pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+    entryDao.upsert(localDailyEntry("entry-purchase-b", dailyLogLocalId = "log-a", type = "WORK", pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+
+    attachmentDao.upsert(localAttachment("att-1", entryLocalId = "entry-purchase-a", pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+    attachmentDao.upsert(localAttachment("att-deleted", entryLocalId = "entry-purchase-a", pendingOp = PendingOp.DELETE))
+    attachmentDao.upsert(localAttachment("att-other-entry", entryLocalId = "entry-purchase-b", pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+
+    assertEquals(
+        listOf("att-1"),
+        attachmentDao.observeForEntry("entry-purchase-a").first().map { it.localId },
+        "another entry's photo and a pending delete are both hidden",
+    )
+    assertEquals(listOf("att-deleted"), attachmentDao.findPending().map { it.localId })
+
+    // Deleting the parent entry cascades to its attachments.
+    entryDao.deleteByLocalId("entry-purchase-a")
+    assertTrue("attachments cascade-deleted with their entry") { attachmentDao.observeForEntry("entry-purchase-a").first().isEmpty() }
+    assertNull(attachmentDao.findByLocalId("att-1"))
+}
+
 /** Shared checks for [com.dmb.chantiertracker.data.local.db.PlanUsageDao] on a real [AppDatabase]. */
 suspend fun verifyPlanUsageDaoContract(db: AppDatabase) {
     val dao = db.planUsageDao()
