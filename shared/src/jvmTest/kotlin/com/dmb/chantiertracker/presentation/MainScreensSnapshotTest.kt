@@ -23,6 +23,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.toAwtImage
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.captureToImage
+import androidx.compose.ui.test.isRoot
+import androidx.compose.ui.test.onLast
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.runComposeUiTest
 import androidx.compose.ui.unit.dp
@@ -54,8 +56,10 @@ import com.dmb.chantiertracker.presentation.projects.ProjectsScreen
 import com.dmb.chantiertracker.presentation.projects.ProjectsViewModel
 import com.dmb.chantiertracker.presentation.projects.create.CreateProjectScreen
 import com.dmb.chantiertracker.presentation.projects.create.CreateProjectViewModel
+import com.dmb.chantiertracker.presentation.projects.detail.DeleteProjectDialog
 import com.dmb.chantiertracker.presentation.projects.detail.ProjectDetailScreen
 import com.dmb.chantiertracker.presentation.projects.detail.ProjectDetailViewModel
+import com.dmb.chantiertracker.presentation.projects.edit.EditProjectScreen
 import com.dmb.chantiertracker.presentation.settings.SettingsScreen
 import com.dmb.chantiertracker.presentation.settings.SettingsViewModel
 import com.dmb.chantiertracker.presentation.stages.create.CreateStageScreen
@@ -107,6 +111,24 @@ class MainScreensSnapshotTest {
             }
             waitForIdle()
             ImageIO.write(onRoot().captureToImage().toAwtImage(), "png", File(outDir, "$name-$locale.png"))
+        }
+
+    private fun dialogSnapshot(name: String, locale: String, content: @Composable () -> Unit) =
+        runComposeUiTest {
+            setContent {
+                customAppLocale = locale
+                AppEnvironment {
+                    AppTheme(darkTheme = false) {
+                        Box(Modifier.size(412.dp, 892.dp)) { content() }
+                    }
+                }
+            }
+            waitForIdle()
+            ImageIO.write(
+                onAllNodes(isRoot()).onLast().captureToImage().toAwtImage(),
+                "png",
+                File(outDir, "$name-$locale.png"),
+            )
         }
 
     @Composable
@@ -198,6 +220,22 @@ class MainScreensSnapshotTest {
         return ProjectDetailViewModel(repo, FakeStageRepository(stages = sampleStages), auth).also { it.load("1") }
     }
 
+    private fun editProjectVm(): com.dmb.chantiertracker.presentation.projects.edit.EditProjectViewModel {
+        val repo = FakeProjectRepository(
+            detail = ProjectDetail(
+                localId = "1",
+                name = "Villa Vidal",
+                description = "Construction d'une villa individuelle avec piscine et pool house.",
+                location = "Nîmes",
+                currency = "EUR",
+                timezone = "Europe/Paris",
+                status = ProjectStatus.IN_PROGRESS,
+                ownerId = 1L,
+            ),
+        )
+        return com.dmb.chantiertracker.presentation.projects.edit.EditProjectViewModel(repo).also { it.load("1") }
+    }
+
     private fun createStageVm(canSetBudget: Boolean): CreateStageViewModel {
         val user = User(1, "jean@chantier.dev", "Jean Marchand", true, GlobalRole.USER)
         val auth = FakeAuthRepository().apply { emitState(AuthState.Authenticated(user)) }
@@ -278,6 +316,14 @@ class MainScreensSnapshotTest {
                     fallbackTitle = if (locale == "fr") "Projet" else "Project",
                     projectVm = detailVm(canEdit = true),
                 )
+            }
+            snapshot("24-edit-project", locale) {
+                DetailChrome(
+                    title = if (locale == "fr") "Modifier le projet" else "Edit project",
+                ) { m -> EditProjectScreen(projectLocalId = "1", onSaved = {}, onBack = {}, modifier = m, viewModel = editProjectVm()) }
+            }
+            dialogSnapshot("25-delete-project-dialog", locale) {
+                DeleteProjectDialog(projectName = "Villa Vidal", onDismiss = {}, onConfirm = {})
             }
             snapshot("18-create-stage", locale) {
                 DetailChrome(

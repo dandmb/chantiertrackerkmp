@@ -1,6 +1,7 @@
 package com.dmb.chantiertracker.presentation.projects.detail
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -10,7 +11,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.HorizontalDivider
@@ -22,6 +25,9 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -39,7 +45,10 @@ import com.dmb.chantiertracker.presentation.projects.ProjectStatusBadge
 import com.dmb.chantiertracker.presentation.stages.StageStatusBadge
 import com.dmb.chantiertracker.resources.Res
 import com.dmb.chantiertracker.resources.detail_currency
-import com.dmb.chantiertracker.resources.detail_edit
+import com.dmb.chantiertracker.resources.detail_danger_zone
+import com.dmb.chantiertracker.resources.detail_danger_zone_body
+import com.dmb.chantiertracker.resources.detail_delete_project
+import com.dmb.chantiertracker.resources.detail_edit_project
 import com.dmb.chantiertracker.resources.detail_members_empty
 import com.dmb.chantiertracker.resources.detail_section_members
 import com.dmb.chantiertracker.resources.detail_section_stages
@@ -60,6 +69,8 @@ fun ProjectDetailScreen(
     onProjectNameResolved: (String) -> Unit = {},
     onAddStage: (projectLocalId: String) -> Unit = {},
     onStageClick: (stageLocalId: String) -> Unit = {},
+    onEditProject: (projectLocalId: String) -> Unit = {},
+    onProjectDeleted: () -> Unit = {},
     viewModel: ProjectDetailViewModel = koinViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -68,6 +79,7 @@ fun ProjectDetailScreen(
     LaunchedEffect(state.detail?.name) {
         state.detail?.name?.let(onProjectNameResolved)
     }
+    LaunchedEffect(state.deleted) { if (state.deleted) onProjectDeleted() }
 
     Box(modifier.fillMaxSize()) {
         when {
@@ -90,9 +102,12 @@ fun ProjectDetailScreen(
             state.detail != null -> DetailContent(
                 detail = state.detail!!,
                 canEdit = state.canEdit,
+                isDeleting = state.isDeleting,
                 stages = state.stages,
                 onAddStage = { onAddStage(state.detail!!.localId) },
                 onStageClick = onStageClick,
+                onEditProject = { onEditProject(state.detail!!.localId) },
+                onDeleteConfirmed = viewModel::deleteProject,
             )
         }
     }
@@ -102,9 +117,12 @@ fun ProjectDetailScreen(
 private fun DetailContent(
     detail: ProjectDetail,
     canEdit: Boolean,
+    isDeleting: Boolean,
     stages: List<Stage>,
     onAddStage: () -> Unit,
     onStageClick: (String) -> Unit,
+    onEditProject: () -> Unit,
+    onDeleteConfirmed: () -> Unit,
 ) {
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
@@ -123,10 +141,10 @@ private fun DetailContent(
                     modifier = Modifier.weight(1f),
                 )
                 if (canEdit) {
-                    OutlinedButton(onClick = {}, enabled = false) {
+                    OutlinedButton(onClick = onEditProject) {
                         Icon(EditIcon, contentDescription = null, modifier = Modifier.size(18.dp))
                         Text(
-                            text = stringResource(Res.string.detail_edit),
+                            text = stringResource(Res.string.detail_edit_project),
                             modifier = Modifier.padding(start = 6.dp),
                         )
                     }
@@ -164,6 +182,55 @@ private fun DetailContent(
         Section(
             title = stringResource(Res.string.detail_section_members),
             emptyMessage = stringResource(Res.string.detail_members_empty),
+        )
+
+        if (canEdit) {
+            DangerZone(projectName = detail.name, isDeleting = isDeleting, onDeleteConfirmed = onDeleteConfirmed)
+        }
+    }
+}
+
+@Composable
+private fun DangerZone(projectName: String, isDeleting: Boolean, onDeleteConfirmed: () -> Unit) {
+    var showDialog by remember { mutableStateOf(false) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 8.dp)
+            .border(1.dp, MaterialTheme.colorScheme.error, RoundedCornerShape(12.dp))
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Text(
+            text = stringResource(Res.string.detail_danger_zone),
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.error,
+        )
+        Text(
+            text = stringResource(Res.string.detail_danger_zone_body),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        OutlinedButton(
+            onClick = { showDialog = true },
+            enabled = !isDeleting,
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.error),
+        ) {
+            Text(stringResource(Res.string.detail_delete_project))
+        }
+    }
+
+    if (showDialog) {
+        DeleteProjectDialog(
+            projectName = projectName,
+            onDismiss = { showDialog = false },
+            onConfirm = {
+                showDialog = false
+                onDeleteConfirmed()
+            },
         )
     }
 }

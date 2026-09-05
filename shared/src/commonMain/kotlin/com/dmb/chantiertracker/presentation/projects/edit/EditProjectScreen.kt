@@ -1,22 +1,26 @@
-package com.dmb.chantiertracker.presentation.projects.create
+package com.dmb.chantiertracker.presentation.projects.edit
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.dmb.chantiertracker.domain.model.DomainException
 import com.dmb.chantiertracker.presentation.auth.components.AuthPrimaryButton
 import com.dmb.chantiertracker.presentation.auth.components.ErrorBanner
 import com.dmb.chantiertracker.presentation.i18n.localizedText
@@ -27,34 +31,57 @@ import com.dmb.chantiertracker.resources.create_currency_label
 import com.dmb.chantiertracker.resources.create_description_label
 import com.dmb.chantiertracker.resources.create_location_label
 import com.dmb.chantiertracker.resources.create_name_label
-import com.dmb.chantiertracker.resources.create_submit
 import com.dmb.chantiertracker.resources.create_timezone_help
+import com.dmb.chantiertracker.resources.edit_project_submit
+import com.dmb.chantiertracker.resources.error_not_found
+import com.dmb.chantiertracker.resources.projects_retry
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
-fun CreateProjectScreen(
-    onCreated: () -> Unit,
+fun EditProjectScreen(
+    projectLocalId: String,
+    onSaved: () -> Unit,
+    onBack: () -> Unit,
     modifier: Modifier = Modifier,
-    viewModel: CreateProjectViewModel = koinViewModel(),
+    viewModel: EditProjectViewModel = koinViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    val locked = state.isSubmitting || state.atProjectLimit
 
-    LaunchedEffect(state.created) {
-        if (state.created) onCreated()
+    LaunchedEffect(projectLocalId) { viewModel.load(projectLocalId) }
+    LaunchedEffect(state.saved) { if (state.saved) onSaved() }
+
+    Box(modifier.fillMaxSize()) {
+        when {
+            state.isMissing -> Column(
+                modifier = Modifier.align(Alignment.Center).fillMaxWidth().padding(horizontal = 32.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                Text(
+                    text = stringResource(Res.string.error_not_found),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                )
+                OutlinedButton(onClick = onBack) { Text(stringResource(Res.string.projects_retry)) }
+            }
+            !state.prefilled -> CircularProgressIndicator(Modifier.align(Alignment.Center))
+            else -> EditForm(state, viewModel)
+        }
     }
+}
 
+@Composable
+private fun EditForm(state: EditProjectUiState, viewModel: EditProjectViewModel) {
+    val locked = state.isSubmitting
     Column(
-        modifier = modifier
+        modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
             .padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        if (state.atProjectLimit) {
-            ErrorBanner(DomainException.PlanLimitReached.localizedText())
-        }
         state.formError?.let { ErrorBanner(it.localizedText()) }
 
         OutlinedTextField(
@@ -109,10 +136,9 @@ fun CreateProjectScreen(
         )
 
         AuthPrimaryButton(
-            text = stringResource(Res.string.create_submit),
+            text = stringResource(Res.string.edit_project_submit),
             onClick = viewModel::submit,
             loading = state.isSubmitting,
-            enabled = !state.atProjectLimit,
         )
     }
 }
