@@ -32,6 +32,9 @@ interface PurchaseLineDao {
     @Query("SELECT * FROM purchase_lines WHERE syncStatus != 'SYNCED'")
     suspend fun findPending(): List<PurchaseLineEntity>
 
+    @Query("SELECT * FROM purchase_lines WHERE entryLocalId = :entryLocalId")
+    suspend fun findForEntry(entryLocalId: String): List<PurchaseLineEntity>
+
     @Upsert
     suspend fun upsert(line: PurchaseLineEntity)
 

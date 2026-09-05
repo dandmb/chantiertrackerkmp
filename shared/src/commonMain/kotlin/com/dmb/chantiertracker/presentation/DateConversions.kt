@@ -24,6 +24,21 @@ fun parseIsoDateOrNull(value: String): LocalDate? {
     return runCatching { LocalDate.parse(trimmed) }.getOrNull()
 }
 
+/**
+ * The one display format for **every** date shown in the app: `JJ-MM-AAAA`
+ * (day-month-year). The API and Room always store ISO `yyyy-MM-dd`; this is the
+ * only place a date turns human-readable. An unparseable value is returned
+ * as-is rather than hidden.
+ */
+fun formatIsoDate(iso: String): String {
+    // The stored form is always `yyyy-MM-dd`; parse the string directly so this
+    // never depends on a kotlinx-datetime field name.
+    val parts = iso.trim().split("-")
+    if (parts.size != 3 || parts.any { it.isEmpty() }) return iso
+    val (year, month, day) = parts
+    return "$day-$month-$year"
+}
+
 fun todayInSystemZone(): LocalDate = Clock.System.todayIn(TimeZone.currentSystemDefault())
 
 /**

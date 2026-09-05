@@ -28,6 +28,9 @@ class FakeMaterialDao(initial: List<MaterialEntity> = emptyList()) : MaterialDao
     override suspend fun findPending(): List<MaterialEntity> =
         materials.value.values.filter { it.syncStatus != SyncStatus.SYNCED }
 
+    override suspend fun findForProject(projectLocalId: String): List<MaterialEntity> =
+        materials.value.values.filter { it.projectLocalId == projectLocalId }
+
     override suspend fun upsert(material: MaterialEntity) {
         materials.value = materials.value + (material.localId to material)
     }

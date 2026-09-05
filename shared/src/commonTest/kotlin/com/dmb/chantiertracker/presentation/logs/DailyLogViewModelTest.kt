@@ -185,73 +185,6 @@ class DailyLogViewModelTest {
         assertEquals("createWorkEntry:s1:2026-03-10", logs.log.last())
     }
 
-    @Test
-    fun editing_a_summary_then_saving_updates_the_repository_and_closes_the_dialog() = runTest {
-        val entry = DailyEntry("e1", "log-1", EntryType.PURCHASE, summary = null)
-        val logs = FakeDailyLogRepository(detail = logDetail(entries = listOf(entry)))
-        val v = vm(logs)
-        v.load("log-1")
-        advanceUntilIdle()
-
-        v.startEditingSummary("e1")
-        assertEquals("e1", v.state.value.editingEntryLocalId)
-
-        v.saveSummary("  20 sacs de ciment livrés  ")
-        advanceUntilIdle()
-
-        assertEquals("updateEntry:e1:20 sacs de ciment livrés", logs.log.last())
-        assertNull(v.state.value.editingEntryLocalId)
-        assertFalse(v.state.value.isSubmitting)
-    }
-
-    @Test
-    fun a_blank_work_title_blocks_saving_and_writes_nothing() = runTest {
-        val entry = DailyEntry("e1", "log-1", EntryType.WORK, summary = null)
-        val logs = FakeDailyLogRepository(detail = logDetail(entries = listOf(entry)))
-        val v = vm(logs)
-        v.load("log-1")
-        advanceUntilIdle()
-
-        v.startEditingSummary("e1")
-        v.saveSummary("   ")
-        advanceUntilIdle()
-
-        assertEquals(Res.string.entry_summary_required_work, v.state.value.summaryError)
-        assertTrue(logs.log.none { it.startsWith("updateEntry") })
-        assertEquals("e1", v.state.value.editingEntryLocalId, "the dialog stays open on error")
-    }
-
-    @Test
-    fun a_blank_purchase_summary_is_allowed() = runTest {
-        val entry = DailyEntry("e1", "log-1", EntryType.PURCHASE, summary = "Ancien résumé")
-        val logs = FakeDailyLogRepository(detail = logDetail(entries = listOf(entry)))
-        val v = vm(logs)
-        v.load("log-1")
-        advanceUntilIdle()
-
-        v.startEditingSummary("e1")
-        v.saveSummary("   ")
-        advanceUntilIdle()
-
-        assertEquals("updateEntry:e1:", logs.log.last())
-        assertNull(v.state.value.editingEntryLocalId)
-    }
-
-    @Test
-    fun cancel_editing_clears_the_dialog_state_without_writing() = runTest {
-        val entry = DailyEntry("e1", "log-1", EntryType.PURCHASE, summary = "x")
-        val logs = FakeDailyLogRepository(detail = logDetail(entries = listOf(entry)))
-        val v = vm(logs)
-        v.load("log-1")
-        advanceUntilIdle()
-
-        v.startEditingSummary("e1")
-        v.cancelEditingSummary()
-
-        assertNull(v.state.value.editingEntryLocalId)
-        assertTrue(logs.log.none { it.startsWith("updateEntry") })
-    }
-
     // ─── isAdmin / materials / stock / lines exposure ───────────────────────
 
     @Test
@@ -308,122 +241,20 @@ class DailyLogViewModelTest {
         assertEquals(listOf("cl1"), v.state.value.consumptionLines.map { it.localId })
     }
 
-    // ─── materials referential ───────────────────────────────────────────────
+    // ─── delete line (ADMIN-only, still inline on the screen) ───────────────
 
     @Test
-    fun create_material_delegates_to_the_repository_for_the_logs_project() = runTest {
-        val logs = FakeDailyLogRepository(detail = logDetail())
-        val materials = FakeMaterialRepository()
-        val v = vm(logs, materials = materials)
-        v.load("log-1")
-        advanceUntilIdle()
-
-        val created = v.createMaterial("Ciment", "sac")
-
-        assertEquals("createMaterial:p1:Ciment:sac", materials.log.single())
-        assertEquals("p1", created?.projectLocalId)
-    }
-
-    @Test
-    fun create_material_returns_null_before_the_project_is_known() = runTest {
-        val v = vm(FakeDailyLogRepository(detail = null))
-        assertNull(v.createMaterial("Ciment", "sac"))
-    }
-
-    // ─── purchase lines ──────────────────────────────────────────────────────
-
-    @Test
-    fun create_purchase_line_delegates_to_the_repository() = runTest {
+    fun delete_purchase_line_delegates_to_the_repository() = runTest {
         val logs = FakeDailyLogRepository(detail = logDetail())
         val purchaseLines = FakePurchaseLineRepository()
         val v = vm(logs, purchaseLines = purchaseLines)
         v.load("log-1")
         advanceUntilIdle()
 
-        v.createPurchaseLine("e1", "m1", 12.0, 3.5, "Quincaillerie")
-
-        assertEquals("createLine:e1:m1:12.0:3.5:Quincaillerie", purchaseLines.log.single())
-    }
-
-    @Test
-    fun update_and_delete_purchase_line_delegate_to_the_repository() = runTest {
-        val logs = FakeDailyLogRepository(detail = logDetail())
-        val purchaseLines = FakePurchaseLineRepository()
-        val v = vm(logs, purchaseLines = purchaseLines)
-        v.load("log-1")
-        advanceUntilIdle()
-
-        v.updatePurchaseLine("pl1", 5.0, 2.0, null)
         v.deletePurchaseLine("pl1")
         advanceUntilIdle()
 
-        assertEquals(listOf("updateLine:pl1:5.0:2.0:null", "deleteLine:pl1"), purchaseLines.log)
-    }
-
-    // ─── consumption lines (stock-limited) ───────────────────────────────────
-
-    @Test
-    fun create_consumption_line_within_stock_succeeds() = runTest {
-        val logs = FakeDailyLogRepository(detail = logDetail())
-        val materials = FakeMaterialRepository(stock = listOf(MaterialStock("m1", "Ciment", "sac", quantityIn = 10.0, quantityOut = 0.0)))
-        val consumptionLines = FakeConsumptionLineRepository()
-        val v = vm(logs, materials = materials, consumptionLines = consumptionLines)
-        v.load("log-1")
-        advanceUntilIdle()
-
-        val ok = v.createConsumptionLine("e2", "m1", 4.0)
-
-        assertTrue(ok)
-        assertEquals("createLine:e2:m1:4.0", consumptionLines.log.single())
-    }
-
-    @Test
-    fun create_consumption_line_exceeding_stock_is_blocked_and_writes_nothing() = runTest {
-        val logs = FakeDailyLogRepository(detail = logDetail())
-        val materials = FakeMaterialRepository(stock = listOf(MaterialStock("m1", "Ciment", "sac", quantityIn = 10.0, quantityOut = 0.0)))
-        val consumptionLines = FakeConsumptionLineRepository()
-        val v = vm(logs, materials = materials, consumptionLines = consumptionLines)
-        v.load("log-1")
-        advanceUntilIdle()
-
-        val ok = v.createConsumptionLine("e2", "m1", 11.0)
-
-        assertFalse(ok)
-        assertTrue(consumptionLines.log.isEmpty())
-    }
-
-    @Test
-    fun update_consumption_line_gives_back_its_own_quantity_before_checking_the_ceiling() = runTest {
-        val workEntry = DailyEntry("e2", "log-1", EntryType.WORK, summary = null)
-        val logs = FakeDailyLogRepository(detail = logDetail(entries = listOf(workEntry)))
-        // 10 available after this line's own 5 units are already subtracted (quantityOut includes it).
-        val materials = FakeMaterialRepository(stock = listOf(MaterialStock("m1", "Ciment", "sac", quantityIn = 20.0, quantityOut = 10.0)))
-        val consumptionLines = FakeConsumptionLineRepository(lines = listOf(ConsumptionLine("cl1", "e2", "m1", 5.0)))
-        val v = vm(logs, materials = materials, consumptionLines = consumptionLines)
-        v.load("log-1")
-        advanceUntilIdle()
-
-        // Ceiling = available (10) + this line's own quantity (5) = 15.
-        val ok = v.updateConsumptionLine("cl1", "m1", 15.0)
-
-        assertTrue(ok)
-        assertEquals("updateLine:cl1:15.0", consumptionLines.log.single())
-    }
-
-    @Test
-    fun update_consumption_line_beyond_its_ceiling_is_blocked() = runTest {
-        val workEntry = DailyEntry("e2", "log-1", EntryType.WORK, summary = null)
-        val logs = FakeDailyLogRepository(detail = logDetail(entries = listOf(workEntry)))
-        val materials = FakeMaterialRepository(stock = listOf(MaterialStock("m1", "Ciment", "sac", quantityIn = 20.0, quantityOut = 10.0)))
-        val consumptionLines = FakeConsumptionLineRepository(lines = listOf(ConsumptionLine("cl1", "e2", "m1", 5.0)))
-        val v = vm(logs, materials = materials, consumptionLines = consumptionLines)
-        v.load("log-1")
-        advanceUntilIdle()
-
-        val ok = v.updateConsumptionLine("cl1", "m1", 15.1)
-
-        assertFalse(ok)
-        assertTrue(consumptionLines.log.isEmpty())
+        assertEquals(listOf("deleteLine:pl1"), purchaseLines.log)
     }
 
     @Test

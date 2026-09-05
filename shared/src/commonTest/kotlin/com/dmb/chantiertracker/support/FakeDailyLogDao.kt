@@ -29,6 +29,9 @@ class FakeDailyLogDao(initial: List<DailyLogEntity> = emptyList()) : DailyLogDao
     override suspend fun findByServerId(serverId: Long): DailyLogEntity? =
         logs.value.values.firstOrNull { it.serverId == serverId }
 
+    override suspend fun findForStage(stageLocalId: String): List<DailyLogEntity> =
+        logs.value.values.filter { it.stageLocalId == stageLocalId }
+
     override suspend fun upsert(log: DailyLogEntity) {
         logs.value = logs.value + (log.localId to log)
     }

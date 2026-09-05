@@ -34,6 +34,9 @@ class FakeConsumptionLineDao(
     override suspend fun findPending(): List<ConsumptionLineEntity> =
         lines.value.values.filter { it.syncStatus != SyncStatus.SYNCED }
 
+    override suspend fun findForEntry(entryLocalId: String): List<ConsumptionLineEntity> =
+        lines.value.values.filter { it.entryLocalId == entryLocalId }
+
     override suspend fun upsert(line: ConsumptionLineEntity) {
         lines.value = lines.value + (line.localId to line)
     }

@@ -18,8 +18,13 @@ import com.dmb.chantiertracker.data.local.db.StageDao
 import com.dmb.chantiertracker.data.local.db.buildChantierDatabase
 import androidx.room.RoomDatabase
 import com.dmb.chantiertracker.data.remote.AccountApi
+import com.dmb.chantiertracker.data.remote.AttachmentApi
 import com.dmb.chantiertracker.data.remote.AuthApi
+import com.dmb.chantiertracker.data.remote.ConsumptionLineApi
+import com.dmb.chantiertracker.data.remote.DailyLogApi
+import com.dmb.chantiertracker.data.remote.MaterialApi
 import com.dmb.chantiertracker.data.remote.ProjectApi
+import com.dmb.chantiertracker.data.remote.PurchaseLineApi
 import com.dmb.chantiertracker.data.remote.StageApi
 import com.dmb.chantiertracker.data.remote.createHttpClient
 import com.dmb.chantiertracker.data.remote.httpClientEngine
@@ -52,7 +57,10 @@ import com.dmb.chantiertracker.presentation.auth.login.LoginViewModel
 import com.dmb.chantiertracker.presentation.auth.register.RegisterViewModel
 import com.dmb.chantiertracker.presentation.auth.reset.ResetPasswordViewModel
 import com.dmb.chantiertracker.presentation.auth.verify.VerifyEmailViewModel
+import com.dmb.chantiertracker.presentation.logs.ConsumptionLineFormViewModel
 import com.dmb.chantiertracker.presentation.logs.DailyLogViewModel
+import com.dmb.chantiertracker.presentation.logs.EntrySummaryViewModel
+import com.dmb.chantiertracker.presentation.logs.PurchaseLineFormViewModel
 import com.dmb.chantiertracker.presentation.main.MainViewModel
 import com.dmb.chantiertracker.presentation.navigation.RootViewModel
 import com.dmb.chantiertracker.presentation.projects.ProjectSortHolder
@@ -87,6 +95,11 @@ val networkModule: Module = module {
     singleOf(::ProjectApi)
     singleOf(::StageApi)
     singleOf(::AccountApi)
+    singleOf(::MaterialApi)
+    singleOf(::DailyLogApi)
+    singleOf(::PurchaseLineApi)
+    singleOf(::ConsumptionLineApi)
+    singleOf(::AttachmentApi)
 }
 
 val syncModule: Module = module {
@@ -109,6 +122,18 @@ val syncModule: Module = module {
             api = get(),
             stageDao = get(),
             stageApi = get(),
+            materialDao = get(),
+            materialApi = get(),
+            dailyLogDao = get(),
+            dailyEntryDao = get(),
+            dailyLogApi = get(),
+            purchaseLineDao = get(),
+            purchaseLineApi = get(),
+            consumptionLineDao = get(),
+            consumptionLineApi = get(),
+            attachmentDao = get(),
+            attachmentApi = get(),
+            attachmentFileStore = get(),
             connectivity = get(),
             syncState = get(),
             scope = get<AppCoroutineScope>(),
@@ -146,6 +171,9 @@ val presentationModule: Module = module {
     viewModelOf(::CreateStageViewModel)
     viewModelOf(::StageDetailViewModel)
     viewModelOf(::DailyLogViewModel)
+    viewModelOf(::EntrySummaryViewModel)
+    viewModelOf(::PurchaseLineFormViewModel)
+    viewModelOf(::ConsumptionLineFormViewModel)
     viewModelOf(::SettingsViewModel)
 }
 

@@ -11,6 +11,7 @@
     <string name="action_save">Save</string>
     <string name="action_create">Create</string>
     <string name="action_delete">Delete</string>
+    <string name="action_add">Add</string>
     <string name="field_email_label">Email</string>
     <string name="field_name_label">Name</string>
     <string name="field_password_label">Password</string>
@@ -159,6 +160,11 @@
     <string name="entry_edit_title">Edit entry</string>
     <string name="entry_summary_label">Summary (optional)</string>
     <string name="entry_title_label">Work title</string>
+    <string name="entry_summary_edit_title">Edit summary</string>
+    <string name="entry_title_edit_title">Edit title</string>
+    <string name="entry_summary_placeholder">Summary of the day</string>
+    <string name="entry_title_placeholder">Describe the work done</string>
+    <string name="material_query_hint">Search or create a material</string>
     <string name="entry_summary_required_work">Title is required.</string>
 
     <string name="purchase_lines_title">Purchased items</string>

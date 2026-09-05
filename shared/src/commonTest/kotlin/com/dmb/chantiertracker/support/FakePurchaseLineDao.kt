@@ -39,6 +39,9 @@ class FakePurchaseLineDao(
     override suspend fun findPending(): List<PurchaseLineEntity> =
         lines.value.values.filter { it.syncStatus != SyncStatus.SYNCED }
 
+    override suspend fun findForEntry(entryLocalId: String): List<PurchaseLineEntity> =
+        lines.value.values.filter { it.entryLocalId == entryLocalId }
+
     override suspend fun upsert(line: PurchaseLineEntity) {
         lines.value = lines.value + (line.localId to line)
     }

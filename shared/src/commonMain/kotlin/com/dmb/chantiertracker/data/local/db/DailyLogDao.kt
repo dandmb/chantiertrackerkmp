@@ -23,6 +23,9 @@ interface DailyLogDao {
     @Query("SELECT * FROM daily_logs WHERE serverId = :serverId")
     suspend fun findByServerId(serverId: Long): DailyLogEntity?
 
+    @Query("SELECT * FROM daily_logs WHERE stageLocalId = :stageLocalId")
+    suspend fun findForStage(stageLocalId: String): List<DailyLogEntity>
+
     @Upsert
     suspend fun upsert(log: DailyLogEntity)
 

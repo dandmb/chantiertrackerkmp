@@ -20,6 +20,9 @@ interface AttachmentDao {
     @Query("SELECT * FROM attachments WHERE syncStatus != 'SYNCED'")
     suspend fun findPending(): List<AttachmentEntity>
 
+    @Query("SELECT * FROM attachments WHERE entryLocalId = :entryLocalId")
+    suspend fun findForEntry(entryLocalId: String): List<AttachmentEntity>
+
     @Upsert
     suspend fun upsert(attachment: AttachmentEntity)
 

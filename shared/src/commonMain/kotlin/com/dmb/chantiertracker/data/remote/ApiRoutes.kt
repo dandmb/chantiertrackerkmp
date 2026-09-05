@@ -17,4 +17,21 @@ object ApiRoutes {
     fun projectMembers(id: Long) = "projects/$id/members"
     fun projectStages(id: Long) = "projects/$id/stages"
     fun stage(id: Long) = "stages/$id"
+
+    fun projectMaterials(id: Long) = "projects/$id/materials"
+    fun material(id: Long) = "materials/$id"
+
+    fun stageLogs(stageId: Long) = "stages/$stageId/logs"
+    fun stageLogPurchases(stageId: Long, date: String) = "stages/$stageId/logs/$date/purchases"
+    fun stageLogWorks(stageId: Long, date: String) = "stages/$stageId/logs/$date/works"
+    fun log(id: Long) = "logs/$id"
+    fun entry(id: Long) = "entries/$id"
+
+    fun entryPurchaseLines(entryId: Long) = "entries/$entryId/purchase-lines"
+    fun purchaseLine(id: Long) = "purchase-lines/$id"
+    fun entryConsumptionLines(entryId: Long) = "entries/$entryId/consumption-lines"
+    fun consumptionLine(id: Long) = "consumption-lines/$id"
+
+    fun entryAttachments(entryId: Long) = "entries/$entryId/attachments"
+    fun attachment(id: Long) = "attachments/$id"
 }

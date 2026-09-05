@@ -65,6 +65,9 @@ class DailyLogRepositoryImpl(
             }
         }
 
+    override fun observeEntry(entryLocalId: String): Flow<DailyEntry?> =
+        entryDao.observeEntry(entryLocalId).map { it?.toDailyEntry() }
+
     override suspend fun createPurchaseEntry(stageLocalId: String, date: String): String =
         createEntry(stageLocalId, date, EntryType.PURCHASE)
 
@@ -122,16 +125,16 @@ class DailyLogRepositoryImpl(
         syncer.requestSync()
     }
 
-    // Not yet taught to SyncEngine (Step 4) — a harmless generic sync pass for
-    // now, so screens can already call refresh unconditionally; once
-    // SyncEngine pulls logs/entries these calls start doing real work without
-    // any change here.
+    // A stage's day list needs the stage's log *summaries* (existence + server
+    // id per day); syncStage pulls those alongside the stage itself (ADR-30).
     override suspend fun refreshLogs(stageLocalId: String) {
-        syncer.syncNow()
+        syncer.syncStage(stageLocalId)
     }
 
+    // The day screen needs the full hierarchy — entries, lines, photos — which
+    // is what syncLog pulls (ADR-30).
     override suspend fun refreshLog(logLocalId: String) {
-        syncer.syncNow()
+        syncer.syncLog(logLocalId)
     }
 }
 

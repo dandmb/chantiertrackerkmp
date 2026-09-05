@@ -36,6 +36,13 @@ class SyncEngineTest {
     private class Fixture(
         val dao: FakeProjectDao = FakeProjectDao(),
         val stageDao: FakeStageDao = FakeStageDao(),
+        val materialDao: com.dmb.chantiertracker.support.FakeMaterialDao = com.dmb.chantiertracker.support.FakeMaterialDao(),
+        val dailyLogDao: com.dmb.chantiertracker.support.FakeDailyLogDao = com.dmb.chantiertracker.support.FakeDailyLogDao(),
+        val dailyEntryDao: com.dmb.chantiertracker.support.FakeDailyEntryDao = com.dmb.chantiertracker.support.FakeDailyEntryDao(),
+        val purchaseLineDao: com.dmb.chantiertracker.support.FakePurchaseLineDao = com.dmb.chantiertracker.support.FakePurchaseLineDao(),
+        val consumptionLineDao: com.dmb.chantiertracker.support.FakeConsumptionLineDao = com.dmb.chantiertracker.support.FakeConsumptionLineDao(),
+        val attachmentDao: com.dmb.chantiertracker.support.FakeAttachmentDao = com.dmb.chantiertracker.support.FakeAttachmentDao(),
+        val fileStore: com.dmb.chantiertracker.support.FakeAttachmentFileStore = com.dmb.chantiertracker.support.FakeAttachmentFileStore(),
         val backend: FakeProjectBackend = FakeProjectBackend(),
         val connectivity: FakeConnectivityObserver = FakeConnectivityObserver(),
         val clock: MutableClock = MutableClock(serverMillis("2026-09-02T09:00:00")),
@@ -48,6 +55,18 @@ class SyncEngineTest {
             api = backend.api(),
             stageDao = stageDao,
             stageApi = backend.stageApi(),
+            materialDao = materialDao,
+            materialApi = backend.materialApi(),
+            dailyLogDao = dailyLogDao,
+            dailyEntryDao = dailyEntryDao,
+            dailyLogApi = backend.dailyLogApi(),
+            purchaseLineDao = purchaseLineDao,
+            purchaseLineApi = backend.purchaseLineApi(),
+            consumptionLineDao = consumptionLineDao,
+            consumptionLineApi = backend.consumptionLineApi(),
+            attachmentDao = attachmentDao,
+            attachmentApi = backend.attachmentApi(),
+            attachmentFileStore = fileStore,
             connectivity = connectivity,
             syncState = syncState,
             scope = scope,
@@ -547,6 +566,179 @@ class SyncEngineTest {
         val stage = f.stageDao.findByLocalId("st-1")!!
         assertEquals(SyncStatus.CONFLICTED, stage.syncStatus)
         assertEquals(SyncError.REJECTED, stage.lastSyncError)
+    }
+
+    // ─── Step 4: daily-log hierarchy sync (ADR-30) ─────────────────────────
+
+    @Test
+    fun the_whole_offline_hierarchy_is_pushed_in_dependency_order_on_reconnect() = runTest {
+        val f = Fixture()
+        f.connectivity.setOnline(false)
+        f.dao.upsert(localProject("p1", pendingOp = PendingOp.CREATE))
+        f.stageDao.upsert(localStage("s1", projectLocalId = "p1", pendingOp = PendingOp.CREATE))
+        f.materialDao.upsert(com.dmb.chantiertracker.support.localMaterial("m1", projectLocalId = "p1", name = "Ciment"))
+        f.dailyLogDao.upsert(com.dmb.chantiertracker.support.localDailyLog("l1", stageLocalId = "s1", date = "2026-09-05"))
+        f.dailyEntryDao.upsert(com.dmb.chantiertracker.support.localDailyEntry("e1", dailyLogLocalId = "l1", type = "PURCHASE", summary = "12 sacs"))
+        f.purchaseLineDao.upsert(
+            com.dmb.chantiertracker.support.localPurchaseLine("pl1", entryLocalId = "e1", materialLocalId = "m1", quantity = 10.0, unitPrice = 3.0),
+        )
+        val path = f.fileStore.save(byteArrayOf(4, 2), "facture.jpg")
+        f.attachmentDao.upsert(com.dmb.chantiertracker.support.localAttachment("a1", entryLocalId = "e1", localPath = path))
+        val engine = f.engine(backgroundScope)
+
+        f.connectivity.setOnline(true)
+        assertIs<SyncOutcome.Synced>(engine.syncNow())
+
+        assertNotNull(f.dao.findByLocalId("p1")!!.serverId)
+        assertNotNull(f.stageDao.findByLocalId("s1")!!.serverId)
+        assertNotNull(f.materialDao.findByLocalId("m1")!!.serverId)
+        assertEquals(SyncStatus.SYNCED, f.dailyEntryDao.findByLocalId("e1")!!.syncStatus)
+        assertNotNull(f.dailyEntryDao.findByLocalId("e1")!!.serverId)
+        assertNotNull(f.dailyLogDao.findByLocalId("l1")!!.serverId, "the day learns its server id from the entry it created")
+        assertEquals(SyncStatus.SYNCED, f.purchaseLineDao.findByLocalId("pl1")!!.syncStatus)
+        assertNotNull(f.purchaseLineDao.findByLocalId("pl1")!!.serverId)
+        assertEquals(SyncStatus.SYNCED, f.attachmentDao.findByLocalId("a1")!!.syncStatus)
+
+        assertEquals(1, f.backend.entries.size)
+        assertEquals(1, f.backend.purchaseLines.size)
+        assertEquals(1, f.backend.attachments.size)
+        assertEquals(3.0, f.backend.purchaseLines.single().unitPrice)
+    }
+
+    @Test
+    fun a_line_whose_parent_entry_is_not_on_the_server_yet_stays_pending_and_is_not_an_error() = runTest {
+        val f = Fixture()
+        f.materialDao.upsert(
+            com.dmb.chantiertracker.support.localMaterial("m1", serverId = 5, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED),
+        )
+        f.purchaseLineDao.upsert(
+            com.dmb.chantiertracker.support.localPurchaseLine("pl1", entryLocalId = "ghost-entry", materialLocalId = "m1"),
+        )
+        val engine = f.engine(backgroundScope)
+
+        assertIs<SyncOutcome.Synced>(engine.syncNow())
+        assertEquals(SyncStatus.PENDING, f.purchaseLineDao.findByLocalId("pl1")!!.syncStatus, "still waiting for its parent, not rejected")
+    }
+
+    @Test
+    fun an_insufficient_stock_rejection_marks_the_line_conflicted_and_does_not_retry() = runTest {
+        val f = Fixture()
+        f.backend.lineWriteConflict = true
+        f.materialDao.upsert(
+            com.dmb.chantiertracker.support.localMaterial("m1", serverId = 5, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED),
+        )
+        f.dailyEntryDao.upsert(
+            com.dmb.chantiertracker.support.localDailyEntry("e1", serverId = 40, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED),
+        )
+        f.consumptionLineDao.upsert(
+            com.dmb.chantiertracker.support.localConsumptionLine("cl1", entryLocalId = "e1", materialLocalId = "m1", quantity = 99.0),
+        )
+        val engine = f.engine(backgroundScope)
+
+        engine.syncNow()
+
+        val row = f.consumptionLineDao.findByLocalId("cl1")!!
+        assertEquals(SyncStatus.CONFLICTED, row.syncStatus)
+        assertEquals(SyncError.REJECTED, row.lastSyncError)
+    }
+
+    @Test
+    fun sync_project_pulls_materials_and_day_summaries_but_not_the_entries() = runTest {
+        val f = Fixture()
+        f.backend.seed(ServerProject(id = 5, name = "Villa"))
+        f.backend.seedStage(ServerStage(id = 90, projectId = 5, name = "Gros œuvre"))
+        f.backend.seedMaterial(com.dmb.chantiertracker.support.ServerMaterial(id = 7, projectId = 5, name = "Ciment", unit = "sac"))
+        val log = f.backend.seedLog(com.dmb.chantiertracker.support.ServerLog(id = 800, stageId = 90, date = "2026-09-05"))
+        f.backend.seedEntry(com.dmb.chantiertracker.support.ServerEntry(id = 900, dailyLogId = log.id, type = "PURCHASE", summary = "x"))
+        f.dao.upsert(localProject("p5", serverId = 5, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+        f.stageDao.upsert(localStage("st90", projectLocalId = "p5", serverId = 90, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+        val engine = f.engine(backgroundScope)
+
+        engine.syncProject("p5")
+
+        assertEquals(listOf("Ciment"), f.materialDao.stored.map { it.name })
+        val days = f.dailyLogDao.findForStage("st90")
+        assertEquals(listOf("2026-09-05"), days.map { it.date })
+        assertEquals(800L, days.single().serverId)
+        assertTrue(f.dailyEntryDao.stored.isEmpty(), "entries are left to syncLog")
+    }
+
+    @Test
+    fun sync_log_pulls_entries_lines_and_downloads_photos_for_a_synced_day() = runTest {
+        val f = Fixture()
+        f.backend.seed(ServerProject(id = 5, name = "Villa"))
+        f.backend.seedStage(ServerStage(id = 90, projectId = 5, name = "Gros œuvre"))
+        f.backend.seedMaterial(com.dmb.chantiertracker.support.ServerMaterial(id = 7, projectId = 5, name = "Ciment", unit = "sac"))
+        val log = f.backend.seedLog(com.dmb.chantiertracker.support.ServerLog(id = 800, stageId = 90, date = "2026-09-05"))
+        val purchase = f.backend.seedEntry(com.dmb.chantiertracker.support.ServerEntry(id = 900, dailyLogId = 800, type = "PURCHASE", summary = "12 sacs"))
+        f.backend.seedPurchaseLine(com.dmb.chantiertracker.support.ServerPurchaseLine(id = 1000, entryId = purchase.id, materialId = 7, quantity = 12.0, unitPrice = 3.5))
+        f.backend.seedAttachment(com.dmb.chantiertracker.support.ServerAttachment(id = 1100, entryId = purchase.id))
+        f.materialDao.upsert(
+            com.dmb.chantiertracker.support.localMaterial("m7", projectLocalId = "p5", serverId = 7, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED),
+        )
+        f.dailyLogDao.upsert(com.dmb.chantiertracker.support.localDailyLog("l800", stageLocalId = "st90", date = "2026-09-05", serverId = 800))
+        val engine = f.engine(backgroundScope)
+
+        engine.syncLog("l800")
+
+        val entries = f.dailyEntryDao.findForLog("l800")
+        assertEquals(listOf("PURCHASE"), entries.map { it.type })
+        assertEquals("12 sacs", entries.single().summary)
+        val lines = f.purchaseLineDao.findForEntry(entries.single().localId)
+        assertEquals(listOf(12.0), lines.map { it.quantity })
+        assertEquals("m7", lines.single().materialLocalId, "the line's material id is resolved from server id")
+        val attachments = f.attachmentDao.findForEntry(entries.single().localId)
+        assertEquals(1, attachments.size)
+        assertTrue(attachments.single().localPath in f.fileStore.storedPaths, "the photo was downloaded to a local file")
+    }
+
+    @Test
+    fun a_video_attachment_uploaded_from_the_web_is_skipped_on_pull() = runTest {
+        val f = Fixture()
+        f.backend.seed(ServerProject(id = 5, name = "Villa"))
+        f.backend.seedStage(ServerStage(id = 90, projectId = 5, name = "S"))
+        val log = f.backend.seedLog(com.dmb.chantiertracker.support.ServerLog(id = 800, stageId = 90, date = "2026-09-05"))
+        val purchase = f.backend.seedEntry(com.dmb.chantiertracker.support.ServerEntry(id = 900, dailyLogId = 800, type = "PURCHASE"))
+        f.backend.seedAttachment(com.dmb.chantiertracker.support.ServerAttachment(id = 1100, entryId = purchase.id, mimeType = "video/mp4", originalName = "clip.mp4"))
+        f.dailyLogDao.upsert(com.dmb.chantiertracker.support.localDailyLog("l800", stageLocalId = "st90", date = "2026-09-05", serverId = 800))
+        val engine = f.engine(backgroundScope)
+
+        engine.syncLog("l800")
+
+        assertTrue(f.attachmentDao.stored.isEmpty(), "mobile is photo-only — the video is not downloaded")
+    }
+
+    @Test
+    fun pushing_an_entry_update_the_server_already_removed_drops_the_local_row() = runTest {
+        val f = Fixture()
+        f.backend.seed(ServerProject(id = 5, name = "Villa"))
+        f.backend.seedStage(ServerStage(id = 90, projectId = 5, name = "S"))
+        f.stageDao.upsert(localStage("st90", projectLocalId = "p5", serverId = 90, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+        f.dailyLogDao.upsert(com.dmb.chantiertracker.support.localDailyLog("l1", stageLocalId = "st90", date = "2026-09-05", serverId = 800))
+        f.dailyEntryDao.upsert(
+            com.dmb.chantiertracker.support.localDailyEntry("e1", dailyLogLocalId = "l1", serverId = 12345, type = "PURCHASE", pendingOp = PendingOp.UPDATE, syncStatus = SyncStatus.PENDING),
+        )
+        val engine = f.engine(backgroundScope)
+
+        engine.syncNow()
+
+        assertNull(f.dailyEntryDao.findByLocalId("e1"), "a 404 on the entry PATCH removes the local row")
+    }
+
+    @Test
+    fun deleting_a_synced_consumption_line_offline_pushes_the_delete_on_reconnect() = runTest {
+        val f = Fixture()
+        f.consumptionLineDao.upsert(
+            com.dmb.chantiertracker.support.localConsumptionLine("cl1", serverId = 555, pendingOp = PendingOp.DELETE, syncStatus = SyncStatus.PENDING),
+        )
+        f.backend.seedConsumptionLine(com.dmb.chantiertracker.support.ServerConsumptionLine(id = 555, entryId = 40, materialId = 7, quantity = 4.0))
+        val engine = f.engine(backgroundScope)
+
+        engine.syncNow()
+
+        assertNull(f.consumptionLineDao.findByLocalId("cl1"))
+        assertTrue(f.backend.consumptionLines.isEmpty())
+        assertTrue(f.backend.receivedMethods.any { it == "DELETE /consumption-lines/555" })
     }
 
     @Test

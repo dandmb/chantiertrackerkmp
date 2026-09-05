@@ -21,6 +21,9 @@ interface DailyEntryDao {
     fun observeEntriesForStage(stageLocalId: String): Flow<List<DailyEntryEntity>>
 
     @Query("SELECT * FROM daily_entries WHERE localId = :localId")
+    fun observeEntry(localId: String): Flow<DailyEntryEntity?>
+
+    @Query("SELECT * FROM daily_entries WHERE localId = :localId")
     suspend fun findByLocalId(localId: String): DailyEntryEntity?
 
     @Query("SELECT * FROM daily_entries WHERE serverId = :serverId")

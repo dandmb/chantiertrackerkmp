@@ -25,6 +25,9 @@ class FakeAttachmentDao(initial: List<AttachmentEntity> = emptyList()) : Attachm
     override suspend fun findPending(): List<AttachmentEntity> =
         rows.value.values.filter { it.syncStatus != SyncStatus.SYNCED }
 
+    override suspend fun findForEntry(entryLocalId: String): List<AttachmentEntity> =
+        rows.value.values.filter { it.entryLocalId == entryLocalId }
+
     override suspend fun upsert(attachment: AttachmentEntity) {
         rows.value = rows.value + (attachment.localId to attachment)
     }

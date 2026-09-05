@@ -1,5 +1,6 @@
 package com.dmb.chantiertracker.domain.repository
 
+import com.dmb.chantiertracker.domain.model.DailyEntry
 import com.dmb.chantiertracker.domain.model.DailyLog
 import com.dmb.chantiertracker.domain.model.DailyLogDetail
 import kotlinx.coroutines.flow.Flow
@@ -7,6 +8,7 @@ import kotlinx.coroutines.flow.Flow
 interface DailyLogRepository {
     fun observeLogs(stageLocalId: String): Flow<List<DailyLog>>
     fun observeLog(logLocalId: String): Flow<DailyLogDetail?>
+    fun observeEntry(entryLocalId: String): Flow<DailyEntry?>
 
     /**
      * Writes the day (creating it locally if it doesn't exist yet) and its

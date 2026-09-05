@@ -145,13 +145,14 @@ class DailyLogRepositoryImplTest {
     }
 
     @Test
-    fun refresh_logs_and_refresh_log_delegate_to_a_full_sync_pass() = runTest {
+    fun refresh_logs_pulls_the_stage_and_refresh_log_pulls_the_day() = runTest {
         val syncer = FakeSyncer()
         val r = repo(syncer = syncer)
 
         r.refreshLogs("s1")
         r.refreshLog("log-1")
 
-        assertEquals(2, syncer.syncCount)
+        assertEquals(listOf("s1"), syncer.syncedStages, "the stage's log summaries come with syncStage (ADR-30)")
+        assertEquals(listOf("log-1"), syncer.syncedLogs, "the day screen pulls its full hierarchy via syncLog")
     }
 }

@@ -116,6 +116,14 @@ class FakeSyncer : com.dmb.chantiertracker.data.sync.Syncer {
         onSync?.invoke()
         return outcome
     }
+
+    val syncedLogs = mutableListOf<String>()
+
+    override suspend fun syncLog(logLocalId: String): com.dmb.chantiertracker.data.sync.SyncOutcome {
+        syncedLogs += logLocalId
+        onSync?.invoke()
+        return outcome
+    }
 }
 
 class FakeProjectRepository(
@@ -240,6 +248,7 @@ class FakeDailyLogRepository(
 
     val logsFlow = MutableStateFlow(logs)
     val detailFlow = MutableStateFlow(detail)
+    val entryFlow = MutableStateFlow<com.dmb.chantiertracker.domain.model.DailyEntry?>(null)
 
     val log = mutableListOf<String>()
     var createdPurchaseDayId = "log-new"
@@ -253,6 +262,8 @@ class FakeDailyLogRepository(
     override fun observeLogs(stageLocalId: String) = logsFlow
 
     override fun observeLog(logLocalId: String) = detailFlow
+
+    override fun observeEntry(entryLocalId: String) = entryFlow
 
     override suspend fun createPurchaseEntry(stageLocalId: String, date: String): String {
         log += "createPurchaseEntry:$stageLocalId:$date"

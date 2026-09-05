@@ -354,6 +354,35 @@ class MainScreensSnapshotTest {
         return file.absolutePath
     }
 
+    private fun entrySummaryVm(): com.dmb.chantiertracker.presentation.logs.EntrySummaryViewModel {
+        val repo = FakeDailyLogRepository().apply {
+            entryFlow.value = DailyEntry("e1", "log-1", EntryType.PURCHASE, summary = "12 sacs de ciment livrés")
+        }
+        return com.dmb.chantiertracker.presentation.logs.EntrySummaryViewModel(repo).also { it.load("e1") }
+    }
+
+    private fun purchaseLineFormVm(): com.dmb.chantiertracker.presentation.logs.PurchaseLineFormViewModel {
+        val materials = FakeMaterialRepository(
+            materials = listOf(
+                com.dmb.chantiertracker.domain.model.Material("m1", "1", "Ciment", "sac"),
+                com.dmb.chantiertracker.domain.model.Material("m2", "1", "Fer", "barre"),
+            ),
+        )
+        return com.dmb.chantiertracker.presentation.logs.PurchaseLineFormViewModel(materials, FakePurchaseLineRepository())
+            .also { it.load("e1", "1", null) }
+    }
+
+    private fun consumptionLineFormVm(): com.dmb.chantiertracker.presentation.logs.ConsumptionLineFormViewModel {
+        val materials = FakeMaterialRepository(
+            stock = listOf(
+                com.dmb.chantiertracker.domain.model.MaterialStock("m1", "Ciment", "sac", quantityIn = 12.0, quantityOut = 4.0),
+                com.dmb.chantiertracker.domain.model.MaterialStock("m2", "Fer", "barre", quantityIn = 6.0, quantityOut = 0.0),
+            ),
+        )
+        return com.dmb.chantiertracker.presentation.logs.ConsumptionLineFormViewModel(materials, FakeConsumptionLineRepository())
+            .also { it.load("e2", "1", null); it.selectMaterial("m1"); it.onQuantityChange("4") }
+    }
+
     @Test
     fun capture_main_screens_in_french_and_english() {
         for (locale in listOf("fr", "en")) {
@@ -429,6 +458,29 @@ class MainScreensSnapshotTest {
                 DetailChrome(
                     title = if (locale == "fr") "Journée" else "Day",
                 ) { m -> DailyLogScreen(dailyLogLocalId = "log-1", modifier = m, viewModel = dailyLogVm()) }
+            }
+            snapshot("27-entry-summary", locale) {
+                DetailChrome(title = if (locale == "fr") "Modifier le résumé" else "Edit summary") { m ->
+                    com.dmb.chantiertracker.presentation.logs.EntrySummaryScreen(
+                        entryLocalId = "e1", onSaved = {}, onBack = {}, modifier = m, viewModel = entrySummaryVm(),
+                    )
+                }
+            }
+            snapshot("28-purchase-line-form", locale) {
+                DetailChrome(title = if (locale == "fr") "Ajouter un article" else "Add an item") { m ->
+                    com.dmb.chantiertracker.presentation.logs.PurchaseLineFormScreen(
+                        entryLocalId = "e1", projectLocalId = "1", lineLocalId = null, currency = "EUR",
+                        onSaved = {}, onBack = {}, modifier = m, viewModel = purchaseLineFormVm(),
+                    )
+                }
+            }
+            snapshot("29-consumption-line-form", locale) {
+                DetailChrome(title = if (locale == "fr") "Ajouter un matériau consommé" else "Add a consumed material") { m ->
+                    com.dmb.chantiertracker.presentation.logs.ConsumptionLineFormScreen(
+                        entryLocalId = "e2", projectLocalId = "1", lineLocalId = null,
+                        onSaved = {}, onBack = {}, modifier = m, viewModel = consumptionLineFormVm(),
+                    )
+                }
             }
             snapshot("22-stage-date-picker", locale) {
                 Box(Modifier.padding(16.dp)) { StageDatePickerPreview() }

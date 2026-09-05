@@ -30,6 +30,9 @@ interface ConsumptionLineDao {
     @Query("SELECT * FROM consumption_lines WHERE syncStatus != 'SYNCED'")
     suspend fun findPending(): List<ConsumptionLineEntity>
 
+    @Query("SELECT * FROM consumption_lines WHERE entryLocalId = :entryLocalId")
+    suspend fun findForEntry(entryLocalId: String): List<ConsumptionLineEntity>
+
     @Upsert
     suspend fun upsert(line: ConsumptionLineEntity)
 

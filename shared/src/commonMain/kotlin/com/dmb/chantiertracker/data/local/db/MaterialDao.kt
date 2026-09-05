@@ -23,6 +23,9 @@ interface MaterialDao {
     @Query("SELECT * FROM materials WHERE syncStatus != 'SYNCED'")
     suspend fun findPending(): List<MaterialEntity>
 
+    @Query("SELECT * FROM materials WHERE projectLocalId = :projectLocalId")
+    suspend fun findForProject(projectLocalId: String): List<MaterialEntity>
+
     @Upsert
     suspend fun upsert(material: MaterialEntity)
 }

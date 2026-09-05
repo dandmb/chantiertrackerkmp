@@ -50,7 +50,8 @@ fun DateField(
 
     Box(modifier) {
         OutlinedTextField(
-            value = value,
+            // Stored ISO, shown as JJ-MM-AAAA like every other date in the app.
+            value = if (value.isBlank()) "" else formatIsoDate(value),
             onValueChange = {},
             readOnly = true,
             enabled = enabled,

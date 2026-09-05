@@ -20,15 +20,21 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
+import com.dmb.chantiertracker.presentation.navigation.ConsumptionLineFormRoute
 import com.dmb.chantiertracker.presentation.navigation.CreateProjectRoute
 import com.dmb.chantiertracker.presentation.navigation.CreateStageRoute
 import com.dmb.chantiertracker.presentation.navigation.DailyLogRoute
 import com.dmb.chantiertracker.presentation.navigation.EditProjectRoute
+import com.dmb.chantiertracker.presentation.navigation.EntrySummaryRoute
 import com.dmb.chantiertracker.presentation.navigation.ProjectDetailRoute
 import com.dmb.chantiertracker.presentation.navigation.ProjectsRoute
+import com.dmb.chantiertracker.presentation.navigation.PurchaseLineFormRoute
 import com.dmb.chantiertracker.presentation.navigation.SettingsRoute
 import com.dmb.chantiertracker.presentation.navigation.StageDetailRoute
+import com.dmb.chantiertracker.presentation.logs.ConsumptionLineFormScreen
 import com.dmb.chantiertracker.presentation.logs.DailyLogScreen
+import com.dmb.chantiertracker.presentation.logs.EntrySummaryScreen
+import com.dmb.chantiertracker.presentation.logs.PurchaseLineFormScreen
 import com.dmb.chantiertracker.presentation.projects.ProjectSortControl
 import com.dmb.chantiertracker.presentation.projects.ProjectSortHolder
 import com.dmb.chantiertracker.presentation.projects.ProjectsScreen
@@ -50,7 +56,8 @@ import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 
 private enum class MainDestination {
-    Projects, Settings, CreateProject, ProjectDetail, EditProject, CreateStage, StageDetail, DailyLog
+    Projects, Settings, CreateProject, ProjectDetail, EditProject, CreateStage, StageDetail, DailyLog,
+    EntrySummary, PurchaseLineForm, ConsumptionLineForm
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -69,6 +76,9 @@ fun MainScreen(viewModel: MainViewModel = koinViewModel()) {
         destination?.hasRoute(CreateStageRoute::class) == true -> MainDestination.CreateStage
         destination?.hasRoute(StageDetailRoute::class) == true -> MainDestination.StageDetail
         destination?.hasRoute(DailyLogRoute::class) == true -> MainDestination.DailyLog
+        destination?.hasRoute(EntrySummaryRoute::class) == true -> MainDestination.EntrySummary
+        destination?.hasRoute(PurchaseLineFormRoute::class) == true -> MainDestination.PurchaseLineForm
+        destination?.hasRoute(ConsumptionLineFormRoute::class) == true -> MainDestination.ConsumptionLineForm
         else -> MainDestination.Projects
     }
     val currentTab = when (current) {
@@ -80,10 +90,15 @@ fun MainScreen(viewModel: MainViewModel = koinViewModel()) {
     var detailTitle by remember { mutableStateOf<String?>(null) }
     var stageTitle by remember { mutableStateOf<String?>(null) }
     var logTitle by remember { mutableStateOf<String?>(null) }
+    var formTitle by remember { mutableStateOf<String?>(null) }
+    val formDestinations = setOf(
+        MainDestination.EntrySummary, MainDestination.PurchaseLineForm, MainDestination.ConsumptionLineForm,
+    )
     LaunchedEffect(current) {
         if (current != MainDestination.ProjectDetail) detailTitle = null
         if (current != MainDestination.StageDetail) stageTitle = null
         if (current != MainDestination.DailyLog) logTitle = null
+        if (current !in formDestinations) formTitle = null
     }
 
     Scaffold(
@@ -111,6 +126,10 @@ fun MainScreen(viewModel: MainViewModel = koinViewModel()) {
                 )
                 MainDestination.DailyLog -> DetailTopBar(
                     title = logTitle ?: stringResource(Res.string.daily_log_title),
+                    onBack = { navController.popBackStack() },
+                )
+                MainDestination.EntrySummary, MainDestination.PurchaseLineForm, MainDestination.ConsumptionLineForm -> DetailTopBar(
+                    title = formTitle.orEmpty(),
                     onBack = { navController.popBackStack() },
                 )
                 else -> AppTopBar(
@@ -203,6 +222,50 @@ fun MainScreen(viewModel: MainViewModel = koinViewModel()) {
                 DailyLogScreen(
                     dailyLogLocalId = entry.toRoute<DailyLogRoute>().dailyLogLocalId,
                     onDateResolved = { logTitle = it },
+                    onEditEntry = { entryLocalId -> navController.navigate(EntrySummaryRoute(entryLocalId)) },
+                    onAddPurchaseLine = { entryLocalId, projectLocalId, currency ->
+                        navController.navigate(PurchaseLineFormRoute(entryLocalId, projectLocalId, null, currency))
+                    },
+                    onEditPurchaseLine = { entryLocalId, projectLocalId, lineLocalId, currency ->
+                        navController.navigate(PurchaseLineFormRoute(entryLocalId, projectLocalId, lineLocalId, currency))
+                    },
+                    onAddConsumptionLine = { entryLocalId, projectLocalId ->
+                        navController.navigate(ConsumptionLineFormRoute(entryLocalId, projectLocalId))
+                    },
+                    onEditConsumptionLine = { entryLocalId, projectLocalId, lineLocalId ->
+                        navController.navigate(ConsumptionLineFormRoute(entryLocalId, projectLocalId, lineLocalId))
+                    },
+                )
+            }
+            composable<EntrySummaryRoute> { entry ->
+                EntrySummaryScreen(
+                    entryLocalId = entry.toRoute<EntrySummaryRoute>().entryLocalId,
+                    onSaved = { navController.popBackStack() },
+                    onBack = { navController.popBackStack() },
+                    onTitleResolved = { formTitle = it },
+                )
+            }
+            composable<PurchaseLineFormRoute> { entry ->
+                val route = entry.toRoute<PurchaseLineFormRoute>()
+                PurchaseLineFormScreen(
+                    entryLocalId = route.entryLocalId,
+                    projectLocalId = route.projectLocalId,
+                    lineLocalId = route.lineLocalId,
+                    currency = route.currency,
+                    onSaved = { navController.popBackStack() },
+                    onBack = { navController.popBackStack() },
+                    onTitleResolved = { formTitle = it },
+                )
+            }
+            composable<ConsumptionLineFormRoute> { entry ->
+                val route = entry.toRoute<ConsumptionLineFormRoute>()
+                ConsumptionLineFormScreen(
+                    entryLocalId = route.entryLocalId,
+                    projectLocalId = route.projectLocalId,
+                    lineLocalId = route.lineLocalId,
+                    onSaved = { navController.popBackStack() },
+                    onBack = { navController.popBackStack() },
+                    onTitleResolved = { formTitle = it },
                 )
             }
         }

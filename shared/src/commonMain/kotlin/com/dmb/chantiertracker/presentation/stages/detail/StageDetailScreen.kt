@@ -37,6 +37,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dmb.chantiertracker.domain.model.DailyLog
 import com.dmb.chantiertracker.domain.model.EntryType
 import com.dmb.chantiertracker.domain.model.StageDetail
+import com.dmb.chantiertracker.presentation.formatIsoDate
 import com.dmb.chantiertracker.presentation.format.formatMoney
 import com.dmb.chantiertracker.presentation.main.AddIcon
 import com.dmb.chantiertracker.presentation.main.ConstructionIcon
@@ -177,40 +178,37 @@ private fun DaysSection(
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(
-            Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                stringResource(Res.string.stage_detail_section_days),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-            )
-            Box {
-                Button(
-                    enabled = todayDate != null && canAddToday && !isAdding,
-                    onClick = {
-                        val todayLogLocalId = logs.firstOrNull { it.date == todayDate }?.localId
-                        if (todayLogLocalId != null) onOpenLog(todayLogLocalId) else choiceMenuOpen = true
-                    },
-                ) {
-                    Icon(AddIcon, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Text(
-                        text = stringResource(Res.string.stage_detail_add_entry_today),
-                        modifier = Modifier.padding(start = 6.dp),
-                    )
-                }
-                DropdownMenu(expanded = choiceMenuOpen, onDismissRequest = { choiceMenuOpen = false }) {
-                    DropdownMenuItem(
-                        text = { Text(stringResource(Res.string.entry_type_purchase)) },
-                        onClick = { addAndOpen(EntryType.PURCHASE) },
-                    )
-                    DropdownMenuItem(
-                        text = { Text(stringResource(Res.string.entry_type_work)) },
-                        onClick = { addAndOpen(EntryType.WORK) },
-                    )
-                }
+        Text(
+            stringResource(Res.string.stage_detail_section_days),
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+        )
+        // Full-width primary action on its own row — the label is long and must
+        // never be squeezed against the section title (large font / narrow screen).
+        Box(Modifier.fillMaxWidth()) {
+            Button(
+                enabled = todayDate != null && canAddToday && !isAdding,
+                onClick = {
+                    val todayLogLocalId = logs.firstOrNull { it.date == todayDate }?.localId
+                    if (todayLogLocalId != null) onOpenLog(todayLogLocalId) else choiceMenuOpen = true
+                },
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Icon(AddIcon, contentDescription = null, modifier = Modifier.size(18.dp))
+                Text(
+                    text = stringResource(Res.string.stage_detail_add_entry_today),
+                    modifier = Modifier.padding(start = 6.dp),
+                )
+            }
+            DropdownMenu(expanded = choiceMenuOpen, onDismissRequest = { choiceMenuOpen = false }) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(Res.string.entry_type_purchase)) },
+                    onClick = { addAndOpen(EntryType.PURCHASE) },
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(Res.string.entry_type_work)) },
+                    onClick = { addAndOpen(EntryType.WORK) },
+                )
             }
         }
 
@@ -249,7 +247,7 @@ private fun LogRow(log: DailyLog, onClick: () -> Unit) {
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(log.date, style = MaterialTheme.typography.bodyLarge)
+            Text(formatIsoDate(log.date), style = MaterialTheme.typography.bodyLarge)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (log.hasPurchase) {
                     Icon(
@@ -291,8 +289,8 @@ private fun InfoRow(label: String, value: String, muted: Boolean = false) {
 }
 
 private fun formatDateRange(start: String?, end: String?): String? = when {
-    !start.isNullOrBlank() && !end.isNullOrBlank() -> "$start → $end"
-    !start.isNullOrBlank() -> start
-    !end.isNullOrBlank() -> end
+    !start.isNullOrBlank() && !end.isNullOrBlank() -> "${formatIsoDate(start)} → ${formatIsoDate(end)}"
+    !start.isNullOrBlank() -> formatIsoDate(start)
+    !end.isNullOrBlank() -> formatIsoDate(end)
     else -> null
 }

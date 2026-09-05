@@ -30,6 +30,8 @@ class FakeDailyEntryDao(
             }
         }
 
+    override fun observeEntry(localId: String): Flow<DailyEntryEntity?> = entries.map { it[localId] }
+
     override suspend fun findByLocalId(localId: String): DailyEntryEntity? = entries.value[localId]
 
     override suspend fun findByServerId(serverId: Long): DailyEntryEntity? =
