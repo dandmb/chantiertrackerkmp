@@ -10,9 +10,12 @@ import com.dmb.chantiertracker.domain.repository.AuthRepository
 import com.dmb.chantiertracker.domain.repository.ProjectRepository
 import com.dmb.chantiertracker.domain.repository.StageRepository
 import com.dmb.chantiertracker.presentation.auth.validateName
+import com.dmb.chantiertracker.presentation.parseIsoDateOrNull
 import com.dmb.chantiertracker.presentation.stages.parseAmountOrNull
 import com.dmb.chantiertracker.presentation.stages.validateAmountOrBlank
 import com.dmb.chantiertracker.presentation.stages.validateIsoDateOrBlank
+import com.dmb.chantiertracker.resources.Res
+import com.dmb.chantiertracker.resources.validation_end_before_start
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
@@ -67,8 +70,17 @@ class CreateStageViewModel(
     fun onNameChange(value: String) = _state.update { it.copy(name = value, nameError = null, formError = null) }
     fun onDescriptionChange(value: String) = _state.update { it.copy(description = value, formError = null) }
     fun onBudgetChange(value: String) = _state.update { it.copy(estimatedBudget = value, budgetError = null, formError = null) }
-    fun onStartDateChange(value: String) = _state.update { it.copy(startDate = value, startDateError = null, formError = null) }
-    fun onEndDateChange(value: String) = _state.update { it.copy(endDate = value, endDateError = null, formError = null) }
+
+    fun onStartDateChange(value: String) = _state.update {
+        // A later start can invalidate an already-picked end — drop it so the
+        // end field's calendar re-floors to the new start on its next open.
+        val end = it.endDate.takeUnless { e -> endBeforeStart(value, e) } ?: ""
+        it.copy(startDate = value, startDateError = null, endDate = end, endDateError = null, formError = null)
+    }
+
+    fun onEndDateChange(value: String) = _state.update {
+        it.copy(endDate = value, endDateError = null, formError = null)
+    }
 
     fun submit() {
         val current = _state.value
@@ -78,6 +90,7 @@ class CreateStageViewModel(
         val budgetError = if (current.canSetBudget) validateAmountOrBlank(current.estimatedBudget) else null
         val startDateError = validateIsoDateOrBlank(current.startDate)
         val endDateError = validateIsoDateOrBlank(current.endDate)
+            ?: Res.string.validation_end_before_start.takeIf { endBeforeStart(current.startDate, current.endDate) }
         if (nameError != null || budgetError != null || startDateError != null || endDateError != null) {
             _state.update {
                 it.copy(
@@ -110,5 +123,11 @@ class CreateStageViewModel(
                 _state.update { it.copy(isSubmitting = false, formError = DomainException.Unexpected) }
             }
         }
+    }
+
+    private fun endBeforeStart(start: String, end: String): Boolean {
+        val s = parseIsoDateOrNull(start) ?: return false
+        val e = parseIsoDateOrNull(end) ?: return false
+        return e < s
     }
 }

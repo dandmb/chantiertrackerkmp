@@ -132,4 +132,49 @@ class ProjectDetailViewModelTest {
         assertFalse(vm.state.value.isMissing)
         assertEquals("Villa Vidal", vm.state.value.detail?.name)
     }
+
+    @Test
+    fun delete_delegates_to_the_repository_and_flags_deleted() = runTest {
+        val repo = FakeProjectRepository(detail = detail(ownerId = 1))
+        val vm = ProjectDetailViewModel(repo, FakeStageRepository(), auth(userId = 1))
+        vm.load("p5")
+        advanceUntilIdle()
+
+        vm.deleteProject()
+        advanceUntilIdle()
+
+        assertEquals(listOf("refreshProject:p5", "deleteProject:p5"), repo.log)
+        assertTrue(vm.state.value.deleted)
+        assertFalse(vm.state.value.isDeleting)
+    }
+
+    @Test
+    fun the_row_going_null_after_a_delete_does_not_flip_to_missing() = runTest {
+        val repo = FakeProjectRepository(detail = detail(ownerId = 1))
+        val vm = ProjectDetailViewModel(repo, FakeStageRepository(), auth(userId = 1))
+        vm.load("p5")
+        advanceUntilIdle()
+
+        vm.deleteProject()
+        advanceUntilIdle()
+        repo.detailFlow.value = null // the local row is gone (unsynced create dropped)
+        advanceUntilIdle()
+
+        assertTrue(vm.state.value.deleted)
+        assertFalse(vm.state.value.isMissing, "deleted, not 'not found'")
+    }
+
+    @Test
+    fun delete_is_ignored_while_already_deleting() = runTest {
+        val repo = FakeProjectRepository(detail = detail(ownerId = 1))
+        val vm = ProjectDetailViewModel(repo, FakeStageRepository(), auth(userId = 1))
+        vm.load("p5")
+        advanceUntilIdle()
+
+        vm.deleteProject()
+        vm.deleteProject()
+        advanceUntilIdle()
+
+        assertEquals(1, repo.log.count { it == "deleteProject:p5" })
+    }
 }

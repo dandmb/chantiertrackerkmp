@@ -2,6 +2,7 @@ package com.dmb.chantiertracker.support
 
 import com.dmb.chantiertracker.data.local.db.AppDatabase
 import com.dmb.chantiertracker.data.local.db.PendingOp
+import com.dmb.chantiertracker.data.local.db.PlanUsageEntity
 import com.dmb.chantiertracker.data.local.db.ProjectEntity
 import com.dmb.chantiertracker.data.local.db.ProjectMemberEntity
 import com.dmb.chantiertracker.data.local.db.StageEntity
@@ -58,6 +59,19 @@ suspend fun verifyProjectDaoContract(db: AppDatabase) {
 
     dao.deleteByLocalId("a")
     assertNull(dao.findByLocalId("a"))
+
+    // Active-owned count (plan-limit numerator, ADR-25): IN_PROGRESS, not DELETE,
+    // owned by :ownerId OR not yet synced (ownerId null).
+    dao.upsertAll(
+        listOf(
+            sample("mine-1", op = PendingOp.NONE).copy(ownerId = 42L, status = "IN_PROGRESS"),
+            sample("mine-local", op = PendingOp.CREATE).copy(ownerId = null, status = "IN_PROGRESS"),
+            sample("mine-suspended", op = PendingOp.NONE).copy(ownerId = 42L, status = "SUSPENDED"),
+            sample("mine-deleting", op = PendingOp.DELETE).copy(ownerId = 42L, status = "IN_PROGRESS"),
+            sample("someone-elses", op = PendingOp.NONE).copy(ownerId = 99L, status = "IN_PROGRESS"),
+        ),
+    )
+    assertEquals(2, dao.observeActiveOwnedCount(42L).first(), "mine-1 + the unsynced local one; suspended / deleting / others excluded")
 
     dao.upsertMembers(
         listOf(
@@ -129,4 +143,22 @@ suspend fun verifyStageDaoContract(db: AppDatabase) {
     projectDao.deleteByLocalId("host-a")
     assertTrue("stages cascade-deleted with their project") { dao.findForProject("host-a").isEmpty() }
     assertEquals(listOf("s-other"), dao.findForProject("host-b").map { it.localId })
+}
+
+/** Shared checks for [com.dmb.chantiertracker.data.local.db.PlanUsageDao] on a real [AppDatabase]. */
+suspend fun verifyPlanUsageDaoContract(db: AppDatabase) {
+    val dao = db.planUsageDao()
+
+    assertNull(dao.observe().first())
+
+    dao.upsert(PlanUsageEntity(id = 0, plan = "FREE", projectsLimit = 1, refreshedAt = 1_000L))
+    assertEquals("FREE", dao.observe().first()?.plan)
+    assertEquals(1, dao.observe().first()?.projectsLimit)
+
+    // Single row, id = 0: a later fetch replaces it (not a second row).
+    dao.upsert(PlanUsageEntity(id = 0, plan = "LIBERTE", projectsLimit = null, refreshedAt = 2_000L))
+    val row = dao.observe().first()!!
+    assertEquals("LIBERTE", row.plan)
+    assertNull(row.projectsLimit)
+    assertEquals(2_000L, row.refreshedAt)
 }

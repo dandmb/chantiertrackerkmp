@@ -56,6 +56,9 @@ data object CreateProjectRoute
 data class ProjectDetailRoute(val projectLocalId: String)
 
 @Serializable
+data class EditProjectRoute(val projectLocalId: String)
+
+@Serializable
 data class CreateStageRoute(val projectLocalId: String)
 
 @Serializable

@@ -6,6 +6,8 @@
     <string name="staging_banner">PRE-PROD · LIVE DATA</string>
 
     <string name="action_back">Back</string>
+    <string name="action_ok">OK</string>
+    <string name="action_cancel">Cancel</string>
     <string name="field_email_label">Email</string>
     <string name="field_name_label">Name</string>
     <string name="field_password_label">Password</string>
@@ -99,7 +101,7 @@
     <string name="create_submit">Create project</string>
 
     <string name="detail_title">Project</string>
-    <string name="detail_edit">Edit</string>
+    <string name="detail_edit_project">Edit project</string>
     <string name="detail_currency">Currency</string>
     <string name="detail_timezone">Time zone</string>
     <string name="detail_section_stages">Stages</string>
@@ -107,6 +109,18 @@
     <string name="detail_stages_add">New stage</string>
     <string name="detail_section_members">Members</string>
     <string name="detail_members_empty">No members yet. Invite the people who follow this site from here.</string>
+
+    <string name="detail_danger_zone">Danger zone</string>
+    <string name="detail_danger_zone_body">Permanently deletes this project and everything in it (stages, entries, materials, history).</string>
+    <string name="detail_delete_project">Delete project</string>
+
+    <string name="edit_project_title">Edit project</string>
+    <string name="edit_project_submit">Save</string>
+
+    <string name="delete_project_title">Delete %1$s</string>
+    <string name="delete_project_warning">This action is irreversible and deletes all the project's content: stages, entries, materials and history.</string>
+    <string name="delete_project_confirm_prompt">To confirm, type the project name exactly: %1$s</string>
+    <string name="delete_project_confirm_button">Delete permanently</string>
 
     <string name="stage_status_in_progress">In progress</string>
     <string name="stage_status_completed">Completed</string>
@@ -119,7 +133,7 @@
     <string name="create_stage_budget_label">Forecast budget</string>
     <string name="create_stage_start_date_label">Start date</string>
     <string name="create_stage_end_date_label">End date</string>
-    <string name="create_stage_date_hint">YYYY-MM-DD</string>
+    <string name="date_field_placeholder">Pick a date</string>
     <string name="create_stage_submit">Create stage</string>
 
     <string name="stage_detail_title">Stage</string>
@@ -131,6 +145,7 @@
 
     <string name="validation_date_format">Use the format YYYY-MM-DD.</string>
     <string name="validation_amount_invalid">Enter a valid amount.</string>
+    <string name="validation_end_before_start">The end date can't be before the start date.</string>
 
     <string name="settings_language">Language</string>
     <string name="settings_theme">Theme</string>
@@ -158,7 +173,7 @@
     <string name="error_invalid_code">That code is invalid or has expired.</string>
     <string name="error_validation">Please check the information you entered.</string>
     <string name="error_rate_limited">Too many attempts. Try again in a few minutes.</string>
-    <string name="error_plan_limit">You've reached your plan's project limit.</string>
+    <string name="error_plan_limit">You've reached your plan's project limit. Upgrade to a higher tier to create more.</string>
     <string name="error_forbidden">You're not allowed to do that.</string>
     <string name="error_not_found">This project no longer exists, or you don't have access to it.</string>
     <string name="error_network">Can't reach the server. Check your connection.</string>

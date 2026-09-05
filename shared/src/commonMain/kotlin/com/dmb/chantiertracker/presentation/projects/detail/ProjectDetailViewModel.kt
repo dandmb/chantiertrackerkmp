@@ -21,8 +21,10 @@ data class ProjectDetailUiState(
     val detail: ProjectDetail? = null,
     val canEdit: Boolean = false,
     val stages: List<Stage> = emptyList(),
+    val isDeleting: Boolean = false,
+    val deleted: Boolean = false,
 ) {
-    val isMissing: Boolean get() = !isLoading && detail == null
+    val isMissing: Boolean get() = !isLoading && detail == null && !deleted
 }
 
 class ProjectDetailViewModel(
@@ -62,6 +64,18 @@ class ProjectDetailViewModel(
 
     fun retry() {
         localId?.let { id -> viewModelScope.launch { projectRepository.refreshProject(id) } }
+    }
+
+    fun deleteProject() {
+        val id = localId ?: return
+        if (_state.value.isDeleting || _state.value.deleted) return
+        _state.update { it.copy(isDeleting = true) }
+        viewModelScope.launch {
+            // Repo: an unsynced create is dropped locally right away; otherwise it's
+            // marked PENDING/DELETE and pushed on the next sync (Phase D / ADR-21).
+            runCatching { projectRepository.deleteProject(id) }
+            _state.update { it.copy(isDeleting = false, deleted = true) }
+        }
     }
 
     private fun canEdit(detail: ProjectDetail, members: List<ProjectMember>): Boolean {

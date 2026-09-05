@@ -22,6 +22,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import com.dmb.chantiertracker.presentation.navigation.CreateProjectRoute
 import com.dmb.chantiertracker.presentation.navigation.CreateStageRoute
+import com.dmb.chantiertracker.presentation.navigation.EditProjectRoute
 import com.dmb.chantiertracker.presentation.navigation.ProjectDetailRoute
 import com.dmb.chantiertracker.presentation.navigation.ProjectsRoute
 import com.dmb.chantiertracker.presentation.navigation.SettingsRoute
@@ -31,6 +32,7 @@ import com.dmb.chantiertracker.presentation.projects.ProjectSortHolder
 import com.dmb.chantiertracker.presentation.projects.ProjectsScreen
 import com.dmb.chantiertracker.presentation.projects.create.CreateProjectScreen
 import com.dmb.chantiertracker.presentation.projects.detail.ProjectDetailScreen
+import com.dmb.chantiertracker.presentation.projects.edit.EditProjectScreen
 import com.dmb.chantiertracker.presentation.settings.SettingsScreen
 import com.dmb.chantiertracker.presentation.stages.create.CreateStageScreen
 import com.dmb.chantiertracker.presentation.stages.detail.StageDetailScreen
@@ -38,12 +40,13 @@ import com.dmb.chantiertracker.resources.Res
 import com.dmb.chantiertracker.resources.create_project_title
 import com.dmb.chantiertracker.resources.create_stage_title
 import com.dmb.chantiertracker.resources.detail_title
+import com.dmb.chantiertracker.resources.edit_project_title
 import com.dmb.chantiertracker.resources.projects_new
 import com.dmb.chantiertracker.resources.stage_detail_title
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 
-private enum class MainDestination { Projects, Settings, CreateProject, ProjectDetail, CreateStage, StageDetail }
+private enum class MainDestination { Projects, Settings, CreateProject, ProjectDetail, EditProject, CreateStage, StageDetail }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -57,6 +60,7 @@ fun MainScreen(viewModel: MainViewModel = koinViewModel()) {
         destination?.hasRoute(SettingsRoute::class) == true -> MainDestination.Settings
         destination?.hasRoute(CreateProjectRoute::class) == true -> MainDestination.CreateProject
         destination?.hasRoute(ProjectDetailRoute::class) == true -> MainDestination.ProjectDetail
+        destination?.hasRoute(EditProjectRoute::class) == true -> MainDestination.EditProject
         destination?.hasRoute(CreateStageRoute::class) == true -> MainDestination.CreateStage
         destination?.hasRoute(StageDetailRoute::class) == true -> MainDestination.StageDetail
         else -> MainDestination.Projects
@@ -83,6 +87,10 @@ fun MainScreen(viewModel: MainViewModel = koinViewModel()) {
                 )
                 MainDestination.ProjectDetail -> DetailTopBar(
                     title = detailTitle ?: stringResource(Res.string.detail_title),
+                    onBack = { navController.popBackStack() },
+                )
+                MainDestination.EditProject -> DetailTopBar(
+                    title = stringResource(Res.string.edit_project_title),
                     onBack = { navController.popBackStack() },
                 )
                 MainDestination.CreateStage -> DetailTopBar(
@@ -155,6 +163,15 @@ fun MainScreen(viewModel: MainViewModel = koinViewModel()) {
                     onProjectNameResolved = { detailTitle = it },
                     onAddStage = { projectLocalId -> navController.navigate(CreateStageRoute(projectLocalId)) },
                     onStageClick = { stageLocalId -> navController.navigate(StageDetailRoute(stageLocalId)) },
+                    onEditProject = { projectLocalId -> navController.navigate(EditProjectRoute(projectLocalId)) },
+                    onProjectDeleted = { navController.popBackStack(ProjectsRoute, inclusive = false) },
+                )
+            }
+            composable<EditProjectRoute> { entry ->
+                EditProjectScreen(
+                    projectLocalId = entry.toRoute<EditProjectRoute>().projectLocalId,
+                    onSaved = { navController.popBackStack() },
+                    onBack = { navController.popBackStack() },
                 )
             }
             composable<CreateStageRoute> { entry ->

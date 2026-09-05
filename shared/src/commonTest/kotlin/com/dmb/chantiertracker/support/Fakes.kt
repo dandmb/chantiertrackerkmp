@@ -6,7 +6,6 @@ import com.dmb.chantiertracker.data.local.OnboardingStore
 import com.dmb.chantiertracker.data.local.TokenStorage
 import com.dmb.chantiertracker.domain.model.AuthState
 import com.dmb.chantiertracker.domain.model.CreateProjectInput
-import com.dmb.chantiertracker.domain.model.Plan
 import com.dmb.chantiertracker.domain.model.Project
 import com.dmb.chantiertracker.domain.model.ProjectDetail
 import com.dmb.chantiertracker.domain.model.ProjectMember
@@ -128,6 +127,7 @@ class FakeProjectRepository(
     val projectsFlow = MutableStateFlow(projects)
     val detailFlow = MutableStateFlow(detail)
     val membersFlow = MutableStateFlow(members)
+    val activeProjectCountFlow = MutableStateFlow(0)
 
     val log = mutableListOf<String>()
     var lastCreateInput: CreateProjectInput? = null
@@ -145,6 +145,8 @@ class FakeProjectRepository(
     override fun observeProject(localId: String) = detailFlow
 
     override fun observeMembers(localId: String) = membersFlow
+
+    override fun observeActiveProjectCount(ownerId: Long) = activeProjectCountFlow
 
     override suspend fun createProject(input: CreateProjectInput): String {
         log += "createProject:${input.name}"
@@ -232,11 +234,18 @@ class FakeStageRepository(
 }
 
 class FakeAccountRepository(
-    var plan: Plan = Plan.FREE,
-    var error: Throwable? = null,
+    planUsage: com.dmb.chantiertracker.domain.model.PlanUsage? = null,
 ) : AccountRepository {
-    override suspend fun getCurrentPlan(): Plan {
-        error?.let { throw it }
-        return plan
+    val planUsageFlow = MutableStateFlow(planUsage)
+    var refreshCount = 0
+        private set
+    /** Set to have refreshPlanUsage() also push a value into the flow (mimics a fetch). */
+    var refreshResult: com.dmb.chantiertracker.domain.model.PlanUsage? = null
+
+    override fun observePlanUsage() = planUsageFlow
+
+    override suspend fun refreshPlanUsage() {
+        refreshCount++
+        refreshResult?.let { planUsageFlow.value = it }
     }
 }

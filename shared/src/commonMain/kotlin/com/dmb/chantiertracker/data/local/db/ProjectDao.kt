@@ -23,6 +23,15 @@ interface ProjectDao {
     @Query("SELECT * FROM projects WHERE syncStatus != 'SYNCED'")
     suspend fun findPending(): List<ProjectEntity>
 
+    // Active = IN_PROGRESS, mirrors the backend plan check (PlanLimitService /
+    // ProjectService.countActiveProjectsForOwner). `ownerId IS NULL` = a locally
+    // created project not yet pushed — always the current user's (ADR-25).
+    @Query(
+        "SELECT COUNT(*) FROM projects WHERE status = 'IN_PROGRESS' AND pendingOp != 'DELETE' " +
+            "AND (ownerId = :ownerId OR ownerId IS NULL)",
+    )
+    fun observeActiveOwnedCount(ownerId: Long): Flow<Int>
+
     @Query("SELECT * FROM projects")
     suspend fun findAll(): List<ProjectEntity>
 

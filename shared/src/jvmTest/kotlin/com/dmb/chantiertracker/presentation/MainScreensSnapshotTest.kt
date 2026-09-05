@@ -5,12 +5,15 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.material3.DatePicker
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.Surface
+import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -20,6 +23,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.toAwtImage
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.captureToImage
+import androidx.compose.ui.test.isRoot
+import androidx.compose.ui.test.onLast
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.runComposeUiTest
 import androidx.compose.ui.unit.dp
@@ -27,6 +32,7 @@ import com.dmb.chantiertracker.core.AppConfig
 import com.dmb.chantiertracker.domain.model.AuthState
 import com.dmb.chantiertracker.domain.model.GlobalRole
 import com.dmb.chantiertracker.domain.model.Plan
+import com.dmb.chantiertracker.domain.model.PlanUsage
 import com.dmb.chantiertracker.domain.model.Project
 import com.dmb.chantiertracker.domain.model.ProjectDetail
 import com.dmb.chantiertracker.domain.model.ProjectSort
@@ -50,8 +56,10 @@ import com.dmb.chantiertracker.presentation.projects.ProjectsScreen
 import com.dmb.chantiertracker.presentation.projects.ProjectsViewModel
 import com.dmb.chantiertracker.presentation.projects.create.CreateProjectScreen
 import com.dmb.chantiertracker.presentation.projects.create.CreateProjectViewModel
+import com.dmb.chantiertracker.presentation.projects.detail.DeleteProjectDialog
 import com.dmb.chantiertracker.presentation.projects.detail.ProjectDetailScreen
 import com.dmb.chantiertracker.presentation.projects.detail.ProjectDetailViewModel
+import com.dmb.chantiertracker.presentation.projects.edit.EditProjectScreen
 import com.dmb.chantiertracker.presentation.settings.SettingsScreen
 import com.dmb.chantiertracker.presentation.settings.SettingsViewModel
 import com.dmb.chantiertracker.presentation.stages.create.CreateStageScreen
@@ -65,6 +73,7 @@ import com.dmb.chantiertracker.support.FakeBuildInfo
 import com.dmb.chantiertracker.support.FakeProjectRepository
 import com.dmb.chantiertracker.support.FakeStageRepository
 import com.dmb.chantiertracker.support.installTestMainDispatcher
+import kotlinx.datetime.LocalDate
 import com.dmb.chantiertracker.support.resetTestMainDispatcher
 import java.io.File
 import javax.imageio.ImageIO
@@ -102,6 +111,24 @@ class MainScreensSnapshotTest {
             }
             waitForIdle()
             ImageIO.write(onRoot().captureToImage().toAwtImage(), "png", File(outDir, "$name-$locale.png"))
+        }
+
+    private fun dialogSnapshot(name: String, locale: String, content: @Composable () -> Unit) =
+        runComposeUiTest {
+            setContent {
+                customAppLocale = locale
+                AppEnvironment {
+                    AppTheme(darkTheme = false) {
+                        Box(Modifier.size(412.dp, 892.dp)) { content() }
+                    }
+                }
+            }
+            waitForIdle()
+            ImageIO.write(
+                onAllNodes(isRoot()).onLast().captureToImage().toAwtImage(),
+                "png",
+                File(outDir, "$name-$locale.png"),
+            )
         }
 
     @Composable
@@ -158,7 +185,17 @@ class MainScreensSnapshotTest {
 
     private fun settingsVm() = SettingsViewModel(AppConfig(FakeBuildInfo(isDebug = false, appVersion = "1.0")))
 
-    private fun createProjectVm() = CreateProjectViewModel(FakeProjectRepository())
+    private fun authedRepo() = FakeAuthRepository().apply {
+        emitState(AuthState.Authenticated(User(1, "jean@chantier.dev", "Jean", true, GlobalRole.USER)))
+    }
+
+    private fun createProjectVm(atLimit: Boolean = false): CreateProjectViewModel {
+        val projects = FakeProjectRepository().apply { if (atLimit) activeProjectCountFlow.value = 1 }
+        val account = FakeAccountRepository(
+            planUsage = if (atLimit) PlanUsage(Plan.FREE, projectsLimit = 1) else null,
+        )
+        return CreateProjectViewModel(projects, account, authedRepo())
+    }
 
     private val sampleStages = listOf(
         Stage("s1", "1", "Gros œuvre", 18000.0, StageStatus.IN_PROGRESS),
@@ -181,6 +218,22 @@ class MainScreensSnapshotTest {
             ),
         )
         return ProjectDetailViewModel(repo, FakeStageRepository(stages = sampleStages), auth).also { it.load("1") }
+    }
+
+    private fun editProjectVm(): com.dmb.chantiertracker.presentation.projects.edit.EditProjectViewModel {
+        val repo = FakeProjectRepository(
+            detail = ProjectDetail(
+                localId = "1",
+                name = "Villa Vidal",
+                description = "Construction d'une villa individuelle avec piscine et pool house.",
+                location = "Nîmes",
+                currency = "EUR",
+                timezone = "Europe/Paris",
+                status = ProjectStatus.IN_PROGRESS,
+                ownerId = 1L,
+            ),
+        )
+        return com.dmb.chantiertracker.presentation.projects.edit.EditProjectViewModel(repo).also { it.load("1") }
     }
 
     private fun createStageVm(canSetBudget: Boolean): CreateStageViewModel {
@@ -253,11 +306,24 @@ class MainScreensSnapshotTest {
                     title = if (locale == "fr") "Nouveau projet" else "New project",
                 ) { m -> CreateProjectScreen(onCreated = {}, modifier = m, viewModel = createProjectVm()) }
             }
+            snapshot("23-create-project-plan-limit", locale) {
+                DetailChrome(
+                    title = if (locale == "fr") "Nouveau projet" else "New project",
+                ) { m -> CreateProjectScreen(onCreated = {}, modifier = m, viewModel = createProjectVm(atLimit = true)) }
+            }
             snapshot("16-project-detail", locale) {
                 ProjectDetailChrome(
                     fallbackTitle = if (locale == "fr") "Projet" else "Project",
                     projectVm = detailVm(canEdit = true),
                 )
+            }
+            snapshot("24-edit-project", locale) {
+                DetailChrome(
+                    title = if (locale == "fr") "Modifier le projet" else "Edit project",
+                ) { m -> EditProjectScreen(projectLocalId = "1", onSaved = {}, onBack = {}, modifier = m, viewModel = editProjectVm()) }
+            }
+            dialogSnapshot("25-delete-project-dialog", locale) {
+                DeleteProjectDialog(projectName = "Villa Vidal", onDismiss = {}, onConfirm = {})
             }
             snapshot("18-create-stage", locale) {
                 DetailChrome(
@@ -273,6 +339,9 @@ class MainScreensSnapshotTest {
                 DetailChrome(
                     title = if (locale == "fr") "Étape" else "Stage",
                 ) { m -> StageDetailScreen(stageLocalId = "s1", modifier = m, viewModel = stageDetailVm(withBudget = false)) }
+            }
+            snapshot("22-stage-date-picker", locale) {
+                Box(Modifier.padding(16.dp)) { StageDatePickerPreview() }
             }
         }
         for (locale in listOf("fr", "en")) {
@@ -302,5 +371,19 @@ class MainScreensSnapshotTest {
                 Column(Modifier.width(260.dp)) { content() }
             }
         }
+    }
+
+    /** The calendar that DateField opens, floored at a fixed "today" so the past days read as disabled. */
+    @Composable
+    private fun StageDatePickerPreview() {
+        val floorMillis = LocalDate(2026, 9, 4).toUtcMillis()
+        val state = rememberDatePickerState(
+            initialDisplayedMonthMillis = floorMillis,
+            selectableDates = object : SelectableDates {
+                override fun isSelectableDate(utcTimeMillis: Long) = utcTimeMillis >= floorMillis
+                override fun isSelectableYear(year: Int) = year >= 2026
+            },
+        )
+        DatePicker(state = state, showModeToggle = false)
     }
 }

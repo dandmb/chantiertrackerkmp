@@ -43,6 +43,9 @@ class ProjectRepositoryImpl(
     override fun observeMembers(localId: String): Flow<List<ProjectMember>> =
         dao.observeMembers(localId).map { rows -> rows.map(ProjectMemberEntity::toMember) }
 
+    override fun observeActiveProjectCount(ownerId: Long): Flow<Int> =
+        dao.observeActiveOwnedCount(ownerId)
+
     override suspend fun createProject(input: CreateProjectInput): String {
         val localId = newLocalId()
         val now = clock.nowEpochMillis()
