@@ -55,3 +55,60 @@ val MIGRATION_2_3 = object : Migration(2, 3) {
         )
     }
 }
+
+/**
+ * v3 → v4 : ajout de `daily_logs` (une journée = un couple étape/date) et
+ * `daily_entries` (une entrée ACHAT ou TRAVAUX par journée, FK vers
+ * `daily_logs`). `createSql` à garder identique à `shared/schemas/…/4.json`.
+ */
+val MIGRATION_3_4 = object : Migration(3, 4) {
+    override fun migrate(connection: SQLiteConnection) {
+        connection.execSQL(
+            "CREATE TABLE IF NOT EXISTS `daily_logs` (" +
+                "`localId` TEXT NOT NULL, " +
+                "`serverId` INTEGER, " +
+                "`stageLocalId` TEXT NOT NULL, " +
+                "`date` TEXT NOT NULL, " +
+                "`locallyCreatedAt` INTEGER NOT NULL, " +
+                "`lastSyncedAt` INTEGER, " +
+                "PRIMARY KEY(`localId`), " +
+                "FOREIGN KEY(`stageLocalId`) REFERENCES `stages`(`localId`) " +
+                "ON UPDATE NO ACTION ON DELETE CASCADE )",
+        )
+        connection.execSQL(
+            "CREATE INDEX IF NOT EXISTS `index_daily_logs_stageLocalId` ON `daily_logs` (`stageLocalId`)",
+        )
+        connection.execSQL(
+            "CREATE UNIQUE INDEX IF NOT EXISTS `index_daily_logs_stageLocalId_date` " +
+                "ON `daily_logs` (`stageLocalId`, `date`)",
+        )
+        connection.execSQL(
+            "CREATE TABLE IF NOT EXISTS `daily_entries` (" +
+                "`localId` TEXT NOT NULL, " +
+                "`serverId` INTEGER, " +
+                "`dailyLogLocalId` TEXT NOT NULL, " +
+                "`type` TEXT NOT NULL, " +
+                "`summary` TEXT, " +
+                "`createdById` INTEGER, " +
+                "`createdAt` TEXT, " +
+                "`modifiedById` INTEGER, " +
+                "`modifiedAt` TEXT, " +
+                "`syncStatus` TEXT NOT NULL, " +
+                "`pendingOp` TEXT NOT NULL, " +
+                "`locallyModifiedAt` INTEGER NOT NULL, " +
+                "`lastSyncedAt` INTEGER, " +
+                "`remoteUpdatedAt` INTEGER, " +
+                "`lastSyncError` TEXT, " +
+                "PRIMARY KEY(`localId`), " +
+                "FOREIGN KEY(`dailyLogLocalId`) REFERENCES `daily_logs`(`localId`) " +
+                "ON UPDATE NO ACTION ON DELETE CASCADE )",
+        )
+        connection.execSQL(
+            "CREATE INDEX IF NOT EXISTS `index_daily_entries_dailyLogLocalId` ON `daily_entries` (`dailyLogLocalId`)",
+        )
+        connection.execSQL(
+            "CREATE UNIQUE INDEX IF NOT EXISTS `index_daily_entries_dailyLogLocalId_type` " +
+                "ON `daily_entries` (`dailyLogLocalId`, `type`)",
+        )
+    }
+}

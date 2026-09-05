@@ -25,3 +25,16 @@ fun parseIsoDateOrNull(value: String): LocalDate? {
 }
 
 fun todayInSystemZone(): LocalDate = Clock.System.todayIn(TimeZone.currentSystemDefault())
+
+/**
+ * Today's date in the given IANA timezone — the project's own, never the
+ * device's or the server's. Mirrors the web's `today(timezone)`: day-boundary
+ * rules (what a supervisor can still edit) are defined by the project's
+ * timezone, since a remote owner and an on-site supervisor are typically in
+ * different zones. Falls back to the device's zone if [timezoneId] doesn't
+ * resolve (corrupt/unknown data should never crash the check).
+ */
+fun todayIn(timezoneId: String): LocalDate {
+    val zone = runCatching { TimeZone.of(timezoneId) }.getOrDefault(TimeZone.currentSystemDefault())
+    return Clock.System.todayIn(zone)
+}

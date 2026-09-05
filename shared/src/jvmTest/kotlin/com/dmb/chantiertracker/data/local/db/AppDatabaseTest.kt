@@ -1,6 +1,7 @@
 package com.dmb.chantiertracker.data.local.db
 
 import androidx.room.Room
+import com.dmb.chantiertracker.support.verifyDailyLogDaoContract
 import com.dmb.chantiertracker.support.verifyPlanUsageDaoContract
 import com.dmb.chantiertracker.support.verifyProjectDaoContract
 import com.dmb.chantiertracker.support.verifyStageDaoContract
@@ -34,6 +35,16 @@ class AppDatabaseTest {
         val db = Room.inMemoryDatabaseBuilder<AppDatabase>().buildChantierDatabase()
         try {
             verifyPlanUsageDaoContract(db)
+        } finally {
+            db.close()
+        }
+    }
+
+    @Test
+    fun daily_log_dao_contract_holds_on_jvm() = runTest {
+        val db = Room.inMemoryDatabaseBuilder<AppDatabase>().buildChantierDatabase()
+        try {
+            verifyDailyLogDaoContract(db)
         } finally {
             db.close()
         }

@@ -233,6 +233,53 @@ class FakeStageRepository(
     }
 }
 
+class FakeDailyLogRepository(
+    logs: List<com.dmb.chantiertracker.domain.model.DailyLog> = emptyList(),
+    detail: com.dmb.chantiertracker.domain.model.DailyLogDetail? = null,
+) : com.dmb.chantiertracker.domain.repository.DailyLogRepository {
+
+    val logsFlow = MutableStateFlow(logs)
+    val detailFlow = MutableStateFlow(detail)
+
+    val log = mutableListOf<String>()
+    var createdPurchaseDayId = "log-new"
+    var createdWorkDayId = "log-new"
+    var lastUpdatedSummary: String? = null
+    var refreshLogsCount = 0
+        private set
+    var refreshLogCount = 0
+        private set
+
+    override fun observeLogs(stageLocalId: String) = logsFlow
+
+    override fun observeLog(logLocalId: String) = detailFlow
+
+    override suspend fun createPurchaseEntry(stageLocalId: String, date: String): String {
+        log += "createPurchaseEntry:$stageLocalId:$date"
+        return createdPurchaseDayId
+    }
+
+    override suspend fun createWorkEntry(stageLocalId: String, date: String): String {
+        log += "createWorkEntry:$stageLocalId:$date"
+        return createdWorkDayId
+    }
+
+    override suspend fun updateEntry(entryLocalId: String, summary: String) {
+        log += "updateEntry:$entryLocalId:$summary"
+        lastUpdatedSummary = summary
+    }
+
+    override suspend fun refreshLogs(stageLocalId: String) {
+        refreshLogsCount++
+        log += "refreshLogs:$stageLocalId"
+    }
+
+    override suspend fun refreshLog(logLocalId: String) {
+        refreshLogCount++
+        log += "refreshLog:$logLocalId"
+    }
+}
+
 class FakeAccountRepository(
     planUsage: com.dmb.chantiertracker.domain.model.PlanUsage? = null,
 ) : AccountRepository {

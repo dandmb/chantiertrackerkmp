@@ -1,6 +1,7 @@
 package com.dmb.chantiertracker.support
 
 import com.dmb.chantiertracker.data.local.db.AppDatabase
+import com.dmb.chantiertracker.data.local.db.DailyLogEntity
 import com.dmb.chantiertracker.data.local.db.PendingOp
 import com.dmb.chantiertracker.data.local.db.PlanUsageEntity
 import com.dmb.chantiertracker.data.local.db.ProjectEntity
@@ -143,6 +144,58 @@ suspend fun verifyStageDaoContract(db: AppDatabase) {
     projectDao.deleteByLocalId("host-a")
     assertTrue("stages cascade-deleted with their project") { dao.findForProject("host-a").isEmpty() }
     assertEquals(listOf("s-other"), dao.findForProject("host-b").map { it.localId })
+}
+
+/** Shared checks for [com.dmb.chantiertracker.data.local.db.DailyLogDao] + [com.dmb.chantiertracker.data.local.db.DailyEntryDao] on a real [AppDatabase]. */
+suspend fun verifyDailyLogDaoContract(db: AppDatabase) {
+    val projectDao = db.projectDao()
+    val logDao = db.dailyLogDao()
+    val entryDao = db.dailyEntryDao()
+
+    // A daily log needs its parent stage to exist (foreign key), and the
+    // stage needs its parent project (existing contract, verifyStageDaoContract).
+    projectDao.upsert(sample("host-a", serverId = 1L, op = PendingOp.NONE))
+    projectDao.upsert(sample("host-b", serverId = 2L, op = PendingOp.NONE))
+    db.stageDao().upsert(sampleStage("stage-a", "host-a"))
+    db.stageDao().upsert(sampleStage("stage-b", "host-b"))
+
+    logDao.upsert(DailyLogEntity("log-late", null, "stage-a", "2026-09-10", 1_000L, null))
+    logDao.upsert(DailyLogEntity("log-early", null, "stage-a", "2026-09-01", 1_000L, null))
+    logDao.upsert(DailyLogEntity("log-other", null, "stage-b", "2026-09-05", 1_000L, null))
+
+    assertEquals(
+        listOf("log-late", "log-early"),
+        logDao.observeLogsForStage("stage-a").first().map { it.localId },
+        "date descending, most recent first",
+    )
+    assertEquals("2026-09-01", logDao.findByStageAndDate("stage-a", "2026-09-01")?.date)
+    assertNull(logDao.findByStageAndDate("stage-a", "2026-01-01"))
+
+    entryDao.upsert(localDailyEntry("entry-purchase", dailyLogLocalId = "log-late", type = "PURCHASE", pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+    entryDao.upsert(localDailyEntry("entry-work", dailyLogLocalId = "log-late", type = "WORK", pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+    entryDao.upsert(localDailyEntry("entry-gone", dailyLogLocalId = "log-early", type = "PURCHASE", pendingOp = PendingOp.DELETE))
+
+    assertEquals(
+        setOf("entry-purchase", "entry-work"),
+        entryDao.observeEntriesForLog("log-late").first().map { it.localId }.toSet(),
+    )
+    assertTrue(entryDao.observeEntriesForLog("log-early").first().isEmpty(), "pending delete is hidden")
+
+    val stageAEntries = entryDao.observeEntriesForStage("stage-a").first().map { it.localId }.toSet()
+    assertEquals(setOf("entry-purchase", "entry-work"), stageAEntries, "join across daily_logs scopes entries to their stage")
+
+    assertEquals(listOf("entry-gone"), entryDao.findPending().map { it.localId })
+    assertEquals("entry-purchase", entryDao.findByLogAndType("log-late", "PURCHASE")?.localId)
+    assertEquals(2, entryDao.findForLog("log-late").size, "findForLog ignores pendingOp, for reconciliation")
+
+    entryDao.deleteByLocalId("entry-work")
+    assertNull(entryDao.findByLocalId("entry-work"))
+
+    // Deleting the parent stage cascades to its logs, which cascades to their entries.
+    db.stageDao().deleteByLocalId("stage-a")
+    assertTrue("logs cascade-deleted with their stage") { logDao.observeLogsForStage("stage-a").first().isEmpty() }
+    assertTrue("entries cascade-deleted with their log") { entryDao.findForLog("log-late").isEmpty() }
+    assertEquals(listOf("log-other"), logDao.observeLogsForStage("stage-b").first().map { it.localId })
 }
 
 /** Shared checks for [com.dmb.chantiertracker.data.local.db.PlanUsageDao] on a real [AppDatabase]. */

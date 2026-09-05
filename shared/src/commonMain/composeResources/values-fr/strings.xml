@@ -142,6 +142,21 @@
     <string name="value_not_set">Non renseigné</string>
     <string name="stage_detail_section_days">Journées</string>
     <string name="stage_detail_days_empty">Aucune journée enregistrée pour l'instant. Les achats et travaux du jour apparaîtront ici.</string>
+    <string name="stage_detail_days_empty_can_add">Aucune journée enregistrée pour l'instant. Ajoute ta première entrée avec le bouton ci-dessus.</string>
+    <string name="stage_detail_add_entry_today">Ajouter une entrée aujourd'hui</string>
+
+    <string name="daily_log_title">Journée</string>
+    <string name="entry_type_purchase">Achats</string>
+    <string name="entry_type_work">Travaux</string>
+    <string name="entry_none_yet">Aucune entrée pour l'instant.</string>
+    <string name="entry_no_summary">Aucun résumé.</string>
+    <string name="entry_no_title">Aucun titre.</string>
+    <string name="entry_add">Ajouter</string>
+    <string name="entry_edit">Modifier</string>
+    <string name="entry_edit_title">Modifier l'entrée</string>
+    <string name="entry_summary_label">Résumé (optionnel)</string>
+    <string name="entry_title_label">Titre des travaux</string>
+    <string name="entry_summary_required_work">Le titre est obligatoire.</string>
 
     <string name="validation_date_format">Utilise le format AAAA-MM-JJ.</string>
     <string name="validation_amount_invalid">Saisis un montant valide.</string>

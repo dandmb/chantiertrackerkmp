@@ -77,3 +77,59 @@ data class StageEntity(
     val remoteUpdatedAt: Long?,
     val lastSyncError: String?,
 )
+
+// A daily log is never created/updated/deleted through its own endpoint — the
+// backend creates it as a side effect of the first entry posted for a
+// (stage, date) pair ("Les POST créent la journée si elle n'existe pas").
+// Mirrored here: no pendingOp of its own, just a serverId learned once one of
+// its entries has synced (see DailyEntryResponse.dailyLogId).
+@Entity(
+    tableName = "daily_logs",
+    foreignKeys = [
+        ForeignKey(
+            entity = StageEntity::class,
+            parentColumns = ["localId"],
+            childColumns = ["stageLocalId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+    ],
+    indices = [Index("stageLocalId"), Index(value = ["stageLocalId", "date"], unique = true)],
+)
+data class DailyLogEntity(
+    @PrimaryKey val localId: String,
+    val serverId: Long?,
+    val stageLocalId: String,
+    val date: String,
+    val locallyCreatedAt: Long,
+    val lastSyncedAt: Long?,
+)
+
+@Entity(
+    tableName = "daily_entries",
+    foreignKeys = [
+        ForeignKey(
+            entity = DailyLogEntity::class,
+            parentColumns = ["localId"],
+            childColumns = ["dailyLogLocalId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+    ],
+    indices = [Index("dailyLogLocalId"), Index(value = ["dailyLogLocalId", "type"], unique = true)],
+)
+data class DailyEntryEntity(
+    @PrimaryKey val localId: String,
+    val serverId: Long?,
+    val dailyLogLocalId: String,
+    val type: String,
+    val summary: String?,
+    val createdById: Long?,
+    val createdAt: String?,
+    val modifiedById: Long?,
+    val modifiedAt: String?,
+    val syncStatus: SyncStatus,
+    val pendingOp: PendingOp,
+    val locallyModifiedAt: Long,
+    val lastSyncedAt: Long?,
+    val remoteUpdatedAt: Long?,
+    val lastSyncError: String?,
+)

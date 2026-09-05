@@ -22,11 +22,13 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import com.dmb.chantiertracker.presentation.navigation.CreateProjectRoute
 import com.dmb.chantiertracker.presentation.navigation.CreateStageRoute
+import com.dmb.chantiertracker.presentation.navigation.DailyLogRoute
 import com.dmb.chantiertracker.presentation.navigation.EditProjectRoute
 import com.dmb.chantiertracker.presentation.navigation.ProjectDetailRoute
 import com.dmb.chantiertracker.presentation.navigation.ProjectsRoute
 import com.dmb.chantiertracker.presentation.navigation.SettingsRoute
 import com.dmb.chantiertracker.presentation.navigation.StageDetailRoute
+import com.dmb.chantiertracker.presentation.logs.DailyLogScreen
 import com.dmb.chantiertracker.presentation.projects.ProjectSortControl
 import com.dmb.chantiertracker.presentation.projects.ProjectSortHolder
 import com.dmb.chantiertracker.presentation.projects.ProjectsScreen
@@ -39,6 +41,7 @@ import com.dmb.chantiertracker.presentation.stages.detail.StageDetailScreen
 import com.dmb.chantiertracker.resources.Res
 import com.dmb.chantiertracker.resources.create_project_title
 import com.dmb.chantiertracker.resources.create_stage_title
+import com.dmb.chantiertracker.resources.daily_log_title
 import com.dmb.chantiertracker.resources.detail_title
 import com.dmb.chantiertracker.resources.edit_project_title
 import com.dmb.chantiertracker.resources.projects_new
@@ -46,7 +49,9 @@ import com.dmb.chantiertracker.resources.stage_detail_title
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 
-private enum class MainDestination { Projects, Settings, CreateProject, ProjectDetail, EditProject, CreateStage, StageDetail }
+private enum class MainDestination {
+    Projects, Settings, CreateProject, ProjectDetail, EditProject, CreateStage, StageDetail, DailyLog
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -63,6 +68,7 @@ fun MainScreen(viewModel: MainViewModel = koinViewModel()) {
         destination?.hasRoute(EditProjectRoute::class) == true -> MainDestination.EditProject
         destination?.hasRoute(CreateStageRoute::class) == true -> MainDestination.CreateStage
         destination?.hasRoute(StageDetailRoute::class) == true -> MainDestination.StageDetail
+        destination?.hasRoute(DailyLogRoute::class) == true -> MainDestination.DailyLog
         else -> MainDestination.Projects
     }
     val currentTab = when (current) {
@@ -73,9 +79,11 @@ fun MainScreen(viewModel: MainViewModel = koinViewModel()) {
 
     var detailTitle by remember { mutableStateOf<String?>(null) }
     var stageTitle by remember { mutableStateOf<String?>(null) }
+    var logTitle by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(current) {
         if (current != MainDestination.ProjectDetail) detailTitle = null
         if (current != MainDestination.StageDetail) stageTitle = null
+        if (current != MainDestination.DailyLog) logTitle = null
     }
 
     Scaffold(
@@ -99,6 +107,10 @@ fun MainScreen(viewModel: MainViewModel = koinViewModel()) {
                 )
                 MainDestination.StageDetail -> DetailTopBar(
                     title = stageTitle ?: stringResource(Res.string.stage_detail_title),
+                    onBack = { navController.popBackStack() },
+                )
+                MainDestination.DailyLog -> DetailTopBar(
+                    title = logTitle ?: stringResource(Res.string.daily_log_title),
                     onBack = { navController.popBackStack() },
                 )
                 else -> AppTopBar(
@@ -184,6 +196,13 @@ fun MainScreen(viewModel: MainViewModel = koinViewModel()) {
                 StageDetailScreen(
                     stageLocalId = entry.toRoute<StageDetailRoute>().stageLocalId,
                     onStageNameResolved = { stageTitle = it },
+                    onOpenLog = { dailyLogLocalId -> navController.navigate(DailyLogRoute(dailyLogLocalId)) },
+                )
+            }
+            composable<DailyLogRoute> { entry ->
+                DailyLogScreen(
+                    dailyLogLocalId = entry.toRoute<DailyLogRoute>().dailyLogLocalId,
+                    onDateResolved = { logTitle = it },
                 )
             }
         }

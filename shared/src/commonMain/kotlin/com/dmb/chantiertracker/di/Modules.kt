@@ -4,6 +4,8 @@ import com.dmb.chantiertracker.core.AppConfig
 import com.dmb.chantiertracker.data.AuthStateHolder
 import com.dmb.chantiertracker.data.local.TokenStorage
 import com.dmb.chantiertracker.data.local.db.AppDatabase
+import com.dmb.chantiertracker.data.local.db.DailyEntryDao
+import com.dmb.chantiertracker.data.local.db.DailyLogDao
 import com.dmb.chantiertracker.data.local.db.PlanUsageDao
 import com.dmb.chantiertracker.data.local.db.ProjectDao
 import com.dmb.chantiertracker.data.local.db.StageDao
@@ -22,11 +24,13 @@ import com.dmb.chantiertracker.data.sync.backgroundSyncModule
 import com.dmb.chantiertracker.presentation.sync.SyncStateHolder
 import com.dmb.chantiertracker.data.repository.AccountRepositoryImpl
 import com.dmb.chantiertracker.data.repository.AuthRepositoryImpl
+import com.dmb.chantiertracker.data.repository.DailyLogRepositoryImpl
 import com.dmb.chantiertracker.data.repository.ProjectRepositoryImpl
 import com.dmb.chantiertracker.data.repository.StageRepositoryImpl
 import com.dmb.chantiertracker.domain.model.AuthState
 import com.dmb.chantiertracker.domain.repository.AccountRepository
 import com.dmb.chantiertracker.domain.repository.AuthRepository
+import com.dmb.chantiertracker.domain.repository.DailyLogRepository
 import com.dmb.chantiertracker.domain.repository.ProjectRepository
 import com.dmb.chantiertracker.domain.repository.StageRepository
 import com.dmb.chantiertracker.presentation.auth.forgot.ForgotPasswordViewModel
@@ -34,6 +38,7 @@ import com.dmb.chantiertracker.presentation.auth.login.LoginViewModel
 import com.dmb.chantiertracker.presentation.auth.register.RegisterViewModel
 import com.dmb.chantiertracker.presentation.auth.reset.ResetPasswordViewModel
 import com.dmb.chantiertracker.presentation.auth.verify.VerifyEmailViewModel
+import com.dmb.chantiertracker.presentation.logs.DailyLogViewModel
 import com.dmb.chantiertracker.presentation.main.MainViewModel
 import com.dmb.chantiertracker.presentation.navigation.RootViewModel
 import com.dmb.chantiertracker.presentation.projects.ProjectSortHolder
@@ -75,6 +80,8 @@ val syncModule: Module = module {
     single<ProjectDao> { get<AppDatabase>().projectDao() }
     single<StageDao> { get<AppDatabase>().stageDao() }
     single<PlanUsageDao> { get<AppDatabase>().planUsageDao() }
+    single<DailyLogDao> { get<AppDatabase>().dailyLogDao() }
+    single<DailyEntryDao> { get<AppDatabase>().dailyEntryDao() }
     single { AppCoroutineScope() }
     single { SyncStateHolder() }
     single {
@@ -97,6 +104,7 @@ val dataModule: Module = module {
     single<ProjectRepository> { ProjectRepositoryImpl(get(), get(), get<AppCoroutineScope>()) }
     single<StageRepository> { StageRepositoryImpl(get(), get(), get<AppCoroutineScope>()) }
     single<AccountRepository> { AccountRepositoryImpl(get(), get()) }
+    single<DailyLogRepository> { DailyLogRepositoryImpl(get(), get(), get(), get<AppCoroutineScope>()) }
 }
 
 val presentationModule: Module = module {
@@ -114,6 +122,7 @@ val presentationModule: Module = module {
     viewModelOf(::EditProjectViewModel)
     viewModelOf(::CreateStageViewModel)
     viewModelOf(::StageDetailViewModel)
+    viewModelOf(::DailyLogViewModel)
     viewModelOf(::SettingsViewModel)
 }
 

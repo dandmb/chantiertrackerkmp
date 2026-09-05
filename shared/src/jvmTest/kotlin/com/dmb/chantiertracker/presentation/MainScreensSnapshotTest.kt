@@ -30,6 +30,10 @@ import androidx.compose.ui.test.runComposeUiTest
 import androidx.compose.ui.unit.dp
 import com.dmb.chantiertracker.core.AppConfig
 import com.dmb.chantiertracker.domain.model.AuthState
+import com.dmb.chantiertracker.domain.model.DailyEntry
+import com.dmb.chantiertracker.domain.model.DailyLog
+import com.dmb.chantiertracker.domain.model.DailyLogDetail
+import com.dmb.chantiertracker.domain.model.EntryType
 import com.dmb.chantiertracker.domain.model.GlobalRole
 import com.dmb.chantiertracker.domain.model.Plan
 import com.dmb.chantiertracker.domain.model.PlanUsage
@@ -64,12 +68,15 @@ import com.dmb.chantiertracker.presentation.settings.SettingsScreen
 import com.dmb.chantiertracker.presentation.settings.SettingsViewModel
 import com.dmb.chantiertracker.presentation.stages.create.CreateStageScreen
 import com.dmb.chantiertracker.presentation.stages.create.CreateStageViewModel
+import com.dmb.chantiertracker.presentation.logs.DailyLogScreen
+import com.dmb.chantiertracker.presentation.logs.DailyLogViewModel
 import com.dmb.chantiertracker.presentation.stages.detail.StageDetailScreen
 import com.dmb.chantiertracker.presentation.stages.detail.StageDetailViewModel
 import com.dmb.chantiertracker.presentation.theme.AppTheme
 import com.dmb.chantiertracker.support.FakeAccountRepository
 import com.dmb.chantiertracker.support.FakeAuthRepository
 import com.dmb.chantiertracker.support.FakeBuildInfo
+import com.dmb.chantiertracker.support.FakeDailyLogRepository
 import com.dmb.chantiertracker.support.FakeProjectRepository
 import com.dmb.chantiertracker.support.FakeStageRepository
 import com.dmb.chantiertracker.support.installTestMainDispatcher
@@ -266,7 +273,40 @@ class MainScreensSnapshotTest {
                 currency = "EUR", timezone = "Europe/Paris", status = ProjectStatus.IN_PROGRESS, ownerId = 1L,
             ),
         )
-        return StageDetailViewModel(repo, projectRepo).also { it.load("s1") }
+        val auth = FakeAuthRepository().apply { emitState(AuthState.Authenticated(User(1, "jean@chantier.dev", "Jean Marchand", true, GlobalRole.USER))) }
+        val logs = FakeDailyLogRepository(
+            logs = listOf(
+                DailyLog("log-1", "s1", "2026-09-04", hasPurchase = true, hasWork = true),
+                DailyLog("log-2", "s1", "2026-09-03", hasPurchase = true, hasWork = false),
+            ),
+        )
+        return StageDetailViewModel(repo, projectRepo, logs, auth).also { it.load("s1") }
+    }
+
+    private fun dailyLogVm(): DailyLogViewModel {
+        val stageRepo = FakeStageRepository(
+            detail = StageDetail(
+                localId = "s1", projectLocalId = "1", name = "Gros œuvre", description = null,
+                estimatedBudget = 18000.0, startDate = "2026-02-01", endDate = "2026-05-15",
+                status = StageStatus.IN_PROGRESS,
+            ),
+        )
+        val projectRepo = FakeProjectRepository(
+            detail = ProjectDetail(
+                localId = "1", name = "Villa Vidal", description = null, location = "Nîmes",
+                currency = "EUR", timezone = "Europe/Paris", status = ProjectStatus.IN_PROGRESS, ownerId = 1L,
+            ),
+        )
+        val auth = FakeAuthRepository().apply { emitState(AuthState.Authenticated(User(1, "jean@chantier.dev", "Jean Marchand", true, GlobalRole.USER))) }
+        val logs = FakeDailyLogRepository(
+            detail = DailyLogDetail(
+                localId = "log-1", stageLocalId = "s1", date = "2026-09-04",
+                entries = listOf(
+                    DailyEntry("e1", "log-1", EntryType.PURCHASE, summary = "12 sacs de ciment, 4 barres de fer"),
+                ),
+            ),
+        )
+        return DailyLogViewModel(logs, stageRepo, projectRepo, auth).also { it.load("log-1") }
     }
 
     @Test
@@ -339,6 +379,11 @@ class MainScreensSnapshotTest {
                 DetailChrome(
                     title = if (locale == "fr") "Étape" else "Stage",
                 ) { m -> StageDetailScreen(stageLocalId = "s1", modifier = m, viewModel = stageDetailVm(withBudget = false)) }
+            }
+            snapshot("26-daily-log", locale) {
+                DetailChrome(
+                    title = if (locale == "fr") "Journée" else "Day",
+                ) { m -> DailyLogScreen(dailyLogLocalId = "log-1", modifier = m, viewModel = dailyLogVm()) }
             }
             snapshot("22-stage-date-picker", locale) {
                 Box(Modifier.padding(16.dp)) { StageDatePickerPreview() }

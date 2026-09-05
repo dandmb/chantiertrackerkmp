@@ -63,3 +63,6 @@ data class CreateStageRoute(val projectLocalId: String)
 
 @Serializable
 data class StageDetailRoute(val stageLocalId: String)
+
+@Serializable
+data class DailyLogRoute(val dailyLogLocalId: String)

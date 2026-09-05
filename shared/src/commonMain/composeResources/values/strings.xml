@@ -142,6 +142,21 @@
     <string name="value_not_set">Not set</string>
     <string name="stage_detail_section_days">Days</string>
     <string name="stage_detail_days_empty">No days logged yet. Daily purchases and work will show up here.</string>
+    <string name="stage_detail_days_empty_can_add">No days logged yet. Add your first entry with the button above.</string>
+    <string name="stage_detail_add_entry_today">Add an entry today</string>
+
+    <string name="daily_log_title">Day</string>
+    <string name="entry_type_purchase">Purchases</string>
+    <string name="entry_type_work">Work</string>
+    <string name="entry_none_yet">No entry yet.</string>
+    <string name="entry_no_summary">No summary yet.</string>
+    <string name="entry_no_title">No title yet.</string>
+    <string name="entry_add">Add</string>
+    <string name="entry_edit">Edit</string>
+    <string name="entry_edit_title">Edit entry</string>
+    <string name="entry_summary_label">Summary (optional)</string>
+    <string name="entry_title_label">Work title</string>
+    <string name="entry_summary_required_work">Title is required.</string>
 
     <string name="validation_date_format">Use the format YYYY-MM-DD.</string>
     <string name="validation_amount_invalid">Enter a valid amount.</string>
