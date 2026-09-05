@@ -116,8 +116,16 @@
     <string name="detail_invitations_title">Pending invitations</string>
     <string name="detail_invitations_empty">No pending invitation.</string>
     <string name="detail_invitation_sent_on">Sent on %1$s</string>
+    <string name="detail_invitation_cancel">Cancel</string>
+    <string name="detail_invite_member">Invite a supervisor</string>
     <string name="role_admin">Admin</string>
     <string name="role_supervisor">Supervisor</string>
+
+    <string name="invite_member_title">Invite a supervisor</string>
+    <string name="invite_member_email_label">Email</string>
+    <string name="invite_member_hint">The invitee will join this project as a Supervisor.</string>
+    <string name="invite_member_submit">Send invitation</string>
+    <string name="invite_member_limit">You have reached your plan's supervisors-per-project limit. Upgrade to a higher tier to invite more.</string>
 
     <string name="detail_danger_zone">Danger zone</string>
     <string name="detail_danger_zone_body">Permanently deletes this project and everything in it (stages, entries, materials, history).</string>

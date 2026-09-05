@@ -20,6 +20,9 @@ data class ProjectDetail(
     val timezone: String,
     val status: ProjectStatus,
     val ownerId: Long?,
+    // The project owner's plan (never the caller's) — gates the supervisor
+    // limit, mirrors the backend. Null until the first detail pull (ADR-33).
+    val ownerPlan: Plan? = null,
 )
 
 data class ProjectMember(

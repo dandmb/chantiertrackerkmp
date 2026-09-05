@@ -143,6 +143,7 @@ internal fun ProjectEntity.toProjectDetail(): ProjectDetail = ProjectDetail(
     timezone = timezone,
     status = status.toProjectStatus(),
     ownerId = ownerId,
+    ownerPlan = ownerPlan?.toPlan(),
 )
 
 internal fun ProjectMemberEntity.toMember(): ProjectMember = ProjectMember(

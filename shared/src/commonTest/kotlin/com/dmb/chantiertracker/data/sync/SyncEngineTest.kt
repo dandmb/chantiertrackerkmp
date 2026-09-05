@@ -351,6 +351,18 @@ class SyncEngineTest {
     }
 
     @Test
+    fun sync_project_stores_the_owner_plan_from_the_detail_pull() = runTest {
+        val f = Fixture()
+        f.backend.seed(ServerProject(id = 5, name = "Villa Vidal", ownerPlan = "SEMI_FLEX"))
+        f.dao.upsert(localProject("p5", serverId = 5, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+        val engine = f.engine(backgroundScope)
+
+        engine.syncProject("p5")
+
+        assertEquals("SEMI_FLEX", f.dao.findByLocalId("p5")?.ownerPlan)
+    }
+
+    @Test
     fun sync_project_clears_the_invitation_cache_when_the_server_answers_403() = runTest {
         val f = Fixture()
         f.backend.seed(ServerProject(id = 5, name = "Villa Vidal"))

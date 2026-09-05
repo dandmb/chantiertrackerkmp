@@ -398,7 +398,22 @@ class FakeInvitationRepository(
 
     val invitationsFlow = MutableStateFlow(invitations)
 
+    val invited = mutableListOf<Pair<String, String>>()
+    val cancelled = mutableListOf<Pair<String, Long>>()
+    var inviteError: com.dmb.chantiertracker.domain.model.DomainException? = null
+    var cancelError: com.dmb.chantiertracker.domain.model.DomainException? = null
+
     override fun observeInvitations(projectLocalId: String) = invitationsFlow
+
+    override suspend fun invite(projectLocalId: String, email: String) {
+        inviteError?.let { throw it }
+        invited += projectLocalId to email
+    }
+
+    override suspend fun cancelInvitation(projectLocalId: String, invitationId: Long) {
+        cancelError?.let { throw it }
+        cancelled += projectLocalId to invitationId
+    }
 }
 
 class FakeAccountRepository(

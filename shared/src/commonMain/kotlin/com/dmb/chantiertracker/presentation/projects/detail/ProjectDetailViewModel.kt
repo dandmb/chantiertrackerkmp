@@ -3,6 +3,7 @@ package com.dmb.chantiertracker.presentation.projects.detail
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.dmb.chantiertracker.domain.model.AuthState
+import com.dmb.chantiertracker.domain.model.DomainException
 import com.dmb.chantiertracker.domain.model.Invitation
 import com.dmb.chantiertracker.domain.model.InvitationStatus
 import com.dmb.chantiertracker.domain.model.ProjectDetail
@@ -28,6 +29,8 @@ data class ProjectDetailUiState(
     val pendingInvitations: List<Invitation> = emptyList(),
     val isDeleting: Boolean = false,
     val deleted: Boolean = false,
+    val cancellingInvitationIds: Set<Long> = emptySet(),
+    val invitationActionError: DomainException? = null,
 ) {
     val isMissing: Boolean get() = !isLoading && detail == null && !deleted
     // For a project, being able to edit == being an ADMIN (projectAdmin).
@@ -87,6 +90,32 @@ class ProjectDetailViewModel(
             runCatching { projectRepository.deleteProject(id) }
             _state.update { it.copy(isDeleting = false, deleted = true) }
         }
+    }
+
+    fun cancelInvitation(invitationId: Long) {
+        val id = localId ?: return
+        if (invitationId in _state.value.cancellingInvitationIds) return
+        _state.update {
+            it.copy(cancellingInvitationIds = it.cancellingInvitationIds + invitationId, invitationActionError = null)
+        }
+        viewModelScope.launch {
+            var error: DomainException? = null
+            try {
+                invitationRepository.cancelInvitation(id, invitationId)
+            } catch (e: DomainException) {
+                error = e
+            }
+            _state.update {
+                it.copy(
+                    cancellingInvitationIds = it.cancellingInvitationIds - invitationId,
+                    invitationActionError = error,
+                )
+            }
+        }
+    }
+
+    fun clearInvitationActionError() {
+        _state.update { it.copy(invitationActionError = null) }
     }
 
     private fun canEdit(detail: ProjectDetail, members: List<ProjectMember>): Boolean {

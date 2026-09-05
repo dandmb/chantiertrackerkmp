@@ -72,6 +72,7 @@ import com.dmb.chantiertracker.presentation.projects.ProjectsViewModel
 import com.dmb.chantiertracker.presentation.projects.create.CreateProjectViewModel
 import com.dmb.chantiertracker.presentation.projects.detail.ProjectDetailViewModel
 import com.dmb.chantiertracker.presentation.projects.edit.EditProjectViewModel
+import com.dmb.chantiertracker.presentation.projects.invite.InviteMemberViewModel
 import com.dmb.chantiertracker.presentation.stages.create.CreateStageViewModel
 import com.dmb.chantiertracker.presentation.stages.detail.StageDetailViewModel
 import com.dmb.chantiertracker.presentation.settings.SettingsViewModel
@@ -161,7 +162,7 @@ val dataModule: Module = module {
     single<PurchaseLineRepository> { PurchaseLineRepositoryImpl(get(), get(), get<AppCoroutineScope>()) }
     single<ConsumptionLineRepository> { ConsumptionLineRepositoryImpl(get(), get(), get<AppCoroutineScope>()) }
     single<AttachmentRepository> { AttachmentRepositoryImpl(get(), get(), get(), get<AppCoroutineScope>()) }
-    single<InvitationRepository> { InvitationRepositoryImpl(get()) }
+    single<InvitationRepository> { InvitationRepositoryImpl(get(), get(), get(), get()) }
 }
 
 val presentationModule: Module = module {
@@ -177,6 +178,7 @@ val presentationModule: Module = module {
     viewModelOf(::CreateProjectViewModel)
     viewModelOf(::ProjectDetailViewModel)
     viewModelOf(::EditProjectViewModel)
+    viewModelOf(::InviteMemberViewModel)
     viewModelOf(::CreateStageViewModel)
     viewModelOf(::StageDetailViewModel)
     viewModelOf(::DailyLogViewModel)

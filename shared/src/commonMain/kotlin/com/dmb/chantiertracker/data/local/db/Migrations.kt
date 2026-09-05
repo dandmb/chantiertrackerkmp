@@ -263,3 +263,15 @@ val MIGRATION_6_7 = object : Migration(6, 7) {
         )
     }
 }
+
+/**
+ * v7 → v8 : ajout de la colonne `projects.ownerPlan` (plan du propriétaire du
+ * projet, lu depuis `ProjectDetailDto`) — sert au pré-contrôle de la limite de
+ * superviseurs avant d'envoyer une invitation, hors ligne compris (ADR-33).
+ * Nullable, pas de valeur par défaut : `null` jusqu'au premier pull du détail.
+ */
+val MIGRATION_7_8 = object : Migration(7, 8) {
+    override fun migrate(connection: SQLiteConnection) {
+        connection.execSQL("ALTER TABLE `projects` ADD COLUMN `ownerPlan` TEXT")
+    }
+}

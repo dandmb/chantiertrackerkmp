@@ -20,7 +20,7 @@ import androidx.sqlite.driver.bundled.BundledSQLiteDriver
         AttachmentEntity::class,
         InvitationEntity::class,
     ],
-    version = 7,
+    version = 8,
     exportSchema = true,
 )
 @ConstructedBy(AppDatabaseConstructor::class)
@@ -44,5 +44,8 @@ expect object AppDatabaseConstructor : RoomDatabaseConstructor<AppDatabase> {
 
 fun RoomDatabase.Builder<AppDatabase>.buildChantierDatabase(): AppDatabase =
     setDriver(BundledSQLiteDriver())
-        .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
+        .addMigrations(
+            MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5,
+            MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8,
+        )
         .build()

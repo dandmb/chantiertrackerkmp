@@ -211,6 +211,39 @@ class ProjectDetailViewModelTest {
     }
 
     @Test
+    fun cancel_invitation_delegates_to_the_repository() = runTest {
+        val repo = FakeProjectRepository(detail = detail(ownerId = 1))
+        val invitations = FakeInvitationRepository()
+        val vm = ProjectDetailViewModel(repo, FakeStageRepository(), invitations, auth(userId = 1))
+        vm.load("p5")
+        advanceUntilIdle()
+
+        vm.cancelInvitation(7L)
+        advanceUntilIdle()
+
+        assertEquals(listOf("p5" to 7L), invitations.cancelled)
+        assertTrue(vm.state.value.cancellingInvitationIds.isEmpty())
+        assertEquals(null, vm.state.value.invitationActionError)
+    }
+
+    @Test
+    fun a_failed_cancel_surfaces_the_error_and_clears_the_pending_flag() = runTest {
+        val repo = FakeProjectRepository(detail = detail(ownerId = 1))
+        val invitations = FakeInvitationRepository().apply {
+            cancelError = com.dmb.chantiertracker.domain.model.DomainException.Network
+        }
+        val vm = ProjectDetailViewModel(repo, FakeStageRepository(), invitations, auth(userId = 1))
+        vm.load("p5")
+        advanceUntilIdle()
+
+        vm.cancelInvitation(7L)
+        advanceUntilIdle()
+
+        assertEquals(com.dmb.chantiertracker.domain.model.DomainException.Network, vm.state.value.invitationActionError)
+        assertTrue(vm.state.value.cancellingInvitationIds.isEmpty())
+    }
+
+    @Test
     fun delete_is_ignored_while_already_deleting() = runTest {
         val repo = FakeProjectRepository(detail = detail(ownerId = 1))
         val vm = ProjectDetailViewModel(repo, FakeStageRepository(), FakeInvitationRepository(), auth(userId = 1))

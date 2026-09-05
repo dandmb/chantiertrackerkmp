@@ -40,6 +40,8 @@ import com.dmb.chantiertracker.domain.model.ProjectMember
 import com.dmb.chantiertracker.domain.model.ProjectRole
 import com.dmb.chantiertracker.domain.model.Stage
 import com.dmb.chantiertracker.presentation.formatIsoDate
+import com.dmb.chantiertracker.presentation.i18n.localizedText
+import com.dmb.chantiertracker.presentation.auth.components.ErrorBanner
 import com.dmb.chantiertracker.presentation.main.AddIcon
 import com.dmb.chantiertracker.presentation.main.ChevronRightIcon
 import com.dmb.chantiertracker.presentation.main.EditIcon
@@ -53,9 +55,11 @@ import com.dmb.chantiertracker.resources.detail_danger_zone
 import com.dmb.chantiertracker.resources.detail_danger_zone_body
 import com.dmb.chantiertracker.resources.detail_delete_project
 import com.dmb.chantiertracker.resources.detail_edit_project
+import com.dmb.chantiertracker.resources.detail_invitation_cancel
 import com.dmb.chantiertracker.resources.detail_invitation_sent_on
 import com.dmb.chantiertracker.resources.detail_invitations_empty
 import com.dmb.chantiertracker.resources.detail_invitations_title
+import com.dmb.chantiertracker.resources.detail_invite_member
 import com.dmb.chantiertracker.resources.detail_members_empty
 import com.dmb.chantiertracker.resources.detail_section_members
 import com.dmb.chantiertracker.resources.role_admin
@@ -79,6 +83,7 @@ fun ProjectDetailScreen(
     onAddStage: (projectLocalId: String) -> Unit = {},
     onStageClick: (stageLocalId: String) -> Unit = {},
     onEditProject: (projectLocalId: String) -> Unit = {},
+    onInviteMember: (projectLocalId: String) -> Unit = {},
     onProjectDeleted: () -> Unit = {},
     viewModel: ProjectDetailViewModel = koinViewModel(),
 ) {
@@ -116,9 +121,13 @@ fun ProjectDetailScreen(
                 stages = state.stages,
                 members = state.members,
                 pendingInvitations = state.pendingInvitations,
+                cancellingInvitationIds = state.cancellingInvitationIds,
+                invitationActionError = state.invitationActionError?.localizedText(),
                 onAddStage = { onAddStage(state.detail!!.localId) },
                 onStageClick = onStageClick,
                 onEditProject = { onEditProject(state.detail!!.localId) },
+                onInviteMember = { onInviteMember(state.detail!!.localId) },
+                onCancelInvitation = viewModel::cancelInvitation,
                 onDeleteConfirmed = viewModel::deleteProject,
             )
         }
@@ -134,9 +143,13 @@ private fun DetailContent(
     stages: List<Stage>,
     members: List<ProjectMember>,
     pendingInvitations: List<Invitation>,
+    cancellingInvitationIds: Set<Long>,
+    invitationActionError: String?,
     onAddStage: () -> Unit,
     onStageClick: (String) -> Unit,
     onEditProject: () -> Unit,
+    onInviteMember: () -> Unit,
+    onCancelInvitation: (Long) -> Unit,
     onDeleteConfirmed: () -> Unit,
 ) {
     Column(
@@ -194,7 +207,15 @@ private fun DetailContent(
             onStageClick = onStageClick,
         )
 
-        MembersSection(members = members, pendingInvitations = pendingInvitations, isAdmin = isAdmin)
+        MembersSection(
+            members = members,
+            pendingInvitations = pendingInvitations,
+            isAdmin = isAdmin,
+            cancellingInvitationIds = cancellingInvitationIds,
+            invitationActionError = invitationActionError,
+            onInviteMember = onInviteMember,
+            onCancelInvitation = onCancelInvitation,
+        )
 
         if (canEdit) {
             DangerZone(projectName = detail.name, isDeleting = isDeleting, onDeleteConfirmed = onDeleteConfirmed)
@@ -345,13 +366,32 @@ private fun MembersSection(
     members: List<ProjectMember>,
     pendingInvitations: List<Invitation>,
     isAdmin: Boolean,
+    cancellingInvitationIds: Set<Long>,
+    invitationActionError: String?,
+    onInviteMember: () -> Unit,
+    onCancelInvitation: (Long) -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(
-            stringResource(Res.string.detail_section_members),
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold,
-        )
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                stringResource(Res.string.detail_section_members),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
+            if (isAdmin) {
+                TextButton(onClick = onInviteMember) {
+                    Icon(AddIcon, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Text(
+                        text = stringResource(Res.string.detail_invite_member),
+                        modifier = Modifier.padding(start = 6.dp),
+                    )
+                }
+            }
+        }
 
         if (members.isEmpty()) {
             EmptyHint(stringResource(Res.string.detail_members_empty))
@@ -374,17 +414,30 @@ private fun MembersSection(
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold,
             )
+            invitationActionError?.let { ErrorBanner(it) }
             if (pendingInvitations.isEmpty()) {
                 EmptyHint(stringResource(Res.string.detail_invitations_empty))
             } else {
                 pendingInvitations.forEach { invitation ->
-                    Column(Modifier.fillMaxWidth()) {
-                        Text(invitation.email, style = MaterialTheme.typography.bodyMedium)
-                        Text(
-                            invitation.createdAt?.let { stringResource(Res.string.detail_invitation_sent_on, formatIsoDate(it.substringBefore('T'))) }.orEmpty(),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text(invitation.email, style = MaterialTheme.typography.bodyMedium)
+                            Text(
+                                invitation.createdAt?.let { stringResource(Res.string.detail_invitation_sent_on, formatIsoDate(it.substringBefore('T'))) }.orEmpty(),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        TextButton(
+                            onClick = { onCancelInvitation(invitation.id) },
+                            enabled = invitation.id !in cancellingInvitationIds,
+                        ) {
+                            Text(stringResource(Res.string.detail_invitation_cancel))
+                        }
                     }
                 }
             }

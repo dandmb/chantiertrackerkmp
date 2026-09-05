@@ -42,7 +42,11 @@ suspend fun verifyProjectDaoContract(db: AppDatabase) {
     assertEquals("Chantier a", stored?.name)
     assertEquals(SyncStatus.PENDING, stored?.syncStatus)
     assertEquals(PendingOp.CREATE, stored?.pendingOp)
+    assertNull(stored?.ownerPlan, "ownerPlan is null until a detail pull fills it (ADR-33)")
     assertNull(dao.findByLocalId("missing"))
+
+    dao.upsert(sample("a").copy(ownerPlan = "SEMI_FLEX"))
+    assertEquals("SEMI_FLEX", dao.findByLocalId("a")?.ownerPlan, "ownerPlan round-trips")
 
     dao.upsertAll(
         listOf(

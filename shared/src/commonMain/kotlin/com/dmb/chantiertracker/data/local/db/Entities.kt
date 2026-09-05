@@ -29,6 +29,10 @@ data class ProjectEntity(
     val lastSyncedAt: Long?,
     val remoteUpdatedAt: Long?,
     val lastSyncError: String?,
+    // The project OWNER's plan (never the caller's), from ProjectDetailDto.
+    // Null until the first detail pull — the supervisor-limit pre-check
+    // fails open in that window (ADR-33). Not set by the project-list pull.
+    val ownerPlan: String? = null,
 )
 
 @Entity(tableName = "project_members", primaryKeys = ["projectLocalId", "userId"])

@@ -116,8 +116,16 @@
     <string name="detail_invitations_title">Invitations en attente</string>
     <string name="detail_invitations_empty">Aucune invitation en attente.</string>
     <string name="detail_invitation_sent_on">Envoyée le %1$s</string>
+    <string name="detail_invitation_cancel">Annuler</string>
+    <string name="detail_invite_member">Inviter un superviseur</string>
     <string name="role_admin">Admin</string>
     <string name="role_supervisor">Superviseur</string>
+
+    <string name="invite_member_title">Inviter un superviseur</string>
+    <string name="invite_member_email_label">Email</string>
+    <string name="invite_member_hint">La personne invitée rejoindra ce projet avec le rôle Superviseur.</string>
+    <string name="invite_member_submit">Envoyer l'invitation</string>
+    <string name="invite_member_limit">Vous avez atteint la limite de superviseurs par projet de votre formule. Passez à un palier supérieur pour en inviter davantage.</string>
 
     <string name="detail_danger_zone">Zone de danger</string>
     <string name="detail_danger_zone_body">Supprime définitivement ce projet et tout son contenu (étapes, entrées, matériaux, historique).</string>
