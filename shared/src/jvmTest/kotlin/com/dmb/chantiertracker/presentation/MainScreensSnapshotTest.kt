@@ -195,8 +195,14 @@ class MainScreensSnapshotTest {
         }
     }
 
-    private fun projectsVm(projects: List<Project>) =
-        ProjectsViewModel(FakeProjectRepository(projects = projects), ProjectSortHolder())
+    private fun projectsVm(
+        projects: List<Project>,
+        incoming: List<com.dmb.chantiertracker.domain.model.IncomingInvitation> = emptyList(),
+    ) = ProjectsViewModel(
+        FakeProjectRepository(projects = projects),
+        com.dmb.chantiertracker.support.FakeInvitationRepository().apply { this.incoming = incoming },
+        ProjectSortHolder(),
+    ).also { if (incoming.isNotEmpty()) it.onEnter() }
 
     private fun settingsVm() = SettingsViewModel(AppConfig(FakeBuildInfo(isDebug = false, appVersion = "1.0")))
 
@@ -425,6 +431,25 @@ class MainScreensSnapshotTest {
             snapshot("11-projects-empty", locale) {
                 Chrome(MainTab.Projects) { m ->
                     ProjectsScreen(onProjectClick = {}, modifier = m, viewModel = projectsVm(emptyList()))
+                }
+            }
+            snapshot("32-projects-incoming-invitation", locale) {
+                Chrome(MainTab.Projects) { m ->
+                    ProjectsScreen(
+                        onProjectClick = {},
+                        modifier = m,
+                        viewModel = projectsVm(
+                            sampleProjects,
+                            incoming = listOf(
+                                com.dmb.chantiertracker.domain.model.IncomingInvitation(
+                                    token = "tok", projectId = 9L, projectName = "Villa Vidal",
+                                    role = com.dmb.chantiertracker.domain.model.ProjectRole.SUPERVISOR,
+                                    invitedByName = "Jean Marchand",
+                                    createdAt = "2026-09-01T10:00:00", expiresAt = null,
+                                ),
+                            ),
+                        ),
+                    )
                 }
             }
             snapshot("12-settings", locale) {

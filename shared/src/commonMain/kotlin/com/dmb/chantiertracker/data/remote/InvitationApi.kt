@@ -3,6 +3,7 @@ package com.dmb.chantiertracker.data.remote
 import com.dmb.chantiertracker.data.remote.dto.CreateInvitationRequestDto
 import com.dmb.chantiertracker.data.remote.dto.InvitationDto
 import com.dmb.chantiertracker.data.remote.dto.PageDto
+import com.dmb.chantiertracker.data.remote.dto.PendingInvitationDto
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.delete
@@ -26,5 +27,14 @@ class InvitationApi(private val client: HttpClient) {
 
     suspend fun cancel(id: Long) {
         client.delete(ApiRoutes.invitation(id))
+    }
+
+    /** Invitations addressed to the authenticated user (`GET /users/me/invitations`). */
+    suspend fun listMine(): List<PendingInvitationDto> =
+        client.get(ApiRoutes.USERS_ME_INVITATIONS).body()
+
+    /** Accept as the authenticated user — no body (the new-account fields are web-only). */
+    suspend fun accept(token: String) {
+        client.post(ApiRoutes.acceptInvitation(token))
     }
 }

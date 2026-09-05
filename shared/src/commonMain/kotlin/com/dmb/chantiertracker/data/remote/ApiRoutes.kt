@@ -11,12 +11,14 @@ object ApiRoutes {
     const val AUTH_RESET_PASSWORD = "auth/reset-password"
     const val USERS_ME = "users/me"
     const val USERS_ME_PLAN_USAGE = "users/me/plan-usage"
+    const val USERS_ME_INVITATIONS = "users/me/invitations"
     const val PROJECTS = "projects"
 
     fun project(id: Long) = "projects/$id"
     fun projectMembers(id: Long) = "projects/$id/members"
     fun projectInvitations(id: Long) = "projects/$id/invitations"
     fun invitation(id: Long) = "invitations/$id"
+    fun acceptInvitation(token: String) = "invitations/$token/accept"
     fun projectStages(id: Long) = "projects/$id/stages"
     fun stage(id: Long) = "stages/$id"
 

@@ -103,6 +103,40 @@ class InvitationRepositoryImplTest {
     }
 
     @Test
+    fun list_incoming_maps_the_bare_array_from_users_me_invitations() = runTest {
+        val backend = FakeProjectBackend().apply {
+            seedPendingForMe(com.dmb.chantiertracker.support.ServerPendingInvitation("t1", 9, "Villa Vidal", "SUPERVISOR", "Jean"))
+            seedPendingForMe(com.dmb.chantiertracker.support.ServerPendingInvitation("t2", 10, "Chalet", "ADMIN", null))
+        }
+
+        val incoming = repo(backend = backend).listIncomingInvitations()
+
+        assertEquals(listOf("Villa Vidal", "Chalet"), incoming.map { it.projectName })
+        assertEquals(ProjectRole.ADMIN, incoming[1].role)
+        assertEquals(null, incoming[1].invitedByName, "a deleted inviter comes back as null")
+    }
+
+    @Test
+    fun accept_posts_to_the_token_endpoint() = runTest {
+        val backend = FakeProjectBackend().apply {
+            seedPendingForMe(com.dmb.chantiertracker.support.ServerPendingInvitation("tok", 9, "Villa"))
+        }
+
+        repo(backend = backend).acceptInvitation("tok")
+
+        assertTrue(backend.myPendingInvitations.isEmpty(), "the server marks it accepted")
+    }
+
+    @Test
+    fun accept_maps_a_stale_invitation_to_not_found() = runTest {
+        val backend = FakeProjectBackend()
+
+        assertFailsWith<DomainException.NotFound> {
+            repo(backend = backend).acceptInvitation("gone")
+        }
+    }
+
+    @Test
     fun cancel_deletes_server_side_then_re_pulls_the_project() = runTest {
         val backend = FakeProjectBackend().apply {
             seedInvitation(com.dmb.chantiertracker.support.ServerInvitation(id = 7, projectId = 42, email = "sam@x.dev"))

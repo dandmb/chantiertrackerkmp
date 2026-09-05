@@ -127,6 +127,10 @@
     <string name="invite_member_submit">Envoyer l'invitation</string>
     <string name="invite_member_limit">Vous avez atteint la limite de superviseurs par projet de votre formule. Passez à un palier supérieur pour en inviter davantage.</string>
 
+    <string name="incoming_invitation_body">Tu as une invitation en attente pour rejoindre %1$s en tant que %2$s.</string>
+    <string name="incoming_invitation_body_with_inviter">Tu as une invitation en attente pour rejoindre %1$s en tant que %2$s, envoyée par %3$s.</string>
+    <string name="incoming_invitation_accept">Accepter</string>
+
     <string name="detail_danger_zone">Zone de danger</string>
     <string name="detail_danger_zone_body">Supprime définitivement ce projet et tout son contenu (étapes, entrées, matériaux, historique).</string>
     <string name="detail_delete_project">Supprimer le projet</string>

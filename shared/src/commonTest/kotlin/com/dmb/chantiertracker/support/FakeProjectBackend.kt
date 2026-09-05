@@ -45,6 +45,16 @@ class ServerInvitation(
     val createdAt: String = "2026-09-01T10:00:00",
 )
 
+class ServerPendingInvitation(
+    val token: String,
+    val projectId: Long,
+    val projectName: String,
+    val role: String = "SUPERVISOR",
+    val invitedByName: String? = "Jean Marchand",
+    val createdAt: String = "2026-09-01T10:00:00",
+    val expiresAt: String = "2026-09-08T10:00:00",
+)
+
 class ServerStage(
     val id: Long,
     val projectId: Long,
@@ -121,7 +131,10 @@ class FakeProjectBackend {
     val consumptionLines = mutableListOf<ServerConsumptionLine>()
     val attachments = mutableListOf<ServerAttachment>()
     val invitations = mutableListOf<ServerInvitation>()
+    val myPendingInvitations = mutableListOf<ServerPendingInvitation>()
     var planLimitReached = false
+    /** When set, POST /invitations/{token}/accept answers this status. */
+    var acceptStatus: HttpStatusCode? = null
     var nextId = 100L
     var nextStageId = 500L
     var nextMaterialId = 700L
@@ -138,6 +151,7 @@ class FakeProjectBackend {
     var invitationsForbidden = false
 
     fun seedInvitation(i: ServerInvitation) = i.also { invitations += it }
+    fun seedPendingForMe(i: ServerPendingInvitation) = i.also { myPendingInvitations += it }
     fun seedMaterial(m: ServerMaterial) = m.also { materials += it }
     fun seedLog(l: ServerLog) = l.also { logs += it }
     fun seedEntry(e: ServerEntry) = e.also { entries += it }
@@ -184,6 +198,8 @@ class FakeProjectBackend {
         val membersProjectId = Regex("""/projects/(\d+)/members$""").find(path)?.groupValues?.get(1)?.toLong()
         val invitationsProjectId = Regex("""/projects/(\d+)/invitations$""").find(path)?.groupValues?.get(1)?.toLong()
         val invitationId = Regex("""/invitations/(\d+)$""").find(path)?.groupValues?.get(1)?.toLong()
+        val acceptToken = Regex("""/invitations/([^/]+)/accept$""").find(path)?.groupValues?.get(1)
+        val isMyInvitations = path == "/users/me/invitations"
         val stagesProjectId = Regex("""/projects/(\d+)/stages$""").find(path)?.groupValues?.get(1)?.toLong()
         val stageId = Regex("""/stages/(\d+)$""").find(path)?.groupValues?.get(1)?.toLong()
         val materialsProjectId = Regex("""/projects/(\d+)/materials$""").find(path)?.groupValues?.get(1)?.toLong()
@@ -430,6 +446,20 @@ class FakeProjectBackend {
                 respondJson("", HttpStatusCode.NoContent)
             }
 
+            request.method == HttpMethod.Get && isMyInvitations -> {
+                val items = myPendingInvitations.joinToString(",") { pendingForMeJson(it) }
+                respondJson("[$items]")
+            }
+
+            request.method == HttpMethod.Post && acceptToken != null -> {
+                acceptStatus?.let { return respondProblem(it, "Cette invitation n'est plus valide.") }
+                if (myPendingInvitations.none { it.token == acceptToken }) {
+                    return respondProblem(HttpStatusCode.NotFound, "Invitation introuvable.")
+                }
+                myPendingInvitations.removeAll { it.token == acceptToken }
+                respondJson("""{"message":"Invitation acceptée avec succès."}""")
+            }
+
             request.method == HttpMethod.Get && idInPath != null -> {
                 val project = projects.firstOrNull { it.id == idInPath }
                     ?: return respondProblem(HttpStatusCode.NotFound, "Projet introuvable.")
@@ -545,6 +575,10 @@ class FakeProjectBackend {
     private fun invitationJson(i: ServerInvitation): String =
         """{"id":${i.id},"projectId":${i.projectId},"email":${i.email.q()},"role":${i.role.q()},
             "invitedById":1,"createdAt":${i.createdAt.q()},"expiresAt":"2026-09-08T10:00:00","status":${i.status.q()}}"""
+
+    private fun pendingForMeJson(i: ServerPendingInvitation): String =
+        """{"token":${i.token.q()},"projectId":${i.projectId},"projectName":${i.projectName.q()},"role":${i.role.q()},
+            "invitedByName":${i.invitedByName?.q() ?: "null"},"createdAt":${i.createdAt.q()},"expiresAt":${i.expiresAt.q()}}"""
 
     private fun logSummaryJson(l: ServerLog): String {
         val hasPurchase = entries.any { it.dailyLogId == l.id && it.type == "PURCHASE" }

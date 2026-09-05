@@ -127,6 +127,10 @@
     <string name="invite_member_submit">Send invitation</string>
     <string name="invite_member_limit">You have reached your plan's supervisors-per-project limit. Upgrade to a higher tier to invite more.</string>
 
+    <string name="incoming_invitation_body">You have a pending invitation to join %1$s as %2$s.</string>
+    <string name="incoming_invitation_body_with_inviter">You have a pending invitation to join %1$s as %2$s, sent by %3$s.</string>
+    <string name="incoming_invitation_accept">Accept</string>
+
     <string name="detail_danger_zone">Danger zone</string>
     <string name="detail_danger_zone_body">Permanently deletes this project and everything in it (stages, entries, materials, history).</string>
     <string name="detail_delete_project">Delete project</string>

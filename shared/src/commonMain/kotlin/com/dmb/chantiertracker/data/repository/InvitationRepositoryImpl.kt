@@ -6,8 +6,10 @@ import com.dmb.chantiertracker.data.local.db.ProjectDao
 import com.dmb.chantiertracker.data.remote.InvitationApi
 import com.dmb.chantiertracker.data.remote.apiCall
 import com.dmb.chantiertracker.data.remote.dto.CreateInvitationRequestDto
+import com.dmb.chantiertracker.data.remote.dto.PendingInvitationDto
 import com.dmb.chantiertracker.data.sync.Syncer
 import com.dmb.chantiertracker.domain.model.DomainException
+import com.dmb.chantiertracker.domain.model.IncomingInvitation
 import com.dmb.chantiertracker.domain.model.Invitation
 import com.dmb.chantiertracker.domain.model.InvitationStatus
 import com.dmb.chantiertracker.domain.model.ProjectRole
@@ -41,7 +43,29 @@ class InvitationRepositoryImpl(
         apiCall { api.cancel(invitationId) }
         syncer.syncProject(projectLocalId)
     }
+
+    override suspend fun listIncomingInvitations(): List<IncomingInvitation> =
+        apiCall { api.listMine() }.map(PendingInvitationDto::toIncomingInvitation)
+
+    override suspend fun acceptInvitation(token: String) {
+        apiCall { api.accept(token) }
+        // Caller re-pulls the project list so the newly joined project shows up.
+    }
 }
+
+private fun PendingInvitationDto.toIncomingInvitation() = IncomingInvitation(
+    token = token,
+    projectId = projectId,
+    projectName = projectName,
+    role = when (role.uppercase()) {
+        "ADMIN" -> ProjectRole.ADMIN
+        "SUPERVISOR" -> ProjectRole.SUPERVISOR
+        else -> ProjectRole.UNKNOWN
+    },
+    invitedByName = invitedByName,
+    createdAt = createdAt,
+    expiresAt = expiresAt,
+)
 
 internal fun InvitationEntity.toInvitation(): Invitation = Invitation(
     id = id,
