@@ -76,8 +76,11 @@ import com.dmb.chantiertracker.presentation.theme.AppTheme
 import com.dmb.chantiertracker.support.FakeAccountRepository
 import com.dmb.chantiertracker.support.FakeAuthRepository
 import com.dmb.chantiertracker.support.FakeBuildInfo
+import com.dmb.chantiertracker.support.FakeConsumptionLineRepository
 import com.dmb.chantiertracker.support.FakeDailyLogRepository
+import com.dmb.chantiertracker.support.FakeMaterialRepository
 import com.dmb.chantiertracker.support.FakeProjectRepository
+import com.dmb.chantiertracker.support.FakePurchaseLineRepository
 import com.dmb.chantiertracker.support.FakeStageRepository
 import com.dmb.chantiertracker.support.installTestMainDispatcher
 import kotlinx.datetime.LocalDate
@@ -302,11 +305,29 @@ class MainScreensSnapshotTest {
             detail = DailyLogDetail(
                 localId = "log-1", stageLocalId = "s1", date = "2026-09-04",
                 entries = listOf(
-                    DailyEntry("e1", "log-1", EntryType.PURCHASE, summary = "12 sacs de ciment, 4 barres de fer"),
+                    DailyEntry("e1", "log-1", EntryType.PURCHASE, summary = "12 sacs de ciment livrés"),
+                    DailyEntry("e2", "log-1", EntryType.WORK, summary = "Coulage de la dalle"),
                 ),
             ),
         )
-        return DailyLogViewModel(logs, stageRepo, projectRepo, auth).also { it.load("log-1") }
+        val ciment = com.dmb.chantiertracker.domain.model.Material("m1", "1", "Ciment", "sac")
+        val fer = com.dmb.chantiertracker.domain.model.Material("m2", "1", "Fer", "barre")
+        val materials = FakeMaterialRepository(
+            materials = listOf(ciment, fer),
+            stock = listOf(
+                com.dmb.chantiertracker.domain.model.MaterialStock("m1", "Ciment", "sac", quantityIn = 12.0, quantityOut = 4.0),
+                com.dmb.chantiertracker.domain.model.MaterialStock("m2", "Fer", "barre", quantityIn = 0.0, quantityOut = 0.0),
+            ),
+        )
+        val purchaseLines = FakePurchaseLineRepository(
+            lines = listOf(
+                com.dmb.chantiertracker.domain.model.PurchaseLine("pl1", "e1", "m1", quantity = 12.0, unitPrice = 3.5, totalPrice = 42.0, supplier = "Quincaillerie du Port"),
+            ),
+        )
+        val consumptionLines = FakeConsumptionLineRepository(
+            lines = listOf(com.dmb.chantiertracker.domain.model.ConsumptionLine("cl1", "e2", "m1", quantity = 4.0)),
+        )
+        return DailyLogViewModel(logs, stageRepo, projectRepo, auth, materials, purchaseLines, consumptionLines).also { it.load("log-1") }
     }
 
     @Test

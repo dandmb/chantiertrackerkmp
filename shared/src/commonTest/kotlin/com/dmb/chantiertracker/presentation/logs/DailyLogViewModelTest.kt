@@ -1,14 +1,18 @@
 package com.dmb.chantiertracker.presentation.logs
 
 import com.dmb.chantiertracker.domain.model.AuthState
+import com.dmb.chantiertracker.domain.model.ConsumptionLine
 import com.dmb.chantiertracker.domain.model.DailyEntry
 import com.dmb.chantiertracker.domain.model.DailyLogDetail
 import com.dmb.chantiertracker.domain.model.EntryType
 import com.dmb.chantiertracker.domain.model.GlobalRole
+import com.dmb.chantiertracker.domain.model.Material
+import com.dmb.chantiertracker.domain.model.MaterialStock
 import com.dmb.chantiertracker.domain.model.ProjectDetail
 import com.dmb.chantiertracker.domain.model.ProjectMember
 import com.dmb.chantiertracker.domain.model.ProjectRole
 import com.dmb.chantiertracker.domain.model.ProjectStatus
+import com.dmb.chantiertracker.domain.model.PurchaseLine
 import com.dmb.chantiertracker.domain.model.StageDetail
 import com.dmb.chantiertracker.domain.model.StageStatus
 import com.dmb.chantiertracker.domain.model.User
@@ -16,8 +20,11 @@ import com.dmb.chantiertracker.presentation.todayIn
 import com.dmb.chantiertracker.resources.Res
 import com.dmb.chantiertracker.resources.entry_summary_required_work
 import com.dmb.chantiertracker.support.FakeAuthRepository
+import com.dmb.chantiertracker.support.FakeConsumptionLineRepository
 import com.dmb.chantiertracker.support.FakeDailyLogRepository
+import com.dmb.chantiertracker.support.FakeMaterialRepository
 import com.dmb.chantiertracker.support.FakeProjectRepository
+import com.dmb.chantiertracker.support.FakePurchaseLineRepository
 import com.dmb.chantiertracker.support.FakeStageRepository
 import com.dmb.chantiertracker.support.installTestMainDispatcher
 import com.dmb.chantiertracker.support.resetTestMainDispatcher
@@ -71,7 +78,10 @@ class DailyLogViewModelTest {
         stages: FakeStageRepository = stageRepo(),
         projects: FakeProjectRepository = projectRepo(),
         authRepo: FakeAuthRepository = auth(userId = 1L),
-    ) = DailyLogViewModel(logs, stages, projects, authRepo)
+        materials: FakeMaterialRepository = FakeMaterialRepository(),
+        purchaseLines: FakePurchaseLineRepository = FakePurchaseLineRepository(),
+        consumptionLines: FakeConsumptionLineRepository = FakeConsumptionLineRepository(),
+    ) = DailyLogViewModel(logs, stages, projects, authRepo, materials, purchaseLines, consumptionLines)
 
     @Test
     fun observes_the_log_and_kicks_a_pull() = runTest {
@@ -237,5 +247,193 @@ class DailyLogViewModelTest {
 
         assertNull(v.state.value.editingEntryLocalId)
         assertTrue(logs.log.none { it.startsWith("updateEntry") })
+    }
+
+    // ─── isAdmin / materials / stock / lines exposure ───────────────────────
+
+    @Test
+    fun is_admin_is_exposed_separately_from_can_edit() = runTest {
+        // A SUPERVISOR on an active project/today's log can edit, but is not admin —
+        // deletion (gated on isAdmin, not canEdit) must stay unavailable to them.
+        val members = listOf(ProjectMember(userId = 9, name = "Sam", email = "s@x.dev", role = ProjectRole.SUPERVISOR))
+        val logs = FakeDailyLogRepository(detail = logDetail(date = today))
+        val v = vm(logs, projects = projectRepo(ownerId = 1L, members = members), authRepo = auth(userId = 9L))
+        v.load("log-1")
+        advanceUntilIdle()
+
+        assertTrue(v.state.value.canEdit)
+        assertFalse(v.state.value.isAdmin)
+    }
+
+    @Test
+    fun the_owner_is_admin() = runTest {
+        val logs = FakeDailyLogRepository(detail = logDetail())
+        val v = vm(logs, projects = projectRepo(ownerId = 1L), authRepo = auth(userId = 1L))
+        v.load("log-1")
+        advanceUntilIdle()
+
+        assertTrue(v.state.value.isAdmin)
+    }
+
+    @Test
+    fun materials_and_stock_are_exposed_from_the_material_repository() = runTest {
+        val logs = FakeDailyLogRepository(detail = logDetail())
+        val materials = FakeMaterialRepository(
+            materials = listOf(Material("m1", "p1", "Ciment", "sac")),
+            stock = listOf(MaterialStock("m1", "Ciment", "sac", quantityIn = 10.0, quantityOut = 2.0)),
+        )
+        val v = vm(logs, materials = materials)
+        v.load("log-1")
+        advanceUntilIdle()
+
+        assertEquals(listOf("Ciment"), v.state.value.materials.map { it.name })
+        assertEquals(8.0, v.state.value.stock.single().available)
+    }
+
+    @Test
+    fun purchase_and_consumption_lines_are_scoped_to_their_own_entry() = runTest {
+        val purchaseEntry = DailyEntry("e1", "log-1", EntryType.PURCHASE, summary = null)
+        val workEntry = DailyEntry("e2", "log-1", EntryType.WORK, summary = null)
+        val logs = FakeDailyLogRepository(detail = logDetail(entries = listOf(purchaseEntry, workEntry)))
+        val purchaseLines = FakePurchaseLineRepository(lines = listOf(PurchaseLine("pl1", "e1", "m1", 12.0, 3.0, 36.0, null)))
+        val consumptionLines = FakeConsumptionLineRepository(lines = listOf(ConsumptionLine("cl1", "e2", "m1", 4.0)))
+        val v = vm(logs, purchaseLines = purchaseLines, consumptionLines = consumptionLines)
+        v.load("log-1")
+        advanceUntilIdle()
+
+        assertEquals(listOf("pl1"), v.state.value.purchaseLines.map { it.localId })
+        assertEquals(listOf("cl1"), v.state.value.consumptionLines.map { it.localId })
+    }
+
+    // ─── materials referential ───────────────────────────────────────────────
+
+    @Test
+    fun create_material_delegates_to_the_repository_for_the_logs_project() = runTest {
+        val logs = FakeDailyLogRepository(detail = logDetail())
+        val materials = FakeMaterialRepository()
+        val v = vm(logs, materials = materials)
+        v.load("log-1")
+        advanceUntilIdle()
+
+        val created = v.createMaterial("Ciment", "sac")
+
+        assertEquals("createMaterial:p1:Ciment:sac", materials.log.single())
+        assertEquals("p1", created?.projectLocalId)
+    }
+
+    @Test
+    fun create_material_returns_null_before_the_project_is_known() = runTest {
+        val v = vm(FakeDailyLogRepository(detail = null))
+        assertNull(v.createMaterial("Ciment", "sac"))
+    }
+
+    // ─── purchase lines ──────────────────────────────────────────────────────
+
+    @Test
+    fun create_purchase_line_delegates_to_the_repository() = runTest {
+        val logs = FakeDailyLogRepository(detail = logDetail())
+        val purchaseLines = FakePurchaseLineRepository()
+        val v = vm(logs, purchaseLines = purchaseLines)
+        v.load("log-1")
+        advanceUntilIdle()
+
+        v.createPurchaseLine("e1", "m1", 12.0, 3.5, "Quincaillerie")
+
+        assertEquals("createLine:e1:m1:12.0:3.5:Quincaillerie", purchaseLines.log.single())
+    }
+
+    @Test
+    fun update_and_delete_purchase_line_delegate_to_the_repository() = runTest {
+        val logs = FakeDailyLogRepository(detail = logDetail())
+        val purchaseLines = FakePurchaseLineRepository()
+        val v = vm(logs, purchaseLines = purchaseLines)
+        v.load("log-1")
+        advanceUntilIdle()
+
+        v.updatePurchaseLine("pl1", 5.0, 2.0, null)
+        v.deletePurchaseLine("pl1")
+        advanceUntilIdle()
+
+        assertEquals(listOf("updateLine:pl1:5.0:2.0:null", "deleteLine:pl1"), purchaseLines.log)
+    }
+
+    // ─── consumption lines (stock-limited) ───────────────────────────────────
+
+    @Test
+    fun create_consumption_line_within_stock_succeeds() = runTest {
+        val logs = FakeDailyLogRepository(detail = logDetail())
+        val materials = FakeMaterialRepository(stock = listOf(MaterialStock("m1", "Ciment", "sac", quantityIn = 10.0, quantityOut = 0.0)))
+        val consumptionLines = FakeConsumptionLineRepository()
+        val v = vm(logs, materials = materials, consumptionLines = consumptionLines)
+        v.load("log-1")
+        advanceUntilIdle()
+
+        val ok = v.createConsumptionLine("e2", "m1", 4.0)
+
+        assertTrue(ok)
+        assertEquals("createLine:e2:m1:4.0", consumptionLines.log.single())
+    }
+
+    @Test
+    fun create_consumption_line_exceeding_stock_is_blocked_and_writes_nothing() = runTest {
+        val logs = FakeDailyLogRepository(detail = logDetail())
+        val materials = FakeMaterialRepository(stock = listOf(MaterialStock("m1", "Ciment", "sac", quantityIn = 10.0, quantityOut = 0.0)))
+        val consumptionLines = FakeConsumptionLineRepository()
+        val v = vm(logs, materials = materials, consumptionLines = consumptionLines)
+        v.load("log-1")
+        advanceUntilIdle()
+
+        val ok = v.createConsumptionLine("e2", "m1", 11.0)
+
+        assertFalse(ok)
+        assertTrue(consumptionLines.log.isEmpty())
+    }
+
+    @Test
+    fun update_consumption_line_gives_back_its_own_quantity_before_checking_the_ceiling() = runTest {
+        val workEntry = DailyEntry("e2", "log-1", EntryType.WORK, summary = null)
+        val logs = FakeDailyLogRepository(detail = logDetail(entries = listOf(workEntry)))
+        // 10 available after this line's own 5 units are already subtracted (quantityOut includes it).
+        val materials = FakeMaterialRepository(stock = listOf(MaterialStock("m1", "Ciment", "sac", quantityIn = 20.0, quantityOut = 10.0)))
+        val consumptionLines = FakeConsumptionLineRepository(lines = listOf(ConsumptionLine("cl1", "e2", "m1", 5.0)))
+        val v = vm(logs, materials = materials, consumptionLines = consumptionLines)
+        v.load("log-1")
+        advanceUntilIdle()
+
+        // Ceiling = available (10) + this line's own quantity (5) = 15.
+        val ok = v.updateConsumptionLine("cl1", "m1", 15.0)
+
+        assertTrue(ok)
+        assertEquals("updateLine:cl1:15.0", consumptionLines.log.single())
+    }
+
+    @Test
+    fun update_consumption_line_beyond_its_ceiling_is_blocked() = runTest {
+        val workEntry = DailyEntry("e2", "log-1", EntryType.WORK, summary = null)
+        val logs = FakeDailyLogRepository(detail = logDetail(entries = listOf(workEntry)))
+        val materials = FakeMaterialRepository(stock = listOf(MaterialStock("m1", "Ciment", "sac", quantityIn = 20.0, quantityOut = 10.0)))
+        val consumptionLines = FakeConsumptionLineRepository(lines = listOf(ConsumptionLine("cl1", "e2", "m1", 5.0)))
+        val v = vm(logs, materials = materials, consumptionLines = consumptionLines)
+        v.load("log-1")
+        advanceUntilIdle()
+
+        val ok = v.updateConsumptionLine("cl1", "m1", 15.1)
+
+        assertFalse(ok)
+        assertTrue(consumptionLines.log.isEmpty())
+    }
+
+    @Test
+    fun delete_consumption_line_delegates_to_the_repository() = runTest {
+        val logs = FakeDailyLogRepository(detail = logDetail())
+        val consumptionLines = FakeConsumptionLineRepository()
+        val v = vm(logs, consumptionLines = consumptionLines)
+        v.load("log-1")
+        advanceUntilIdle()
+
+        v.deleteConsumptionLine("cl1")
+        advanceUntilIdle()
+
+        assertEquals(listOf("deleteLine:cl1"), consumptionLines.log)
     }
 }

@@ -133,3 +133,100 @@ data class DailyEntryEntity(
     val remoteUpdatedAt: Long?,
     val lastSyncError: String?,
 )
+
+// Referential, scoped to the project (not the stage) — "le ciment restant des
+// fondations sert forcément à l'élévation". Never deleted by the backend
+// (PATCH only, to rename/change the unit), so pendingOp never reaches DELETE
+// here in practice, even though the column is the shared enum.
+@Entity(
+    tableName = "materials",
+    foreignKeys = [
+        ForeignKey(
+            entity = ProjectEntity::class,
+            parentColumns = ["localId"],
+            childColumns = ["projectLocalId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+    ],
+    indices = [Index("projectLocalId"), Index(value = ["projectLocalId", "name"], unique = true)],
+)
+data class MaterialEntity(
+    @PrimaryKey val localId: String,
+    val serverId: Long?,
+    val projectLocalId: String,
+    val name: String,
+    val unit: String,
+    val syncStatus: SyncStatus,
+    val pendingOp: PendingOp,
+    val locallyModifiedAt: Long,
+    val lastSyncedAt: Long?,
+    val remoteUpdatedAt: Long?,
+    val lastSyncError: String?,
+)
+
+@Entity(
+    tableName = "purchase_lines",
+    foreignKeys = [
+        ForeignKey(
+            entity = DailyEntryEntity::class,
+            parentColumns = ["localId"],
+            childColumns = ["entryLocalId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+        ForeignKey(
+            entity = MaterialEntity::class,
+            parentColumns = ["localId"],
+            childColumns = ["materialLocalId"],
+        ),
+    ],
+    indices = [Index("entryLocalId"), Index("materialLocalId")],
+)
+data class PurchaseLineEntity(
+    @PrimaryKey val localId: String,
+    val serverId: Long?,
+    val entryLocalId: String,
+    val materialLocalId: String,
+    val quantity: Double,
+    val unitPrice: Double,
+    val totalPrice: Double,
+    val supplier: String?,
+    val createdAt: String?,
+    val syncStatus: SyncStatus,
+    val pendingOp: PendingOp,
+    val locallyModifiedAt: Long,
+    val lastSyncedAt: Long?,
+    val remoteUpdatedAt: Long?,
+    val lastSyncError: String?,
+)
+
+@Entity(
+    tableName = "consumption_lines",
+    foreignKeys = [
+        ForeignKey(
+            entity = DailyEntryEntity::class,
+            parentColumns = ["localId"],
+            childColumns = ["entryLocalId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+        ForeignKey(
+            entity = MaterialEntity::class,
+            parentColumns = ["localId"],
+            childColumns = ["materialLocalId"],
+        ),
+    ],
+    indices = [Index("entryLocalId"), Index("materialLocalId")],
+)
+data class ConsumptionLineEntity(
+    @PrimaryKey val localId: String,
+    val serverId: Long?,
+    val entryLocalId: String,
+    val materialLocalId: String,
+    val quantity: Double,
+    val createdAt: String?,
+    val syncStatus: SyncStatus,
+    val pendingOp: PendingOp,
+    val locallyModifiedAt: Long,
+    val lastSyncedAt: Long?,
+    val remoteUpdatedAt: Long?,
+    val lastSyncError: String?,
+)

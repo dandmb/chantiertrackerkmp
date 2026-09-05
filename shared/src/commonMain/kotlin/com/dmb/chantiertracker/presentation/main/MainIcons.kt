@@ -84,6 +84,11 @@ val ConstructionIcon: ImageVector = icon(
         "1.9 4.6,2.4 6.9,1.5l9.1,9.1c0.4,0.4 1,0.4 1.4,0l2.3,-2.3c0.5,-0.4 0.5,-1.1 0.1,-1.4z",
 )
 
+val DeleteIcon: ImageVector = icon(
+    "Delete",
+    "M6,19c0,1.1 0.9,2 2,2h8c1.1,0 2,-0.9 2,-2L18,7L6,7v12zM19,4h-3.5l-1,-1h-5l-1,1H5v2h14V4z",
+)
+
 val CalendarIcon: ImageVector = icon(
     "Event",
     "M17,12h-5v5h5v-5zM16,1v2L8,3L8,1L6,1v2L5,3c-1.11,0 -1.99,0.9 -1.99,2L3,19c0,1.1 0.89,2 2,2h14c1.1,0 " +

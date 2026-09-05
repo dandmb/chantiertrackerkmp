@@ -8,6 +8,9 @@
     <string name="action_back">Back</string>
     <string name="action_ok">OK</string>
     <string name="action_cancel">Cancel</string>
+    <string name="action_save">Save</string>
+    <string name="action_create">Create</string>
+    <string name="action_delete">Delete</string>
     <string name="field_email_label">Email</string>
     <string name="field_name_label">Name</string>
     <string name="field_password_label">Password</string>
@@ -158,9 +161,44 @@
     <string name="entry_title_label">Work title</string>
     <string name="entry_summary_required_work">Title is required.</string>
 
+    <string name="purchase_lines_title">Purchased items</string>
+    <string name="purchase_line_add">Add an item</string>
+    <string name="purchase_lines_empty">No item yet.</string>
+    <string name="purchase_line_add_title">Add an item</string>
+    <string name="purchase_line_edit_title">Edit item</string>
+
+    <string name="consumption_lines_title">Consumed materials</string>
+    <string name="consumption_line_add">Add a consumed material</string>
+    <string name="consumption_lines_empty">No consumed material yet.</string>
+    <string name="consumption_line_add_title">Add a consumed material</string>
+    <string name="consumption_line_edit_title">Edit consumed material</string>
+
+    <string name="material_label">Material</string>
+    <string name="material_name_label">Name</string>
+    <string name="material_unit_label">Unit</string>
+    <string name="material_unit_hint">sac, barre, m3, unit…</string>
+    <string name="material_new_title">New material</string>
+    <string name="material_new_option">Create "%1$s"</string>
+
+    <string name="quantity_label">Quantity</string>
+    <string name="unit_price_label">Unit price</string>
+    <string name="supplier_label">Supplier (optional)</string>
+    <string name="total_price_label">Total price: %1$s</string>
+    <string name="per_unit_suffix">/ unit</string>
+
+    <string name="stock_available">Available: %1$s %2$s</string>
+    <string name="stock_none_available">No material available in stock</string>
+    <string name="stock_already_used">already added, edit the existing line</string>
+
     <string name="validation_date_format">Use the format YYYY-MM-DD.</string>
     <string name="validation_amount_invalid">Enter a valid amount.</string>
     <string name="validation_end_before_start">The end date can't be before the start date.</string>
+    <string name="validation_material_required">Select a material.</string>
+    <string name="validation_quantity_required">Quantity is required.</string>
+    <string name="validation_quantity_positive">Quantity must be greater than 0.</string>
+    <string name="validation_unit_price_required">Unit price is required.</string>
+    <string name="validation_unit_price_not_negative">Price must not be negative.</string>
+    <string name="validation_stock_exceeded">Not enough stock: %1$s available</string>
 
     <string name="settings_language">Language</string>
     <string name="settings_theme">Theme</string>

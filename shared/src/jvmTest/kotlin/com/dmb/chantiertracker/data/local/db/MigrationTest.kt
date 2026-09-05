@@ -4,6 +4,7 @@ import androidx.room.Room
 import androidx.sqlite.driver.bundled.BundledSQLiteDriver
 import androidx.sqlite.execSQL
 import com.dmb.chantiertracker.support.verifyDailyLogDaoContract
+import com.dmb.chantiertracker.support.verifyMaterialAndLineDaoContract
 import com.dmb.chantiertracker.support.verifyPlanUsageDaoContract
 import com.dmb.chantiertracker.support.verifyStageDaoContract
 import kotlinx.coroutines.flow.first
@@ -180,6 +181,94 @@ class MigrationTest {
         val fresh = Room.inMemoryDatabaseBuilder<AppDatabase>().buildChantierDatabase()
         try {
             verifyDailyLogDaoContract(fresh)
+        } finally {
+            fresh.close()
+        }
+    }
+
+    /** Seeds a v4 database by hand, then opens [AppDatabase] (v5) and lets MIGRATION_4_5 run. */
+    @Test
+    fun migrating_from_v4_adds_materials_and_lines_and_keeps_existing_data() = runTest {
+        val v4Path = dir.resolve("migration-v4.db").absolutePathString()
+        BundledSQLiteDriver().open(v4Path).use { c ->
+            c.execSQL(
+                "CREATE TABLE IF NOT EXISTS `projects` (`localId` TEXT NOT NULL, `serverId` INTEGER, " +
+                    "`name` TEXT NOT NULL, `description` TEXT, `location` TEXT, `currency` TEXT NOT NULL, " +
+                    "`timezone` TEXT NOT NULL, `status` TEXT NOT NULL, `ownerId` INTEGER, `createdAt` TEXT, " +
+                    "`syncStatus` TEXT NOT NULL, `pendingOp` TEXT NOT NULL, `locallyModifiedAt` INTEGER NOT NULL, " +
+                    "`lastSyncedAt` INTEGER, `remoteUpdatedAt` INTEGER, `lastSyncError` TEXT, PRIMARY KEY(`localId`))",
+            )
+            c.execSQL(
+                "CREATE TABLE IF NOT EXISTS `project_members` (`projectLocalId` TEXT NOT NULL, `userId` INTEGER NOT NULL, " +
+                    "`name` TEXT NOT NULL, `email` TEXT NOT NULL, `role` TEXT NOT NULL, PRIMARY KEY(`projectLocalId`, `userId`))",
+            )
+            c.execSQL(
+                "CREATE TABLE IF NOT EXISTS `stages` (`localId` TEXT NOT NULL, `serverId` INTEGER, " +
+                    "`projectLocalId` TEXT NOT NULL, `name` TEXT NOT NULL, `description` TEXT, `estimatedBudget` REAL, " +
+                    "`startDate` TEXT, `endDate` TEXT, `status` TEXT NOT NULL, `syncStatus` TEXT NOT NULL, " +
+                    "`pendingOp` TEXT NOT NULL, `locallyModifiedAt` INTEGER NOT NULL, `lastSyncedAt` INTEGER, " +
+                    "`remoteUpdatedAt` INTEGER, `lastSyncError` TEXT, PRIMARY KEY(`localId`), " +
+                    "FOREIGN KEY(`projectLocalId`) REFERENCES `projects`(`localId`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+            )
+            c.execSQL("CREATE INDEX IF NOT EXISTS `index_stages_projectLocalId` ON `stages` (`projectLocalId`)")
+            c.execSQL(
+                "CREATE TABLE IF NOT EXISTS `plan_usage` (`id` INTEGER NOT NULL, `plan` TEXT NOT NULL, " +
+                    "`projectsLimit` INTEGER, `refreshedAt` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+            )
+            c.execSQL(
+                "CREATE TABLE IF NOT EXISTS `daily_logs` (`localId` TEXT NOT NULL, `serverId` INTEGER, " +
+                    "`stageLocalId` TEXT NOT NULL, `date` TEXT NOT NULL, `locallyCreatedAt` INTEGER NOT NULL, " +
+                    "`lastSyncedAt` INTEGER, PRIMARY KEY(`localId`), " +
+                    "FOREIGN KEY(`stageLocalId`) REFERENCES `stages`(`localId`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+            )
+            c.execSQL("CREATE INDEX IF NOT EXISTS `index_daily_logs_stageLocalId` ON `daily_logs` (`stageLocalId`)")
+            c.execSQL(
+                "CREATE UNIQUE INDEX IF NOT EXISTS `index_daily_logs_stageLocalId_date` ON `daily_logs` (`stageLocalId`, `date`)",
+            )
+            c.execSQL(
+                "CREATE TABLE IF NOT EXISTS `daily_entries` (`localId` TEXT NOT NULL, `serverId` INTEGER, " +
+                    "`dailyLogLocalId` TEXT NOT NULL, `type` TEXT NOT NULL, `summary` TEXT, `createdById` INTEGER, " +
+                    "`createdAt` TEXT, `modifiedById` INTEGER, `modifiedAt` TEXT, `syncStatus` TEXT NOT NULL, " +
+                    "`pendingOp` TEXT NOT NULL, `locallyModifiedAt` INTEGER NOT NULL, `lastSyncedAt` INTEGER, " +
+                    "`remoteUpdatedAt` INTEGER, `lastSyncError` TEXT, PRIMARY KEY(`localId`), " +
+                    "FOREIGN KEY(`dailyLogLocalId`) REFERENCES `daily_logs`(`localId`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+            )
+            c.execSQL("CREATE INDEX IF NOT EXISTS `index_daily_entries_dailyLogLocalId` ON `daily_entries` (`dailyLogLocalId`)")
+            c.execSQL(
+                "CREATE UNIQUE INDEX IF NOT EXISTS `index_daily_entries_dailyLogLocalId_type` ON `daily_entries` (`dailyLogLocalId`, `type`)",
+            )
+            c.execSQL("CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)")
+            c.execSQL(
+                "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '3dbcf5ee0ef8fc8cf90271225eb348a2')",
+            )
+            c.execSQL("PRAGMA user_version = 4")
+            c.execSQL(
+                "INSERT INTO projects (localId, serverId, name, description, location, currency, timezone, status, " +
+                    "ownerId, createdAt, syncStatus, pendingOp, locallyModifiedAt, lastSyncedAt, remoteUpdatedAt, lastSyncError) " +
+                    "VALUES ('p-v4', 11, 'Chantier v4', NULL, NULL, 'EUR', 'Europe/Paris', 'IN_PROGRESS', 1, NULL, " +
+                    "'SYNCED', 'NONE', 1000, NULL, NULL, NULL)",
+            )
+            c.execSQL(
+                "INSERT INTO stages (localId, serverId, projectLocalId, name, description, estimatedBudget, startDate, " +
+                    "endDate, status, syncStatus, pendingOp, locallyModifiedAt, lastSyncedAt, remoteUpdatedAt, lastSyncError) " +
+                    "VALUES ('s-v4', 6, 'p-v4', 'Gros œuvre', NULL, NULL, NULL, NULL, 'IN_PROGRESS', " +
+                    "'SYNCED', 'NONE', 1000, NULL, NULL, NULL)",
+            )
+        }
+
+        val db = Room.databaseBuilder<AppDatabase>(name = v4Path).buildChantierDatabase()
+        try {
+            assertEquals("Chantier v4", db.projectDao().findByLocalId("p-v4")?.name, "v4 projects survive")
+            assertEquals("Gros œuvre", db.stageDao().findByLocalId("s-v4")?.name, "v4 stages survive")
+            assertEquals(emptyList(), db.materialDao().observeMaterialsForProject("p-v4").first(), "the new materials table is usable and empty")
+        } finally {
+            db.close()
+        }
+
+        // The migrated schema behaves exactly like a freshly built v5 one.
+        val fresh = Room.inMemoryDatabaseBuilder<AppDatabase>().buildChantierDatabase()
+        try {
+            verifyMaterialAndLineDaoContract(fresh)
         } finally {
             fresh.close()
         }

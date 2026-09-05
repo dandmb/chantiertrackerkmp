@@ -198,6 +198,57 @@ suspend fun verifyDailyLogDaoContract(db: AppDatabase) {
     assertEquals(listOf("log-other"), logDao.observeLogsForStage("stage-b").first().map { it.localId })
 }
 
+/**
+ * Shared checks for [com.dmb.chantiertracker.data.local.db.MaterialDao],
+ * [com.dmb.chantiertracker.data.local.db.PurchaseLineDao] and
+ * [com.dmb.chantiertracker.data.local.db.ConsumptionLineDao] on a real
+ * [AppDatabase] — in particular the join chain (line → entry → log → stage →
+ * project) that `observeLinesForProject` relies on for stock (ADR-28).
+ */
+suspend fun verifyMaterialAndLineDaoContract(db: AppDatabase) {
+    val projectDao = db.projectDao()
+    val stageDao = db.stageDao()
+    val logDao = db.dailyLogDao()
+    val entryDao = db.dailyEntryDao()
+    val materialDao = db.materialDao()
+    val purchaseDao = db.purchaseLineDao()
+    val consumptionDao = db.consumptionLineDao()
+
+    projectDao.upsert(sample("proj-a", serverId = 1L, op = PendingOp.NONE))
+    projectDao.upsert(sample("proj-b", serverId = 2L, op = PendingOp.NONE))
+    stageDao.upsert(sampleStage("stage-a", "proj-a"))
+    logDao.upsert(DailyLogEntity("log-a", null, "stage-a", "2026-09-05", 1_000L, null))
+    entryDao.upsert(localDailyEntry("entry-purchase", dailyLogLocalId = "log-a", type = "PURCHASE", pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+    entryDao.upsert(localDailyEntry("entry-work", dailyLogLocalId = "log-a", type = "WORK", pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+
+    materialDao.upsert(localMaterial("m-ciment", projectLocalId = "proj-a", name = "Ciment", unit = "sac"))
+    materialDao.upsert(localMaterial("m-fer", projectLocalId = "proj-a", name = "Fer", unit = "barre"))
+    materialDao.upsert(localMaterial("m-other", projectLocalId = "proj-b", name = "Ciment", unit = "sac"))
+
+    assertEquals(listOf("Ciment", "Fer"), materialDao.observeMaterialsForProject("proj-a").first().map { it.name })
+    assertEquals("m-ciment", materialDao.findByProjectAndName("proj-a", "ciment")?.localId, "name lookup is case-insensitive")
+    assertNull(materialDao.findByProjectAndName("proj-a", "Ciment introuvable"))
+
+    purchaseDao.upsert(localPurchaseLine("pl-in-scope", entryLocalId = "entry-purchase", materialLocalId = "m-ciment", quantity = 100.0, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+    purchaseDao.upsert(localPurchaseLine("pl-deleted", entryLocalId = "entry-purchase", materialLocalId = "m-ciment", quantity = 999.0, pendingOp = PendingOp.DELETE))
+    consumptionDao.upsert(localConsumptionLine("cl-in-scope", entryLocalId = "entry-work", materialLocalId = "m-ciment", quantity = 40.0, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+
+    assertEquals(listOf("pl-in-scope"), purchaseDao.observeLinesForEntry("entry-purchase").first().map { it.localId }, "pending delete hidden")
+    assertEquals(
+        listOf("pl-in-scope"),
+        purchaseDao.observeLinesForProject("proj-a").first().map { it.localId },
+        "the join resolves through daily_entries/daily_logs/stages to the project",
+    )
+    assertTrue(purchaseDao.observeLinesForProject("proj-b").first().isEmpty(), "a line on proj-a never leaks into proj-b's stock")
+    assertEquals(listOf("cl-in-scope"), consumptionDao.observeLinesForProject("proj-a").first().map { it.localId })
+    assertEquals(listOf("pl-deleted"), purchaseDao.findPending().map { it.localId })
+
+    // Deleting the parent entry cascades to its lines; the material itself is untouched.
+    entryDao.deleteByLocalId("entry-purchase")
+    assertTrue("purchase lines cascade-deleted with their entry") { purchaseDao.observeLinesForProject("proj-a").first().isEmpty() }
+    assertEquals("Ciment", materialDao.findByLocalId("m-ciment")?.name, "materials are never cascade-deleted")
+}
+
 /** Shared checks for [com.dmb.chantiertracker.data.local.db.PlanUsageDao] on a real [AppDatabase]. */
 suspend fun verifyPlanUsageDaoContract(db: AppDatabase) {
     val dao = db.planUsageDao()

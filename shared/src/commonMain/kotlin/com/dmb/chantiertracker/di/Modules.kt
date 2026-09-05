@@ -4,10 +4,13 @@ import com.dmb.chantiertracker.core.AppConfig
 import com.dmb.chantiertracker.data.AuthStateHolder
 import com.dmb.chantiertracker.data.local.TokenStorage
 import com.dmb.chantiertracker.data.local.db.AppDatabase
+import com.dmb.chantiertracker.data.local.db.ConsumptionLineDao
 import com.dmb.chantiertracker.data.local.db.DailyEntryDao
 import com.dmb.chantiertracker.data.local.db.DailyLogDao
+import com.dmb.chantiertracker.data.local.db.MaterialDao
 import com.dmb.chantiertracker.data.local.db.PlanUsageDao
 import com.dmb.chantiertracker.data.local.db.ProjectDao
+import com.dmb.chantiertracker.data.local.db.PurchaseLineDao
 import com.dmb.chantiertracker.data.local.db.StageDao
 import com.dmb.chantiertracker.data.local.db.buildChantierDatabase
 import androidx.room.RoomDatabase
@@ -24,14 +27,20 @@ import com.dmb.chantiertracker.data.sync.backgroundSyncModule
 import com.dmb.chantiertracker.presentation.sync.SyncStateHolder
 import com.dmb.chantiertracker.data.repository.AccountRepositoryImpl
 import com.dmb.chantiertracker.data.repository.AuthRepositoryImpl
+import com.dmb.chantiertracker.data.repository.ConsumptionLineRepositoryImpl
 import com.dmb.chantiertracker.data.repository.DailyLogRepositoryImpl
+import com.dmb.chantiertracker.data.repository.MaterialRepositoryImpl
 import com.dmb.chantiertracker.data.repository.ProjectRepositoryImpl
+import com.dmb.chantiertracker.data.repository.PurchaseLineRepositoryImpl
 import com.dmb.chantiertracker.data.repository.StageRepositoryImpl
 import com.dmb.chantiertracker.domain.model.AuthState
 import com.dmb.chantiertracker.domain.repository.AccountRepository
 import com.dmb.chantiertracker.domain.repository.AuthRepository
+import com.dmb.chantiertracker.domain.repository.ConsumptionLineRepository
 import com.dmb.chantiertracker.domain.repository.DailyLogRepository
+import com.dmb.chantiertracker.domain.repository.MaterialRepository
 import com.dmb.chantiertracker.domain.repository.ProjectRepository
+import com.dmb.chantiertracker.domain.repository.PurchaseLineRepository
 import com.dmb.chantiertracker.domain.repository.StageRepository
 import com.dmb.chantiertracker.presentation.auth.forgot.ForgotPasswordViewModel
 import com.dmb.chantiertracker.presentation.auth.login.LoginViewModel
@@ -82,6 +91,9 @@ val syncModule: Module = module {
     single<PlanUsageDao> { get<AppDatabase>().planUsageDao() }
     single<DailyLogDao> { get<AppDatabase>().dailyLogDao() }
     single<DailyEntryDao> { get<AppDatabase>().dailyEntryDao() }
+    single<MaterialDao> { get<AppDatabase>().materialDao() }
+    single<PurchaseLineDao> { get<AppDatabase>().purchaseLineDao() }
+    single<ConsumptionLineDao> { get<AppDatabase>().consumptionLineDao() }
     single { AppCoroutineScope() }
     single { SyncStateHolder() }
     single {
@@ -105,6 +117,9 @@ val dataModule: Module = module {
     single<StageRepository> { StageRepositoryImpl(get(), get(), get<AppCoroutineScope>()) }
     single<AccountRepository> { AccountRepositoryImpl(get(), get()) }
     single<DailyLogRepository> { DailyLogRepositoryImpl(get(), get(), get(), get<AppCoroutineScope>()) }
+    single<MaterialRepository> { MaterialRepositoryImpl(get(), get(), get(), get(), get<AppCoroutineScope>()) }
+    single<PurchaseLineRepository> { PurchaseLineRepositoryImpl(get(), get(), get<AppCoroutineScope>()) }
+    single<ConsumptionLineRepository> { ConsumptionLineRepositoryImpl(get(), get(), get<AppCoroutineScope>()) }
 }
 
 val presentationModule: Module = module {

@@ -280,6 +280,79 @@ class FakeDailyLogRepository(
     }
 }
 
+class FakeMaterialRepository(
+    materials: List<com.dmb.chantiertracker.domain.model.Material> = emptyList(),
+    stock: List<com.dmb.chantiertracker.domain.model.MaterialStock> = emptyList(),
+) : com.dmb.chantiertracker.domain.repository.MaterialRepository {
+
+    val materialsFlow = MutableStateFlow(materials)
+    val stockFlow = MutableStateFlow(stock)
+    val log = mutableListOf<String>()
+
+    /** Material returned by [createMaterial]; defaults to echoing the requested name/unit under a fixed id. */
+    var createdMaterial: ((projectLocalId: String, name: String, unit: String) -> com.dmb.chantiertracker.domain.model.Material)? = null
+
+    override fun observeMaterials(projectLocalId: String) = materialsFlow
+
+    override fun observeStock(projectLocalId: String) = stockFlow
+
+    override suspend fun createMaterial(projectLocalId: String, name: String, unit: String): com.dmb.chantiertracker.domain.model.Material {
+        log += "createMaterial:$projectLocalId:$name:$unit"
+        val material = createdMaterial?.invoke(projectLocalId, name, unit)
+            ?: com.dmb.chantiertracker.domain.model.Material("material-new", projectLocalId, name, unit)
+        materialsFlow.value = materialsFlow.value + material
+        return material
+    }
+}
+
+class FakePurchaseLineRepository(
+    lines: List<com.dmb.chantiertracker.domain.model.PurchaseLine> = emptyList(),
+) : com.dmb.chantiertracker.domain.repository.PurchaseLineRepository {
+
+    val linesFlow = MutableStateFlow(lines)
+    val log = mutableListOf<String>()
+    var newLocalId = "purchase-line-new"
+
+    override fun observeLines(entryLocalId: String) = linesFlow
+
+    override suspend fun createLine(entryLocalId: String, input: com.dmb.chantiertracker.domain.model.CreatePurchaseLineInput): String {
+        log += "createLine:$entryLocalId:${input.materialLocalId}:${input.quantity}:${input.unitPrice}:${input.supplier}"
+        return newLocalId
+    }
+
+    override suspend fun updateLine(lineLocalId: String, input: com.dmb.chantiertracker.domain.model.UpdatePurchaseLineInput) {
+        log += "updateLine:$lineLocalId:${input.quantity}:${input.unitPrice}:${input.supplier}"
+    }
+
+    override suspend fun deleteLine(lineLocalId: String) {
+        log += "deleteLine:$lineLocalId"
+    }
+}
+
+class FakeConsumptionLineRepository(
+    lines: List<com.dmb.chantiertracker.domain.model.ConsumptionLine> = emptyList(),
+) : com.dmb.chantiertracker.domain.repository.ConsumptionLineRepository {
+
+    val linesFlow = MutableStateFlow(lines)
+    val log = mutableListOf<String>()
+    var newLocalId = "consumption-line-new"
+
+    override fun observeLines(entryLocalId: String) = linesFlow
+
+    override suspend fun createLine(entryLocalId: String, input: com.dmb.chantiertracker.domain.model.CreateConsumptionLineInput): String {
+        log += "createLine:$entryLocalId:${input.materialLocalId}:${input.quantity}"
+        return newLocalId
+    }
+
+    override suspend fun updateLine(lineLocalId: String, input: com.dmb.chantiertracker.domain.model.UpdateConsumptionLineInput) {
+        log += "updateLine:$lineLocalId:${input.quantity}"
+    }
+
+    override suspend fun deleteLine(lineLocalId: String) {
+        log += "deleteLine:$lineLocalId"
+    }
+}
+
 class FakeAccountRepository(
     planUsage: com.dmb.chantiertracker.domain.model.PlanUsage? = null,
 ) : AccountRepository {
