@@ -30,6 +30,10 @@ import androidx.compose.ui.test.runComposeUiTest
 import androidx.compose.ui.unit.dp
 import com.dmb.chantiertracker.core.AppConfig
 import com.dmb.chantiertracker.domain.model.AuthState
+import com.dmb.chantiertracker.domain.model.DailyEntry
+import com.dmb.chantiertracker.domain.model.DailyLog
+import com.dmb.chantiertracker.domain.model.DailyLogDetail
+import com.dmb.chantiertracker.domain.model.EntryType
 import com.dmb.chantiertracker.domain.model.GlobalRole
 import com.dmb.chantiertracker.domain.model.Plan
 import com.dmb.chantiertracker.domain.model.PlanUsage
@@ -64,13 +68,20 @@ import com.dmb.chantiertracker.presentation.settings.SettingsScreen
 import com.dmb.chantiertracker.presentation.settings.SettingsViewModel
 import com.dmb.chantiertracker.presentation.stages.create.CreateStageScreen
 import com.dmb.chantiertracker.presentation.stages.create.CreateStageViewModel
+import com.dmb.chantiertracker.presentation.logs.DailyLogScreen
+import com.dmb.chantiertracker.presentation.logs.DailyLogViewModel
 import com.dmb.chantiertracker.presentation.stages.detail.StageDetailScreen
 import com.dmb.chantiertracker.presentation.stages.detail.StageDetailViewModel
 import com.dmb.chantiertracker.presentation.theme.AppTheme
 import com.dmb.chantiertracker.support.FakeAccountRepository
+import com.dmb.chantiertracker.support.FakeAttachmentRepository
 import com.dmb.chantiertracker.support.FakeAuthRepository
 import com.dmb.chantiertracker.support.FakeBuildInfo
+import com.dmb.chantiertracker.support.FakeConsumptionLineRepository
+import com.dmb.chantiertracker.support.FakeDailyLogRepository
+import com.dmb.chantiertracker.support.FakeMaterialRepository
 import com.dmb.chantiertracker.support.FakeProjectRepository
+import com.dmb.chantiertracker.support.FakePurchaseLineRepository
 import com.dmb.chantiertracker.support.FakeStageRepository
 import com.dmb.chantiertracker.support.installTestMainDispatcher
 import kotlinx.datetime.LocalDate
@@ -266,7 +277,110 @@ class MainScreensSnapshotTest {
                 currency = "EUR", timezone = "Europe/Paris", status = ProjectStatus.IN_PROGRESS, ownerId = 1L,
             ),
         )
-        return StageDetailViewModel(repo, projectRepo).also { it.load("s1") }
+        val auth = FakeAuthRepository().apply { emitState(AuthState.Authenticated(User(1, "jean@chantier.dev", "Jean Marchand", true, GlobalRole.USER))) }
+        val logs = FakeDailyLogRepository(
+            logs = listOf(
+                DailyLog("log-1", "s1", "2026-09-04", hasPurchase = true, hasWork = true),
+                DailyLog("log-2", "s1", "2026-09-03", hasPurchase = true, hasWork = false),
+            ),
+        )
+        return StageDetailViewModel(repo, projectRepo, logs, auth).also { it.load("s1") }
+    }
+
+    private fun dailyLogVm(): DailyLogViewModel {
+        val stageRepo = FakeStageRepository(
+            detail = StageDetail(
+                localId = "s1", projectLocalId = "1", name = "Gros œuvre", description = null,
+                estimatedBudget = 18000.0, startDate = "2026-02-01", endDate = "2026-05-15",
+                status = StageStatus.IN_PROGRESS,
+            ),
+        )
+        val projectRepo = FakeProjectRepository(
+            detail = ProjectDetail(
+                localId = "1", name = "Villa Vidal", description = null, location = "Nîmes",
+                currency = "EUR", timezone = "Europe/Paris", status = ProjectStatus.IN_PROGRESS, ownerId = 1L,
+            ),
+        )
+        val auth = FakeAuthRepository().apply { emitState(AuthState.Authenticated(User(1, "jean@chantier.dev", "Jean Marchand", true, GlobalRole.USER))) }
+        val logs = FakeDailyLogRepository(
+            detail = DailyLogDetail(
+                localId = "log-1", stageLocalId = "s1", date = "2026-09-04",
+                entries = listOf(
+                    DailyEntry("e1", "log-1", EntryType.PURCHASE, summary = "12 sacs de ciment livrés"),
+                    DailyEntry("e2", "log-1", EntryType.WORK, summary = "Coulage de la dalle"),
+                ),
+            ),
+        )
+        val ciment = com.dmb.chantiertracker.domain.model.Material("m1", "1", "Ciment", "sac")
+        val fer = com.dmb.chantiertracker.domain.model.Material("m2", "1", "Fer", "barre")
+        val materials = FakeMaterialRepository(
+            materials = listOf(ciment, fer),
+            stock = listOf(
+                com.dmb.chantiertracker.domain.model.MaterialStock("m1", "Ciment", "sac", quantityIn = 12.0, quantityOut = 4.0),
+                com.dmb.chantiertracker.domain.model.MaterialStock("m2", "Fer", "barre", quantityIn = 0.0, quantityOut = 0.0),
+            ),
+        )
+        val purchaseLines = FakePurchaseLineRepository(
+            lines = listOf(
+                com.dmb.chantiertracker.domain.model.PurchaseLine("pl1", "e1", "m1", quantity = 12.0, unitPrice = 3.5, totalPrice = 42.0, supplier = "Quincaillerie du Port"),
+            ),
+        )
+        val consumptionLines = FakeConsumptionLineRepository(
+            lines = listOf(com.dmb.chantiertracker.domain.model.ConsumptionLine("cl1", "e2", "m1", quantity = 4.0)),
+        )
+        val attachments = FakeAttachmentRepository(
+            attachments = listOf(
+                com.dmb.chantiertracker.domain.model.Attachment(
+                    localId = "att1", entryLocalId = "e1", localPath = sampleAttachmentPath(),
+                    originalName = "facture-ciment.jpg", mimeType = "image/jpeg", sizeBytes = 2_048L, uploadedAt = 0L,
+                ),
+            ),
+        )
+        return DailyLogViewModel(logs, stageRepo, projectRepo, auth, materials, purchaseLines, consumptionLines, attachments).also { it.load("log-1") }
+    }
+
+    // A real (tiny, solid-color) PNG on disk — the snapshot exercises the actual
+    // decodeToImageBitmap() pipeline instead of falling back to the placeholder,
+    // so it visually confirms a real photo renders, not just the empty-state layout.
+    private fun sampleAttachmentPath(): String {
+        val file = File.createTempFile("snapshot-attachment", ".png").apply { deleteOnExit() }
+        val image = java.awt.image.BufferedImage(64, 64, java.awt.image.BufferedImage.TYPE_INT_RGB)
+        image.createGraphics().apply {
+            color = java.awt.Color(139, 74, 59)
+            fillRect(0, 0, 64, 64)
+            dispose()
+        }
+        ImageIO.write(image, "png", file)
+        return file.absolutePath
+    }
+
+    private fun entrySummaryVm(): com.dmb.chantiertracker.presentation.logs.EntrySummaryViewModel {
+        val repo = FakeDailyLogRepository().apply {
+            entryFlow.value = DailyEntry("e1", "log-1", EntryType.PURCHASE, summary = "12 sacs de ciment livrés")
+        }
+        return com.dmb.chantiertracker.presentation.logs.EntrySummaryViewModel(repo).also { it.load("e1") }
+    }
+
+    private fun purchaseLineFormVm(): com.dmb.chantiertracker.presentation.logs.PurchaseLineFormViewModel {
+        val materials = FakeMaterialRepository(
+            materials = listOf(
+                com.dmb.chantiertracker.domain.model.Material("m1", "1", "Ciment", "sac"),
+                com.dmb.chantiertracker.domain.model.Material("m2", "1", "Fer", "barre"),
+            ),
+        )
+        return com.dmb.chantiertracker.presentation.logs.PurchaseLineFormViewModel(materials, FakePurchaseLineRepository())
+            .also { it.load("e1", "1", null) }
+    }
+
+    private fun consumptionLineFormVm(): com.dmb.chantiertracker.presentation.logs.ConsumptionLineFormViewModel {
+        val materials = FakeMaterialRepository(
+            stock = listOf(
+                com.dmb.chantiertracker.domain.model.MaterialStock("m1", "Ciment", "sac", quantityIn = 12.0, quantityOut = 4.0),
+                com.dmb.chantiertracker.domain.model.MaterialStock("m2", "Fer", "barre", quantityIn = 6.0, quantityOut = 0.0),
+            ),
+        )
+        return com.dmb.chantiertracker.presentation.logs.ConsumptionLineFormViewModel(materials, FakeConsumptionLineRepository())
+            .also { it.load("e2", "1", null); it.selectMaterial("m1"); it.onQuantityChange("4") }
     }
 
     @Test
@@ -339,6 +453,34 @@ class MainScreensSnapshotTest {
                 DetailChrome(
                     title = if (locale == "fr") "Étape" else "Stage",
                 ) { m -> StageDetailScreen(stageLocalId = "s1", modifier = m, viewModel = stageDetailVm(withBudget = false)) }
+            }
+            snapshot("26-daily-log", locale) {
+                DetailChrome(
+                    title = if (locale == "fr") "Journée" else "Day",
+                ) { m -> DailyLogScreen(dailyLogLocalId = "log-1", modifier = m, viewModel = dailyLogVm()) }
+            }
+            snapshot("27-entry-summary", locale) {
+                DetailChrome(title = if (locale == "fr") "Modifier le résumé" else "Edit summary") { m ->
+                    com.dmb.chantiertracker.presentation.logs.EntrySummaryScreen(
+                        entryLocalId = "e1", onSaved = {}, onBack = {}, modifier = m, viewModel = entrySummaryVm(),
+                    )
+                }
+            }
+            snapshot("28-purchase-line-form", locale) {
+                DetailChrome(title = if (locale == "fr") "Ajouter un article" else "Add an item") { m ->
+                    com.dmb.chantiertracker.presentation.logs.PurchaseLineFormScreen(
+                        entryLocalId = "e1", projectLocalId = "1", lineLocalId = null, currency = "EUR",
+                        onSaved = {}, onBack = {}, modifier = m, viewModel = purchaseLineFormVm(),
+                    )
+                }
+            }
+            snapshot("29-consumption-line-form", locale) {
+                DetailChrome(title = if (locale == "fr") "Ajouter un matériau consommé" else "Add a consumed material") { m ->
+                    com.dmb.chantiertracker.presentation.logs.ConsumptionLineFormScreen(
+                        entryLocalId = "e2", projectLocalId = "1", lineLocalId = null,
+                        onSaved = {}, onBack = {}, modifier = m, viewModel = consumptionLineFormVm(),
+                    )
+                }
             }
             snapshot("22-stage-date-picker", locale) {
                 Box(Modifier.padding(16.dp)) { StageDatePickerPreview() }

@@ -8,6 +8,10 @@
     <string name="action_back">Retour</string>
     <string name="action_ok">OK</string>
     <string name="action_cancel">Annuler</string>
+    <string name="action_save">Enregistrer</string>
+    <string name="action_create">Créer</string>
+    <string name="action_delete">Supprimer</string>
+    <string name="action_add">Ajouter</string>
     <string name="field_email_label">Email</string>
     <string name="field_name_label">Nom</string>
     <string name="field_password_label">Mot de passe</string>
@@ -142,9 +146,71 @@
     <string name="value_not_set">Non renseigné</string>
     <string name="stage_detail_section_days">Journées</string>
     <string name="stage_detail_days_empty">Aucune journée enregistrée pour l'instant. Les achats et travaux du jour apparaîtront ici.</string>
+    <string name="stage_detail_days_empty_can_add">Aucune journée enregistrée pour l'instant. Ajoute ta première entrée avec le bouton ci-dessus.</string>
+    <string name="stage_detail_add_entry_today">Ajouter une entrée aujourd'hui</string>
+
+    <string name="daily_log_title">Journée</string>
+    <string name="entry_type_purchase">Achats</string>
+    <string name="entry_type_work">Travaux</string>
+    <string name="entry_none_yet">Aucune entrée pour l'instant.</string>
+    <string name="entry_no_summary">Aucun résumé.</string>
+    <string name="entry_no_title">Aucun titre.</string>
+    <string name="entry_add">Ajouter</string>
+    <string name="entry_edit">Modifier</string>
+    <string name="entry_edit_title">Modifier l'entrée</string>
+    <string name="entry_summary_label">Résumé (optionnel)</string>
+    <string name="entry_title_label">Titre des travaux</string>
+    <string name="entry_summary_edit_title">Modifier le résumé</string>
+    <string name="entry_title_edit_title">Modifier le titre</string>
+    <string name="entry_summary_placeholder">Résumé de la journée</string>
+    <string name="entry_title_placeholder">Décrivez les travaux réalisés</string>
+    <string name="material_query_hint">Rechercher ou créer un matériau</string>
+    <string name="entry_summary_required_work">Le titre est obligatoire.</string>
+
+    <string name="purchase_lines_title">Articles achetés</string>
+    <string name="purchase_line_add">Ajouter un article</string>
+    <string name="purchase_lines_empty">Aucun article pour l'instant.</string>
+    <string name="purchase_line_add_title">Ajouter un article</string>
+    <string name="purchase_line_edit_title">Modifier l'article</string>
+
+    <string name="consumption_lines_title">Matériaux consommés</string>
+    <string name="consumption_line_add">Ajouter un matériau consommé</string>
+    <string name="consumption_lines_empty">Aucun matériau consommé pour l'instant.</string>
+    <string name="consumption_line_add_title">Ajouter un matériau consommé</string>
+    <string name="consumption_line_edit_title">Modifier le matériau consommé</string>
+
+    <string name="attachments_title">Justificatifs</string>
+    <string name="attachment_add">Ajouter une photo</string>
+    <string name="attachments_empty">Aucune photo pour l'instant.</string>
+    <string name="attachment_upload_error">Impossible d'ajouter cette photo.</string>
+    <string name="attachment_delete">Supprimer la photo</string>
+    <string name="attachment_close">Fermer</string>
+
+    <string name="material_label">Matériau</string>
+    <string name="material_name_label">Nom</string>
+    <string name="material_unit_label">Unité</string>
+    <string name="material_unit_hint">sac, barre, m3, unité…</string>
+    <string name="material_new_title">Nouveau matériau</string>
+    <string name="material_new_option">Créer « %1$s »</string>
+
+    <string name="quantity_label">Quantité</string>
+    <string name="unit_price_label">Prix unitaire</string>
+    <string name="supplier_label">Fournisseur (optionnel)</string>
+    <string name="total_price_label">Prix total : %1$s</string>
+    <string name="per_unit_suffix">/ unité</string>
+
+    <string name="stock_available">Disponible : %1$s %2$s</string>
+    <string name="stock_none_available">Aucun matériau disponible en stock</string>
+    <string name="stock_already_used">déjà ajouté, modifie la ligne existante</string>
 
     <string name="validation_date_format">Utilise le format AAAA-MM-JJ.</string>
     <string name="validation_amount_invalid">Saisis un montant valide.</string>
+    <string name="validation_material_required">Sélectionne un matériau.</string>
+    <string name="validation_quantity_required">La quantité est obligatoire.</string>
+    <string name="validation_quantity_positive">La quantité doit être supérieure à 0.</string>
+    <string name="validation_unit_price_required">Le prix unitaire est obligatoire.</string>
+    <string name="validation_unit_price_not_negative">Le prix doit être positif.</string>
+    <string name="validation_stock_exceeded">Stock insuffisant : %1$s disponible(s)</string>
     <string name="validation_end_before_start">La date de fin ne peut pas précéder la date de début.</string>
 
     <string name="settings_language">Langue</string>

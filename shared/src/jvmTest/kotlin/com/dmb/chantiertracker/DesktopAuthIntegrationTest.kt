@@ -67,13 +67,25 @@ class DesktopAuthIntegrationTest {
     private val appScope = AppCoroutineScope()
     private val connectivity = FakeConnectivityObserver(initiallyOnline = true)
     private val syncEngine = SyncEngine(
-        db.projectDao(),
-        ProjectApi(client),
-        db.stageDao(),
-        com.dmb.chantiertracker.data.remote.StageApi(client),
-        connectivity,
-        SyncStateHolder(),
-        appScope,
+        dao = db.projectDao(),
+        api = ProjectApi(client),
+        stageDao = db.stageDao(),
+        stageApi = com.dmb.chantiertracker.data.remote.StageApi(client),
+        materialDao = db.materialDao(),
+        materialApi = com.dmb.chantiertracker.data.remote.MaterialApi(client),
+        dailyLogDao = db.dailyLogDao(),
+        dailyEntryDao = db.dailyEntryDao(),
+        dailyLogApi = com.dmb.chantiertracker.data.remote.DailyLogApi(client),
+        purchaseLineDao = db.purchaseLineDao(),
+        purchaseLineApi = com.dmb.chantiertracker.data.remote.PurchaseLineApi(client),
+        consumptionLineDao = db.consumptionLineDao(),
+        consumptionLineApi = com.dmb.chantiertracker.data.remote.ConsumptionLineApi(client),
+        attachmentDao = db.attachmentDao(),
+        attachmentApi = com.dmb.chantiertracker.data.remote.AttachmentApi(client),
+        attachmentFileStore = com.dmb.chantiertracker.support.FakeAttachmentFileStore(),
+        connectivity = connectivity,
+        syncState = SyncStateHolder(),
+        scope = appScope,
     )
     private val projectRepo = ProjectRepositoryImpl(db.projectDao(), syncEngine, appScope)
 
