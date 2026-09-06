@@ -23,8 +23,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
@@ -128,9 +132,20 @@ private fun IncomingInvitationCard(
         ProjectRole.SUPERVISOR -> stringResource(Res.string.role_supervisor)
         ProjectRole.UNKNOWN -> ""
     }
-    val message = invitation.invitedByName?.let {
-        stringResource(Res.string.incoming_invitation_body_with_inviter, invitation.projectName, roleLabel, it)
-    } ?: stringResource(Res.string.incoming_invitation_body, invitation.projectName, roleLabel)
+    // The project name and the inviter's name stand out (SemiBold) from the sentence.
+    val template = if (invitation.invitedByName != null) {
+        stringResource(Res.string.incoming_invitation_body_with_inviter)
+    } else {
+        stringResource(Res.string.incoming_invitation_body)
+    }
+    val message = formatWithEmphasis(
+        template = template,
+        parts = buildList {
+            add(invitation.projectName to true)
+            add(roleLabel to false)
+            invitation.invitedByName?.let { add(it to true) }
+        },
+    )
 
     Surface(
         color = MaterialTheme.colorScheme.secondaryContainer,
@@ -160,6 +175,27 @@ private fun IncomingInvitationCard(
         }
     }
 }
+
+/**
+ * Fills a `%1$s`/`%2$s`/… template, wrapping the parts flagged `true` in a
+ * SemiBold span. Used instead of `stringResource(res, args)` so the project and
+ * inviter names can stand out inside the sentence, in both languages.
+ */
+internal fun formatWithEmphasis(template: String, parts: List<Pair<String, Boolean>>): AnnotatedString =
+    buildAnnotatedString {
+        var cursor = 0
+        for (match in Regex("%(\\d+)\\\$s").findAll(template)) {
+            append(template.substring(cursor, match.range.first))
+            val (value, emphasised) = parts.getOrElse(match.groupValues[1].toInt() - 1) { "" to false }
+            if (emphasised) {
+                withStyle(SpanStyle(fontWeight = FontWeight.SemiBold)) { append(value) }
+            } else {
+                append(value)
+            }
+            cursor = match.range.last + 1
+        }
+        append(template.substring(cursor))
+    }
 
 @Composable
 private fun EmptyState(modifier: Modifier = Modifier) {
