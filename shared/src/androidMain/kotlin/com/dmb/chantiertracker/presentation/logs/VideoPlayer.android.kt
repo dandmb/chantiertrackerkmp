@@ -11,6 +11,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.MediaItem
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import java.io.File
 
@@ -33,6 +34,9 @@ actual fun VideoPlayer(localPath: String, modifier: Modifier) {
             PlayerView(ctx).apply {
                 this.player = player
                 useController = true
+                // Fill the (full-screen) container, letterboxing the video to
+                // its own aspect ratio — never a fixed strip (ADR-40).
+                resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
             }
         },
     )

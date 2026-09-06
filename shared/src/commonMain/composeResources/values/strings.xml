@@ -206,6 +206,7 @@
     <string name="attachment_add_video">Add a video</string>
     <string name="attachment_video_delete">Delete video</string>
     <string name="video_upload_in_progress">Uploading video…</string>
+    <string name="attachment_finalizing">Finishing up…</string>
     <string name="video_upload_error">Couldn\'t upload this video.</string>
     <string name="video_too_long_upgrade">The video is %1$s long; your plan\'s limit is %2$s. Shorten it or upgrade to a higher tier.</string>
     <string name="video_too_long_no_upgrade">The video is %1$s long; your plan\'s limit is %2$s. Please shorten it.</string>

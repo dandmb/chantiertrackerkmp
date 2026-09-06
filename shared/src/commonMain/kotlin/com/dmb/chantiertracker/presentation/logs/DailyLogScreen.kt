@@ -5,6 +5,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,7 +14,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -38,14 +39,17 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.decodeToImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dmb.chantiertracker.domain.model.Attachment
 import com.dmb.chantiertracker.domain.model.ConsumptionLine
@@ -73,6 +77,7 @@ import com.dmb.chantiertracker.resources.attachment_add
 import com.dmb.chantiertracker.resources.attachment_add_video
 import com.dmb.chantiertracker.resources.attachment_close
 import com.dmb.chantiertracker.resources.attachment_delete
+import com.dmb.chantiertracker.resources.attachment_finalizing
 import com.dmb.chantiertracker.resources.attachment_upload_error
 import com.dmb.chantiertracker.resources.attachment_video_delete
 import com.dmb.chantiertracker.resources.attachments_empty
@@ -408,32 +413,32 @@ private fun AttachmentsSection(
     val attachments = state.attachments
     val canEdit = state.canEdit
     var zoomedAttachment by remember { mutableStateOf<Attachment?>(null) }
-    var photoUploadError by remember { mutableStateOf(false) }
-    var isUploadingPhoto by remember { mutableStateOf(false) }
+    var photoReadError by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
-    val videoProgress = state.videoUploadProgress
-    val busy = isUploadingPhoto || videoProgress != null
+    val upload = state.attachmentUpload
+    val busy = upload != null
 
     val photoPicker = rememberFilePickerLauncher(type = FileKitType.Image) { picked ->
         if (picked == null) return@rememberFilePickerLauncher
+        photoReadError = false
         scope.launch {
-            isUploadingPhoto = true
-            photoUploadError = false
-            runCatching {
-                val mime = runCatching { picked.mimeType() }.getOrNull()
-                val mimeString = mime?.let { "${it.primaryType}/${it.subtype}" } ?: "image/jpeg"
-                viewModel.addAttachment(entryLocalId, picked.readBytes(), picked.name, mimeString)
-            }.onFailure { photoUploadError = true }
-            isUploadingPhoto = false
+            val mime = runCatching { picked.mimeType() }.getOrNull()
+            val mimeString = mime?.let { "${it.primaryType}/${it.subtype}" } ?: "image/jpeg"
+            val bytes = runCatching { picked.readBytes() }.getOrNull()
+            if (bytes != null) {
+                viewModel.onPhotoSelected(entryLocalId, bytes, picked.name, mimeString)
+            } else {
+                photoReadError = true
+            }
         }
     }
     val videoPicker = rememberFilePickerLauncher(type = FileKitType.Video) { picked ->
         if (picked == null) return@rememberFilePickerLauncher
-        scope.launch {
-            val mime = runCatching { picked.mimeType() }.getOrNull()
-            val mimeString = mime?.let { "${it.primaryType}/${it.subtype}" } ?: "video/mp4"
-            viewModel.onVideoSelected(entryLocalId, picked.readBytes(), mimeString, picked.name)
-        }
+        val mime = runCatching { picked.mimeType() }.getOrNull()
+        val mimeString = mime?.let { "${it.primaryType}/${it.subtype}" } ?: "video/mp4"
+        // Streamed from disk inside the ViewModel — never read into a ByteArray
+        // here (ADR-38).
+        viewModel.onVideoSelected(entryLocalId, picked.asUploadFile(mimeString))
     }
 
     Column(Modifier.padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -445,11 +450,7 @@ private fun AttachmentsSection(
         if (canEdit) {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 TextButton(onClick = { photoPicker.launch() }, enabled = !busy) {
-                    if (isUploadingPhoto) {
-                        CircularProgressIndicator(modifier = Modifier.size(16.dp))
-                    } else {
-                        Icon(AddIcon, contentDescription = null, modifier = Modifier.size(16.dp))
-                    }
+                    Icon(AddIcon, contentDescription = null, modifier = Modifier.size(16.dp))
                     Text(text = stringResource(Res.string.attachment_add), modifier = Modifier.padding(start = 4.dp))
                 }
                 if (state.canAddVideo) {
@@ -464,21 +465,27 @@ private fun AttachmentsSection(
             }
         }
 
-        if (videoProgress != null) {
+        upload?.let { up ->
+            val fraction = up.fraction?.takeIf { up.stage == AttachmentUploadUi.Stage.Uploading }
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                LinearProgressIndicator(
-                    progress = { videoProgress },
-                    modifier = Modifier.fillMaxWidth(),
-                )
+                if (fraction != null) {
+                    LinearProgressIndicator(progress = { fraction }, modifier = Modifier.fillMaxWidth())
+                } else {
+                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                }
                 Text(
-                    text = "${stringResource(Res.string.video_upload_in_progress)} ${(videoProgress * 100).roundToInt()}%",
+                    text = if (fraction != null) {
+                        "${stringResource(Res.string.video_upload_in_progress)} ${(fraction * 100).roundToInt()}%"
+                    } else {
+                        stringResource(Res.string.attachment_finalizing)
+                    },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }
 
-        if (photoUploadError) {
+        if (photoReadError) {
             Text(stringResource(Res.string.attachment_upload_error), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
         }
         state.videoTooLong?.let { tooLong ->
@@ -580,14 +587,34 @@ private fun VideoThumbnailFace(attachment: Attachment) {
     }
 }
 
+// Full-screen viewer for both photos and videos (ADR-39) — the platform-default
+// Dialog only wraps its content into a small centred card, uncomfortable for
+// either. `usePlatformDefaultWidth = false` lets the black backdrop and the
+// media fill the screen, WhatsApp-style; a tap on the backdrop dismisses.
 @Composable
 private fun AttachmentZoomDialog(attachment: Attachment, onDismiss: () -> Unit) {
-    Dialog(onDismissRequest = onDismiss) {
-        Box(Modifier.fillMaxWidth()) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black)
+                .testTag("attachment-zoom")
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onDismiss,
+                ),
+            contentAlignment = Alignment.Center,
+        ) {
             if (attachment.isVideo) {
+                // Fill the whole dialog; each platform player fits the video to
+                // this space keeping its own aspect ratio (ADR-40).
                 VideoPlayer(
                     localPath = attachment.localPath,
-                    modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f),
+                    modifier = Modifier.fillMaxSize().testTag("zoom-media"),
                 )
             } else {
                 val bitmap by loadAttachmentBitmap(attachment)
@@ -596,17 +623,19 @@ private fun AttachmentZoomDialog(attachment: Attachment, onDismiss: () -> Unit) 
                         bitmap = loaded,
                         contentDescription = attachment.originalName,
                         contentScale = ContentScale.Fit,
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxSize(),
                     )
-                } ?: CircularProgressIndicator(Modifier.align(Alignment.Center).padding(48.dp))
+                } ?: CircularProgressIndicator(color = Color.White)
             }
             IconButton(
                 onClick = onDismiss,
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .background(MaterialTheme.colorScheme.surface, CircleShape),
+                    .safeDrawingPadding()
+                    .padding(8.dp)
+                    .background(Color.Black.copy(alpha = 0.4f), CircleShape),
             ) {
-                Icon(CloseIcon, contentDescription = stringResource(Res.string.attachment_close))
+                Icon(CloseIcon, contentDescription = stringResource(Res.string.attachment_close), tint = Color.White)
             }
         }
     }

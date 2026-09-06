@@ -17,7 +17,9 @@ import com.dmb.chantiertracker.data.sync.Syncer
 import com.dmb.chantiertracker.data.sync.parseServerTimestampMillis
 import com.dmb.chantiertracker.domain.model.Attachment
 import com.dmb.chantiertracker.domain.model.DomainException
+import com.dmb.chantiertracker.domain.model.UploadFile
 import com.dmb.chantiertracker.domain.repository.AttachmentRepository
+import kotlinx.io.buffered
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlin.uuid.ExperimentalUuidApi
@@ -63,25 +65,30 @@ class AttachmentRepositoryImpl(
     }
 
     // Online only (ADR-35). The raw video is streamed straight to the server
-    // (never saved to the device — a raw 2-min clip is tens of MB); the server
-    // transcodes it, and we pull the small MP4 back to store locally as a
-    // normal SYNCED row, so it behaves like any other attachment afterwards.
+    // (never buffered in memory, never saved to the device — a raw 2-min clip
+    // runs to hundreds of MB, ADR-38); the server transcodes it, and we pull
+    // the small MP4 back to store locally as a normal SYNCED row, so it behaves
+    // like any other attachment afterwards.
     override suspend fun uploadVideo(
         entryLocalId: String,
-        bytes: ByteArray,
-        originalName: String,
-        mimeType: String,
+        video: UploadFile,
         onProgress: (Float) -> Unit,
     ): Attachment {
         val entryServerId = entryDao.findByLocalId(entryLocalId)?.serverId
             ?: throw DomainException.NotFound
         val dto = apiCall {
-            api.upload(entryServerId, bytes, originalName, mimeType) { sent, total ->
+            api.upload(
+                entryId = entryServerId,
+                contentLength = video.size(),
+                fileName = video.name,
+                mimeType = video.mimeType,
+                openSource = { video.openSource().buffered() },
+            ) { sent, total ->
                 if (total != null && total > 0) onProgress((sent.toFloat() / total).coerceIn(0f, 1f))
             }
         }
         val transcoded = apiCall { api.download(dto.id) }
-        val storedName = dto.originalName ?: originalName
+        val storedName = dto.originalName ?: video.name
         val localPath = fileStore.save(transcoded, storedName)
         val now = clock.nowEpochMillis()
         val entity = AttachmentEntity(

@@ -14,6 +14,7 @@ import com.dmb.chantiertracker.domain.model.Plan
 import com.dmb.chantiertracker.domain.model.ProjectStatus
 import com.dmb.chantiertracker.domain.model.PurchaseLine
 import com.dmb.chantiertracker.domain.model.StageStatus
+import com.dmb.chantiertracker.domain.model.UploadFile
 import com.dmb.chantiertracker.domain.model.projectAdmin
 import com.dmb.chantiertracker.domain.repository.AttachmentRepository
 import com.dmb.chantiertracker.domain.repository.AuthRepository
@@ -29,10 +30,24 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.io.buffered
+
+/**
+ * Progress of adding a justificatif (ADR-39).
+ * - [Uploading] with a non-null [fraction] → determinate bar (video bytes leaving the device).
+ * - [Uploading] with a null [fraction] → indeterminate (a photo, or the video's bytes are all sent).
+ * - [Finalizing] → the server response, the transcoded MP4 download, the local write and the
+ *   list refresh — shown until the new row is on screen, so "100 %" is never a lie.
+ */
+data class AttachmentUploadUi(val stage: Stage, val fraction: Float? = null) {
+    enum class Stage { Uploading, Finalizing }
+}
 
 data class DailyLogUiState(
     val isLoading: Boolean = true,
@@ -46,8 +61,10 @@ data class DailyLogUiState(
     val purchaseLines: List<PurchaseLine> = emptyList(),
     val consumptionLines: List<ConsumptionLine> = emptyList(),
     val attachments: List<Attachment> = emptyList(),
-    // Video upload (online only, ADR-35): 0f..1f while a video is uploading, null otherwise.
-    val videoUploadProgress: Float? = null,
+    // Non-null while a photo/video is being added, from the moment it's picked
+    // until the new row is actually visible in `attachments` (ADR-39) — the UI
+    // never shows a finished state with nothing in the list.
+    val attachmentUpload: AttachmentUploadUi? = null,
     val attachmentError: DomainException? = null,
     val videoTooLong: VideoDurationCheck.TooLong? = null,
     // The project OWNER's plan — gates the "Add a video" affordance and the duration pre-check.
@@ -197,33 +214,72 @@ class DailyLogViewModel(
     // Deleting a photo follows canEdit, not isAdmin: unlike a purchase/
     // consumption line, a mis-attached photo has no effect on stock or budget,
     // so the backend doesn't reserve its deletion to an ADMIN.
-    suspend fun addAttachment(entryLocalId: String, bytes: ByteArray, originalName: String, mimeType: String) {
-        attachmentRepository.addAttachment(entryLocalId, bytes, originalName, mimeType)
+    fun onPhotoSelected(entryLocalId: String, bytes: ByteArray, originalName: String, mimeType: String) {
+        addAttachment(AttachmentUploadUi(AttachmentUploadUi.Stage.Finalizing)) {
+            attachmentRepository.addAttachment(entryLocalId, bytes, originalName, mimeType)
+        }
     }
 
     /**
-     * A video was picked from the gallery. Client-side duration pre-check
-     * (courtesy — the server re-asserts), then an **online** upload with
-     * progress (ADR-35). A too-long clip is rejected here, before any upload.
+     * A video was picked from the gallery. The file is **streamed** end to end
+     * (ADR-38) — never read into a ByteArray, which used to blow the Android
+     * heap on a ~2-min clip. Client-side duration pre-check (courtesy — the
+     * server re-asserts), then an **online** upload with progress (ADR-35). A
+     * too-long clip is rejected before any upload.
      */
-    fun onVideoSelected(entryLocalId: String, bytes: ByteArray, mimeType: String, originalName: String) {
+    fun onVideoSelected(entryLocalId: String, video: UploadFile) {
         _state.update { it.copy(attachmentError = null, videoTooLong = null) }
         val plan = _state.value.ownerPlan
-        when (val check = VideoLimit.check(plan, probeMp4DurationSeconds(bytes))) {
-            is VideoDurationCheck.TooLong -> _state.update { it.copy(videoTooLong = check) }
-            VideoDurationCheck.Ok -> viewModelScope.launch {
-                _state.update { it.copy(videoUploadProgress = 0f) }
-                try {
-                    attachmentRepository.uploadVideo(entryLocalId, bytes, originalName, mimeType) { progress ->
-                        _state.update { it.copy(videoUploadProgress = progress) }
+        viewModelScope.launch {
+            // Reads only a bounded prefix of the file (Mp4Duration), so it's
+            // cheap enough to run inline — no full read, no ByteArray.
+            val duration = runCatching {
+                video.openSource().buffered().use { probeMp4DurationSeconds(it) }
+            }.getOrNull()
+            when (val check = VideoLimit.check(plan, duration)) {
+                is VideoDurationCheck.TooLong -> _state.update { it.copy(videoTooLong = check) }
+                VideoDurationCheck.Ok -> addAttachment(
+                    AttachmentUploadUi(AttachmentUploadUi.Stage.Uploading, fraction = 0f),
+                ) {
+                    attachmentRepository.uploadVideo(entryLocalId, video) { fraction ->
+                        _state.update {
+                            // Bytes all sent, but the server is still transcoding
+                            // and we still have to pull the MP4 back — that's
+                            // Finalizing, not a finished upload.
+                            it.copy(
+                                attachmentUpload = if (fraction >= 1f) {
+                                    AttachmentUploadUi(AttachmentUploadUi.Stage.Finalizing)
+                                } else {
+                                    AttachmentUploadUi(AttachmentUploadUi.Stage.Uploading, fraction)
+                                },
+                            )
+                        }
                     }
-                } catch (e: DomainException) {
-                    _state.update { it.copy(attachmentError = e) }
-                } catch (e: Throwable) {
-                    _state.update { it.copy(attachmentError = DomainException.Unexpected) }
-                } finally {
-                    _state.update { it.copy(videoUploadProgress = null) }
                 }
+            }
+        }
+    }
+
+    // Runs [add], then keeps the indicator on `Finalizing` until the row it
+    // returns is actually observable in `attachments` — the Room Flow re-emits
+    // asynchronously after the write, so clearing the indicator on return left a
+    // visible "done but empty" gap (ADR-39). A timeout guards against a Flow
+    // that never catches up, so the user is never stuck.
+    private fun addAttachment(initial: AttachmentUploadUi, add: suspend () -> Attachment) {
+        _state.update { it.copy(attachmentError = null, videoTooLong = null, attachmentUpload = initial) }
+        viewModelScope.launch {
+            try {
+                val added = add()
+                _state.update { it.copy(attachmentUpload = AttachmentUploadUi(AttachmentUploadUi.Stage.Finalizing)) }
+                withTimeoutOrNull(FINALIZE_TIMEOUT_MS) {
+                    state.first { ui -> ui.attachments.any { it.localId == added.localId } }
+                }
+            } catch (e: DomainException) {
+                _state.update { it.copy(attachmentError = e) }
+            } catch (e: Throwable) {
+                _state.update { it.copy(attachmentError = DomainException.Unexpected) }
+            } finally {
+                _state.update { it.copy(attachmentUpload = null) }
             }
         }
     }
@@ -232,5 +288,11 @@ class DailyLogViewModel(
 
     fun deleteAttachment(attachmentLocalId: String) {
         viewModelScope.launch { attachmentRepository.deleteAttachment(attachmentLocalId) }
+    }
+
+    private companion object {
+        // Room's observing Flow normally catches up in well under a second; this
+        // is only a safety net so a stuck Flow can't pin the indicator forever.
+        const val FINALIZE_TIMEOUT_MS = 4_000L
     }
 }

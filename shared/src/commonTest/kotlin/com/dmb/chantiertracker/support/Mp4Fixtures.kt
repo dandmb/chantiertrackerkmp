@@ -30,6 +30,26 @@ fun mp4Bytes(durationSeconds: Double, timescale: Int = 600, version: Int = 0): B
     return ftyp + moov
 }
 
+/**
+ * Same `moov` payload as [mp4Bytes], but with a big `mdat` box (filler bytes)
+ * so the streaming probe has real media payload to skip past.
+ * @param moovAtEnd `true` puts `mdat` before `moov` (the common phone-camera
+ *   layout, non-faststart) so the probe must stream through it.
+ */
+fun mp4BytesWithMdat(
+    durationSeconds: Double,
+    mdatSize: Int,
+    moovAtEnd: Boolean,
+    timescale: Int = 600,
+): ByteArray {
+    val full = mp4Bytes(durationSeconds, timescale)
+    val ftypLen = 8 + 12
+    val ftyp = full.copyOfRange(0, ftypLen)
+    val moov = full.copyOfRange(ftypLen, full.size)
+    val mdat = box("mdat", ByteArray(mdatSize) { 0x11 })
+    return if (moovAtEnd) ftyp + mdat + moov else ftyp + moov + mdat
+}
+
 private fun box(type: String, content: ByteArray): ByteArray =
     buildBytes { u32((8 + content.size).toLong()) } + type.encodeToByteArray() + content
 
