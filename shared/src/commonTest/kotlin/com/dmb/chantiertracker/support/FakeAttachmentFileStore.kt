@@ -5,14 +5,15 @@ import com.dmb.chantiertracker.data.local.AttachmentFileStore
 class FakeAttachmentFileStore(newPath: (() -> String)? = null) : AttachmentFileStore {
 
     private var nextId = 0
-    private val newPath: () -> String = newPath ?: { "fake-attachments/${nextId++}.jpg" }
+    private val newPath: (() -> String)? = newPath
     private val files = mutableMapOf<String, ByteArray>()
     val deletedPaths = mutableListOf<String>()
 
     val storedPaths: Set<String> get() = files.keys
 
     override suspend fun save(bytes: ByteArray, originalName: String): String {
-        val path = newPath()
+        val ext = originalName.substringAfterLast('.', missingDelimiterValue = "jpg")
+        val path = newPath?.invoke() ?: "fake-attachments/${nextId++}.$ext"
         files[path] = bytes
         return path
     }

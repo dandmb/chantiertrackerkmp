@@ -134,6 +134,7 @@ fun AttachmentDto.toSyncedEntity(
     originalName = originalName ?: previous?.originalName ?: "photo.jpg",
     mimeType = mimeType ?: previous?.mimeType ?: "image/jpeg",
     sizeBytes = size ?: previous?.sizeBytes ?: 0L,
+    durationSeconds = durationSeconds ?: previous?.durationSeconds,
     uploadedAt = parseServerTimestampMillis(uploadedAt) ?: previous?.uploadedAt ?: syncedAt,
     syncStatus = SyncStatus.SYNCED,
     pendingOp = PendingOp.NONE,

@@ -203,6 +203,15 @@
     <string name="attachment_upload_error">Couldn\'t add this photo.</string>
     <string name="attachment_delete">Delete photo</string>
     <string name="attachment_close">Close</string>
+    <string name="attachment_add_video">Add a video</string>
+    <string name="attachment_video_delete">Delete video</string>
+    <string name="video_upload_in_progress">Uploading video…</string>
+    <string name="video_upload_error">Couldn\'t upload this video.</string>
+    <string name="video_too_long_upgrade">The video is %1$s long; your plan\'s limit is %2$s. Shorten it or upgrade to a higher tier.</string>
+    <string name="video_too_long_no_upgrade">The video is %1$s long; your plan\'s limit is %2$s. Please shorten it.</string>
+    <string name="video_play">Play video</string>
+    <string name="video_desktop_unavailable">Built-in video playback isn\'t available on desktop.</string>
+    <string name="video_desktop_open">Open the video</string>
 
     <string name="material_label">Material</string>
     <string name="material_name_label">Name</string>

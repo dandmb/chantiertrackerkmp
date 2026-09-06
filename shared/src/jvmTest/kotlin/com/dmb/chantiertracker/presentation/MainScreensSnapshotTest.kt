@@ -2,6 +2,7 @@ package com.dmb.chantiertracker.presentation
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -336,6 +337,7 @@ class MainScreensSnapshotTest {
             detail = ProjectDetail(
                 localId = "1", name = "Villa Vidal", description = null, location = "Nîmes",
                 currency = "EUR", timezone = "Europe/Paris", status = ProjectStatus.IN_PROGRESS, ownerId = 1L,
+                ownerPlan = Plan.SEMI_FLEX,
             ),
         )
         val auth = FakeAuthRepository().apply { emitState(AuthState.Authenticated(User(1, "jean@chantier.dev", "Jean Marchand", true, GlobalRole.USER))) }
@@ -370,6 +372,11 @@ class MainScreensSnapshotTest {
                 com.dmb.chantiertracker.domain.model.Attachment(
                     localId = "att1", entryLocalId = "e1", localPath = sampleAttachmentPath(),
                     originalName = "facture-ciment.jpg", mimeType = "image/jpeg", sizeBytes = 2_048L, uploadedAt = 0L,
+                ),
+                com.dmb.chantiertracker.domain.model.Attachment(
+                    localId = "att2", entryLocalId = "e1", localPath = "/x/clip.mp4",
+                    originalName = "livraison.mp4", mimeType = "video/mp4", sizeBytes = 1_200_000L,
+                    durationSeconds = 47, uploadedAt = 0L,
                 ),
             ),
         )
@@ -532,6 +539,13 @@ class MainScreensSnapshotTest {
                 DetailChrome(
                     title = if (locale == "fr") "Journée" else "Day",
                 ) { m -> DailyLogScreen(dailyLogLocalId = "log-1", modifier = m, viewModel = dailyLogVm()) }
+            }
+            snapshot("33-video-player-desktop", locale) {
+                DetailChrome(title = if (locale == "fr") "Vidéo" else "Video") { m ->
+                    Box(m.fillMaxSize(), contentAlignment = androidx.compose.ui.Alignment.Center) {
+                        com.dmb.chantiertracker.presentation.logs.VideoPlayer(localPath = "/x/clip.mp4", modifier = Modifier)
+                    }
+                }
             }
             snapshot("27-entry-summary", locale) {
                 DetailChrome(title = if (locale == "fr") "Modifier le résumé" else "Edit summary") { m ->

@@ -112,6 +112,7 @@ class ServerAttachment(
     val originalName: String = "photo.jpg",
     val mimeType: String = "image/jpeg",
     val bytes: ByteArray = byteArrayOf(1, 2, 3),
+    val durationSeconds: Int? = null,
 )
 
 /**
@@ -143,6 +144,11 @@ class FakeProjectBackend {
     var nextLineId = 1_000L
     var nextAttachmentId = 1_100L
     var nextInvitationId = 1_200L
+
+    /** `durationSeconds` returned for a video upload (server-probed). */
+    var attachmentUploadDurationSeconds: Int? = 30
+    /** When set, `POST /entries/{id}/attachments` answers this status + message (plan refusal, too long…). */
+    var attachmentUploadRejection: Pair<HttpStatusCode, String>? = null
 
     /** When true, POST purchase/consumption line answers 409 (mirrors InsufficientStockException). */
     var lineWriteConflict = false
@@ -391,7 +397,18 @@ class FakeProjectBackend {
                 respondJson(pageOf(attachments.filter { it.entryId == attachmentsEntryId }.map(::attachmentJson)))
 
             request.method == HttpMethod.Post && attachmentsEntryId != null -> {
-                val created = ServerAttachment(nextAttachmentId++, attachmentsEntryId)
+                attachmentUploadRejection?.let { (status, detail) -> return respondProblem(status, detail) }
+                val isVideo = request.body.toByteArray().decodeToString().contains("Content-Type: video/")
+                val created = if (isVideo) {
+                    // Mirrors the backend: the raw upload is transcoded to a small MP4.
+                    ServerAttachment(
+                        nextAttachmentId++, attachmentsEntryId,
+                        originalName = "clip.mp4", mimeType = "video/mp4",
+                        bytes = byteArrayOf(9, 9, 9), durationSeconds = attachmentUploadDurationSeconds,
+                    )
+                } else {
+                    ServerAttachment(nextAttachmentId++, attachmentsEntryId)
+                }
                 attachments += created
                 respondJson(attachmentJson(created), HttpStatusCode.Created)
             }
@@ -613,7 +630,7 @@ class FakeProjectBackend {
 
     private fun attachmentJson(a: ServerAttachment): String =
         """{"id":${a.id},"entryId":${a.entryId},"originalName":${a.originalName.q()},"mimeType":${a.mimeType.q()},
-            "size":${a.bytes.size},"durationSeconds":null,"uploadedById":1,"uploadedAt":"2026-01-01T09:00:00"}"""
+            "size":${a.bytes.size},"durationSeconds":${a.durationSeconds ?: "null"},"uploadedById":1,"uploadedAt":"2026-01-01T09:00:00"}"""
 }
 
 private val json = Json { ignoreUnknownKeys = true }

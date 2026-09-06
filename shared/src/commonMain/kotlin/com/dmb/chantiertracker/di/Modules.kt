@@ -161,7 +161,7 @@ val dataModule: Module = module {
     single<MaterialRepository> { MaterialRepositoryImpl(get(), get(), get(), get(), get<AppCoroutineScope>()) }
     single<PurchaseLineRepository> { PurchaseLineRepositoryImpl(get(), get(), get<AppCoroutineScope>()) }
     single<ConsumptionLineRepository> { ConsumptionLineRepositoryImpl(get(), get(), get<AppCoroutineScope>()) }
-    single<AttachmentRepository> { AttachmentRepositoryImpl(get(), get(), get(), get<AppCoroutineScope>()) }
+    single<AttachmentRepository> { AttachmentRepositoryImpl(get(), get(), get(), get(), get(), get<AppCoroutineScope>()) }
     single<InvitationRepository> { InvitationRepositoryImpl(get(), get(), get(), get()) }
 }
 

@@ -287,6 +287,8 @@ data class AttachmentEntity(
     val originalName: String,
     val mimeType: String,
     val sizeBytes: Long,
+    // Video only — the server-reported length (whole seconds); null for a photo.
+    val durationSeconds: Int? = null,
     val uploadedAt: Long,
     val syncStatus: SyncStatus,
     val pendingOp: PendingOp,

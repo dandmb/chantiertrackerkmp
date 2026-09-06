@@ -15,6 +15,32 @@ fun Plan.maxSupervisorsPerProject(): Int? = when (this) {
 }
 
 /**
+ * Total videos per account, mirroring the backend `PlanLimitService.maxVideos`
+ * exactly. **Never null** — unlike photos/projects, LIBERTE still caps at 20;
+ * `0` (FREE) means the feature is off entirely. `UNKNOWN` → `0` (fail closed:
+ * the "Add a video" button just won't show until we know the plan; the server
+ * re-asserts on upload anyway).
+ */
+fun Plan.maxVideos(): Int = when (this) {
+    Plan.FREE, Plan.UNKNOWN -> 0
+    Plan.SEMI_FLEX -> 5
+    Plan.LIBERTE -> 20
+}
+
+/**
+ * Max duration of a single video, in seconds — mirrors
+ * `PlanLimitService.maxVideoDurationSeconds`. `0` (FREE / `UNKNOWN`) = no video.
+ */
+fun Plan.maxVideoDurationSeconds(): Int = when (this) {
+    Plan.FREE, Plan.UNKNOWN -> 0
+    Plan.SEMI_FLEX -> 120
+    Plan.LIBERTE -> 300
+}
+
+/** Whether a higher paid tier exists above this plan — mirrors `PlanLimitService.hasUpgrade`. */
+fun Plan.hasUpgrade(): Boolean = this != Plan.LIBERTE
+
+/**
  * Last-known plan + the active-project cap for it (`projectsLimit == null` means
  * unlimited — LIBERTE — or that the limit isn't known). Persisted locally so the
  * project-creation check works offline (ADR-25).

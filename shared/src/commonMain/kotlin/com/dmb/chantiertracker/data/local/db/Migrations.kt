@@ -275,3 +275,14 @@ val MIGRATION_7_8 = object : Migration(7, 8) {
         connection.execSQL("ALTER TABLE `projects` ADD COLUMN `ownerPlan` TEXT")
     }
 }
+
+/**
+ * v8 → v9 : ajout de la colonne `attachments.durationSeconds` (durée d'une
+ * vidéo en secondes entières, `null` pour une photo) — support de l'upload
+ * vidéo (ADR-35). Nullable, pas de valeur par défaut.
+ */
+val MIGRATION_8_9 = object : Migration(8, 9) {
+    override fun migrate(connection: SQLiteConnection) {
+        connection.execSQL("ALTER TABLE `attachments` ADD COLUMN `durationSeconds` INTEGER")
+    }
+}
