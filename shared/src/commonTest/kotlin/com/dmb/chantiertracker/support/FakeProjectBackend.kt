@@ -23,6 +23,7 @@ class ServerProject(
     var currency: String = "USD",
     var timezone: String = "UTC",
     var ownerId: Long = 1L,
+    var ownerPlan: String = "FREE",
     var status: String = "IN_PROGRESS",
     var createdAt: String = "2026-01-01T09:00:00",
     var updatedAt: String = "2026-01-01T09:00:00",
@@ -33,6 +34,25 @@ class ServerMember(
     val name: String,
     val email: String,
     val role: String = "ADMIN",
+)
+
+class ServerInvitation(
+    val id: Long,
+    val projectId: Long,
+    var email: String,
+    var role: String = "SUPERVISOR",
+    var status: String = "PENDING",
+    val createdAt: String = "2026-09-01T10:00:00",
+)
+
+class ServerPendingInvitation(
+    val token: String,
+    val projectId: Long,
+    val projectName: String,
+    val role: String = "SUPERVISOR",
+    val invitedByName: String? = "Jean Marchand",
+    val createdAt: String = "2026-09-01T10:00:00",
+    val expiresAt: String = "2026-09-08T10:00:00",
 )
 
 class ServerStage(
@@ -110,7 +130,11 @@ class FakeProjectBackend {
     val purchaseLines = mutableListOf<ServerPurchaseLine>()
     val consumptionLines = mutableListOf<ServerConsumptionLine>()
     val attachments = mutableListOf<ServerAttachment>()
+    val invitations = mutableListOf<ServerInvitation>()
+    val myPendingInvitations = mutableListOf<ServerPendingInvitation>()
     var planLimitReached = false
+    /** When set, POST /invitations/{token}/accept answers this status. */
+    var acceptStatus: HttpStatusCode? = null
     var nextId = 100L
     var nextStageId = 500L
     var nextMaterialId = 700L
@@ -118,10 +142,16 @@ class FakeProjectBackend {
     var nextEntryId = 900L
     var nextLineId = 1_000L
     var nextAttachmentId = 1_100L
+    var nextInvitationId = 1_200L
 
     /** When true, POST purchase/consumption line answers 409 (mirrors InsufficientStockException). */
     var lineWriteConflict = false
 
+    /** When true, GET/POST/DELETE on invitations answers 403 (mirrors a non-ADMIN caller). */
+    var invitationsForbidden = false
+
+    fun seedInvitation(i: ServerInvitation) = i.also { invitations += it }
+    fun seedPendingForMe(i: ServerPendingInvitation) = i.also { myPendingInvitations += it }
     fun seedMaterial(m: ServerMaterial) = m.also { materials += it }
     fun seedLog(l: ServerLog) = l.also { logs += it }
     fun seedEntry(e: ServerEntry) = e.also { entries += it }
@@ -159,12 +189,18 @@ class FakeProjectBackend {
     fun purchaseLineApi() = com.dmb.chantiertracker.data.remote.PurchaseLineApi(client(sharedTokenStorage))
     fun consumptionLineApi() = com.dmb.chantiertracker.data.remote.ConsumptionLineApi(client(sharedTokenStorage))
     fun attachmentApi() = com.dmb.chantiertracker.data.remote.AttachmentApi(client(sharedTokenStorage))
+    fun invitationApi() = com.dmb.chantiertracker.data.remote.InvitationApi(client(sharedTokenStorage))
 
     private suspend fun MockRequestHandleScope.handle(request: HttpRequestData): HttpResponseData {
         val path = request.url.encodedPath.removePrefix("/api/v1")
         receivedMethods += "${request.method.value} $path"
         val idInPath = Regex("""/projects/(\d+)$""").find(path)?.groupValues?.get(1)?.toLong()
         val membersProjectId = Regex("""/projects/(\d+)/members$""").find(path)?.groupValues?.get(1)?.toLong()
+        val invitationsProjectId = Regex("""/projects/(\d+)/invitations$""").find(path)?.groupValues?.get(1)?.toLong()
+        val invitationId = Regex("""/invitations/(\d+)$""").find(path)?.groupValues?.get(1)?.toLong()
+        val acceptToken = Regex("""/invitations/([^/]+)/accept$""").find(path)?.groupValues?.get(1)
+        val declineToken = Regex("""/invitations/([^/]+)/decline$""").find(path)?.groupValues?.get(1)
+        val isMyInvitations = path == "/users/me/invitations"
         val stagesProjectId = Regex("""/projects/(\d+)/stages$""").find(path)?.groupValues?.get(1)?.toLong()
         val stageId = Regex("""/stages/(\d+)$""").find(path)?.groupValues?.get(1)?.toLong()
         val materialsProjectId = Regex("""/projects/(\d+)/materials$""").find(path)?.groupValues?.get(1)?.toLong()
@@ -380,6 +416,59 @@ class FakeProjectBackend {
                 respondJson(membersPageJson(membersProjectId))
             }
 
+            // ─── invitations (ADMIN only) ────────────────────────────────────
+            request.method == HttpMethod.Get && invitationsProjectId != null -> {
+                if (invitationsForbidden) return respondProblem(HttpStatusCode.Forbidden, "Action réservée à un administrateur.")
+                respondJson(pageOf(invitations.filter { it.projectId == invitationsProjectId }.map(::invitationJson)))
+            }
+
+            request.method == HttpMethod.Post && invitationsProjectId != null -> {
+                if (invitationsForbidden) return respondProblem(HttpStatusCode.Forbidden, "Action réservée à un administrateur.")
+                if (planLimitReached) {
+                    return respondProblem(HttpStatusCode.Forbidden, "Vous avez atteint la limite de superviseurs par projet de votre plan.")
+                }
+                val body = request.jsonBody()
+                val created = ServerInvitation(
+                    id = nextInvitationId++,
+                    projectId = invitationsProjectId,
+                    email = body.string("email") ?: "",
+                    role = body.string("role") ?: "SUPERVISOR",
+                )
+                invitations += created
+                respondJson(invitationJson(created), HttpStatusCode.Created)
+            }
+
+            request.method == HttpMethod.Delete && invitationId != null -> {
+                if (invitationsForbidden) return respondProblem(HttpStatusCode.Forbidden, "Action réservée à un administrateur.")
+                if (invitations.none { it.id == invitationId }) {
+                    return respondProblem(HttpStatusCode.NotFound, "Invitation introuvable.")
+                }
+                invitations.removeAll { it.id == invitationId }
+                respondJson("", HttpStatusCode.NoContent)
+            }
+
+            request.method == HttpMethod.Get && isMyInvitations -> {
+                val items = myPendingInvitations.joinToString(",") { pendingForMeJson(it) }
+                respondJson("[$items]")
+            }
+
+            request.method == HttpMethod.Post && acceptToken != null -> {
+                acceptStatus?.let { return respondProblem(it, "Cette invitation n'est plus valide.") }
+                if (myPendingInvitations.none { it.token == acceptToken }) {
+                    return respondProblem(HttpStatusCode.NotFound, "Invitation introuvable.")
+                }
+                myPendingInvitations.removeAll { it.token == acceptToken }
+                respondJson("""{"message":"Invitation acceptée avec succès."}""")
+            }
+
+            request.method == HttpMethod.Post && declineToken != null -> {
+                if (myPendingInvitations.none { it.token == declineToken }) {
+                    return respondProblem(HttpStatusCode.NotFound, "Invitation introuvable.")
+                }
+                myPendingInvitations.removeAll { it.token == declineToken }
+                respondJson("", HttpStatusCode.NoContent)
+            }
+
             request.method == HttpMethod.Get && idInPath != null -> {
                 val project = projects.firstOrNull { it.id == idInPath }
                     ?: return respondProblem(HttpStatusCode.NotFound, "Projet introuvable.")
@@ -450,7 +539,7 @@ class FakeProjectBackend {
 
     private fun detailJson(p: ServerProject): String = """
         {"id":${p.id},"name":${p.name.q()},"description":${p.description.q()},"location":${p.location.q()},
-         "currency":${p.currency.q()},"timezone":${p.timezone.q()},"ownerId":${p.ownerId},"ownerPlan":"FREE",
+         "currency":${p.currency.q()},"timezone":${p.timezone.q()},"ownerId":${p.ownerId},"ownerPlan":${p.ownerPlan.q()},
          "status":${p.status.q()},"createdAt":${p.createdAt.q()},"updatedAt":${p.updatedAt.q()},
          "totalEstimatedBudget":null,"totalSpent":null}
     """.trimIndent()
@@ -491,6 +580,14 @@ class FakeProjectBackend {
 
     private fun materialJson(m: ServerMaterial): String =
         """{"id":${m.id},"projectId":${m.projectId},"name":${m.name.q()},"unit":${m.unit.q()}}"""
+
+    private fun invitationJson(i: ServerInvitation): String =
+        """{"id":${i.id},"projectId":${i.projectId},"email":${i.email.q()},"role":${i.role.q()},
+            "invitedById":1,"createdAt":${i.createdAt.q()},"expiresAt":"2026-09-08T10:00:00","status":${i.status.q()}}"""
+
+    private fun pendingForMeJson(i: ServerPendingInvitation): String =
+        """{"token":${i.token.q()},"projectId":${i.projectId},"projectName":${i.projectName.q()},"role":${i.role.q()},
+            "invitedByName":${i.invitedByName?.q() ?: "null"},"createdAt":${i.createdAt.q()},"expiresAt":${i.expiresAt.q()}}"""
 
     private fun logSummaryJson(l: ServerLog): String {
         val hasPurchase = entries.any { it.dailyLogId == l.id && it.type == "PURCHASE" }

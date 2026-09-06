@@ -236,3 +236,42 @@ val MIGRATION_5_6 = object : Migration(5, 6) {
         )
     }
 }
+
+/**
+ * v6 → v7 : ajout de `invitations` (cache lecture seule des invitations d'un
+ * projet — jamais créées localement, voir ADR-32). `createSql` à garder
+ * identique à `shared/schemas/…/7.json`.
+ */
+val MIGRATION_6_7 = object : Migration(6, 7) {
+    override fun migrate(connection: SQLiteConnection) {
+        connection.execSQL(
+            "CREATE TABLE IF NOT EXISTS `invitations` (" +
+                "`id` INTEGER NOT NULL, " +
+                "`projectLocalId` TEXT NOT NULL, " +
+                "`email` TEXT NOT NULL, " +
+                "`role` TEXT NOT NULL, " +
+                "`invitedById` INTEGER, " +
+                "`createdAt` TEXT, " +
+                "`expiresAt` TEXT, " +
+                "`status` TEXT NOT NULL, " +
+                "PRIMARY KEY(`id`), " +
+                "FOREIGN KEY(`projectLocalId`) REFERENCES `projects`(`localId`) " +
+                "ON UPDATE NO ACTION ON DELETE CASCADE )",
+        )
+        connection.execSQL(
+            "CREATE INDEX IF NOT EXISTS `index_invitations_projectLocalId` ON `invitations` (`projectLocalId`)",
+        )
+    }
+}
+
+/**
+ * v7 → v8 : ajout de la colonne `projects.ownerPlan` (plan du propriétaire du
+ * projet, lu depuis `ProjectDetailDto`) — sert au pré-contrôle de la limite de
+ * superviseurs avant d'envoyer une invitation, hors ligne compris (ADR-33).
+ * Nullable, pas de valeur par défaut : `null` jusqu'au premier pull du détail.
+ */
+val MIGRATION_7_8 = object : Migration(7, 8) {
+    override fun migrate(connection: SQLiteConnection) {
+        connection.execSQL("ALTER TABLE `projects` ADD COLUMN `ownerPlan` TEXT")
+    }
+}

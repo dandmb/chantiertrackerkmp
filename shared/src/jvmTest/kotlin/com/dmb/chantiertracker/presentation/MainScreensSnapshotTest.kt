@@ -35,10 +35,14 @@ import com.dmb.chantiertracker.domain.model.DailyLog
 import com.dmb.chantiertracker.domain.model.DailyLogDetail
 import com.dmb.chantiertracker.domain.model.EntryType
 import com.dmb.chantiertracker.domain.model.GlobalRole
+import com.dmb.chantiertracker.domain.model.Invitation
+import com.dmb.chantiertracker.domain.model.InvitationStatus
 import com.dmb.chantiertracker.domain.model.Plan
 import com.dmb.chantiertracker.domain.model.PlanUsage
 import com.dmb.chantiertracker.domain.model.Project
 import com.dmb.chantiertracker.domain.model.ProjectDetail
+import com.dmb.chantiertracker.domain.model.ProjectMember
+import com.dmb.chantiertracker.domain.model.ProjectRole
 import com.dmb.chantiertracker.domain.model.ProjectSort
 import com.dmb.chantiertracker.domain.model.ProjectStatus
 import com.dmb.chantiertracker.domain.model.Stage
@@ -191,8 +195,14 @@ class MainScreensSnapshotTest {
         }
     }
 
-    private fun projectsVm(projects: List<Project>) =
-        ProjectsViewModel(FakeProjectRepository(projects = projects), ProjectSortHolder())
+    private fun projectsVm(
+        projects: List<Project>,
+        incoming: List<com.dmb.chantiertracker.domain.model.IncomingInvitation> = emptyList(),
+    ) = ProjectsViewModel(
+        FakeProjectRepository(projects = projects),
+        com.dmb.chantiertracker.support.FakeInvitationRepository().apply { this.incoming = incoming },
+        ProjectSortHolder(),
+    ).also { if (incoming.isNotEmpty()) it.onEnter() }
 
     private fun settingsVm() = SettingsViewModel(AppConfig(FakeBuildInfo(isDebug = false, appVersion = "1.0")))
 
@@ -227,8 +237,35 @@ class MainScreensSnapshotTest {
                 status = ProjectStatus.IN_PROGRESS,
                 ownerId = if (canEdit) 1L else 999L,
             ),
+            members = listOf(
+                ProjectMember(userId = 1, name = "Jean Marchand", email = "jean@chantier.dev", role = ProjectRole.ADMIN),
+                ProjectMember(userId = 2, name = "Sam Ferreira", email = "sam@chantier.dev", role = ProjectRole.SUPERVISOR),
+            ),
         )
-        return ProjectDetailViewModel(repo, FakeStageRepository(stages = sampleStages), auth).also { it.load("1") }
+        val invitations = com.dmb.chantiertracker.support.FakeInvitationRepository(
+            listOf(
+                Invitation(1, "1", "lea@chantier.dev", ProjectRole.SUPERVISOR, 1L, "2026-09-01T10:00:00", null, InvitationStatus.PENDING),
+            ),
+        )
+        return ProjectDetailViewModel(repo, FakeStageRepository(stages = sampleStages), invitations, auth).also { it.load("1") }
+    }
+
+    private fun inviteMemberVm(atLimit: Boolean = false): com.dmb.chantiertracker.presentation.projects.invite.InviteMemberViewModel {
+        val repo = FakeProjectRepository(
+            detail = ProjectDetail(
+                localId = "1", name = "Villa Vidal", description = null, location = "Nîmes",
+                currency = "EUR", timezone = "Europe/Paris", status = ProjectStatus.IN_PROGRESS,
+                ownerId = 1L, ownerPlan = if (atLimit) Plan.FREE else Plan.SEMI_FLEX,
+            ),
+            members = if (atLimit) {
+                listOf(ProjectMember(userId = 2, name = "Sam Ferreira", email = "sam@chantier.dev", role = ProjectRole.SUPERVISOR))
+            } else {
+                emptyList()
+            },
+        )
+        return com.dmb.chantiertracker.presentation.projects.invite.InviteMemberViewModel(
+            repo, com.dmb.chantiertracker.support.FakeInvitationRepository(),
+        ).also { it.load("1") }
     }
 
     private fun editProjectVm(): com.dmb.chantiertracker.presentation.projects.edit.EditProjectViewModel {
@@ -396,6 +433,25 @@ class MainScreensSnapshotTest {
                     ProjectsScreen(onProjectClick = {}, modifier = m, viewModel = projectsVm(emptyList()))
                 }
             }
+            snapshot("32-projects-incoming-invitation", locale) {
+                Chrome(MainTab.Projects) { m ->
+                    ProjectsScreen(
+                        onProjectClick = {},
+                        modifier = m,
+                        viewModel = projectsVm(
+                            sampleProjects,
+                            incoming = listOf(
+                                com.dmb.chantiertracker.domain.model.IncomingInvitation(
+                                    token = "tok", projectId = 9L, projectName = "Villa Vidal",
+                                    role = com.dmb.chantiertracker.domain.model.ProjectRole.SUPERVISOR,
+                                    invitedByName = "Jean Marchand",
+                                    createdAt = "2026-09-01T10:00:00", expiresAt = null,
+                                ),
+                            ),
+                        ),
+                    )
+                }
+            }
             snapshot("12-settings", locale) {
                 Chrome(MainTab.Settings) { m -> SettingsScreen(modifier = m, viewModel = settingsVm()) }
             }
@@ -435,6 +491,24 @@ class MainScreensSnapshotTest {
                 DetailChrome(
                     title = if (locale == "fr") "Modifier le projet" else "Edit project",
                 ) { m -> EditProjectScreen(projectLocalId = "1", onSaved = {}, onBack = {}, modifier = m, viewModel = editProjectVm()) }
+            }
+            snapshot("30-invite-member", locale) {
+                DetailChrome(
+                    title = if (locale == "fr") "Inviter un superviseur" else "Invite a supervisor",
+                ) { m ->
+                    com.dmb.chantiertracker.presentation.projects.invite.InviteMemberScreen(
+                        projectLocalId = "1", onInvited = {}, modifier = m, viewModel = inviteMemberVm(),
+                    )
+                }
+            }
+            snapshot("31-invite-member-limit", locale) {
+                DetailChrome(
+                    title = if (locale == "fr") "Inviter un superviseur" else "Invite a supervisor",
+                ) { m ->
+                    com.dmb.chantiertracker.presentation.projects.invite.InviteMemberScreen(
+                        projectLocalId = "1", onInvited = {}, modifier = m, viewModel = inviteMemberVm(atLimit = true),
+                    )
+                }
             }
             dialogSnapshot("25-delete-project-dialog", locale) {
                 DeleteProjectDialog(projectName = "Villa Vidal", onDismiss = {}, onConfirm = {})

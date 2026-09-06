@@ -29,6 +29,10 @@ data class ProjectEntity(
     val lastSyncedAt: Long?,
     val remoteUpdatedAt: Long?,
     val lastSyncError: String?,
+    // The project OWNER's plan (never the caller's), from ProjectDetailDto.
+    // Null until the first detail pull — the supervisor-limit pre-check
+    // fails open in that window (ADR-33). Not set by the project-list pull.
+    val ownerPlan: String? = null,
 )
 
 @Entity(tableName = "project_members", primaryKeys = ["projectLocalId", "userId"])
@@ -38,6 +42,32 @@ data class ProjectMemberEntity(
     val name: String,
     val email: String,
     val role: String,
+)
+
+// Read-through cache of a project's invitations (server id as PK — never
+// created locally, see ADR-32). Replaced wholesale on each pull, like
+// project_members.
+@Entity(
+    tableName = "invitations",
+    foreignKeys = [
+        ForeignKey(
+            entity = ProjectEntity::class,
+            parentColumns = ["localId"],
+            childColumns = ["projectLocalId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+    ],
+    indices = [Index("projectLocalId")],
+)
+data class InvitationEntity(
+    @PrimaryKey val id: Long,
+    val projectLocalId: String,
+    val email: String,
+    val role: String,
+    val invitedById: Long?,
+    val createdAt: String?,
+    val expiresAt: String?,
+    val status: String,
 )
 
 @Entity(tableName = "plan_usage")

@@ -13,6 +13,7 @@ import com.dmb.chantiertracker.presentation.projects.ProjectSortHolder
 import com.dmb.chantiertracker.presentation.projects.ProjectsScreen
 import com.dmb.chantiertracker.presentation.projects.ProjectsViewModel
 import com.dmb.chantiertracker.presentation.theme.AppTheme
+import com.dmb.chantiertracker.support.FakeInvitationRepository
 import com.dmb.chantiertracker.support.FakeProjectRepository
 import com.dmb.chantiertracker.support.installTestMainDispatcher
 import com.dmb.chantiertracker.support.resetTestMainDispatcher
@@ -36,7 +37,7 @@ class ProjectsScreenUiTest {
     @Test
     fun pull_to_refresh_gesture_on_the_list_triggers_a_sync() = runComposeUiTest {
         val repo = FakeProjectRepository(projects = listOf(villa))
-        val vm = ProjectsViewModel(repo, ProjectSortHolder())
+        val vm = ProjectsViewModel(repo, FakeInvitationRepository(), ProjectSortHolder())
 
         setContent {
             customAppLocale = "fr"

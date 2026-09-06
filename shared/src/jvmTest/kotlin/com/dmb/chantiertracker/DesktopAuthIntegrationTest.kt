@@ -83,6 +83,8 @@ class DesktopAuthIntegrationTest {
         attachmentDao = db.attachmentDao(),
         attachmentApi = com.dmb.chantiertracker.data.remote.AttachmentApi(client),
         attachmentFileStore = com.dmb.chantiertracker.support.FakeAttachmentFileStore(),
+        invitationDao = db.invitationDao(),
+        invitationApi = com.dmb.chantiertracker.data.remote.InvitationApi(client),
         connectivity = connectivity,
         syncState = SyncStateHolder(),
         scope = appScope,

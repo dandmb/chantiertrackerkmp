@@ -42,7 +42,11 @@ suspend fun verifyProjectDaoContract(db: AppDatabase) {
     assertEquals("Chantier a", stored?.name)
     assertEquals(SyncStatus.PENDING, stored?.syncStatus)
     assertEquals(PendingOp.CREATE, stored?.pendingOp)
+    assertNull(stored?.ownerPlan, "ownerPlan is null until a detail pull fills it (ADR-33)")
     assertNull(dao.findByLocalId("missing"))
+
+    dao.upsert(sample("a").copy(ownerPlan = "SEMI_FLEX"))
+    assertEquals("SEMI_FLEX", dao.findByLocalId("a")?.ownerPlan, "ownerPlan round-trips")
 
     dao.upsertAll(
         listOf(
@@ -278,6 +282,43 @@ suspend fun verifyAttachmentDaoContract(db: AppDatabase) {
     entryDao.deleteByLocalId("entry-purchase-a")
     assertTrue("attachments cascade-deleted with their entry") { attachmentDao.observeForEntry("entry-purchase-a").first().isEmpty() }
     assertNull(attachmentDao.findByLocalId("att-1"))
+}
+
+/** Shared checks for [com.dmb.chantiertracker.data.local.db.InvitationDao] on a real [AppDatabase]. */
+suspend fun verifyInvitationDaoContract(db: AppDatabase) {
+    val projectDao = db.projectDao()
+    val invitationDao = db.invitationDao()
+
+    projectDao.upsert(sample("proj-inv", serverId = 1L, op = PendingOp.NONE))
+
+    invitationDao.upsertAll(
+        listOf(
+            localInvitation(1, projectLocalId = "proj-inv", createdAt = "2026-09-01T10:00:00"),
+            localInvitation(2, projectLocalId = "proj-inv", email = "lea@chantier.dev", createdAt = "2026-09-03T10:00:00"),
+        ),
+    )
+
+    assertEquals(
+        listOf(2L, 1L),
+        invitationDao.observeForProject("proj-inv").first().map { it.id },
+        "newest invitation first",
+    )
+    assertEquals(2, invitationDao.findForProject("proj-inv").size)
+
+    // upsert replaces the row for an existing id (read-through cache: status refreshed on each pull).
+    invitationDao.upsertAll(listOf(localInvitation(1, projectLocalId = "proj-inv", status = "ACCEPTED")))
+    assertEquals("ACCEPTED", invitationDao.findForProject("proj-inv").first { it.id == 1L }.status)
+
+    invitationDao.deleteById(1L)
+    assertEquals(listOf(2L), invitationDao.findForProject("proj-inv").map { it.id })
+
+    invitationDao.clearForProject("proj-inv")
+    assertTrue("cache cleared for the project") { invitationDao.findForProject("proj-inv").isEmpty() }
+
+    // Deleting the parent project cascades to its invitations.
+    invitationDao.upsertAll(listOf(localInvitation(3, projectLocalId = "proj-inv")))
+    projectDao.deleteByLocalId("proj-inv")
+    assertTrue("invitations cascade-deleted with their project") { invitationDao.findForProject("proj-inv").isEmpty() }
 }
 
 /** Shared checks for [com.dmb.chantiertracker.data.local.db.PlanUsageDao] on a real [AppDatabase]. */

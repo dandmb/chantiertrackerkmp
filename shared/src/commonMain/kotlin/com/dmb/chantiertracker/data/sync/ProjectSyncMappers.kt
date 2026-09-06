@@ -37,6 +37,8 @@ fun ProjectDto.toSyncedEntity(localId: String, syncedAt: Long, previous: Project
         lastSyncedAt = syncedAt,
         remoteUpdatedAt = remoteMillis,
         lastSyncError = null,
+        // The list DTO carries no ownerPlan — keep what the detail pull stored.
+        ownerPlan = previous?.ownerPlan,
     )
 }
 
@@ -59,6 +61,7 @@ fun ProjectDetailDto.toSyncedEntity(localId: String, syncedAt: Long, previous: P
         lastSyncedAt = syncedAt,
         remoteUpdatedAt = remoteMillis,
         lastSyncError = null,
+        ownerPlan = ownerPlan ?: previous?.ownerPlan,
     )
 }
 

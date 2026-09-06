@@ -392,6 +392,54 @@ class FakeAttachmentRepository(
     }
 }
 
+class FakeInvitationRepository(
+    invitations: List<com.dmb.chantiertracker.domain.model.Invitation> = emptyList(),
+) : com.dmb.chantiertracker.domain.repository.InvitationRepository {
+
+    val invitationsFlow = MutableStateFlow(invitations)
+
+    val invited = mutableListOf<Pair<String, String>>()
+    val cancelled = mutableListOf<Pair<String, Long>>()
+    var inviteError: com.dmb.chantiertracker.domain.model.DomainException? = null
+    var cancelError: com.dmb.chantiertracker.domain.model.DomainException? = null
+
+    override fun observeInvitations(projectLocalId: String) = invitationsFlow
+
+    override suspend fun invite(projectLocalId: String, email: String) {
+        inviteError?.let { throw it }
+        invited += projectLocalId to email
+    }
+
+    override suspend fun cancelInvitation(projectLocalId: String, invitationId: Long) {
+        cancelError?.let { throw it }
+        cancelled += projectLocalId to invitationId
+    }
+
+    var incoming: List<com.dmb.chantiertracker.domain.model.IncomingInvitation> = emptyList()
+    var listIncomingError: com.dmb.chantiertracker.domain.model.DomainException? = null
+    var acceptError: com.dmb.chantiertracker.domain.model.DomainException? = null
+    var declineError: com.dmb.chantiertracker.domain.model.DomainException? = null
+    val accepted = mutableListOf<String>()
+    val declined = mutableListOf<String>()
+
+    override suspend fun listIncomingInvitations(): List<com.dmb.chantiertracker.domain.model.IncomingInvitation> {
+        listIncomingError?.let { throw it }
+        return incoming
+    }
+
+    override suspend fun acceptInvitation(token: String) {
+        acceptError?.let { throw it }
+        accepted += token
+        incoming = incoming.filterNot { it.token == token }
+    }
+
+    override suspend fun declineInvitation(token: String) {
+        declineError?.let { throw it }
+        declined += token
+        incoming = incoming.filterNot { it.token == token }
+    }
+}
+
 class FakeAccountRepository(
     planUsage: com.dmb.chantiertracker.domain.model.PlanUsage? = null,
 ) : AccountRepository {
