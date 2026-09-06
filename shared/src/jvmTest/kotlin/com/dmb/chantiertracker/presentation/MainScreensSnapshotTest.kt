@@ -2,6 +2,7 @@ package com.dmb.chantiertracker.presentation
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -538,6 +539,13 @@ class MainScreensSnapshotTest {
                 DetailChrome(
                     title = if (locale == "fr") "Journée" else "Day",
                 ) { m -> DailyLogScreen(dailyLogLocalId = "log-1", modifier = m, viewModel = dailyLogVm()) }
+            }
+            snapshot("33-video-player-desktop", locale) {
+                DetailChrome(title = if (locale == "fr") "Vidéo" else "Video") { m ->
+                    Box(m.fillMaxSize(), contentAlignment = androidx.compose.ui.Alignment.Center) {
+                        com.dmb.chantiertracker.presentation.logs.VideoPlayer(localPath = "/x/clip.mp4", modifier = Modifier)
+                    }
+                }
             }
             snapshot("27-entry-summary", locale) {
                 DetailChrome(title = if (locale == "fr") "Modifier le résumé" else "Edit summary") { m ->

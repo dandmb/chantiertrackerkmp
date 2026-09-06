@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -76,6 +77,7 @@ import com.dmb.chantiertracker.resources.attachment_upload_error
 import com.dmb.chantiertracker.resources.attachment_video_delete
 import com.dmb.chantiertracker.resources.attachments_empty
 import com.dmb.chantiertracker.resources.attachments_title
+import com.dmb.chantiertracker.resources.video_play
 import com.dmb.chantiertracker.resources.video_too_long_no_upgrade
 import com.dmb.chantiertracker.resources.video_too_long_upgrade
 import com.dmb.chantiertracker.resources.video_upload_in_progress
@@ -499,7 +501,7 @@ private fun AttachmentsSection(
                     AttachmentThumbnail(
                         attachment = attachment,
                         canEdit = canEdit,
-                        onClick = { if (!attachment.isVideo) zoomedAttachment = attachment },
+                        onClick = { zoomedAttachment = attachment },
                         onDelete = { viewModel.deleteAttachment(attachment.localId) },
                     )
                 }
@@ -563,7 +565,7 @@ private fun VideoThumbnailFace(attachment: Attachment) {
     ) {
         Icon(
             PlayIcon,
-            contentDescription = null,
+            contentDescription = stringResource(Res.string.video_play),
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.size(28.dp),
         )
@@ -580,20 +582,23 @@ private fun VideoThumbnailFace(attachment: Attachment) {
 
 @Composable
 private fun AttachmentZoomDialog(attachment: Attachment, onDismiss: () -> Unit) {
-    val bitmap by loadAttachmentBitmap(attachment)
-
     Dialog(onDismissRequest = onDismiss) {
         Box(Modifier.fillMaxWidth()) {
-            val loaded = bitmap
-            if (loaded != null) {
-                Image(
-                    bitmap = loaded,
-                    contentDescription = attachment.originalName,
-                    contentScale = ContentScale.Fit,
-                    modifier = Modifier.fillMaxWidth(),
+            if (attachment.isVideo) {
+                VideoPlayer(
+                    localPath = attachment.localPath,
+                    modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f),
                 )
             } else {
-                CircularProgressIndicator(Modifier.align(Alignment.Center).padding(48.dp))
+                val bitmap by loadAttachmentBitmap(attachment)
+                bitmap?.let { loaded ->
+                    Image(
+                        bitmap = loaded,
+                        contentDescription = attachment.originalName,
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                } ?: CircularProgressIndicator(Modifier.align(Alignment.Center).padding(48.dp))
             }
             IconButton(
                 onClick = onDismiss,
