@@ -735,19 +735,31 @@ class SyncEngineTest {
     }
 
     @Test
-    fun a_video_attachment_uploaded_from_the_web_is_skipped_on_pull() = runTest {
+    fun a_video_attachment_added_elsewhere_is_downloaded_on_pull() = runTest {
         val f = Fixture()
         f.backend.seed(ServerProject(id = 5, name = "Villa"))
         f.backend.seedStage(ServerStage(id = 90, projectId = 5, name = "S"))
         val log = f.backend.seedLog(com.dmb.chantiertracker.support.ServerLog(id = 800, stageId = 90, date = "2026-09-05"))
         val purchase = f.backend.seedEntry(com.dmb.chantiertracker.support.ServerEntry(id = 900, dailyLogId = 800, type = "PURCHASE"))
-        f.backend.seedAttachment(com.dmb.chantiertracker.support.ServerAttachment(id = 1100, entryId = purchase.id, mimeType = "video/mp4", originalName = "clip.mp4"))
+        f.backend.seedAttachment(
+            com.dmb.chantiertracker.support.ServerAttachment(
+                id = 1100, entryId = purchase.id, mimeType = "video/mp4", originalName = "clip.mp4", durationSeconds = 42,
+            ),
+        )
         f.dailyLogDao.upsert(com.dmb.chantiertracker.support.localDailyLog("l800", stageLocalId = "st90", date = "2026-09-05", serverId = 800))
         val engine = f.engine(backgroundScope)
 
         engine.syncLog("l800")
 
-        assertTrue(f.attachmentDao.stored.isEmpty(), "mobile is photo-only — the video is not downloaded")
+        val stored = f.attachmentDao.findForEntry(f.dailyEntryDao.findForLog("l800").single().localId)
+        assertEquals(1, stored.size)
+        val video = stored.single()
+        assertEquals("video/mp4", video.mimeType)
+        assertEquals(42, video.durationSeconds)
+        assertEquals(SyncStatus.SYNCED, video.syncStatus)
+        assertEquals(PendingOp.NONE, video.pendingOp)
+        assertTrue(video.localPath in f.fileStore.storedPaths, "the transcoded video was downloaded to a local file")
+        assertTrue(video.localPath.endsWith(".mp4"), "the local copy keeps a video extension")
     }
 
     @Test

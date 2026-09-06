@@ -753,21 +753,22 @@ class SyncEngine(
 
     // ─── pull: attachments (one entry) ──────────────────────────────────────
 
+    private fun defaultAttachmentName(mimeType: String?): String =
+        if (mimeType?.startsWith("video/") == true) "video.mp4" else "photo.jpg"
+
     private suspend fun pullAttachments(entryServerId: Long, entryLocalId: String) {
-        val remote = apiCall { attachmentApi.list(entryServerId) }
-            .content
-            // Mobile is photo-only (ADR-29) — skip videos uploaded from the web.
-            .filter { it.mimeType?.startsWith("image/") ?: true }
+        val remote = apiCall { attachmentApi.list(entryServerId) }.content
         val locals = attachmentDao.findForEntry(entryLocalId)
         val knownServerIds = locals.mapNotNull { it.serverId }.toSet()
         val syncedAt = clock.nowEpochMillis()
 
         for (dto in remote) {
             if (dto.id in knownServerIds) continue
-            // A photo that first appeared on the server — download it once and
-            // keep a local copy, same as one added on this device.
+            // A photo or video that first appeared on the server (web, another
+            // device) — download it once and keep a local copy, same as one
+            // added here. Videos are already transcoded server-side (ADR-35).
             val bytes = apiCall { attachmentApi.download(dto.id) }
-            val path = attachmentFileStore.save(bytes, dto.originalName ?: "photo.jpg")
+            val path = attachmentFileStore.save(bytes, dto.originalName ?: defaultAttachmentName(dto.mimeType))
             attachmentDao.upsert(dto.toSyncedEntity(newLocalId(), entryLocalId, path, syncedAt))
         }
 
