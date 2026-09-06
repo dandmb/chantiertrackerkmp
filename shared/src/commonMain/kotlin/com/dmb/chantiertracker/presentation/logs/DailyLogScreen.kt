@@ -21,6 +21,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -55,7 +56,10 @@ import com.dmb.chantiertracker.domain.model.PurchaseLine
 import com.dmb.chantiertracker.presentation.format.formatAmount
 import com.dmb.chantiertracker.presentation.format.formatMoney
 import com.dmb.chantiertracker.presentation.formatIsoDate
+import com.dmb.chantiertracker.presentation.i18n.localizedText
 import com.dmb.chantiertracker.presentation.main.AddIcon
+import com.dmb.chantiertracker.presentation.main.PlayIcon
+import com.dmb.chantiertracker.presentation.main.VideocamIcon
 import com.dmb.chantiertracker.presentation.main.CloseIcon
 import com.dmb.chantiertracker.presentation.main.ConstructionIcon
 import com.dmb.chantiertracker.presentation.main.DeleteIcon
@@ -65,11 +69,16 @@ import com.dmb.chantiertracker.resources.Res
 import com.dmb.chantiertracker.resources.action_add
 import com.dmb.chantiertracker.resources.action_delete
 import com.dmb.chantiertracker.resources.attachment_add
+import com.dmb.chantiertracker.resources.attachment_add_video
 import com.dmb.chantiertracker.resources.attachment_close
 import com.dmb.chantiertracker.resources.attachment_delete
 import com.dmb.chantiertracker.resources.attachment_upload_error
+import com.dmb.chantiertracker.resources.attachment_video_delete
 import com.dmb.chantiertracker.resources.attachments_empty
 import com.dmb.chantiertracker.resources.attachments_title
+import com.dmb.chantiertracker.resources.video_too_long_no_upgrade
+import com.dmb.chantiertracker.resources.video_too_long_upgrade
+import com.dmb.chantiertracker.resources.video_upload_in_progress
 import com.dmb.chantiertracker.resources.consumption_lines_empty
 import com.dmb.chantiertracker.resources.consumption_lines_title
 import com.dmb.chantiertracker.resources.entry_add
@@ -90,6 +99,7 @@ import io.github.vinceglb.filekit.dialogs.compose.rememberFilePickerLauncher
 import io.github.vinceglb.filekit.mimeType
 import io.github.vinceglb.filekit.name
 import io.github.vinceglb.filekit.readBytes
+import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
@@ -188,8 +198,7 @@ private fun DailyLogContent(
                 )
                 AttachmentsSection(
                     entryLocalId = purchaseEntry.localId,
-                    attachments = state.attachments,
-                    canEdit = state.canEdit,
+                    state = state,
                     viewModel = viewModel,
                 )
             }
@@ -391,52 +400,95 @@ private fun LineRow(
 @Composable
 private fun AttachmentsSection(
     entryLocalId: String,
-    attachments: List<Attachment>,
-    canEdit: Boolean,
+    state: DailyLogUiState,
     viewModel: DailyLogViewModel,
 ) {
+    val attachments = state.attachments
+    val canEdit = state.canEdit
     var zoomedAttachment by remember { mutableStateOf<Attachment?>(null) }
-    var uploadError by remember { mutableStateOf(false) }
-    var isUploading by remember { mutableStateOf(false) }
+    var photoUploadError by remember { mutableStateOf(false) }
+    var isUploadingPhoto by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    val videoProgress = state.videoUploadProgress
+    val busy = isUploadingPhoto || videoProgress != null
 
-    val pickerLauncher = rememberFilePickerLauncher(type = FileKitType.Image) { picked ->
+    val photoPicker = rememberFilePickerLauncher(type = FileKitType.Image) { picked ->
         if (picked == null) return@rememberFilePickerLauncher
         scope.launch {
-            isUploading = true
-            uploadError = false
+            isUploadingPhoto = true
+            photoUploadError = false
             runCatching {
-                val bytes = picked.readBytes()
                 val mime = runCatching { picked.mimeType() }.getOrNull()
                 val mimeString = mime?.let { "${it.primaryType}/${it.subtype}" } ?: "image/jpeg"
-                viewModel.addAttachment(entryLocalId, bytes, picked.name, mimeString)
-            }.onFailure { uploadError = true }
-            isUploading = false
+                viewModel.addAttachment(entryLocalId, picked.readBytes(), picked.name, mimeString)
+            }.onFailure { photoUploadError = true }
+            isUploadingPhoto = false
+        }
+    }
+    val videoPicker = rememberFilePickerLauncher(type = FileKitType.Video) { picked ->
+        if (picked == null) return@rememberFilePickerLauncher
+        scope.launch {
+            val mime = runCatching { picked.mimeType() }.getOrNull()
+            val mimeString = mime?.let { "${it.primaryType}/${it.subtype}" } ?: "video/mp4"
+            viewModel.onVideoSelected(entryLocalId, picked.readBytes(), mimeString, picked.name)
         }
     }
 
     Column(Modifier.padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                stringResource(Res.string.attachments_title),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.weight(1f),
-            )
-            if (canEdit) {
-                TextButton(onClick = { pickerLauncher.launch() }, enabled = !isUploading) {
-                    if (isUploading) {
+        Text(
+            stringResource(Res.string.attachments_title),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        if (canEdit) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                TextButton(onClick = { photoPicker.launch() }, enabled = !busy) {
+                    if (isUploadingPhoto) {
                         CircularProgressIndicator(modifier = Modifier.size(16.dp))
                     } else {
                         Icon(AddIcon, contentDescription = null, modifier = Modifier.size(16.dp))
                     }
                     Text(text = stringResource(Res.string.attachment_add), modifier = Modifier.padding(start = 4.dp))
                 }
+                if (state.canAddVideo) {
+                    TextButton(onClick = { videoPicker.launch() }, enabled = !busy) {
+                        Icon(VideocamIcon, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Text(
+                            text = stringResource(Res.string.attachment_add_video),
+                            modifier = Modifier.padding(start = 4.dp),
+                        )
+                    }
+                }
             }
         }
 
-        if (uploadError) {
+        if (videoProgress != null) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                LinearProgressIndicator(
+                    progress = { videoProgress },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Text(
+                    text = "${stringResource(Res.string.video_upload_in_progress)} ${(videoProgress * 100).roundToInt()}%",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+
+        if (photoUploadError) {
             Text(stringResource(Res.string.attachment_upload_error), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+        }
+        state.videoTooLong?.let { tooLong ->
+            val res = if (tooLong.hasUpgrade) Res.string.video_too_long_upgrade else Res.string.video_too_long_no_upgrade
+            Text(
+                stringResource(res, tooLong.actual, tooLong.limit),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+            )
+        }
+        state.attachmentError?.let {
+            Text(it.localizedText(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
         }
 
         if (attachments.isEmpty()) {
@@ -447,7 +499,7 @@ private fun AttachmentsSection(
                     AttachmentThumbnail(
                         attachment = attachment,
                         canEdit = canEdit,
-                        onClick = { zoomedAttachment = attachment },
+                        onClick = { if (!attachment.isVideo) zoomedAttachment = attachment },
                         onDelete = { viewModel.deleteAttachment(attachment.localId) },
                     )
                 }
@@ -462,22 +514,24 @@ private fun AttachmentsSection(
 
 @Composable
 private fun AttachmentThumbnail(attachment: Attachment, canEdit: Boolean, onClick: () -> Unit, onDelete: () -> Unit) {
-    val bitmap by loadAttachmentBitmap(attachment)
-
     Box(Modifier.size(72.dp)) {
         Surface(
             shape = RoundedCornerShape(8.dp),
             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
             modifier = Modifier.fillMaxSize().clickable(onClick = onClick),
         ) {
-            val loaded = bitmap
-            if (loaded != null) {
-                Image(
-                    bitmap = loaded,
-                    contentDescription = attachment.originalName,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize(),
-                )
+            if (attachment.isVideo) {
+                VideoThumbnailFace(attachment)
+            } else {
+                val bitmap by loadAttachmentBitmap(attachment)
+                bitmap?.let { loaded ->
+                    Image(
+                        bitmap = loaded,
+                        contentDescription = attachment.originalName,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
             }
         }
         if (canEdit) {
@@ -489,8 +543,37 @@ private fun AttachmentThumbnail(attachment: Attachment, canEdit: Boolean, onClic
                     .background(MaterialTheme.colorScheme.surface, CircleShape)
                     .border(BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant), CircleShape),
             ) {
-                Icon(DeleteIcon, contentDescription = stringResource(Res.string.attachment_delete), modifier = Modifier.size(14.dp))
+                Icon(
+                    DeleteIcon,
+                    contentDescription = stringResource(
+                        if (attachment.isVideo) Res.string.attachment_video_delete else Res.string.attachment_delete,
+                    ),
+                    modifier = Modifier.size(14.dp),
+                )
             }
+        }
+    }
+}
+
+@Composable
+private fun VideoThumbnailFace(attachment: Attachment) {
+    Box(
+        Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceVariant),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            PlayIcon,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(28.dp),
+        )
+        attachment.durationSeconds?.let { seconds ->
+            Text(
+                VideoLimit.formatDuration(seconds.toLong()),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 2.dp),
+            )
         }
     }
 }

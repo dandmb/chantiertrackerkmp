@@ -3,15 +3,20 @@ package com.dmb.chantiertracker.data.repository
 import com.dmb.chantiertracker.data.local.db.PendingOp
 import com.dmb.chantiertracker.data.local.db.SyncStatus
 import com.dmb.chantiertracker.data.sync.AppCoroutineScope
+import com.dmb.chantiertracker.domain.model.DomainException
 import com.dmb.chantiertracker.support.FakeAttachmentDao
 import com.dmb.chantiertracker.support.FakeAttachmentFileStore
+import com.dmb.chantiertracker.support.FakeDailyEntryDao
+import com.dmb.chantiertracker.support.FakeProjectBackend
 import com.dmb.chantiertracker.support.FakeSyncer
 import com.dmb.chantiertracker.support.MutableClock
 import com.dmb.chantiertracker.support.localAttachment
+import com.dmb.chantiertracker.support.localDailyEntry
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -22,7 +27,9 @@ class AttachmentRepositoryImplTest {
         fileStore: FakeAttachmentFileStore = FakeAttachmentFileStore(),
         syncer: FakeSyncer = FakeSyncer(),
         clock: MutableClock = MutableClock(2_000L),
-    ) = AttachmentRepositoryImpl(dao, fileStore, syncer, AppCoroutineScope(), clock, newLocalId = { "fixed-attachment-id" })
+        entryDao: FakeDailyEntryDao = FakeDailyEntryDao(),
+        backend: FakeProjectBackend = FakeProjectBackend(),
+    ) = AttachmentRepositoryImpl(dao, entryDao, backend.attachmentApi(), fileStore, syncer, AppCoroutineScope(), clock, newLocalId = { "fixed-attachment-id" })
 
     @Test
     fun observe_attachments_maps_stored_rows_and_hides_pending_deletes() = runTest {
@@ -102,5 +109,54 @@ class AttachmentRepositoryImplTest {
 
         assertEquals(0, syncer.requestCount)
         assertTrue(fileStore.deletedPaths.isEmpty())
+    }
+
+    // ─── video (online only, ADR-35) ─────────────────────────────────────────
+
+    @Test
+    fun upload_video_sends_the_raw_file_then_stores_the_transcoded_mp4_locally_as_synced() = runTest {
+        val dao = FakeAttachmentDao()
+        val fileStore = FakeAttachmentFileStore()
+        val entryDao = FakeDailyEntryDao(listOf(localDailyEntry("purchase-1", serverId = 909L)))
+        val backend = FakeProjectBackend().apply { attachmentUploadDurationSeconds = 45 }
+
+        val video = repo(dao = dao, fileStore = fileStore, entryDao = entryDao, backend = backend)
+            .uploadVideo("purchase-1", ByteArray(4_000) { 7 }, "site.mov", "video/quicktime")
+
+        assertTrue(video.isVideo)
+        assertEquals("video/mp4", video.mimeType, "the server transcodes it")
+        assertEquals(45, video.durationSeconds)
+
+        val row = dao.findByLocalId(video.localId)!!
+        assertEquals(SyncStatus.SYNCED, row.syncStatus, "no PENDING queue — it uploaded now (ADR-35)")
+        assertEquals(PendingOp.NONE, row.pendingOp)
+        assertTrue(row.serverId != null)
+        assertEquals(listOf(byteArrayOf(9, 9, 9).toList()), listOf(fileStore.readBytes(row.localPath).toList()), "the small transcoded file is what's kept locally")
+        val created = backend.attachments.single()
+        assertEquals("video/mp4", created.mimeType)
+    }
+
+    @Test
+    fun upload_video_on_an_entry_that_has_not_synced_yet_fails_without_a_network_call() = runTest {
+        val entryDao = FakeDailyEntryDao(listOf(localDailyEntry("purchase-1", serverId = null)))
+        val backend = FakeProjectBackend()
+
+        assertFailsWith<DomainException.NotFound> {
+            repo(entryDao = entryDao, backend = backend).uploadVideo("purchase-1", byteArrayOf(1, 2), "v.mp4", "video/mp4")
+        }
+        assertTrue(backend.attachments.isEmpty())
+    }
+
+    @Test
+    fun upload_video_surfaces_a_server_refusal() = runTest {
+        val entryDao = FakeDailyEntryDao(listOf(localDailyEntry("purchase-1", serverId = 909L)))
+        val backend = FakeProjectBackend().apply {
+            attachmentUploadRejection = io.ktor.http.HttpStatusCode.Forbidden to
+                "Vous avez atteint la limite de vidéos de votre plan."
+        }
+
+        assertFailsWith<DomainException.PlanLimitReached> {
+            repo(entryDao = entryDao, backend = backend).uploadVideo("purchase-1", byteArrayOf(1, 2), "v.mp4", "video/mp4")
+        }
     }
 }

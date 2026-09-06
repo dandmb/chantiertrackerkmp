@@ -387,6 +387,33 @@ class FakeAttachmentRepository(
         )
     }
 
+    var uploadVideoError: com.dmb.chantiertracker.domain.model.DomainException? = null
+    var uploadVideoProgressSteps: List<Float> = listOf(0.5f, 1f)
+
+    override suspend fun uploadVideo(
+        entryLocalId: String,
+        bytes: ByteArray,
+        originalName: String,
+        mimeType: String,
+        onProgress: (Float) -> Unit,
+    ): com.dmb.chantiertracker.domain.model.Attachment {
+        log += "uploadVideo:$entryLocalId:$originalName:$mimeType:${bytes.size}"
+        uploadVideoProgressSteps.forEach(onProgress)
+        uploadVideoError?.let { throw it }
+        val video = com.dmb.chantiertracker.domain.model.Attachment(
+            localId = newLocalId,
+            entryLocalId = entryLocalId,
+            localPath = "fake-attachments/$newLocalId.mp4",
+            originalName = originalName,
+            mimeType = "video/mp4",
+            sizeBytes = 1_024L,
+            durationSeconds = 12,
+            uploadedAt = 0L,
+        )
+        attachmentsFlow.value = attachmentsFlow.value + video
+        return video
+    }
+
     override suspend fun deleteAttachment(attachmentLocalId: String) {
         log += "deleteAttachment:$attachmentLocalId"
     }

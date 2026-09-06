@@ -651,4 +651,154 @@ class MigrationTest {
             fresh.close()
         }
     }
+
+    /**
+     * Seeds a v8 database by hand, then opens [AppDatabase] (v9) and lets
+     * MIGRATION_8_9 add the `attachments.durationSeconds` column (ADR-35).
+     */
+    @Test
+    fun migrating_from_v8_adds_attachment_duration_column_and_keeps_existing_data() = runTest {
+        val v8Path = dir.resolve("migration-v8.db").absolutePathString()
+        BundledSQLiteDriver().open(v8Path).use { c ->
+            seedV7Schema(c)
+            // v8 = v7 + projects.ownerPlan (MIGRATION_7_8).
+            c.execSQL("ALTER TABLE `projects` ADD COLUMN `ownerPlan` TEXT")
+            c.execSQL("CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)")
+            c.execSQL(
+                "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '534a4cbb436aa7ed1b66e3c354a94ee5')",
+            )
+            c.execSQL("PRAGMA user_version = 8")
+            c.execSQL(
+                "INSERT INTO projects (localId, serverId, name, description, location, currency, timezone, status, " +
+                    "ownerId, createdAt, syncStatus, pendingOp, locallyModifiedAt, lastSyncedAt, remoteUpdatedAt, lastSyncError, ownerPlan) " +
+                    "VALUES ('p-v8', 17, 'Chantier v8', NULL, NULL, 'EUR', 'Europe/Paris', 'IN_PROGRESS', 1, NULL, " +
+                    "'SYNCED', 'NONE', 1000, NULL, NULL, NULL, 'SEMI_FLEX')",
+            )
+            c.execSQL(
+                "INSERT INTO stages (localId, serverId, projectLocalId, name, description, estimatedBudget, startDate, endDate, " +
+                    "status, syncStatus, pendingOp, locallyModifiedAt, lastSyncedAt, remoteUpdatedAt, lastSyncError) " +
+                    "VALUES ('s-v8', 8, 'p-v8', 'Gros œuvre', NULL, NULL, NULL, NULL, 'IN_PROGRESS', 'SYNCED', 'NONE', 1000, NULL, NULL, NULL)",
+            )
+            c.execSQL("INSERT INTO daily_logs (localId, serverId, stageLocalId, date, locallyCreatedAt, lastSyncedAt) VALUES ('l-v8', 80, 's-v8', '2026-09-05', 1000, NULL)")
+            c.execSQL(
+                "INSERT INTO daily_entries (localId, serverId, dailyLogLocalId, type, summary, createdById, createdAt, modifiedById, modifiedAt, " +
+                    "syncStatus, pendingOp, locallyModifiedAt, lastSyncedAt, remoteUpdatedAt, lastSyncError) " +
+                    "VALUES ('e-v8', 90, 'l-v8', 'PURCHASE', NULL, 1, NULL, NULL, NULL, 'SYNCED', 'NONE', 1000, NULL, NULL, NULL)",
+            )
+            c.execSQL(
+                "INSERT INTO attachments (localId, serverId, entryLocalId, localPath, originalName, mimeType, sizeBytes, uploadedAt, " +
+                    "syncStatus, pendingOp, locallyModifiedAt, lastSyncedAt, remoteUpdatedAt, lastSyncError) " +
+                    "VALUES ('a-v8', 111, 'e-v8', '/x/a.jpg', 'facture.jpg', 'image/jpeg', 2048, 1000, 'SYNCED', 'NONE', 1000, NULL, NULL, NULL)",
+            )
+        }
+
+        val db = Room.databaseBuilder<AppDatabase>(name = v8Path).buildChantierDatabase()
+        try {
+            val photo = db.attachmentDao().findByLocalId("a-v8")
+            assertEquals("facture.jpg", photo?.originalName, "v8 attachments survive")
+            assertEquals(null, photo?.durationSeconds, "the new column defaults to null on an existing photo row")
+        } finally {
+            db.close()
+        }
+
+        // The migrated schema behaves exactly like a freshly built v9 one.
+        val fresh = Room.inMemoryDatabaseBuilder<AppDatabase>().buildChantierDatabase()
+        try {
+            verifyAttachmentDaoContract(fresh)
+        } finally {
+            fresh.close()
+        }
+    }
+}
+
+/** The full v7 table set — shared by the v7→v8 and v8→v9 migration tests. */
+private fun seedV7Schema(c: androidx.sqlite.SQLiteConnection) {
+    c.execSQL(
+        "CREATE TABLE IF NOT EXISTS `projects` (`localId` TEXT NOT NULL, `serverId` INTEGER, " +
+            "`name` TEXT NOT NULL, `description` TEXT, `location` TEXT, `currency` TEXT NOT NULL, " +
+            "`timezone` TEXT NOT NULL, `status` TEXT NOT NULL, `ownerId` INTEGER, `createdAt` TEXT, " +
+            "`syncStatus` TEXT NOT NULL, `pendingOp` TEXT NOT NULL, `locallyModifiedAt` INTEGER NOT NULL, " +
+            "`lastSyncedAt` INTEGER, `remoteUpdatedAt` INTEGER, `lastSyncError` TEXT, PRIMARY KEY(`localId`))",
+    )
+    c.execSQL(
+        "CREATE TABLE IF NOT EXISTS `project_members` (`projectLocalId` TEXT NOT NULL, `userId` INTEGER NOT NULL, " +
+            "`name` TEXT NOT NULL, `email` TEXT NOT NULL, `role` TEXT NOT NULL, PRIMARY KEY(`projectLocalId`, `userId`))",
+    )
+    c.execSQL(
+        "CREATE TABLE IF NOT EXISTS `stages` (`localId` TEXT NOT NULL, `serverId` INTEGER, " +
+            "`projectLocalId` TEXT NOT NULL, `name` TEXT NOT NULL, `description` TEXT, `estimatedBudget` REAL, " +
+            "`startDate` TEXT, `endDate` TEXT, `status` TEXT NOT NULL, `syncStatus` TEXT NOT NULL, " +
+            "`pendingOp` TEXT NOT NULL, `locallyModifiedAt` INTEGER NOT NULL, `lastSyncedAt` INTEGER, " +
+            "`remoteUpdatedAt` INTEGER, `lastSyncError` TEXT, PRIMARY KEY(`localId`), " +
+            "FOREIGN KEY(`projectLocalId`) REFERENCES `projects`(`localId`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+    )
+    c.execSQL("CREATE INDEX IF NOT EXISTS `index_stages_projectLocalId` ON `stages` (`projectLocalId`)")
+    c.execSQL(
+        "CREATE TABLE IF NOT EXISTS `plan_usage` (`id` INTEGER NOT NULL, `plan` TEXT NOT NULL, " +
+            "`projectsLimit` INTEGER, `refreshedAt` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+    )
+    c.execSQL(
+        "CREATE TABLE IF NOT EXISTS `daily_logs` (`localId` TEXT NOT NULL, `serverId` INTEGER, " +
+            "`stageLocalId` TEXT NOT NULL, `date` TEXT NOT NULL, `locallyCreatedAt` INTEGER NOT NULL, " +
+            "`lastSyncedAt` INTEGER, PRIMARY KEY(`localId`), " +
+            "FOREIGN KEY(`stageLocalId`) REFERENCES `stages`(`localId`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+    )
+    c.execSQL("CREATE INDEX IF NOT EXISTS `index_daily_logs_stageLocalId` ON `daily_logs` (`stageLocalId`)")
+    c.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_daily_logs_stageLocalId_date` ON `daily_logs` (`stageLocalId`, `date`)")
+    c.execSQL(
+        "CREATE TABLE IF NOT EXISTS `daily_entries` (`localId` TEXT NOT NULL, `serverId` INTEGER, " +
+            "`dailyLogLocalId` TEXT NOT NULL, `type` TEXT NOT NULL, `summary` TEXT, `createdById` INTEGER, " +
+            "`createdAt` TEXT, `modifiedById` INTEGER, `modifiedAt` TEXT, `syncStatus` TEXT NOT NULL, " +
+            "`pendingOp` TEXT NOT NULL, `locallyModifiedAt` INTEGER NOT NULL, `lastSyncedAt` INTEGER, " +
+            "`remoteUpdatedAt` INTEGER, `lastSyncError` TEXT, PRIMARY KEY(`localId`), " +
+            "FOREIGN KEY(`dailyLogLocalId`) REFERENCES `daily_logs`(`localId`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+    )
+    c.execSQL("CREATE INDEX IF NOT EXISTS `index_daily_entries_dailyLogLocalId` ON `daily_entries` (`dailyLogLocalId`)")
+    c.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_daily_entries_dailyLogLocalId_type` ON `daily_entries` (`dailyLogLocalId`, `type`)")
+    c.execSQL(
+        "CREATE TABLE IF NOT EXISTS `materials` (`localId` TEXT NOT NULL, `serverId` INTEGER, " +
+            "`projectLocalId` TEXT NOT NULL, `name` TEXT NOT NULL, `unit` TEXT NOT NULL, `syncStatus` TEXT NOT NULL, " +
+            "`pendingOp` TEXT NOT NULL, `locallyModifiedAt` INTEGER NOT NULL, `lastSyncedAt` INTEGER, " +
+            "`remoteUpdatedAt` INTEGER, `lastSyncError` TEXT, PRIMARY KEY(`localId`), " +
+            "FOREIGN KEY(`projectLocalId`) REFERENCES `projects`(`localId`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+    )
+    c.execSQL("CREATE INDEX IF NOT EXISTS `index_materials_projectLocalId` ON `materials` (`projectLocalId`)")
+    c.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_materials_projectLocalId_name` ON `materials` (`projectLocalId`, `name`)")
+    c.execSQL(
+        "CREATE TABLE IF NOT EXISTS `purchase_lines` (`localId` TEXT NOT NULL, `serverId` INTEGER, " +
+            "`entryLocalId` TEXT NOT NULL, `materialLocalId` TEXT NOT NULL, `quantity` REAL NOT NULL, " +
+            "`unitPrice` REAL NOT NULL, `totalPrice` REAL NOT NULL, `supplier` TEXT, `createdAt` TEXT, " +
+            "`syncStatus` TEXT NOT NULL, `pendingOp` TEXT NOT NULL, `locallyModifiedAt` INTEGER NOT NULL, " +
+            "`lastSyncedAt` INTEGER, `remoteUpdatedAt` INTEGER, `lastSyncError` TEXT, PRIMARY KEY(`localId`), " +
+            "FOREIGN KEY(`entryLocalId`) REFERENCES `daily_entries`(`localId`) ON UPDATE NO ACTION ON DELETE CASCADE , " +
+            "FOREIGN KEY(`materialLocalId`) REFERENCES `materials`(`localId`) ON UPDATE NO ACTION ON DELETE NO ACTION )",
+    )
+    c.execSQL("CREATE INDEX IF NOT EXISTS `index_purchase_lines_entryLocalId` ON `purchase_lines` (`entryLocalId`)")
+    c.execSQL("CREATE INDEX IF NOT EXISTS `index_purchase_lines_materialLocalId` ON `purchase_lines` (`materialLocalId`)")
+    c.execSQL(
+        "CREATE TABLE IF NOT EXISTS `consumption_lines` (`localId` TEXT NOT NULL, `serverId` INTEGER, " +
+            "`entryLocalId` TEXT NOT NULL, `materialLocalId` TEXT NOT NULL, `quantity` REAL NOT NULL, " +
+            "`createdAt` TEXT, `syncStatus` TEXT NOT NULL, `pendingOp` TEXT NOT NULL, `locallyModifiedAt` INTEGER NOT NULL, " +
+            "`lastSyncedAt` INTEGER, `remoteUpdatedAt` INTEGER, `lastSyncError` TEXT, PRIMARY KEY(`localId`), " +
+            "FOREIGN KEY(`entryLocalId`) REFERENCES `daily_entries`(`localId`) ON UPDATE NO ACTION ON DELETE CASCADE , " +
+            "FOREIGN KEY(`materialLocalId`) REFERENCES `materials`(`localId`) ON UPDATE NO ACTION ON DELETE NO ACTION )",
+    )
+    c.execSQL("CREATE INDEX IF NOT EXISTS `index_consumption_lines_entryLocalId` ON `consumption_lines` (`entryLocalId`)")
+    c.execSQL("CREATE INDEX IF NOT EXISTS `index_consumption_lines_materialLocalId` ON `consumption_lines` (`materialLocalId`)")
+    c.execSQL(
+        "CREATE TABLE IF NOT EXISTS `attachments` (`localId` TEXT NOT NULL, `serverId` INTEGER, " +
+            "`entryLocalId` TEXT NOT NULL, `localPath` TEXT NOT NULL, `originalName` TEXT NOT NULL, " +
+            "`mimeType` TEXT NOT NULL, `sizeBytes` INTEGER NOT NULL, `uploadedAt` INTEGER NOT NULL, " +
+            "`syncStatus` TEXT NOT NULL, `pendingOp` TEXT NOT NULL, `locallyModifiedAt` INTEGER NOT NULL, " +
+            "`lastSyncedAt` INTEGER, `remoteUpdatedAt` INTEGER, `lastSyncError` TEXT, PRIMARY KEY(`localId`), " +
+            "FOREIGN KEY(`entryLocalId`) REFERENCES `daily_entries`(`localId`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+    )
+    c.execSQL("CREATE INDEX IF NOT EXISTS `index_attachments_entryLocalId` ON `attachments` (`entryLocalId`)")
+    c.execSQL(
+        "CREATE TABLE IF NOT EXISTS `invitations` (`id` INTEGER NOT NULL, `projectLocalId` TEXT NOT NULL, " +
+            "`email` TEXT NOT NULL, `role` TEXT NOT NULL, `invitedById` INTEGER, `createdAt` TEXT, " +
+            "`expiresAt` TEXT, `status` TEXT NOT NULL, PRIMARY KEY(`id`), " +
+            "FOREIGN KEY(`projectLocalId`) REFERENCES `projects`(`localId`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+    )
+    c.execSQL("CREATE INDEX IF NOT EXISTS `index_invitations_projectLocalId` ON `invitations` (`projectLocalId`)")
 }

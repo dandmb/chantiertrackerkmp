@@ -336,6 +336,7 @@ class MainScreensSnapshotTest {
             detail = ProjectDetail(
                 localId = "1", name = "Villa Vidal", description = null, location = "Nîmes",
                 currency = "EUR", timezone = "Europe/Paris", status = ProjectStatus.IN_PROGRESS, ownerId = 1L,
+                ownerPlan = Plan.SEMI_FLEX,
             ),
         )
         val auth = FakeAuthRepository().apply { emitState(AuthState.Authenticated(User(1, "jean@chantier.dev", "Jean Marchand", true, GlobalRole.USER))) }
@@ -370,6 +371,11 @@ class MainScreensSnapshotTest {
                 com.dmb.chantiertracker.domain.model.Attachment(
                     localId = "att1", entryLocalId = "e1", localPath = sampleAttachmentPath(),
                     originalName = "facture-ciment.jpg", mimeType = "image/jpeg", sizeBytes = 2_048L, uploadedAt = 0L,
+                ),
+                com.dmb.chantiertracker.domain.model.Attachment(
+                    localId = "att2", entryLocalId = "e1", localPath = "/x/clip.mp4",
+                    originalName = "livraison.mp4", mimeType = "video/mp4", sizeBytes = 1_200_000L,
+                    durationSeconds = 47, uploadedAt = 0L,
                 ),
             ),
         )

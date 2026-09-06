@@ -203,6 +203,12 @@
     <string name="attachment_upload_error">Impossible d'ajouter cette photo.</string>
     <string name="attachment_delete">Supprimer la photo</string>
     <string name="attachment_close">Fermer</string>
+    <string name="attachment_add_video">Ajouter une vidéo</string>
+    <string name="attachment_video_delete">Supprimer la vidéo</string>
+    <string name="video_upload_in_progress">Envoi de la vidéo…</string>
+    <string name="video_upload_error">Impossible d'envoyer cette vidéo.</string>
+    <string name="video_too_long_upgrade">La vidéo dure %1$s, la limite de votre formule est %2$s. Raccourcissez-la ou passez à un palier supérieur.</string>
+    <string name="video_too_long_no_upgrade">La vidéo dure %1$s, la limite de votre formule est %2$s. Merci de la raccourcir.</string>
 
     <string name="material_label">Matériau</string>
     <string name="material_name_label">Nom</string>

@@ -6,9 +6,11 @@ import com.dmb.chantiertracker.domain.model.Attachment
 import com.dmb.chantiertracker.domain.model.AuthState
 import com.dmb.chantiertracker.domain.model.ConsumptionLine
 import com.dmb.chantiertracker.domain.model.DailyLogDetail
+import com.dmb.chantiertracker.domain.model.DomainException
 import com.dmb.chantiertracker.domain.model.EntryType
 import com.dmb.chantiertracker.domain.model.Material
 import com.dmb.chantiertracker.domain.model.MaterialStock
+import com.dmb.chantiertracker.domain.model.Plan
 import com.dmb.chantiertracker.domain.model.ProjectStatus
 import com.dmb.chantiertracker.domain.model.PurchaseLine
 import com.dmb.chantiertracker.domain.model.StageStatus
@@ -44,8 +46,15 @@ data class DailyLogUiState(
     val purchaseLines: List<PurchaseLine> = emptyList(),
     val consumptionLines: List<ConsumptionLine> = emptyList(),
     val attachments: List<Attachment> = emptyList(),
+    // Video upload (online only, ADR-35): 0f..1f while a video is uploading, null otherwise.
+    val videoUploadProgress: Float? = null,
+    val attachmentError: DomainException? = null,
+    val videoTooLong: VideoDurationCheck.TooLong? = null,
+    // The project OWNER's plan — gates the "Add a video" affordance and the duration pre-check.
+    val ownerPlan: Plan? = null,
 ) {
     val isMissing: Boolean get() = !isLoading && detail == null
+    val canAddVideo: Boolean get() = VideoLimit.canAdd(ownerPlan)
 }
 
 private data class LogAccess(
@@ -54,6 +63,7 @@ private data class LogAccess(
     val isAdmin: Boolean,
     val currency: String?,
     val projectLocalId: String?,
+    val ownerPlan: Plan? = null,
 )
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -114,6 +124,7 @@ class DailyLogViewModel(
                             purchaseLines = lines.first,
                             consumptionLines = lines.second,
                             attachments = lines.third,
+                            ownerPlan = access.ownerPlan,
                         )
                     }
                 }
@@ -150,6 +161,7 @@ class DailyLogViewModel(
                         isAdmin = isAdmin,
                         currency = project?.currency,
                         projectLocalId = projectId,
+                        ownerPlan = project?.ownerPlan,
                     )
                 }
             }
@@ -188,6 +200,35 @@ class DailyLogViewModel(
     suspend fun addAttachment(entryLocalId: String, bytes: ByteArray, originalName: String, mimeType: String) {
         attachmentRepository.addAttachment(entryLocalId, bytes, originalName, mimeType)
     }
+
+    /**
+     * A video was picked from the gallery. Client-side duration pre-check
+     * (courtesy — the server re-asserts), then an **online** upload with
+     * progress (ADR-35). A too-long clip is rejected here, before any upload.
+     */
+    fun onVideoSelected(entryLocalId: String, bytes: ByteArray, mimeType: String, originalName: String) {
+        _state.update { it.copy(attachmentError = null, videoTooLong = null) }
+        val plan = _state.value.ownerPlan
+        when (val check = VideoLimit.check(plan, probeMp4DurationSeconds(bytes))) {
+            is VideoDurationCheck.TooLong -> _state.update { it.copy(videoTooLong = check) }
+            VideoDurationCheck.Ok -> viewModelScope.launch {
+                _state.update { it.copy(videoUploadProgress = 0f) }
+                try {
+                    attachmentRepository.uploadVideo(entryLocalId, bytes, originalName, mimeType) { progress ->
+                        _state.update { it.copy(videoUploadProgress = progress) }
+                    }
+                } catch (e: DomainException) {
+                    _state.update { it.copy(attachmentError = e) }
+                } catch (e: Throwable) {
+                    _state.update { it.copy(attachmentError = DomainException.Unexpected) }
+                } finally {
+                    _state.update { it.copy(videoUploadProgress = null) }
+                }
+            }
+        }
+    }
+
+    fun clearAttachmentError() = _state.update { it.copy(attachmentError = null, videoTooLong = null) }
 
     fun deleteAttachment(attachmentLocalId: String) {
         viewModelScope.launch { attachmentRepository.deleteAttachment(attachmentLocalId) }
