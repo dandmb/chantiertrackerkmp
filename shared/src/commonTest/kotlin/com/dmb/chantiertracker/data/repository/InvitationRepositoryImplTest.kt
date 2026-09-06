@@ -137,6 +137,17 @@ class InvitationRepositoryImplTest {
     }
 
     @Test
+    fun decline_posts_to_the_token_endpoint() = runTest {
+        val backend = FakeProjectBackend().apply {
+            seedPendingForMe(com.dmb.chantiertracker.support.ServerPendingInvitation("tok", 9, "Villa"))
+        }
+
+        repo(backend = backend).declineInvitation("tok")
+
+        assertTrue(backend.myPendingInvitations.isEmpty(), "the server marks it declined")
+    }
+
+    @Test
     fun cancel_deletes_server_side_then_re_pulls_the_project() = runTest {
         val backend = FakeProjectBackend().apply {
             seedInvitation(com.dmb.chantiertracker.support.ServerInvitation(id = 7, projectId = 42, email = "sam@x.dev"))

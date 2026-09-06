@@ -37,4 +37,9 @@ class InvitationApi(private val client: HttpClient) {
     suspend fun accept(token: String) {
         client.post(ApiRoutes.acceptInvitation(token))
     }
+
+    /** Explicitly decline — no body, same access model as accept. */
+    suspend fun decline(token: String) {
+        client.post(ApiRoutes.declineInvitation(token))
+    }
 }

@@ -51,6 +51,10 @@ class InvitationRepositoryImpl(
         apiCall { api.accept(token) }
         // Caller re-pulls the project list so the newly joined project shows up.
     }
+
+    override suspend fun declineInvitation(token: String) {
+        apiCall { api.decline(token) }
+    }
 }
 
 private fun PendingInvitationDto.toIncomingInvitation() = IncomingInvitation(

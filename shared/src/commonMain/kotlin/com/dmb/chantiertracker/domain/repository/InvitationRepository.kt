@@ -23,6 +23,9 @@ interface InvitationRepository {
      */
     suspend fun acceptInvitation(token: String)
 
+    /** Explicitly decline an invitation the current user received. **Online only.** */
+    suspend fun declineInvitation(token: String)
+
     /**
      * Sends an invitation. **Online only** (ADR-32): the server mints the token
      * and sends the email, so there is no offline queue. Throws a

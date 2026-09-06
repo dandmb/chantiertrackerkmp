@@ -140,8 +140,29 @@ class ProjectsViewModelTest {
 
         assertEquals(listOf("tok-1"), invitations.accepted, "POST /invitations/{token}/accept")
         assertTrue(vm.state.value.incomingInvitations.isEmpty(), "the banner is gone")
-        assertTrue(vm.state.value.acceptingTokens.isEmpty())
+        assertTrue(vm.state.value.busyInvitationTokens.isEmpty())
         assertEquals(2, repo.refreshCount, "onEnter + the project-list re-pull after accepting")
+    }
+
+    @Test
+    fun declining_an_invitation_removes_the_card_without_touching_the_project_list() = runTest {
+        val repo = FakeProjectRepository(projects = listOf(older))
+        val invitations = FakeInvitationRepository().apply {
+            incoming = listOf(incoming("keep", "Chalet"), incoming("no-thanks", "Villa Vidal"))
+        }
+        val vm = vm(repo, invitations = invitations)
+        advanceUntilIdle()
+        vm.onEnter()
+        advanceUntilIdle()
+        val baseline = repo.refreshCount
+
+        vm.declineInvitation("no-thanks")
+        advanceUntilIdle()
+
+        assertEquals(listOf("no-thanks"), invitations.declined, "POST /invitations/{token}/decline")
+        assertEquals(listOf("Chalet"), vm.state.value.incomingInvitations.map { it.projectName }, "only the declined card is gone")
+        assertTrue(vm.state.value.busyInvitationTokens.isEmpty())
+        assertEquals(baseline, repo.refreshCount, "declining joins nothing → no project-list re-pull")
     }
 
     @Test
@@ -173,7 +194,7 @@ class ProjectsViewModelTest {
 
         assertEquals(DomainException.NotFound, vm.state.value.invitationError)
         assertEquals(listOf("stale"), vm.state.value.incomingInvitations.map { it.token }, "still shown so the user isn't left confused")
-        assertTrue(vm.state.value.acceptingTokens.isEmpty())
+        assertTrue(vm.state.value.busyInvitationTokens.isEmpty())
     }
 
     @Test

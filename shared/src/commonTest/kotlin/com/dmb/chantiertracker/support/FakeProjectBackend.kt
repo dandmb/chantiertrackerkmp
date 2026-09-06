@@ -199,6 +199,7 @@ class FakeProjectBackend {
         val invitationsProjectId = Regex("""/projects/(\d+)/invitations$""").find(path)?.groupValues?.get(1)?.toLong()
         val invitationId = Regex("""/invitations/(\d+)$""").find(path)?.groupValues?.get(1)?.toLong()
         val acceptToken = Regex("""/invitations/([^/]+)/accept$""").find(path)?.groupValues?.get(1)
+        val declineToken = Regex("""/invitations/([^/]+)/decline$""").find(path)?.groupValues?.get(1)
         val isMyInvitations = path == "/users/me/invitations"
         val stagesProjectId = Regex("""/projects/(\d+)/stages$""").find(path)?.groupValues?.get(1)?.toLong()
         val stageId = Regex("""/stages/(\d+)$""").find(path)?.groupValues?.get(1)?.toLong()
@@ -458,6 +459,14 @@ class FakeProjectBackend {
                 }
                 myPendingInvitations.removeAll { it.token == acceptToken }
                 respondJson("""{"message":"Invitation acceptée avec succès."}""")
+            }
+
+            request.method == HttpMethod.Post && declineToken != null -> {
+                if (myPendingInvitations.none { it.token == declineToken }) {
+                    return respondProblem(HttpStatusCode.NotFound, "Invitation introuvable.")
+                }
+                myPendingInvitations.removeAll { it.token == declineToken }
+                respondJson("", HttpStatusCode.NoContent)
             }
 
             request.method == HttpMethod.Get && idInPath != null -> {

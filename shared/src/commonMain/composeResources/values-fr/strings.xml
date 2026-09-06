@@ -130,6 +130,7 @@
     <string name="incoming_invitation_body">Tu as une invitation en attente pour rejoindre %1$s en tant que %2$s.</string>
     <string name="incoming_invitation_body_with_inviter">Tu as une invitation en attente pour rejoindre %1$s en tant que %2$s, envoyée par %3$s.</string>
     <string name="incoming_invitation_accept">Accepter</string>
+    <string name="incoming_invitation_decline">Refuser</string>
 
     <string name="detail_danger_zone">Zone de danger</string>
     <string name="detail_danger_zone_body">Supprime définitivement ce projet et tout son contenu (étapes, entrées, matériaux, historique).</string>

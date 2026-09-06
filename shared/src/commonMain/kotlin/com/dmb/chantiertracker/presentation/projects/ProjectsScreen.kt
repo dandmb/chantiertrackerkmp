@@ -3,6 +3,7 @@ package com.dmb.chantiertracker.presentation.projects
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -16,6 +17,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -35,6 +37,7 @@ import com.dmb.chantiertracker.resources.Res
 import com.dmb.chantiertracker.resources.incoming_invitation_accept
 import com.dmb.chantiertracker.resources.incoming_invitation_body
 import com.dmb.chantiertracker.resources.incoming_invitation_body_with_inviter
+import com.dmb.chantiertracker.resources.incoming_invitation_decline
 import com.dmb.chantiertracker.resources.projects_empty_body
 import com.dmb.chantiertracker.resources.projects_empty_title
 import com.dmb.chantiertracker.resources.role_admin
@@ -62,9 +65,10 @@ fun ProjectsScreen(
             if (state.incomingInvitations.isNotEmpty() || state.invitationError != null) {
                 IncomingInvitations(
                     invitations = state.incomingInvitations,
-                    acceptingTokens = state.acceptingTokens,
+                    busyTokens = state.busyInvitationTokens,
                     error = state.invitationError?.localizedText(),
                     onAccept = viewModel::acceptInvitation,
+                    onDecline = viewModel::declineInvitation,
                 )
             }
             when {
@@ -91,9 +95,10 @@ fun ProjectsScreen(
 @Composable
 private fun IncomingInvitations(
     invitations: List<IncomingInvitation>,
-    acceptingTokens: Set<String>,
+    busyTokens: Set<String>,
     error: String?,
     onAccept: (String) -> Unit,
+    onDecline: (String) -> Unit,
 ) {
     Column(
         modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 16.dp),
@@ -103,8 +108,9 @@ private fun IncomingInvitations(
         invitations.forEach { invitation ->
             IncomingInvitationCard(
                 invitation = invitation,
-                accepting = invitation.token in acceptingTokens,
+                busy = invitation.token in busyTokens,
                 onAccept = { onAccept(invitation.token) },
+                onDecline = { onDecline(invitation.token) },
             )
         }
     }
@@ -113,8 +119,9 @@ private fun IncomingInvitations(
 @Composable
 private fun IncomingInvitationCard(
     invitation: IncomingInvitation,
-    accepting: Boolean,
+    busy: Boolean,
     onAccept: () -> Unit,
+    onDecline: () -> Unit,
 ) {
     val roleLabel = when (invitation.role) {
         ProjectRole.ADMIN -> stringResource(Res.string.role_admin)
@@ -139,12 +146,16 @@ private fun IncomingInvitationCard(
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSecondaryContainer,
             )
-            Button(
-                onClick = onAccept,
-                enabled = !accepting,
+            Row(
                 modifier = Modifier.align(Alignment.End),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Text(stringResource(Res.string.incoming_invitation_accept))
+                TextButton(onClick = onDecline, enabled = !busy) {
+                    Text(stringResource(Res.string.incoming_invitation_decline))
+                }
+                Button(onClick = onAccept, enabled = !busy) {
+                    Text(stringResource(Res.string.incoming_invitation_accept))
+                }
             }
         }
     }

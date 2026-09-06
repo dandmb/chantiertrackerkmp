@@ -418,7 +418,9 @@ class FakeInvitationRepository(
     var incoming: List<com.dmb.chantiertracker.domain.model.IncomingInvitation> = emptyList()
     var listIncomingError: com.dmb.chantiertracker.domain.model.DomainException? = null
     var acceptError: com.dmb.chantiertracker.domain.model.DomainException? = null
+    var declineError: com.dmb.chantiertracker.domain.model.DomainException? = null
     val accepted = mutableListOf<String>()
+    val declined = mutableListOf<String>()
 
     override suspend fun listIncomingInvitations(): List<com.dmb.chantiertracker.domain.model.IncomingInvitation> {
         listIncomingError?.let { throw it }
@@ -428,6 +430,12 @@ class FakeInvitationRepository(
     override suspend fun acceptInvitation(token: String) {
         acceptError?.let { throw it }
         accepted += token
+        incoming = incoming.filterNot { it.token == token }
+    }
+
+    override suspend fun declineInvitation(token: String) {
+        declineError?.let { throw it }
+        declined += token
         incoming = incoming.filterNot { it.token == token }
     }
 }
