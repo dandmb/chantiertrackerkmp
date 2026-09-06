@@ -116,6 +116,14 @@ class FakeSyncer : com.dmb.chantiertracker.data.sync.Syncer {
         onSync?.invoke()
         return outcome
     }
+
+    val syncedLogs = mutableListOf<String>()
+
+    override suspend fun syncLog(logLocalId: String): com.dmb.chantiertracker.data.sync.SyncOutcome {
+        syncedLogs += logLocalId
+        onSync?.invoke()
+        return outcome
+    }
 }
 
 class FakeProjectRepository(
@@ -230,6 +238,232 @@ class FakeStageRepository(
     override suspend fun refreshStage(stageLocalId: String) {
         refreshStageCount++
         log += "refreshStage:$stageLocalId"
+    }
+}
+
+class FakeDailyLogRepository(
+    logs: List<com.dmb.chantiertracker.domain.model.DailyLog> = emptyList(),
+    detail: com.dmb.chantiertracker.domain.model.DailyLogDetail? = null,
+) : com.dmb.chantiertracker.domain.repository.DailyLogRepository {
+
+    val logsFlow = MutableStateFlow(logs)
+    val detailFlow = MutableStateFlow(detail)
+    val entryFlow = MutableStateFlow<com.dmb.chantiertracker.domain.model.DailyEntry?>(null)
+
+    val log = mutableListOf<String>()
+    var createdPurchaseDayId = "log-new"
+    var createdWorkDayId = "log-new"
+    var lastUpdatedSummary: String? = null
+    var refreshLogsCount = 0
+        private set
+    var refreshLogCount = 0
+        private set
+
+    override fun observeLogs(stageLocalId: String) = logsFlow
+
+    override fun observeLog(logLocalId: String) = detailFlow
+
+    override fun observeEntry(entryLocalId: String) = entryFlow
+
+    override suspend fun createPurchaseEntry(stageLocalId: String, date: String): String {
+        log += "createPurchaseEntry:$stageLocalId:$date"
+        return createdPurchaseDayId
+    }
+
+    override suspend fun createWorkEntry(stageLocalId: String, date: String): String {
+        log += "createWorkEntry:$stageLocalId:$date"
+        return createdWorkDayId
+    }
+
+    override suspend fun updateEntry(entryLocalId: String, summary: String) {
+        log += "updateEntry:$entryLocalId:$summary"
+        lastUpdatedSummary = summary
+    }
+
+    override suspend fun refreshLogs(stageLocalId: String) {
+        refreshLogsCount++
+        log += "refreshLogs:$stageLocalId"
+    }
+
+    override suspend fun refreshLog(logLocalId: String) {
+        refreshLogCount++
+        log += "refreshLog:$logLocalId"
+    }
+}
+
+class FakeMaterialRepository(
+    materials: List<com.dmb.chantiertracker.domain.model.Material> = emptyList(),
+    stock: List<com.dmb.chantiertracker.domain.model.MaterialStock> = emptyList(),
+) : com.dmb.chantiertracker.domain.repository.MaterialRepository {
+
+    val materialsFlow = MutableStateFlow(materials)
+    val stockFlow = MutableStateFlow(stock)
+    val log = mutableListOf<String>()
+
+    /** Material returned by [createMaterial]; defaults to echoing the requested name/unit under a fixed id. */
+    var createdMaterial: ((projectLocalId: String, name: String, unit: String) -> com.dmb.chantiertracker.domain.model.Material)? = null
+
+    override fun observeMaterials(projectLocalId: String) = materialsFlow
+
+    override fun observeStock(projectLocalId: String) = stockFlow
+
+    override suspend fun createMaterial(projectLocalId: String, name: String, unit: String): com.dmb.chantiertracker.domain.model.Material {
+        log += "createMaterial:$projectLocalId:$name:$unit"
+        val material = createdMaterial?.invoke(projectLocalId, name, unit)
+            ?: com.dmb.chantiertracker.domain.model.Material("material-new", projectLocalId, name, unit)
+        materialsFlow.value = materialsFlow.value + material
+        return material
+    }
+}
+
+class FakePurchaseLineRepository(
+    lines: List<com.dmb.chantiertracker.domain.model.PurchaseLine> = emptyList(),
+) : com.dmb.chantiertracker.domain.repository.PurchaseLineRepository {
+
+    val linesFlow = MutableStateFlow(lines)
+    val log = mutableListOf<String>()
+    var newLocalId = "purchase-line-new"
+
+    override fun observeLines(entryLocalId: String) = linesFlow
+
+    override suspend fun createLine(entryLocalId: String, input: com.dmb.chantiertracker.domain.model.CreatePurchaseLineInput): String {
+        log += "createLine:$entryLocalId:${input.materialLocalId}:${input.quantity}:${input.unitPrice}:${input.supplier}"
+        return newLocalId
+    }
+
+    override suspend fun updateLine(lineLocalId: String, input: com.dmb.chantiertracker.domain.model.UpdatePurchaseLineInput) {
+        log += "updateLine:$lineLocalId:${input.quantity}:${input.unitPrice}:${input.supplier}"
+    }
+
+    override suspend fun deleteLine(lineLocalId: String) {
+        log += "deleteLine:$lineLocalId"
+    }
+}
+
+class FakeConsumptionLineRepository(
+    lines: List<com.dmb.chantiertracker.domain.model.ConsumptionLine> = emptyList(),
+) : com.dmb.chantiertracker.domain.repository.ConsumptionLineRepository {
+
+    val linesFlow = MutableStateFlow(lines)
+    val log = mutableListOf<String>()
+    var newLocalId = "consumption-line-new"
+
+    override fun observeLines(entryLocalId: String) = linesFlow
+
+    override suspend fun createLine(entryLocalId: String, input: com.dmb.chantiertracker.domain.model.CreateConsumptionLineInput): String {
+        log += "createLine:$entryLocalId:${input.materialLocalId}:${input.quantity}"
+        return newLocalId
+    }
+
+    override suspend fun updateLine(lineLocalId: String, input: com.dmb.chantiertracker.domain.model.UpdateConsumptionLineInput) {
+        log += "updateLine:$lineLocalId:${input.quantity}"
+    }
+
+    override suspend fun deleteLine(lineLocalId: String) {
+        log += "deleteLine:$lineLocalId"
+    }
+}
+
+class FakeAttachmentRepository(
+    attachments: List<com.dmb.chantiertracker.domain.model.Attachment> = emptyList(),
+) : com.dmb.chantiertracker.domain.repository.AttachmentRepository {
+
+    val attachmentsFlow = MutableStateFlow(attachments)
+    val log = mutableListOf<String>()
+    var newLocalId = "attachment-new"
+
+    override fun observeAttachments(entryLocalId: String) = attachmentsFlow
+
+    override suspend fun addAttachment(entryLocalId: String, bytes: ByteArray, originalName: String, mimeType: String): com.dmb.chantiertracker.domain.model.Attachment {
+        log += "addAttachment:$entryLocalId:$originalName:$mimeType:${bytes.size}"
+        return com.dmb.chantiertracker.domain.model.Attachment(
+            localId = newLocalId,
+            entryLocalId = entryLocalId,
+            localPath = "fake-attachments/$newLocalId.jpg",
+            originalName = originalName,
+            mimeType = mimeType,
+            sizeBytes = bytes.size.toLong(),
+            uploadedAt = 0L,
+        )
+    }
+
+    var uploadVideoError: com.dmb.chantiertracker.domain.model.DomainException? = null
+    var uploadVideoProgressSteps: List<Float> = listOf(0.5f, 1f)
+
+    override suspend fun uploadVideo(
+        entryLocalId: String,
+        bytes: ByteArray,
+        originalName: String,
+        mimeType: String,
+        onProgress: (Float) -> Unit,
+    ): com.dmb.chantiertracker.domain.model.Attachment {
+        log += "uploadVideo:$entryLocalId:$originalName:$mimeType:${bytes.size}"
+        uploadVideoProgressSteps.forEach(onProgress)
+        uploadVideoError?.let { throw it }
+        val video = com.dmb.chantiertracker.domain.model.Attachment(
+            localId = newLocalId,
+            entryLocalId = entryLocalId,
+            localPath = "fake-attachments/$newLocalId.mp4",
+            originalName = originalName,
+            mimeType = "video/mp4",
+            sizeBytes = 1_024L,
+            durationSeconds = 12,
+            uploadedAt = 0L,
+        )
+        attachmentsFlow.value = attachmentsFlow.value + video
+        return video
+    }
+
+    override suspend fun deleteAttachment(attachmentLocalId: String) {
+        log += "deleteAttachment:$attachmentLocalId"
+    }
+}
+
+class FakeInvitationRepository(
+    invitations: List<com.dmb.chantiertracker.domain.model.Invitation> = emptyList(),
+) : com.dmb.chantiertracker.domain.repository.InvitationRepository {
+
+    val invitationsFlow = MutableStateFlow(invitations)
+
+    val invited = mutableListOf<Pair<String, String>>()
+    val cancelled = mutableListOf<Pair<String, Long>>()
+    var inviteError: com.dmb.chantiertracker.domain.model.DomainException? = null
+    var cancelError: com.dmb.chantiertracker.domain.model.DomainException? = null
+
+    override fun observeInvitations(projectLocalId: String) = invitationsFlow
+
+    override suspend fun invite(projectLocalId: String, email: String) {
+        inviteError?.let { throw it }
+        invited += projectLocalId to email
+    }
+
+    override suspend fun cancelInvitation(projectLocalId: String, invitationId: Long) {
+        cancelError?.let { throw it }
+        cancelled += projectLocalId to invitationId
+    }
+
+    var incoming: List<com.dmb.chantiertracker.domain.model.IncomingInvitation> = emptyList()
+    var listIncomingError: com.dmb.chantiertracker.domain.model.DomainException? = null
+    var acceptError: com.dmb.chantiertracker.domain.model.DomainException? = null
+    var declineError: com.dmb.chantiertracker.domain.model.DomainException? = null
+    val accepted = mutableListOf<String>()
+    val declined = mutableListOf<String>()
+
+    override suspend fun listIncomingInvitations(): List<com.dmb.chantiertracker.domain.model.IncomingInvitation> {
+        listIncomingError?.let { throw it }
+        return incoming
+    }
+
+    override suspend fun acceptInvitation(token: String) {
+        acceptError?.let { throw it }
+        accepted += token
+        incoming = incoming.filterNot { it.token == token }
+    }
+
+    override suspend fun declineInvitation(token: String) {
+        declineError?.let { throw it }
+        declined += token
+        incoming = incoming.filterNot { it.token == token }
     }
 }
 

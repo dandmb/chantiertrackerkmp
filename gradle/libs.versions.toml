@@ -31,6 +31,13 @@ navigationCompose = "2.9.2"
 room = "2.8.4"
 sqlite = "2.6.2"
 androidx-work = "2.10.1"
+# Android-only video playback (ADR-36). media3-ui gives ExoPlayer + PlayerView
+# (native controls). 1.4.1 is the last release before the compileSdk-35 bump —
+# it builds cleanly against this repo's compileSdk 36 / minSdk 24 / AGP 9.
+androidx-media3 = "1.4.1"
+# Pins to our exact Kotlin 2.4.10 / Compose Multiplatform 1.11.1 — FileKit 0.15.0
+# declares those as its own minimums.
+filekit = "0.15.0"
 
 [libraries]
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
@@ -86,6 +93,11 @@ androidx-room-runtime = { module = "androidx.room:room-runtime", version.ref = "
 androidx-room-compiler = { module = "androidx.room:room-compiler", version.ref = "room" }
 androidx-sqlite-bundled = { module = "androidx.sqlite:sqlite-bundled", version.ref = "sqlite" }
 androidx-work-runtime = { module = "androidx.work:work-runtime", version.ref = "androidx-work" }
+androidx-media3-exoplayer = { module = "androidx.media3:media3-exoplayer", version.ref = "androidx-media3" }
+androidx-media3-ui = { module = "androidx.media3:media3-ui", version.ref = "androidx-media3" }
+
+filekit-core = { module = "io.github.vinceglb:filekit-core", version.ref = "filekit" }
+filekit-dialogs-compose = { module = "io.github.vinceglb:filekit-dialogs-compose", version.ref = "filekit" }
 
 [plugins]
 androidApplication = { id = "com.android.application", version.ref = "agp" }

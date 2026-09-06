@@ -53,6 +53,8 @@ kotlin {
             implementation(libs.androidx.security.crypto)
             implementation(libs.androidx.work.runtime)
             implementation(libs.connectivity.device)
+            implementation(libs.androidx.media3.exoplayer)
+            implementation(libs.androidx.media3.ui)
         }
         iosMain.dependencies {
             implementation(libs.ktor.client.darwin)
@@ -66,6 +68,8 @@ kotlin {
             implementation(libs.androidx.sqlite.bundled)
             implementation(libs.kotlinx.datetime)
             implementation(libs.connectivity.core)
+            implementation(libs.filekit.core)
+            implementation(libs.filekit.dialogs.compose)
 
             implementation(libs.compose.runtime)
             implementation(libs.compose.foundation)

@@ -28,6 +28,7 @@ data class ProjectDetailDto(
     val currency: String,
     val timezone: String,
     val ownerId: Long,
+    val ownerPlan: String? = null,
     val status: String,
     val createdAt: String? = null,
     val updatedAt: String? = null,

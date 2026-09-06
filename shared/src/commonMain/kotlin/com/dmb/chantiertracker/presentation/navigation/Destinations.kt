@@ -59,7 +59,31 @@ data class ProjectDetailRoute(val projectLocalId: String)
 data class EditProjectRoute(val projectLocalId: String)
 
 @Serializable
+data class InviteMemberRoute(val projectLocalId: String)
+
+@Serializable
 data class CreateStageRoute(val projectLocalId: String)
 
 @Serializable
 data class StageDetailRoute(val stageLocalId: String)
+
+@Serializable
+data class DailyLogRoute(val dailyLogLocalId: String)
+
+@Serializable
+data class EntrySummaryRoute(val entryLocalId: String)
+
+@Serializable
+data class PurchaseLineFormRoute(
+    val entryLocalId: String,
+    val projectLocalId: String,
+    val lineLocalId: String? = null,
+    val currency: String? = null,
+)
+
+@Serializable
+data class ConsumptionLineFormRoute(
+    val entryLocalId: String,
+    val projectLocalId: String,
+    val lineLocalId: String? = null,
+)

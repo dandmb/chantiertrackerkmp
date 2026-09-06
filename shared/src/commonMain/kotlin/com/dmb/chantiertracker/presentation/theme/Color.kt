@@ -16,12 +16,17 @@ val SurfaceLight = Color(0xFFFFFFFF)
 val TextPrimaryLight = Color(0xFF2B2A28)
 val TextSecondaryLight = Color(0xFF6B6862)
 val DividerLight = Color(0xFFE5E2DC)
+// `outline` (M3): the resting border of every OutlinedTextField / OutlinedButton.
+// Deliberately stronger than `DividerLight` (kept for decorative card borders via
+// `outlineVariant`) so an input zone reads as an input zone before it's focused.
+val OutlineLight = Color(0xFF9A938A)
 
 val BackgroundDark = Color(0xFF201C1A)
 val SurfaceDark = Color(0xFF2A2523)
 val TextPrimaryDark = Color(0xFFF2EEEA)
 val TextSecondaryDark = Color(0xFFB6B1A8)
 val DividerDark = Color(0xFF433C38)
+val OutlineDark = Color(0xFF8A827B)
 
 val WarningAmber = Color(0xFF8A5A1C)
 val WarningAmberContainerLight = Color(0xFFF3E4CB)

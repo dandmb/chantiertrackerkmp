@@ -37,3 +37,23 @@ fun localProject(
     remoteUpdatedAt = remoteUpdatedAt,
     lastSyncError = lastSyncError,
 )
+
+fun localInvitation(
+    id: Long,
+    projectLocalId: String = "proj-1",
+    email: String = "sam@chantier.dev",
+    role: String = "SUPERVISOR",
+    status: String = "PENDING",
+    invitedById: Long? = 1L,
+    createdAt: String? = "2026-09-01T10:00:00",
+    expiresAt: String? = "2026-09-08T10:00:00",
+) = com.dmb.chantiertracker.data.local.db.InvitationEntity(
+    id = id,
+    projectLocalId = projectLocalId,
+    email = email,
+    role = role,
+    invitedById = invitedById,
+    createdAt = createdAt,
+    expiresAt = expiresAt,
+    status = status,
+)
