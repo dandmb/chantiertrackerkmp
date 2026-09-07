@@ -26,6 +26,7 @@ import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isRoot
 import androidx.compose.ui.test.onLast
 import androidx.compose.ui.test.onRoot
@@ -191,6 +192,30 @@ class MainScreensSnapshotTest {
         ) { padding -> screen(Modifier.padding(padding)) }
     }
 
+    /** Mirrors MainScreen: the history sort control lives in the detail top bar. */
+    @Composable
+    private fun ProjectHistoryChrome(title: String) {
+        var sort by remember { mutableStateOf(com.dmb.chantiertracker.domain.model.HistorySort.NEWEST_FIRST) }
+        Scaffold(
+            topBar = {
+                DetailTopBar(
+                    title = title,
+                    onBack = {},
+                    actions = {
+                        com.dmb.chantiertracker.presentation.projects.history.HistorySortControl(
+                            current = sort, onSelect = { sort = it },
+                        )
+                    },
+                )
+            },
+        ) { padding ->
+            com.dmb.chantiertracker.presentation.projects.history.ProjectHistoryScreen(
+                projectLocalId = "1", modifier = Modifier.padding(padding), sort = sort,
+                viewModel = projectHistoryVm(Plan.FREE),
+            )
+        }
+    }
+
     /** Mirrors MainScreen: the detail top-bar title tracks the project name resolved by the screen. */
     @Composable
     private fun ProjectDetailChrome(fallbackTitle: String, projectVm: ProjectDetailViewModel) {
@@ -207,6 +232,22 @@ class MainScreensSnapshotTest {
         }
     }
 
+    /** Mirrors MainScreen: the detail top-bar title tracks the day date resolved by the screen. */
+    @Composable
+    private fun DailyLogChrome(fallbackTitle: String) {
+        var title by remember { mutableStateOf<String?>(null) }
+        Scaffold(
+            topBar = { DetailTopBar(title = title ?: fallbackTitle, onBack = {}) },
+        ) { padding ->
+            DailyLogScreen(
+                dailyLogLocalId = "log-1",
+                modifier = Modifier.padding(padding),
+                onDateResolved = { title = it },
+                viewModel = dailyLogVm(),
+            )
+        }
+    }
+
     private fun projectsVm(
         projects: List<Project>,
         incoming: List<com.dmb.chantiertracker.domain.model.IncomingInvitation> = emptyList(),
@@ -216,7 +257,13 @@ class MainScreensSnapshotTest {
         ProjectSortHolder(),
     ).also { if (incoming.isNotEmpty()) it.onEnter() }
 
-    private fun settingsVm() = SettingsViewModel(AppConfig(FakeBuildInfo(isDebug = false, appVersion = "1.0")))
+    private fun settingsVm() = SettingsViewModel(
+        AppConfig(FakeBuildInfo(isDebug = false, appVersion = "1.0")),
+        com.dmb.chantiertracker.presentation.settings.AppSettings(
+            com.dmb.chantiertracker.support.FakeAppPreferences(),
+            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Unconfined),
+        ),
+    )
 
     private fun authedRepo() = FakeAuthRepository().apply {
         emitState(AuthState.Authenticated(User(1, "jean@chantier.dev", "Jean", true, GlobalRole.USER)))
@@ -279,6 +326,38 @@ class MainScreensSnapshotTest {
             repo, com.dmb.chantiertracker.support.FakeInvitationRepository(),
         ).also { it.load("1") }
     }
+
+    private fun projectHistoryVm(ownerPlan: Plan): com.dmb.chantiertracker.presentation.projects.history.ProjectHistoryViewModel {
+        val repo = FakeProjectRepository(
+            detail = ProjectDetail(
+                localId = "1", name = "Villa Vidal", description = null, location = "Nîmes",
+                currency = "EUR", timezone = "Europe/Paris", status = ProjectStatus.IN_PROGRESS,
+                ownerId = 1L, ownerPlan = ownerPlan,
+            ),
+        )
+        val history = com.dmb.chantiertracker.support.FakeHistoryRepository(
+            listOf(
+                com.dmb.chantiertracker.domain.model.HistoryPage(
+                    items = listOf(
+                        historyItem(5, "2026-09-05T14:32:11", "Jean Marchand a modifié le budget prévisionnel de l'étape Gros œuvre : 500 000 → 600 000 EUR"),
+                        historyItem(4, "2026-09-04T09:12:03", "Sam Ferreira (superviseur) a ajouté un achat sur l'étape Gros œuvre : 12 sacs de ciment à 42 EUR"),
+                        historyItem(3, "2026-09-02T17:45:00", "Sam Ferreira (superviseur) a retiré 3 tonnes de Ciment du stock sur l'étape Fondations"),
+                        historyItem(2, "2026-08-30T08:00:00", "Jean Marchand a réactivé le projet Villa Vidal"),
+                        historyItem(1, "2026-08-28T11:20:00", "Jean Marchand a créé le projet Villa Vidal"),
+                    ),
+                    page = 0, totalPages = 3, isFirst = true, isLast = false, totalElements = 45,
+                ),
+            ),
+        )
+        return com.dmb.chantiertracker.presentation.projects.history.ProjectHistoryViewModel(history, repo).also { it.load("1") }
+    }
+
+    private fun historyItem(id: Long, at: String, description: String) =
+        com.dmb.chantiertracker.domain.model.ModificationHistoryItem(
+            id = id, modifiedAt = at,
+            actionType = com.dmb.chantiertracker.domain.model.HistoryActionType.MODIFICATION,
+            description = description, entryId = null, userId = 1L, fieldName = null, oldValue = null, newValue = null,
+        )
 
     private fun editProjectVm(): com.dmb.chantiertracker.presentation.projects.edit.EditProjectViewModel {
         val repo = FakeProjectRepository(
@@ -510,6 +589,13 @@ class MainScreensSnapshotTest {
                     title = if (locale == "fr") "Modifier le projet" else "Edit project",
                 ) { m -> EditProjectScreen(projectLocalId = "1", onSaved = {}, onBack = {}, modifier = m, viewModel = editProjectVm()) }
             }
+            snapshot(
+                "34-project-history",
+                locale,
+                awaitReady = { onAllNodes(hasText("Villa Vidal", substring = true)).fetchSemanticsNodes().isNotEmpty() },
+            ) {
+                ProjectHistoryChrome(title = if (locale == "fr") "Historique" else "History")
+            }
             snapshot("30-invite-member", locale) {
                 DetailChrome(
                     title = if (locale == "fr") "Inviter un superviseur" else "Invite a supervisor",
@@ -555,9 +641,7 @@ class MainScreensSnapshotTest {
                     onAllNodes(hasContentDescription("facture-ciment.jpg")).fetchSemanticsNodes().isNotEmpty()
                 },
             ) {
-                DetailChrome(
-                    title = if (locale == "fr") "Journée" else "Day",
-                ) { m -> DailyLogScreen(dailyLogLocalId = "log-1", modifier = m, viewModel = dailyLogVm()) }
+                DailyLogChrome(fallbackTitle = if (locale == "fr") "Journée" else "Day")
             }
             snapshot("33-video-player-desktop", locale) {
                 DetailChrome(title = if (locale == "fr") "Vidéo" else "Video") { m ->

@@ -2,6 +2,8 @@ package com.dmb.chantiertracker.di
 
 import com.dmb.chantiertracker.core.BuildInfo
 import com.dmb.chantiertracker.core.IosBuildInfo
+import com.dmb.chantiertracker.data.local.AppPreferences
+import com.dmb.chantiertracker.data.local.IosAppPreferences
 import com.dmb.chantiertracker.data.local.IosOnboardingStore
 import com.dmb.chantiertracker.data.local.IosTokenStorage
 import com.dmb.chantiertracker.data.local.OnboardingStore
@@ -20,6 +22,7 @@ actual fun platformModule(): Module = module {
     single<BuildInfo> { IosBuildInfo() }
     single<TokenStorage> { IosTokenStorage() }
     single<OnboardingStore> { IosOnboardingStore() }
+    single<AppPreferences> { IosAppPreferences() }
     single<RoomDatabase.Builder<AppDatabase>> { projectDatabaseBuilder() }
     single<ConnectivityObserver> {
         val scope = get<AppCoroutineScope>()

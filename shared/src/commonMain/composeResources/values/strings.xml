@@ -106,6 +106,7 @@
 
     <string name="detail_title">Project</string>
     <string name="detail_edit_project">Edit project</string>
+    <string name="detail_section_info">Information</string>
     <string name="detail_currency">Currency</string>
     <string name="detail_timezone">Time zone</string>
     <string name="detail_section_stages">Stages</string>
@@ -131,6 +132,25 @@
     <string name="incoming_invitation_body_with_inviter">You have a pending invitation to join %1$s as %2$s, sent by %3$s.</string>
     <string name="incoming_invitation_accept">Accept</string>
     <string name="incoming_invitation_decline">Decline</string>
+
+    <string name="detail_history">Modification history</string>
+    <string name="detail_history_hint">Who changed what, and when</string>
+    <string name="history_title">History</string>
+    <string name="history_sort_newest">Most recent</string>
+    <string name="history_sort_oldest">Oldest first</string>
+    <string name="history_sort_action">By action type (A→Z)</string>
+    <string name="history_sort_label">Sort</string>
+    <string name="history_empty">No history yet.</string>
+    <string name="history_error">Couldn't load the history.</string>
+    <string name="history_retry">Retry</string>
+    <string name="history_page">Page %1$d / %2$d</string>
+    <string name="history_prev">Previous</string>
+    <string name="history_next">Next</string>
+    <string name="history_limit_free">History is limited to the last 30 days. Upgrade to Semi-flex or Liberté for a longer history.</string>
+    <string name="history_limit_semi_flex">History is limited to the last 6 months. Upgrade to Liberté for unlimited history.</string>
+    <string name="history_action_creation">Creation</string>
+    <string name="history_action_modification">Modification</string>
+    <string name="history_action_deletion">Deletion</string>
 
     <string name="detail_danger_zone">Danger zone</string>
     <string name="detail_danger_zone_body">Permanently deletes this project and everything in it (stages, entries, materials, history).</string>
@@ -244,10 +264,13 @@
 
     <string name="settings_language">Language</string>
     <string name="settings_theme">Theme</string>
-    <string name="settings_theme_system">System</string>
+    <string name="settings_about">About</string>
+    <string name="settings_option_system">System</string>
+    <string name="settings_language_french">Français</string>
+    <string name="settings_language_english">English</string>
+    <string name="settings_theme_light">Light</string>
+    <string name="settings_theme_dark">Dark</string>
     <string name="settings_version">App version</string>
-    <string name="language_french">French</string>
-    <string name="language_english">English</string>
 
     <string name="validation_email_required">Email is required.</string>
     <string name="validation_email_invalid">Enter a valid email address.</string>

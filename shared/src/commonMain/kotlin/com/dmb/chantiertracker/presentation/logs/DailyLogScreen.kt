@@ -9,6 +9,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -46,7 +47,6 @@ import androidx.compose.ui.graphics.decodeToImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -59,6 +59,9 @@ import com.dmb.chantiertracker.domain.model.EntryType
 import com.dmb.chantiertracker.domain.model.Material
 import com.dmb.chantiertracker.domain.model.MaterialStock
 import com.dmb.chantiertracker.domain.model.PurchaseLine
+import com.dmb.chantiertracker.presentation.DetailEmptyHint
+import com.dmb.chantiertracker.presentation.DetailSection
+import com.dmb.chantiertracker.presentation.DetailSectionDivider
 import com.dmb.chantiertracker.presentation.format.formatAmount
 import com.dmb.chantiertracker.presentation.format.formatMoney
 import com.dmb.chantiertracker.presentation.formatIsoDate
@@ -179,26 +182,26 @@ private fun DailyLogContent(
     val workEntry = detail.entries.firstOrNull { it.type == EntryType.WORK }
     val projectId = state.projectLocalId
 
+    // The date is already the screen title (DetailTopBar, via onDateResolved) —
+    // not repeated here.
     Column(
-        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(start = 24.dp, end = 24.dp, top = 20.dp, bottom = 32.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
-        Text(
-            text = formatIsoDate(detail.date),
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.SemiBold,
-        )
-
-        EntryCard(
-            type = EntryType.PURCHASE,
+        EntrySection(
+            title = stringResource(Res.string.entry_type_purchase),
             icon = ShoppingCartIcon,
             entry = purchaseEntry,
             canEdit = state.canEdit,
+            emptyHint = stringResource(Res.string.entry_none_yet),
             onAdd = { viewModel.addEntry(EntryType.PURCHASE) },
-            onEdit = { purchaseEntry?.let { onEditEntry(it.localId) } },
+            onEditSummary = { purchaseEntry?.let { onEditEntry(it.localId) } },
         ) {
             if (purchaseEntry != null && projectId != null) {
-                PurchaseLinesSection(
+                PurchaseLinesSubSection(
                     materials = state.materials,
                     lines = state.purchaseLines,
                     currency = state.currency,
@@ -215,16 +218,20 @@ private fun DailyLogContent(
                 )
             }
         }
-        EntryCard(
-            type = EntryType.WORK,
+
+        DetailSectionDivider()
+
+        EntrySection(
+            title = stringResource(Res.string.entry_type_work),
             icon = ConstructionIcon,
             entry = workEntry,
             canEdit = state.canEdit,
+            emptyHint = stringResource(Res.string.entry_none_yet),
             onAdd = { viewModel.addEntry(EntryType.WORK) },
-            onEdit = { workEntry?.let { onEditEntry(it.localId) } },
+            onEditSummary = { workEntry?.let { onEditEntry(it.localId) } },
         ) {
             if (workEntry != null && projectId != null) {
-                ConsumptionLinesSection(
+                ConsumptionLinesSubSection(
                     stock = state.stock,
                     lines = state.consumptionLines,
                     canEdit = state.canEdit,
@@ -238,86 +245,94 @@ private fun DailyLogContent(
     }
 }
 
+// One of the two daily-entry blocks (Achats / Travaux). A DetailSection with a
+// leading type icon: when the entry doesn't exist yet, a full-width "add" CTA +
+// the empty hint; once it exists, its summary + an "edit summary" header action
+// + the entry's own sub-sections (lines, attachments).
 @Composable
-private fun EntryCard(
-    type: EntryType,
+private fun EntrySection(
+    title: String,
     icon: ImageVector,
     entry: DailyEntry?,
     canEdit: Boolean,
+    emptyHint: String,
     onAdd: () -> Unit,
-    onEdit: () -> Unit,
-    content: @Composable () -> Unit = {},
+    onEditSummary: () -> Unit,
+    content: @Composable ColumnScope.() -> Unit,
 ) {
-    Surface(
-        color = MaterialTheme.colorScheme.surface,
-        shape = MaterialTheme.shapes.medium,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-        modifier = Modifier.fillMaxWidth(),
+    DetailSection(
+        title = title,
+        leadingIcon = icon,
+        action = if (entry != null && canEdit) {
+            {
+                TextButton(onClick = onEditSummary) {
+                    Icon(EditIcon, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Text(stringResource(Res.string.entry_edit), Modifier.padding(start = 4.dp))
+                }
+            }
+        } else {
+            null
+        },
     ) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Icon(icon, contentDescription = null, modifier = Modifier.size(20.dp))
-                Text(
-                    text = stringResource(if (type == EntryType.WORK) Res.string.entry_type_work else Res.string.entry_type_purchase),
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                )
-            }
-
-            if (entry != null) {
-                val summary = entry.summary?.takeIf { it.isNotBlank() }
-                Text(
-                    text = summary ?: stringResource(
-                        if (type == EntryType.WORK) Res.string.entry_no_title else Res.string.entry_no_summary,
-                    ),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = if (summary != null) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                if (canEdit) {
-                    OutlinedButton(onClick = onEdit) { Text(stringResource(Res.string.entry_edit)) }
-                }
-                content()
-            } else {
-                Text(
-                    text = stringResource(Res.string.entry_none_yet),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                if (canEdit) {
-                    Button(onClick = onAdd, modifier = Modifier.fillMaxWidth()) {
-                        Icon(AddIcon, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Text(text = stringResource(Res.string.entry_add), modifier = Modifier.padding(start = 6.dp))
-                    }
+        if (entry == null) {
+            if (canEdit) {
+                Button(onClick = onAdd, modifier = Modifier.fillMaxWidth()) {
+                    Icon(AddIcon, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Text(text = stringResource(Res.string.entry_add), modifier = Modifier.padding(start = 6.dp))
                 }
             }
+            DetailEmptyHint(emptyHint)
+        } else {
+            val summary = entry.summary?.takeIf { it.isNotBlank() }
+            Text(
+                text = summary ?: stringResource(
+                    if (entry.type == EntryType.WORK) Res.string.entry_no_title else Res.string.entry_no_summary,
+                ),
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (summary != null) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            content()
         }
     }
 }
 
+// A level-2 heading inside an EntrySection (Articles achetés / Matériaux
+// consommés / Justificatifs) — smaller than the section title, still clearly a
+// heading, with an optional right-aligned action.
 @Composable
-private fun SectionHeader(title: String, canEdit: Boolean, onAdd: () -> Unit) {
-    Row(
-        Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            title,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.weight(1f),
-        )
-        if (canEdit) {
-            TextButton(onClick = onAdd) {
-                Icon(AddIcon, contentDescription = null, modifier = Modifier.size(16.dp))
-                Text(text = stringResource(Res.string.action_add), modifier = Modifier.padding(start = 4.dp))
-            }
+private fun SubSection(
+    title: String,
+    action: (@Composable () -> Unit)? = null,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.weight(1f),
+            )
+            action?.invoke()
         }
+        content()
     }
 }
 
 @Composable
-private fun PurchaseLinesSection(
+private fun SubSectionAddAction(onAdd: () -> Unit) {
+    TextButton(onClick = onAdd) {
+        Icon(AddIcon, contentDescription = null, modifier = Modifier.size(16.dp))
+        Text(text = stringResource(Res.string.action_add), modifier = Modifier.padding(start = 4.dp))
+    }
+}
+
+@Composable
+private fun PurchaseLinesSubSection(
     materials: List<Material>,
     lines: List<PurchaseLine>,
     currency: String?,
@@ -327,11 +342,16 @@ private fun PurchaseLinesSection(
     onEdit: (PurchaseLine) -> Unit,
     onDelete: (PurchaseLine) -> Unit,
 ) {
-    Column(Modifier.padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        SectionHeader(stringResource(Res.string.purchase_lines_title), canEdit, onAdd)
-
+    SubSection(
+        title = stringResource(Res.string.purchase_lines_title),
+        action = if (canEdit) {
+            { SubSectionAddAction(onAdd) }
+        } else {
+            null
+        },
+    ) {
         if (lines.isEmpty()) {
-            Text(stringResource(Res.string.purchase_lines_empty), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            DetailEmptyHint(stringResource(Res.string.purchase_lines_empty))
         } else {
             lines.forEach { line ->
                 val material = materials.firstOrNull { it.localId == line.materialLocalId }
@@ -354,7 +374,7 @@ private fun PurchaseLinesSection(
 }
 
 @Composable
-private fun ConsumptionLinesSection(
+private fun ConsumptionLinesSubSection(
     stock: List<MaterialStock>,
     lines: List<ConsumptionLine>,
     canEdit: Boolean,
@@ -363,11 +383,16 @@ private fun ConsumptionLinesSection(
     onEdit: (ConsumptionLine) -> Unit,
     onDelete: (ConsumptionLine) -> Unit,
 ) {
-    Column(Modifier.padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        SectionHeader(stringResource(Res.string.consumption_lines_title), canEdit, onAdd)
-
+    SubSection(
+        title = stringResource(Res.string.consumption_lines_title),
+        action = if (canEdit) {
+            { SubSectionAddAction(onAdd) }
+        } else {
+            null
+        },
+    ) {
         if (lines.isEmpty()) {
-            Text(stringResource(Res.string.consumption_lines_empty), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            DetailEmptyHint(stringResource(Res.string.consumption_lines_empty))
         } else {
             lines.forEach { line ->
                 val materialStock = stock.firstOrNull { it.materialLocalId == line.materialLocalId }
@@ -394,7 +419,7 @@ private fun LineRow(
     onDelete: () -> Unit,
 ) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-        Column(Modifier.weight(1f)) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(title, style = MaterialTheme.typography.bodyMedium)
             Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
@@ -471,12 +496,7 @@ private fun AttachmentsSection(
         viewModel.onVideoSelected(entryLocalId, picked.asUploadFile(mimeString))
     }
 
-    Column(Modifier.padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(
-            stringResource(Res.string.attachments_title),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+    SubSection(title = stringResource(Res.string.attachments_title)) {
         if (canEdit) {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 TextButton(onClick = { photoPicker.launch() }, enabled = !busy) {
@@ -531,11 +551,7 @@ private fun AttachmentsSection(
         }
 
         when {
-            attachments.isEmpty() -> Text(
-                stringResource(Res.string.attachments_empty),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            attachments.isEmpty() -> DetailEmptyHint(stringResource(Res.string.attachments_empty))
             !firstLoadDone && !allPhotosDecoded -> Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),

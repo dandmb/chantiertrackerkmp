@@ -81,6 +81,21 @@ class ConsumptionLineFormViewModelTest {
     }
 
     @Test
+    fun can_save_needs_a_material_a_quantity_and_a_value_within_stock() = runTest {
+        val (v, _, _) = vm(stock = listOf(MaterialStock("m1", "Ciment", "sac", quantityIn = 10.0, quantityOut = 0.0)))
+        v.load("e1", "p1", lineLocalId = null)
+        advanceUntilIdle()
+
+        assertFalse(v.state.value.canSave)
+        v.selectMaterial("m1")
+        assertFalse(v.state.value.canSave)
+        v.onQuantityChange("11")
+        assertFalse(v.state.value.canSave) // exceeds stock
+        v.onQuantityChange("4")
+        assertTrue(v.state.value.canSave)
+    }
+
+    @Test
     fun a_missing_line_being_edited_is_flagged() = runTest {
         val (v, _, _) = vm(stock = emptyList())
         v.load("e1", "p1", lineLocalId = "ghost")

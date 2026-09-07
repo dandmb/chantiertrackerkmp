@@ -3,7 +3,6 @@ package com.dmb.chantiertracker.presentation.stages.detail
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -14,11 +13,9 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -37,6 +34,10 @@ import com.dmb.chantiertracker.domain.model.DailyLog
 import com.dmb.chantiertracker.domain.model.EntryType
 import com.dmb.chantiertracker.domain.model.StageDetail
 import com.dmb.chantiertracker.presentation.ClickableListRow
+import com.dmb.chantiertracker.presentation.DetailEmptyHint
+import com.dmb.chantiertracker.presentation.DetailInfoRow
+import com.dmb.chantiertracker.presentation.DetailSection
+import com.dmb.chantiertracker.presentation.DetailSectionDivider
 import com.dmb.chantiertracker.presentation.formatIsoDate
 import com.dmb.chantiertracker.presentation.format.formatMoney
 import com.dmb.chantiertracker.presentation.main.AddIcon
@@ -44,6 +45,7 @@ import com.dmb.chantiertracker.presentation.main.ConstructionIcon
 import com.dmb.chantiertracker.presentation.main.ShoppingCartIcon
 import com.dmb.chantiertracker.presentation.stages.StageStatusBadge
 import com.dmb.chantiertracker.resources.Res
+import com.dmb.chantiertracker.resources.detail_section_info
 import com.dmb.chantiertracker.resources.entry_type_purchase
 import com.dmb.chantiertracker.resources.entry_type_work
 import com.dmb.chantiertracker.resources.error_not_found
@@ -116,7 +118,10 @@ private fun StageDetailContent(
     onAddToday: suspend (EntryType) -> String?,
 ) {
     Column(
-        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(start = 24.dp, end = 24.dp, top = 20.dp, bottom = 32.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -130,20 +135,21 @@ private fun StageDetailContent(
                 Text(
                     text = detail.description,
                     style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.padding(top = 4.dp),
                 )
             }
         }
 
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+        DetailSectionDivider()
 
         val budget = detail.estimatedBudget?.let { formatMoney(it, currency) }
         val dates = formatDateRange(detail.startDate, detail.endDate)
         val notSet = stringResource(Res.string.value_not_set)
-        InfoRow(stringResource(Res.string.stage_detail_budget), budget ?: notSet, muted = budget == null)
-        InfoRow(stringResource(Res.string.stage_detail_dates), dates ?: notSet, muted = dates == null)
+        DetailSection(stringResource(Res.string.detail_section_info)) {
+            DetailInfoRow(stringResource(Res.string.stage_detail_budget), budget ?: notSet, muted = budget == null)
+            DetailInfoRow(stringResource(Res.string.stage_detail_dates), dates ?: notSet, muted = dates == null)
+        }
 
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+        DetailSectionDivider()
 
         DaysSection(
             logs = logs,
@@ -177,12 +183,7 @@ private fun DaysSection(
         }
     }
 
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(
-            stringResource(Res.string.stage_detail_section_days),
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold,
-        )
+    DetailSection(stringResource(Res.string.stage_detail_section_days)) {
         // Full-width primary action on its own row — the label is long and must
         // never be squeezed against the section title (large font / narrow screen).
         Box(Modifier.fillMaxWidth()) {
@@ -213,20 +214,11 @@ private fun DaysSection(
         }
 
         if (logs.isEmpty()) {
-            Surface(
-                color = MaterialTheme.colorScheme.surfaceVariant,
-                shape = MaterialTheme.shapes.medium,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(
-                    text = stringResource(
-                        if (canAddToday) Res.string.stage_detail_days_empty_can_add else Res.string.stage_detail_days_empty,
-                    ),
-                    modifier = Modifier.padding(16.dp),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
+            DetailEmptyHint(
+                stringResource(
+                    if (canAddToday) Res.string.stage_detail_days_empty_can_add else Res.string.stage_detail_days_empty,
+                ),
+            )
         } else {
             logs.forEach { log -> LogRow(log, onClick = { onOpenLog(log.localId) }) }
         }
@@ -257,24 +249,6 @@ private fun LogRow(log: DailyLog, onClick: () -> Unit) {
                 modifier = Modifier.size(20.dp),
             )
         }
-    }
-}
-
-@Composable
-private fun InfoRow(label: String, value: String, muted: Boolean = false) {
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Text(
-            text = value,
-            style = MaterialTheme.typography.bodyMedium,
-            color = if (muted) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
-            textAlign = TextAlign.End,
-            modifier = Modifier.weight(1f),
-        )
     }
 }
 

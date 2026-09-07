@@ -106,6 +106,7 @@
 
     <string name="detail_title">Projet</string>
     <string name="detail_edit_project">Modifier le projet</string>
+    <string name="detail_section_info">Informations</string>
     <string name="detail_currency">Devise</string>
     <string name="detail_timezone">Fuseau horaire</string>
     <string name="detail_section_stages">Étapes</string>
@@ -131,6 +132,25 @@
     <string name="incoming_invitation_body_with_inviter">Tu as une invitation en attente pour rejoindre %1$s en tant que %2$s, envoyée par %3$s.</string>
     <string name="incoming_invitation_accept">Accepter</string>
     <string name="incoming_invitation_decline">Refuser</string>
+
+    <string name="detail_history">Historique des modifications</string>
+    <string name="detail_history_hint">Qui a changé quoi, et quand</string>
+    <string name="history_title">Historique</string>
+    <string name="history_sort_newest">Plus récent</string>
+    <string name="history_sort_oldest">Plus ancien</string>
+    <string name="history_sort_action">Par type d'action (A→Z)</string>
+    <string name="history_sort_label">Trier</string>
+    <string name="history_empty">Aucun historique pour l'instant.</string>
+    <string name="history_error">Impossible de charger l'historique.</string>
+    <string name="history_retry">Réessayer</string>
+    <string name="history_page">Page %1$d / %2$d</string>
+    <string name="history_prev">Précédent</string>
+    <string name="history_next">Suivant</string>
+    <string name="history_limit_free">Historique limité aux 30 derniers jours. Passez à Semi-flex ou Liberté pour un historique plus long.</string>
+    <string name="history_limit_semi_flex">Historique limité aux 6 derniers mois. Passez à Liberté pour un historique illimité.</string>
+    <string name="history_action_creation">Création</string>
+    <string name="history_action_modification">Modification</string>
+    <string name="history_action_deletion">Suppression</string>
 
     <string name="detail_danger_zone">Zone de danger</string>
     <string name="detail_danger_zone_body">Supprime définitivement ce projet et tout son contenu (étapes, entrées, matériaux, historique).</string>
@@ -244,10 +264,13 @@
 
     <string name="settings_language">Langue</string>
     <string name="settings_theme">Thème</string>
-    <string name="settings_theme_system">Système</string>
+    <string name="settings_about">À propos</string>
+    <string name="settings_option_system">Système</string>
+    <string name="settings_language_french">Français</string>
+    <string name="settings_language_english">English</string>
+    <string name="settings_theme_light">Clair</string>
+    <string name="settings_theme_dark">Sombre</string>
     <string name="settings_version">Version de l'app</string>
-    <string name="language_french">Français</string>
-    <string name="language_english">Anglais</string>
 
     <string name="validation_email_required">L'email est obligatoire.</string>
     <string name="validation_email_invalid">L'email doit être valide.</string>

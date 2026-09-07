@@ -24,6 +24,7 @@ import com.dmb.chantiertracker.data.remote.InvitationApi
 import com.dmb.chantiertracker.data.remote.AuthApi
 import com.dmb.chantiertracker.data.remote.ConsumptionLineApi
 import com.dmb.chantiertracker.data.remote.DailyLogApi
+import com.dmb.chantiertracker.data.remote.HistoryApi
 import com.dmb.chantiertracker.data.remote.MaterialApi
 import com.dmb.chantiertracker.data.remote.ProjectApi
 import com.dmb.chantiertracker.data.remote.PurchaseLineApi
@@ -41,6 +42,7 @@ import com.dmb.chantiertracker.data.repository.InvitationRepositoryImpl
 import com.dmb.chantiertracker.data.repository.AuthRepositoryImpl
 import com.dmb.chantiertracker.data.repository.ConsumptionLineRepositoryImpl
 import com.dmb.chantiertracker.data.repository.DailyLogRepositoryImpl
+import com.dmb.chantiertracker.data.repository.HistoryRepositoryImpl
 import com.dmb.chantiertracker.data.repository.MaterialRepositoryImpl
 import com.dmb.chantiertracker.data.repository.ProjectRepositoryImpl
 import com.dmb.chantiertracker.data.repository.PurchaseLineRepositoryImpl
@@ -52,6 +54,7 @@ import com.dmb.chantiertracker.domain.repository.InvitationRepository
 import com.dmb.chantiertracker.domain.repository.AuthRepository
 import com.dmb.chantiertracker.domain.repository.ConsumptionLineRepository
 import com.dmb.chantiertracker.domain.repository.DailyLogRepository
+import com.dmb.chantiertracker.domain.repository.HistoryRepository
 import com.dmb.chantiertracker.domain.repository.MaterialRepository
 import com.dmb.chantiertracker.domain.repository.ProjectRepository
 import com.dmb.chantiertracker.domain.repository.PurchaseLineRepository
@@ -72,9 +75,11 @@ import com.dmb.chantiertracker.presentation.projects.ProjectsViewModel
 import com.dmb.chantiertracker.presentation.projects.create.CreateProjectViewModel
 import com.dmb.chantiertracker.presentation.projects.detail.ProjectDetailViewModel
 import com.dmb.chantiertracker.presentation.projects.edit.EditProjectViewModel
+import com.dmb.chantiertracker.presentation.projects.history.ProjectHistoryViewModel
 import com.dmb.chantiertracker.presentation.projects.invite.InviteMemberViewModel
 import com.dmb.chantiertracker.presentation.stages.create.CreateStageViewModel
 import com.dmb.chantiertracker.presentation.stages.detail.StageDetailViewModel
+import com.dmb.chantiertracker.presentation.settings.AppSettings
 import com.dmb.chantiertracker.presentation.settings.SettingsViewModel
 import io.ktor.client.HttpClient
 import org.koin.core.module.Module
@@ -106,6 +111,7 @@ val networkModule: Module = module {
     singleOf(::ConsumptionLineApi)
     singleOf(::AttachmentApi)
     singleOf(::InvitationApi)
+    singleOf(::HistoryApi)
 }
 
 val syncModule: Module = module {
@@ -163,10 +169,12 @@ val dataModule: Module = module {
     single<ConsumptionLineRepository> { ConsumptionLineRepositoryImpl(get(), get(), get<AppCoroutineScope>()) }
     single<AttachmentRepository> { AttachmentRepositoryImpl(get(), get(), get(), get(), get(), get<AppCoroutineScope>()) }
     single<InvitationRepository> { InvitationRepositoryImpl(get(), get(), get(), get()) }
+    single<HistoryRepository> { HistoryRepositoryImpl(get(), get()) }
 }
 
 val presentationModule: Module = module {
     single { ProjectSortHolder() }
+    single { AppSettings(get(), get<AppCoroutineScope>()) }
     viewModelOf(::RootViewModel)
     viewModelOf(::LoginViewModel)
     viewModelOf(::RegisterViewModel)
@@ -178,6 +186,7 @@ val presentationModule: Module = module {
     viewModelOf(::CreateProjectViewModel)
     viewModelOf(::ProjectDetailViewModel)
     viewModelOf(::EditProjectViewModel)
+    viewModelOf(::ProjectHistoryViewModel)
     viewModelOf(::InviteMemberViewModel)
     viewModelOf(::CreateStageViewModel)
     viewModelOf(::StageDetailViewModel)

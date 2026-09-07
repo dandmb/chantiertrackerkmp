@@ -39,6 +39,23 @@ fun formatIsoDate(iso: String): String {
     return "$day-$month-$year"
 }
 
+/**
+ * A server `LocalDateTime` string (`yyyy-MM-ddTHH:mm:ss[.SSS]`, zoneless server
+ * zone) shown as `JJ-MM-AAAA · HH:MM`. Parsed as a string like [formatIsoDate]
+ * — never via a datetime library, so it can't depend on a field name or a
+ * zone, and the separator is locale-neutral. Unparseable input degrades to the
+ * date alone, or is returned as-is.
+ */
+fun formatIsoDateTime(iso: String): String {
+    val trimmed = iso.trim()
+    val tIndex = trimmed.indexOf('T')
+    val datePart = formatIsoDate(if (tIndex < 0) trimmed else trimmed.substring(0, tIndex))
+    if (tIndex < 0) return datePart
+    val time = trimmed.substring(tIndex + 1).split(":")
+    if (time.size < 2 || time[0].length > 2 || time[1].isEmpty()) return datePart
+    return "$datePart · ${time[0].padStart(2, '0')}:${time[1].take(2).padStart(2, '0')}"
+}
+
 fun todayInSystemZone(): LocalDate = Clock.System.todayIn(TimeZone.currentSystemDefault())
 
 /**

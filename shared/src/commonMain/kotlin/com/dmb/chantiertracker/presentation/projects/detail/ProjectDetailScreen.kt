@@ -16,7 +16,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
@@ -40,6 +39,10 @@ import com.dmb.chantiertracker.domain.model.ProjectMember
 import com.dmb.chantiertracker.domain.model.ProjectRole
 import com.dmb.chantiertracker.domain.model.Stage
 import com.dmb.chantiertracker.presentation.ClickableListRow
+import com.dmb.chantiertracker.presentation.DetailEmptyHint
+import com.dmb.chantiertracker.presentation.DetailInfoRow
+import com.dmb.chantiertracker.presentation.DetailSection
+import com.dmb.chantiertracker.presentation.DetailSectionDivider
 import com.dmb.chantiertracker.presentation.formatIsoDate
 import com.dmb.chantiertracker.presentation.i18n.localizedText
 import com.dmb.chantiertracker.presentation.auth.components.ErrorBanner
@@ -55,6 +58,8 @@ import com.dmb.chantiertracker.resources.detail_danger_zone
 import com.dmb.chantiertracker.resources.detail_danger_zone_body
 import com.dmb.chantiertracker.resources.detail_delete_project
 import com.dmb.chantiertracker.resources.detail_edit_project
+import com.dmb.chantiertracker.resources.detail_history
+import com.dmb.chantiertracker.resources.detail_history_hint
 import com.dmb.chantiertracker.resources.detail_invitation_cancel
 import com.dmb.chantiertracker.resources.detail_invitation_sent_on
 import com.dmb.chantiertracker.resources.detail_invitations_empty
@@ -64,6 +69,7 @@ import com.dmb.chantiertracker.resources.detail_members_empty
 import com.dmb.chantiertracker.resources.detail_section_members
 import com.dmb.chantiertracker.resources.role_admin
 import com.dmb.chantiertracker.resources.role_supervisor
+import com.dmb.chantiertracker.resources.detail_section_info
 import com.dmb.chantiertracker.resources.detail_section_stages
 import com.dmb.chantiertracker.resources.detail_stages_add
 import com.dmb.chantiertracker.resources.detail_stages_empty
@@ -72,6 +78,7 @@ import com.dmb.chantiertracker.resources.error_not_found
 import com.dmb.chantiertracker.resources.project_location_unset
 import com.dmb.chantiertracker.resources.projects_retry
 import com.dmb.chantiertracker.resources.stage_card_budget
+import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -84,6 +91,7 @@ fun ProjectDetailScreen(
     onStageClick: (stageLocalId: String) -> Unit = {},
     onEditProject: (projectLocalId: String) -> Unit = {},
     onInviteMember: (projectLocalId: String) -> Unit = {},
+    onOpenHistory: (projectLocalId: String) -> Unit = {},
     onProjectDeleted: () -> Unit = {},
     viewModel: ProjectDetailViewModel = koinViewModel(),
 ) {
@@ -127,6 +135,7 @@ fun ProjectDetailScreen(
                 onStageClick = onStageClick,
                 onEditProject = { onEditProject(state.detail!!.localId) },
                 onInviteMember = { onInviteMember(state.detail!!.localId) },
+                onOpenHistory = { onOpenHistory(state.detail!!.localId) },
                 onCancelInvitation = viewModel::cancelInvitation,
                 onDeleteConfirmed = viewModel::deleteProject,
             )
@@ -149,77 +158,141 @@ private fun DetailContent(
     onStageClick: (String) -> Unit,
     onEditProject: () -> Unit,
     onInviteMember: () -> Unit,
+    onOpenHistory: () -> Unit,
     onCancelInvitation: (Long) -> Unit,
     onDeleteConfirmed: () -> Unit,
 ) {
     Column(
-        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(start = 24.dp, end = 24.dp, top = 20.dp, bottom = 32.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Top,
-            ) {
-                Text(
-                    text = detail.name,
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.weight(1f),
-                )
-                if (canEdit) {
-                    OutlinedButton(onClick = onEditProject) {
-                        Icon(EditIcon, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Text(
-                            text = stringResource(Res.string.detail_edit_project),
-                            modifier = Modifier.padding(start = 6.dp),
+        ProjectHeader(detail = detail, canEdit = canEdit, onEditProject = onEditProject)
+
+        DetailSectionDivider()
+
+        DetailSection(stringResource(Res.string.detail_section_info)) {
+            DetailInfoRow(stringResource(Res.string.detail_currency), detail.currency)
+            DetailInfoRow(stringResource(Res.string.detail_timezone), detail.timezone)
+        }
+
+        DetailSectionDivider()
+
+        DetailSection(
+            title = stringResource(Res.string.detail_section_stages),
+            action = { SectionTextAction(Res.string.detail_stages_add, onAddStage) },
+        ) {
+            if (stages.isEmpty()) {
+                DetailEmptyHint(stringResource(Res.string.detail_stages_empty))
+            } else {
+                stages.forEach { stage ->
+                    StageRow(stage, currency = detail.currency, onClick = { onStageClick(stage.localId) })
+                }
+            }
+        }
+
+        DetailSectionDivider()
+
+        DetailSection(
+            title = stringResource(Res.string.detail_section_members),
+            action = if (isAdmin) {
+                { SectionTextAction(Res.string.detail_invite_member, onInviteMember) }
+            } else {
+                null
+            },
+        ) {
+            if (members.isEmpty()) {
+                DetailEmptyHint(stringResource(Res.string.detail_members_empty))
+            } else {
+                members.forEach { member -> MemberRow(member) }
+            }
+        }
+
+        if (isAdmin) {
+            DetailSectionDivider()
+            DetailSection(stringResource(Res.string.detail_invitations_title)) {
+                invitationActionError?.let { ErrorBanner(it) }
+                if (pendingInvitations.isEmpty()) {
+                    DetailEmptyHint(stringResource(Res.string.detail_invitations_empty))
+                } else {
+                    pendingInvitations.forEach { invitation ->
+                        InvitationRow(
+                            invitation = invitation,
+                            isCancelling = invitation.id in cancellingInvitationIds,
+                            onCancel = { onCancelInvitation(invitation.id) },
                         )
                     }
                 }
             }
-            ProjectStatusBadge(detail.status)
-            ProjectLocation(
-                location = detail.location?.takeIf { it.isNotBlank() }
-                    ?: stringResource(Res.string.project_location_unset),
-                style = MaterialTheme.typography.bodyMedium,
-            )
-            if (!detail.description.isNullOrBlank()) {
-                Text(
-                    text = detail.description,
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.padding(top = 4.dp),
-                )
+        }
+
+        if (isAdmin) {
+            DetailSectionDivider()
+            DetailSection(stringResource(Res.string.detail_history)) {
+                ClickableListRow(onClick = onOpenHistory) {
+                    Text(
+                        text = stringResource(Res.string.detail_history_hint),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
             }
         }
 
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-
-        InfoRow(stringResource(Res.string.detail_currency), detail.currency)
-        InfoRow(stringResource(Res.string.detail_timezone), detail.timezone)
-
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-
-        StagesSection(
-            stages = stages,
-            currency = detail.currency,
-            onAddStage = onAddStage,
-            onStageClick = onStageClick,
-        )
-
-        MembersSection(
-            members = members,
-            pendingInvitations = pendingInvitations,
-            isAdmin = isAdmin,
-            cancellingInvitationIds = cancellingInvitationIds,
-            invitationActionError = invitationActionError,
-            onInviteMember = onInviteMember,
-            onCancelInvitation = onCancelInvitation,
-        )
-
         if (canEdit) {
+            DetailSectionDivider()
             DangerZone(projectName = detail.name, isDeleting = isDeleting, onDeleteConfirmed = onDeleteConfirmed)
         }
+    }
+}
+
+@Composable
+private fun ProjectHeader(detail: ProjectDetail, canEdit: Boolean, onEditProject: () -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.Top,
+        ) {
+            Text(
+                text = detail.name,
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.weight(1f),
+            )
+            if (canEdit) {
+                OutlinedButton(onClick = onEditProject) {
+                    Icon(EditIcon, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Text(
+                        text = stringResource(Res.string.detail_edit_project),
+                        modifier = Modifier.padding(start = 6.dp),
+                    )
+                }
+            }
+        }
+        ProjectStatusBadge(detail.status)
+        ProjectLocation(
+            location = detail.location?.takeIf { it.isNotBlank() }
+                ?: stringResource(Res.string.project_location_unset),
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        if (!detail.description.isNullOrBlank()) {
+            Text(
+                text = detail.description,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        }
+    }
+}
+
+@Composable
+private fun SectionTextAction(label: StringResource, onClick: () -> Unit) {
+    TextButton(onClick = onClick) {
+        Icon(AddIcon, contentDescription = null, modifier = Modifier.size(18.dp))
+        Text(text = stringResource(label), modifier = Modifier.padding(start = 6.dp))
     }
 }
 
@@ -230,7 +303,6 @@ private fun DangerZone(projectName: String, isDeleting: Boolean, onDeleteConfirm
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = 8.dp)
             .border(1.dp, MaterialTheme.colorScheme.error, RoundedCornerShape(12.dp))
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -269,53 +341,6 @@ private fun DangerZone(projectName: String, isDeleting: Boolean, onDeleteConfirm
 }
 
 @Composable
-private fun StagesSection(
-    stages: List<Stage>,
-    currency: String,
-    onAddStage: () -> Unit,
-    onStageClick: (String) -> Unit,
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(
-            Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                stringResource(Res.string.detail_section_stages),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-            )
-            TextButton(onClick = onAddStage) {
-                Icon(AddIcon, contentDescription = null, modifier = Modifier.size(18.dp))
-                Text(
-                    text = stringResource(Res.string.detail_stages_add),
-                    modifier = Modifier.padding(start = 6.dp),
-                )
-            }
-        }
-        if (stages.isEmpty()) {
-            Surface(
-                color = MaterialTheme.colorScheme.surfaceVariant,
-                shape = MaterialTheme.shapes.medium,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(
-                    text = stringResource(Res.string.detail_stages_empty),
-                    modifier = Modifier.padding(16.dp),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        } else {
-            stages.forEach { stage ->
-                StageRow(stage, currency = currency, onClick = { onStageClick(stage.localId) })
-            }
-        }
-    }
-}
-
-@Composable
 private fun StageRow(stage: Stage, currency: String, onClick: () -> Unit) {
     ClickableListRow(onClick = onClick) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -336,93 +361,43 @@ private fun StageRow(stage: Stage, currency: String, onClick: () -> Unit) {
 }
 
 @Composable
-private fun InfoRow(label: String, value: String) {
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-        Text(label, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text(value, style = MaterialTheme.typography.bodyMedium)
+private fun MemberRow(member: ProjectMember) {
+    Row(
+        Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(member.name, style = MaterialTheme.typography.bodyMedium)
+            Text(
+                member.email,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        RoleBadge(member.role)
     }
 }
 
 @Composable
-private fun MembersSection(
-    members: List<ProjectMember>,
-    pendingInvitations: List<Invitation>,
-    isAdmin: Boolean,
-    cancellingInvitationIds: Set<Long>,
-    invitationActionError: String?,
-    onInviteMember: () -> Unit,
-    onCancelInvitation: (Long) -> Unit,
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(
-            Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                stringResource(Res.string.detail_section_members),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-            )
-            if (isAdmin) {
-                TextButton(onClick = onInviteMember) {
-                    Icon(AddIcon, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Text(
-                        text = stringResource(Res.string.detail_invite_member),
-                        modifier = Modifier.padding(start = 6.dp),
-                    )
-                }
+private fun InvitationRow(invitation: Invitation, isCancelling: Boolean, onCancel: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(invitation.email, style = MaterialTheme.typography.bodyMedium)
+            invitation.createdAt?.let {
+                Text(
+                    text = stringResource(Res.string.detail_invitation_sent_on, formatIsoDate(it.substringBefore('T'))),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
-
-        if (members.isEmpty()) {
-            EmptyHint(stringResource(Res.string.detail_members_empty))
-        } else {
-            members.forEach { member ->
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text(member.name, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
-                        Text(member.email, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                    RoleBadge(member.role)
-                }
-            }
-        }
-
-        if (isAdmin) {
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant, modifier = Modifier.padding(vertical = 8.dp))
-            Text(
-                stringResource(Res.string.detail_invitations_title),
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold,
-            )
-            invitationActionError?.let { ErrorBanner(it) }
-            if (pendingInvitations.isEmpty()) {
-                EmptyHint(stringResource(Res.string.detail_invitations_empty))
-            } else {
-                pendingInvitations.forEach { invitation ->
-                    Row(
-                        Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Column(Modifier.weight(1f)) {
-                            Text(invitation.email, style = MaterialTheme.typography.bodyMedium)
-                            Text(
-                                invitation.createdAt?.let { stringResource(Res.string.detail_invitation_sent_on, formatIsoDate(it.substringBefore('T'))) }.orEmpty(),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                        TextButton(
-                            onClick = { onCancelInvitation(invitation.id) },
-                            enabled = invitation.id !in cancellingInvitationIds,
-                        ) {
-                            Text(stringResource(Res.string.detail_invitation_cancel))
-                        }
-                    }
-                }
-            }
+        TextButton(onClick = onCancel, enabled = !isCancelling) {
+            Text(stringResource(Res.string.detail_invitation_cancel))
         }
     }
 }
@@ -443,22 +418,6 @@ private fun RoleBadge(role: ProjectRole) {
             modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
             style = MaterialTheme.typography.labelMedium,
             color = if (role == ProjectRole.ADMIN) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
-}
-
-@Composable
-private fun EmptyHint(text: String) {
-    Surface(
-        color = MaterialTheme.colorScheme.surfaceVariant,
-        shape = MaterialTheme.shapes.medium,
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Text(
-            text = text,
-            modifier = Modifier.padding(16.dp),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }
