@@ -37,7 +37,21 @@ class AttachmentRepositoryImpl(
 ) : AttachmentRepository {
 
     override fun observeAttachments(entryLocalId: String): Flow<List<Attachment>> =
-        dao.observeForEntry(entryLocalId).map { rows -> rows.map(AttachmentEntity::toAttachment) }
+        dao.observeForEntry(entryLocalId).map { rows -> rows.map(::toAttachment) }
+
+    // `Attachment.localPath` is the **current** absolute path, resolved from the
+    // stable key Room stores (ADR-41) — so the media player / image decoder
+    // always get a live path even after an iOS reinstall moved the container.
+    private fun toAttachment(entity: AttachmentEntity): Attachment = Attachment(
+        localId = entity.localId,
+        entryLocalId = entity.entryLocalId,
+        localPath = fileStore.absolutePathOf(entity.localPath),
+        originalName = entity.originalName,
+        mimeType = entity.mimeType,
+        sizeBytes = entity.sizeBytes,
+        durationSeconds = entity.durationSeconds,
+        uploadedAt = entity.uploadedAt,
+    )
 
     override suspend fun addAttachment(entryLocalId: String, bytes: ByteArray, originalName: String, mimeType: String): Attachment {
         val localId = newLocalId()
@@ -61,7 +75,7 @@ class AttachmentRepositoryImpl(
         )
         dao.upsert(entity)
         syncer.requestSync()
-        return entity.toAttachment()
+        return toAttachment(entity)
     }
 
     // Online only (ADR-35). The raw video is streamed straight to the server
@@ -109,7 +123,7 @@ class AttachmentRepositoryImpl(
             lastSyncError = null,
         )
         dao.upsert(entity)
-        return entity.toAttachment()
+        return toAttachment(entity)
     }
 
     // The local copy is removed right away — once pendingOp = DELETE the row
@@ -133,14 +147,3 @@ class AttachmentRepositoryImpl(
         syncer.requestSync()
     }
 }
-
-internal fun AttachmentEntity.toAttachment(): Attachment = Attachment(
-    localId = localId,
-    entryLocalId = entryLocalId,
-    localPath = localPath,
-    originalName = originalName,
-    mimeType = mimeType,
-    sizeBytes = sizeBytes,
-    durationSeconds = durationSeconds,
-    uploadedAt = uploadedAt,
-)

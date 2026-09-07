@@ -18,11 +18,14 @@ class FakeAttachmentFileStore(newPath: (() -> String)? = null) : AttachmentFileS
         return path
     }
 
-    override suspend fun readBytes(path: String): ByteArray =
-        files[path] ?: error("No fake file at $path")
+    override suspend fun readBytes(key: String): ByteArray =
+        files[key] ?: error("No fake file at $key")
 
-    override suspend fun delete(path: String) {
-        files.remove(path)
-        deletedPaths += path
+    override suspend fun delete(key: String) {
+        files.remove(key)
+        deletedPaths += key
     }
+
+    // The tests treat the key as the "path" — good enough, no real filesystem.
+    override fun absolutePathOf(key: String): String = key
 }

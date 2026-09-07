@@ -286,3 +286,25 @@ val MIGRATION_8_9 = object : Migration(8, 9) {
         connection.execSQL("ALTER TABLE `attachments` ADD COLUMN `durationSeconds` INTEGER")
     }
 }
+
+/**
+ * v9 → v10 : `attachments.localPath` passe d'un **chemin absolu** à une **clé
+ * stable** = le seul nom du fichier (ADR-41). Sur iOS le chemin du conteneur de
+ * l'app change à chaque réinstallation/mise à jour → un chemin absolu stocké
+ * devient périmé et le fichier (vidéo ou image) devient introuvable. La clé est
+ * résolue à l'usage contre `FileKit.filesDir`, toujours à jour.
+ *
+ * Toutes les valeurs existantes se terminent par `…/attachments/<nom>` (chemin
+ * nu ou URL `file://…`) → on ne garde que `<nom>`.
+ */
+val MIGRATION_9_10 = object : Migration(9, 10) {
+    override fun migrate(connection: SQLiteConnection) {
+        connection.execSQL(
+            """
+            UPDATE `attachments`
+            SET `localPath` = substr(`localPath`, instr(`localPath`, '/attachments/') + length('/attachments/'))
+            WHERE instr(`localPath`, '/attachments/') > 0
+            """.trimIndent(),
+        )
+    }
+}

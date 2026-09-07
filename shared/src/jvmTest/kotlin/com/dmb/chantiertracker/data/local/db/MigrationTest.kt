@@ -709,6 +709,56 @@ class MigrationTest {
             fresh.close()
         }
     }
+
+    /**
+     * Seeds a v9 database by hand, then opens [AppDatabase] (v10) and lets
+     * MIGRATION_9_10 rewrite `attachments.localPath` from an absolute path (bare
+     * path or `file://` URL) to the bare file name — the stable key (ADR-41).
+     */
+    @Test
+    fun migrating_from_v9_rewrites_attachment_paths_to_bare_keys() = runTest {
+        val v9Path = dir.resolve("migration-v9.db").absolutePathString()
+        BundledSQLiteDriver().open(v9Path).use { c ->
+            seedV7Schema(c)
+            c.execSQL("ALTER TABLE `projects` ADD COLUMN `ownerPlan` TEXT")
+            c.execSQL("ALTER TABLE `attachments` ADD COLUMN `durationSeconds` INTEGER")
+            c.execSQL("CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)")
+            c.execSQL(
+                "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'd02df2e8cdb59fb510f00b1c877527a8')",
+            )
+            c.execSQL("PRAGMA user_version = 9")
+            c.execSQL(
+                "INSERT INTO projects (localId, serverId, name, description, location, currency, timezone, status, " +
+                    "ownerId, createdAt, syncStatus, pendingOp, locallyModifiedAt, lastSyncedAt, remoteUpdatedAt, lastSyncError, ownerPlan) " +
+                    "VALUES ('p-v9', 19, 'Chantier v9', NULL, NULL, 'EUR', 'Europe/Paris', 'IN_PROGRESS', 1, NULL, " +
+                    "'SYNCED', 'NONE', 1000, NULL, NULL, NULL, NULL)",
+            )
+            c.execSQL("INSERT INTO stages (localId, serverId, projectLocalId, name, description, estimatedBudget, startDate, endDate, status, syncStatus, pendingOp, locallyModifiedAt, lastSyncedAt, remoteUpdatedAt, lastSyncError) VALUES ('s-v9', 9, 'p-v9', 'Fondation', NULL, NULL, NULL, NULL, 'IN_PROGRESS', 'SYNCED', 'NONE', 1000, NULL, NULL, NULL)")
+            c.execSQL("INSERT INTO daily_logs (localId, serverId, stageLocalId, date, locallyCreatedAt, lastSyncedAt) VALUES ('l-v9', 90, 's-v9', '2026-09-06', 1000, NULL)")
+            c.execSQL(
+                "INSERT INTO daily_entries (localId, serverId, dailyLogLocalId, type, summary, createdById, createdAt, modifiedById, modifiedAt, " +
+                    "syncStatus, pendingOp, locallyModifiedAt, lastSyncedAt, remoteUpdatedAt, lastSyncError) " +
+                    "VALUES ('e-v9', 91, 'l-v9', 'PURCHASE', NULL, 1, NULL, NULL, NULL, 'SYNCED', 'NONE', 1000, NULL, NULL, NULL)",
+            )
+            fun seedAttachment(id: String, serverId: Long, path: String, mime: String) = c.execSQL(
+                "INSERT INTO attachments (localId, serverId, entryLocalId, localPath, originalName, mimeType, sizeBytes, uploadedAt, " +
+                    "syncStatus, pendingOp, locallyModifiedAt, lastSyncedAt, remoteUpdatedAt, lastSyncError, durationSeconds) " +
+                    "VALUES ('$id', $serverId, 'e-v9', '$path', 'name', '$mime', 2048, 1000, 'SYNCED', 'NONE', 1000, NULL, NULL, NULL, NULL)",
+            )
+            // iOS style: a "file://" URL into a (now stale) app container.
+            seedAttachment("a-ios", 201, "file:///Users/x/Library/Developer/CoreSimulator/Devices/D/data/Containers/Data/Application/OLD/Documents/attachments/03d2f6db.jpeg", "image/jpeg")
+            // Android style: a bare absolute path.
+            seedAttachment("a-android", 202, "/data/user/0/com.dmb.chantiertracker/files/attachments/e7cab5cf.mp4", "video/mp4")
+        }
+
+        val db = Room.databaseBuilder<AppDatabase>(name = v9Path).buildChantierDatabase()
+        try {
+            assertEquals("03d2f6db.jpeg", db.attachmentDao().findByLocalId("a-ios")?.localPath, "the iOS file:// URL becomes a bare key")
+            assertEquals("e7cab5cf.mp4", db.attachmentDao().findByLocalId("a-android")?.localPath, "the Android absolute path becomes a bare key")
+        } finally {
+            db.close()
+        }
+    }
 }
 
 /** The full v7 table set — shared by the v7→v8 and v8→v9 migration tests. */
