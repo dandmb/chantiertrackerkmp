@@ -1,6 +1,5 @@
 package com.dmb.chantiertracker.presentation.stages.detail
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -37,6 +36,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dmb.chantiertracker.domain.model.DailyLog
 import com.dmb.chantiertracker.domain.model.EntryType
 import com.dmb.chantiertracker.domain.model.StageDetail
+import com.dmb.chantiertracker.presentation.ClickableListRow
 import com.dmb.chantiertracker.presentation.formatIsoDate
 import com.dmb.chantiertracker.presentation.format.formatMoney
 import com.dmb.chantiertracker.presentation.main.AddIcon
@@ -235,37 +235,27 @@ private fun DaysSection(
 
 @Composable
 private fun LogRow(log: DailyLog, onClick: () -> Unit) {
-    Surface(
-        onClick = onClick,
-        color = MaterialTheme.colorScheme.surface,
-        shape = MaterialTheme.shapes.medium,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Row(
-            modifier = Modifier.padding(16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(formatIsoDate(log.date), style = MaterialTheme.typography.bodyLarge)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (log.hasPurchase) {
-                    Icon(
-                        ShoppingCartIcon,
-                        contentDescription = stringResource(Res.string.entry_type_purchase),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(20.dp),
-                    )
-                }
-                if (log.hasWork) {
-                    Icon(
-                        ConstructionIcon,
-                        contentDescription = stringResource(Res.string.entry_type_work),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(20.dp),
-                    )
-                }
-            }
+    ClickableListRow(onClick = onClick) {
+        Text(
+            formatIsoDate(log.date),
+            style = MaterialTheme.typography.bodyLarge,
+            modifier = Modifier.weight(1f),
+        )
+        if (log.hasPurchase) {
+            Icon(
+                ShoppingCartIcon,
+                contentDescription = stringResource(Res.string.entry_type_purchase),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp),
+            )
+        }
+        if (log.hasWork) {
+            Icon(
+                ConstructionIcon,
+                contentDescription = stringResource(Res.string.entry_type_work),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp),
+            )
         }
     }
 }

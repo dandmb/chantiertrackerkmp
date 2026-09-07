@@ -372,11 +372,27 @@ class FakeAttachmentRepository(
     val log = mutableListOf<String>()
     var newLocalId = "attachment-new"
 
+    // When true, a freshly added row is NOT pushed to observeAttachments right
+    // away — it waits for emitDeferredRows(). Models Room's asynchronous
+    // invalidation: dao.upsert() returns before the observing Flow re-emits.
+    var deferListEmission = false
+    private val deferred = mutableListOf<com.dmb.chantiertracker.domain.model.Attachment>()
+
+    fun emitDeferredRows() {
+        if (deferred.isEmpty()) return
+        attachmentsFlow.value = attachmentsFlow.value + deferred
+        deferred.clear()
+    }
+
+    private fun publish(row: com.dmb.chantiertracker.domain.model.Attachment) {
+        if (deferListEmission) deferred += row else attachmentsFlow.value = attachmentsFlow.value + row
+    }
+
     override fun observeAttachments(entryLocalId: String) = attachmentsFlow
 
     override suspend fun addAttachment(entryLocalId: String, bytes: ByteArray, originalName: String, mimeType: String): com.dmb.chantiertracker.domain.model.Attachment {
         log += "addAttachment:$entryLocalId:$originalName:$mimeType:${bytes.size}"
-        return com.dmb.chantiertracker.domain.model.Attachment(
+        val row = com.dmb.chantiertracker.domain.model.Attachment(
             localId = newLocalId,
             entryLocalId = entryLocalId,
             localPath = "fake-attachments/$newLocalId.jpg",
@@ -385,6 +401,8 @@ class FakeAttachmentRepository(
             sizeBytes = bytes.size.toLong(),
             uploadedAt = 0L,
         )
+        publish(row)
+        return row
     }
 
     var uploadVideoError: com.dmb.chantiertracker.domain.model.DomainException? = null
@@ -392,26 +410,24 @@ class FakeAttachmentRepository(
 
     override suspend fun uploadVideo(
         entryLocalId: String,
-        bytes: ByteArray,
-        originalName: String,
-        mimeType: String,
+        video: com.dmb.chantiertracker.domain.model.UploadFile,
         onProgress: (Float) -> Unit,
     ): com.dmb.chantiertracker.domain.model.Attachment {
-        log += "uploadVideo:$entryLocalId:$originalName:$mimeType:${bytes.size}"
+        log += "uploadVideo:$entryLocalId:${video.name}:${video.mimeType}:${video.size()}"
         uploadVideoProgressSteps.forEach(onProgress)
         uploadVideoError?.let { throw it }
-        val video = com.dmb.chantiertracker.domain.model.Attachment(
+        val stored = com.dmb.chantiertracker.domain.model.Attachment(
             localId = newLocalId,
             entryLocalId = entryLocalId,
             localPath = "fake-attachments/$newLocalId.mp4",
-            originalName = originalName,
+            originalName = video.name,
             mimeType = "video/mp4",
             sizeBytes = 1_024L,
             durationSeconds = 12,
             uploadedAt = 0L,
         )
-        attachmentsFlow.value = attachmentsFlow.value + video
-        return video
+        publish(stored)
+        return stored
     }
 
     override suspend fun deleteAttachment(attachmentLocalId: String) {

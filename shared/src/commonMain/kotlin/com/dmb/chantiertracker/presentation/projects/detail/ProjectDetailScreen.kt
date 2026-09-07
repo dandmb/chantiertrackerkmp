@@ -39,11 +39,11 @@ import com.dmb.chantiertracker.domain.model.ProjectDetail
 import com.dmb.chantiertracker.domain.model.ProjectMember
 import com.dmb.chantiertracker.domain.model.ProjectRole
 import com.dmb.chantiertracker.domain.model.Stage
+import com.dmb.chantiertracker.presentation.ClickableListRow
 import com.dmb.chantiertracker.presentation.formatIsoDate
 import com.dmb.chantiertracker.presentation.i18n.localizedText
 import com.dmb.chantiertracker.presentation.auth.components.ErrorBanner
 import com.dmb.chantiertracker.presentation.main.AddIcon
-import com.dmb.chantiertracker.presentation.main.ChevronRightIcon
 import com.dmb.chantiertracker.presentation.main.EditIcon
 import com.dmb.chantiertracker.presentation.format.formatMoney
 import com.dmb.chantiertracker.presentation.projects.ProjectLocation
@@ -317,39 +317,21 @@ private fun StagesSection(
 
 @Composable
 private fun StageRow(stage: Stage, currency: String, onClick: () -> Unit) {
-    Surface(
-        onClick = onClick,
-        color = MaterialTheme.colorScheme.surface,
-        shape = MaterialTheme.shapes.medium,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Row(
-            modifier = Modifier.padding(start = 16.dp, end = 12.dp, top = 12.dp, bottom = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(
-                    text = stage.name,
-                    style = MaterialTheme.typography.bodyLarge,
-                )
-                stage.estimatedBudget?.let {
-                    Text(
-                        text = stringResource(Res.string.stage_card_budget, formatMoney(it, currency)),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-            StageStatusBadge(stage.status)
-            Icon(
-                imageVector = ChevronRightIcon,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(20.dp),
+    ClickableListRow(onClick = onClick) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(
+                text = stage.name,
+                style = MaterialTheme.typography.bodyLarge,
             )
+            stage.estimatedBudget?.let {
+                Text(
+                    text = stringResource(Res.string.stage_card_budget, formatMoney(it, currency)),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
+        StageStatusBadge(stage.status)
     }
 }
 

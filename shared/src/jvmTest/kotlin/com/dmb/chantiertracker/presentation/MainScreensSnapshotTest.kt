@@ -22,8 +22,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.toAwtImage
+import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.captureToImage
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.isRoot
 import androidx.compose.ui.test.onLast
 import androidx.compose.ui.test.onRoot
@@ -115,7 +117,13 @@ class MainScreensSnapshotTest {
         resetTestMainDispatcher()
     }
 
-    private fun snapshot(name: String, locale: String, dark: Boolean = false, content: @Composable () -> Unit) =
+    private fun snapshot(
+        name: String,
+        locale: String,
+        dark: Boolean = false,
+        awaitReady: (ComposeUiTest.() -> Boolean)? = null,
+        content: @Composable () -> Unit,
+    ) =
         runComposeUiTest {
             setContent {
                 customAppLocale = locale
@@ -126,6 +134,9 @@ class MainScreensSnapshotTest {
                 }
             }
             waitForIdle()
+            // Some screens finish rendering off the compose clock (an image
+            // decoded on Dispatchers.Default, say) — waitForIdle() can't see that.
+            awaitReady?.let { ready -> waitUntil(timeoutMillis = 5_000L) { ready() }; waitForIdle() }
             ImageIO.write(onRoot().captureToImage().toAwtImage(), "png", File(outDir, "$name-$locale.png"))
         }
 
@@ -535,7 +546,15 @@ class MainScreensSnapshotTest {
                     title = if (locale == "fr") "Étape" else "Stage",
                 ) { m -> StageDetailScreen(stageLocalId = "s1", modifier = m, viewModel = stageDetailVm(withBudget = false)) }
             }
-            snapshot("26-daily-log", locale) {
+            snapshot(
+                "26-daily-log",
+                locale,
+                // The photo thumbnail decodes off the compose clock (ADR-43) —
+                // wait for it before capturing so we snapshot the loaded section.
+                awaitReady = {
+                    onAllNodes(hasContentDescription("facture-ciment.jpg")).fetchSemanticsNodes().isNotEmpty()
+                },
+            ) {
                 DetailChrome(
                     title = if (locale == "fr") "Journée" else "Day",
                 ) { m -> DailyLogScreen(dailyLogLocalId = "log-1", modifier = m, viewModel = dailyLogVm()) }
