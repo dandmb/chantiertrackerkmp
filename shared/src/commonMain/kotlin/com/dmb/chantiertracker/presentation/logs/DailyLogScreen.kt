@@ -33,6 +33,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -81,6 +82,7 @@ import com.dmb.chantiertracker.resources.attachment_finalizing
 import com.dmb.chantiertracker.resources.attachment_upload_error
 import com.dmb.chantiertracker.resources.attachment_video_delete
 import com.dmb.chantiertracker.resources.attachments_empty
+import com.dmb.chantiertracker.resources.attachments_loading
 import com.dmb.chantiertracker.resources.attachments_title
 import com.dmb.chantiertracker.resources.video_play
 import com.dmb.chantiertracker.resources.video_too_long_no_upgrade
@@ -107,7 +109,10 @@ import io.github.vinceglb.filekit.mimeType
 import io.github.vinceglb.filekit.name
 import io.github.vinceglb.filekit.readBytes
 import kotlin.math.roundToInt
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -418,6 +423,31 @@ private fun AttachmentsSection(
     val upload = state.attachmentUpload
     val busy = upload != null
 
+    // Decode every photo thumbnail up front and reveal the whole section at once
+    // (ADR-43). The data is already local (offline-first) — this only waits on
+    // the file read + image decode, never the network. A decode that fails
+    // (missing file) still counts as "done" so the indicator can't hang. Videos
+    // draw an icon face, no decode, so they don't gate anything.
+    val photoPaths = attachments.filterNot { it.isVideo }.map { it.localPath }
+    val thumbnails = remember(entryLocalId) { mutableStateMapOf<String, ImageBitmap?>() }
+    LaunchedEffect(photoPaths) {
+        coroutineScope {
+            photoPaths.filterNot { it in thumbnails }.forEach { path ->
+                launch {
+                    thumbnails[path] = runCatching {
+                        val bytes = PlatformFile(path).readBytes()
+                        withContext(Dispatchers.Default) { bytes.decodeToImageBitmap() }
+                    }.getOrNull()
+                }
+            }
+        }
+    }
+    val allPhotosDecoded = photoPaths.all { it in thumbnails }
+    // Only gate the *first* render for this entry — a photo added afterwards is a
+    // deliberate user action and just appears (its upload had its own indicator).
+    var firstLoadDone by remember(entryLocalId) { mutableStateOf(false) }
+    LaunchedEffect(allPhotosDecoded) { if (allPhotosDecoded) firstLoadDone = true }
+
     val photoPicker = rememberFilePickerLauncher(type = FileKitType.Image) { picked ->
         if (picked == null) return@rememberFilePickerLauncher
         photoReadError = false
@@ -500,13 +530,29 @@ private fun AttachmentsSection(
             Text(it.localizedText(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
         }
 
-        if (attachments.isEmpty()) {
-            Text(stringResource(Res.string.attachments_empty), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        } else {
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        when {
+            attachments.isEmpty() -> Text(
+                stringResource(Res.string.attachments_empty),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            !firstLoadDone && !allPhotosDecoded -> Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.padding(vertical = 4.dp),
+            ) {
+                CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                Text(
+                    stringResource(Res.string.attachments_loading),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            else -> FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 attachments.forEach { attachment ->
                     AttachmentThumbnail(
                         attachment = attachment,
+                        bitmap = if (attachment.isVideo) null else thumbnails[attachment.localPath],
                         canEdit = canEdit,
                         onClick = { zoomedAttachment = attachment },
                         onDelete = { viewModel.deleteAttachment(attachment.localId) },
@@ -522,7 +568,13 @@ private fun AttachmentsSection(
 }
 
 @Composable
-private fun AttachmentThumbnail(attachment: Attachment, canEdit: Boolean, onClick: () -> Unit, onDelete: () -> Unit) {
+private fun AttachmentThumbnail(
+    attachment: Attachment,
+    bitmap: ImageBitmap?,
+    canEdit: Boolean,
+    onClick: () -> Unit,
+    onDelete: () -> Unit,
+) {
     Box(Modifier.size(72.dp)) {
         Surface(
             shape = RoundedCornerShape(8.dp),
@@ -532,7 +584,6 @@ private fun AttachmentThumbnail(attachment: Attachment, canEdit: Boolean, onClic
             if (attachment.isVideo) {
                 VideoThumbnailFace(attachment)
             } else {
-                val bitmap by loadAttachmentBitmap(attachment)
                 bitmap?.let { loaded ->
                     Image(
                         bitmap = loaded,
@@ -641,12 +692,16 @@ private fun AttachmentZoomDialog(attachment: Attachment, onDismiss: () -> Unit) 
     }
 }
 
-// Decodes the locally-stored photo off the main flow of composition — the file
-// I/O + JPEG decode happen once per distinct localPath (remember keyed on it),
-// not on every recomposition. Null while loading or if decoding fails.
+// Decodes the locally-stored photo off the main thread — the file read + JPEG
+// decode happen once per distinct localPath (remember keyed on it), not on every
+// recomposition. Null while loading or if decoding fails. Used by the full-screen
+// viewer; the thumbnail grid decodes up front in AttachmentsSection (ADR-43).
 @Composable
 private fun loadAttachmentBitmap(attachment: Attachment) = remember(attachment.localPath) { mutableStateOf<ImageBitmap?>(null) }.also { state ->
     LaunchedEffect(attachment.localPath) {
-        state.value = runCatching { PlatformFile(attachment.localPath).readBytes().decodeToImageBitmap() }.getOrNull()
+        state.value = runCatching {
+            val bytes = PlatformFile(attachment.localPath).readBytes()
+            withContext(Dispatchers.Default) { bytes.decodeToImageBitmap() }
+        }.getOrNull()
     }
 }
