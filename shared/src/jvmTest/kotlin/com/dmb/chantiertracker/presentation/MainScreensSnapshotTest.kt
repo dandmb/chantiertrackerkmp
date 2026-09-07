@@ -241,7 +241,13 @@ class MainScreensSnapshotTest {
         ProjectSortHolder(),
     ).also { if (incoming.isNotEmpty()) it.onEnter() }
 
-    private fun settingsVm() = SettingsViewModel(AppConfig(FakeBuildInfo(isDebug = false, appVersion = "1.0")))
+    private fun settingsVm() = SettingsViewModel(
+        AppConfig(FakeBuildInfo(isDebug = false, appVersion = "1.0")),
+        com.dmb.chantiertracker.presentation.settings.AppSettings(
+            com.dmb.chantiertracker.support.FakeAppPreferences(),
+            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Unconfined),
+        ),
+    )
 
     private fun authedRepo() = FakeAuthRepository().apply {
         emitState(AuthState.Authenticated(User(1, "jean@chantier.dev", "Jean", true, GlobalRole.USER)))

@@ -264,10 +264,13 @@
 
     <string name="settings_language">Language</string>
     <string name="settings_theme">Theme</string>
-    <string name="settings_theme_system">System</string>
+    <string name="settings_about">About</string>
+    <string name="settings_option_system">System</string>
+    <string name="settings_language_french">Français</string>
+    <string name="settings_language_english">English</string>
+    <string name="settings_theme_light">Light</string>
+    <string name="settings_theme_dark">Dark</string>
     <string name="settings_version">App version</string>
-    <string name="language_french">French</string>
-    <string name="language_english">English</string>
 
     <string name="validation_email_required">Email is required.</string>
     <string name="validation_email_invalid">Enter a valid email address.</string>

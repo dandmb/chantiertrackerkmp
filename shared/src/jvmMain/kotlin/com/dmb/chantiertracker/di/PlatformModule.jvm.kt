@@ -2,6 +2,8 @@ package com.dmb.chantiertracker.di
 
 import com.dmb.chantiertracker.core.BuildInfo
 import com.dmb.chantiertracker.core.DesktopBuildInfo
+import com.dmb.chantiertracker.data.local.AppPreferences
+import com.dmb.chantiertracker.data.local.DesktopAppPreferences
 import com.dmb.chantiertracker.data.local.DesktopOnboardingStore
 import com.dmb.chantiertracker.data.local.DesktopTokenStorage
 import com.dmb.chantiertracker.data.local.OnboardingStore
@@ -19,6 +21,7 @@ actual fun platformModule(): Module = module {
     single<BuildInfo> { DesktopBuildInfo() }
     single<TokenStorage> { DesktopTokenStorage() }
     single<OnboardingStore> { DesktopOnboardingStore() }
+    single<AppPreferences> { DesktopAppPreferences() }
     single<RoomDatabase.Builder<AppDatabase>> { projectDatabaseBuilder() }
     single<ConnectivityObserver> { DesktopConnectivityObserver(get<AppCoroutineScope>()) }
 }

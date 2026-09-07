@@ -79,6 +79,7 @@ import com.dmb.chantiertracker.presentation.projects.history.ProjectHistoryViewM
 import com.dmb.chantiertracker.presentation.projects.invite.InviteMemberViewModel
 import com.dmb.chantiertracker.presentation.stages.create.CreateStageViewModel
 import com.dmb.chantiertracker.presentation.stages.detail.StageDetailViewModel
+import com.dmb.chantiertracker.presentation.settings.AppSettings
 import com.dmb.chantiertracker.presentation.settings.SettingsViewModel
 import io.ktor.client.HttpClient
 import org.koin.core.module.Module
@@ -173,6 +174,7 @@ val dataModule: Module = module {
 
 val presentationModule: Module = module {
     single { ProjectSortHolder() }
+    single { AppSettings(get(), get<AppCoroutineScope>()) }
     viewModelOf(::RootViewModel)
     viewModelOf(::LoginViewModel)
     viewModelOf(::RegisterViewModel)
