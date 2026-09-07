@@ -77,6 +77,9 @@ data class DailyLogRoute(val dailyLogLocalId: String)
 data class EntrySummaryRoute(val entryLocalId: String)
 
 @Serializable
+data class ReportEntryRoute(val entryLocalId: String)
+
+@Serializable
 data class PurchaseLineFormRoute(
     val entryLocalId: String,
     val projectLocalId: String,

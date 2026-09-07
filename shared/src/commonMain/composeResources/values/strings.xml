@@ -6,6 +6,7 @@
     <string name="staging_banner">PRE-PROD · LIVE DATA</string>
 
     <string name="action_back">Back</string>
+    <string name="action_close">Close</string>
     <string name="action_ok">OK</string>
     <string name="action_cancel">Cancel</string>
     <string name="action_save">Save</string>
@@ -204,6 +205,13 @@
     <string name="entry_title_placeholder">Describe the work done</string>
     <string name="material_query_hint">Search or create a material</string>
     <string name="entry_summary_required_work">Title is required.</string>
+
+    <string name="entry_report">Flag</string>
+    <string name="report_entry_title">Report an issue</string>
+    <string name="report_message_label">Message</string>
+    <string name="report_message_placeholder">e.g. wrong quantity, forgotten delivery…</string>
+    <string name="report_submit">Send</string>
+    <string name="report_sent">Report sent. The project admin will be notified.</string>
 
     <string name="purchase_lines_title">Purchased items</string>
     <string name="purchase_line_add">Add an item</string>

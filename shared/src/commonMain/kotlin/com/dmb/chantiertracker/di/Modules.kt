@@ -80,6 +80,7 @@ import com.dmb.chantiertracker.presentation.projects.detail.ProjectDetailViewMod
 import com.dmb.chantiertracker.presentation.projects.edit.EditProjectViewModel
 import com.dmb.chantiertracker.presentation.projects.history.ProjectHistoryViewModel
 import com.dmb.chantiertracker.presentation.projects.invite.InviteMemberViewModel
+import com.dmb.chantiertracker.presentation.reports.ReportEntryViewModel
 import com.dmb.chantiertracker.presentation.stages.create.CreateStageViewModel
 import com.dmb.chantiertracker.presentation.stages.detail.StageDetailViewModel
 import com.dmb.chantiertracker.presentation.settings.AppSettings
@@ -193,6 +194,7 @@ val presentationModule: Module = module {
     viewModelOf(::EditProjectViewModel)
     viewModelOf(::ProjectHistoryViewModel)
     viewModelOf(::InviteMemberViewModel)
+    viewModelOf(::ReportEntryViewModel)
     viewModelOf(::CreateStageViewModel)
     viewModelOf(::StageDetailViewModel)
     viewModelOf(::DailyLogViewModel)

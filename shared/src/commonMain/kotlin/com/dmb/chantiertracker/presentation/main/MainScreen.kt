@@ -31,12 +31,14 @@ import com.dmb.chantiertracker.presentation.navigation.ProjectDetailRoute
 import com.dmb.chantiertracker.presentation.navigation.ProjectHistoryRoute
 import com.dmb.chantiertracker.presentation.navigation.ProjectsRoute
 import com.dmb.chantiertracker.presentation.navigation.PurchaseLineFormRoute
+import com.dmb.chantiertracker.presentation.navigation.ReportEntryRoute
 import com.dmb.chantiertracker.presentation.navigation.SettingsRoute
 import com.dmb.chantiertracker.presentation.navigation.StageDetailRoute
 import com.dmb.chantiertracker.presentation.logs.ConsumptionLineFormScreen
 import com.dmb.chantiertracker.presentation.logs.DailyLogScreen
 import com.dmb.chantiertracker.presentation.logs.EntrySummaryScreen
 import com.dmb.chantiertracker.presentation.logs.PurchaseLineFormScreen
+import com.dmb.chantiertracker.presentation.reports.ReportEntryScreen
 import com.dmb.chantiertracker.presentation.projects.ProjectSortControl
 import com.dmb.chantiertracker.presentation.projects.ProjectSortHolder
 import com.dmb.chantiertracker.presentation.projects.ProjectsScreen
@@ -59,13 +61,14 @@ import com.dmb.chantiertracker.resources.edit_project_title
 import com.dmb.chantiertracker.resources.history_title
 import com.dmb.chantiertracker.resources.invite_member_title
 import com.dmb.chantiertracker.resources.projects_new
+import com.dmb.chantiertracker.resources.report_entry_title
 import com.dmb.chantiertracker.resources.stage_detail_title
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 
 private enum class MainDestination {
     Projects, Settings, CreateProject, ProjectDetail, EditProject, InviteMember, ProjectHistory, CreateStage, StageDetail, DailyLog,
-    EntrySummary, PurchaseLineForm, ConsumptionLineForm
+    EntrySummary, PurchaseLineForm, ConsumptionLineForm, ReportEntry
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -89,6 +92,7 @@ fun MainScreen(viewModel: MainViewModel = koinViewModel()) {
         destination?.hasRoute(EntrySummaryRoute::class) == true -> MainDestination.EntrySummary
         destination?.hasRoute(PurchaseLineFormRoute::class) == true -> MainDestination.PurchaseLineForm
         destination?.hasRoute(ConsumptionLineFormRoute::class) == true -> MainDestination.ConsumptionLineForm
+        destination?.hasRoute(ReportEntryRoute::class) == true -> MainDestination.ReportEntry
         else -> MainDestination.Projects
     }
     val currentTab = when (current) {
@@ -153,6 +157,10 @@ fun MainScreen(viewModel: MainViewModel = koinViewModel()) {
                 )
                 MainDestination.EntrySummary, MainDestination.PurchaseLineForm, MainDestination.ConsumptionLineForm -> DetailTopBar(
                     title = formTitle.orEmpty(),
+                    onBack = { navController.popBackStack() },
+                )
+                MainDestination.ReportEntry -> DetailTopBar(
+                    title = stringResource(Res.string.report_entry_title),
                     onBack = { navController.popBackStack() },
                 )
                 else -> AppTopBar(
@@ -272,6 +280,7 @@ fun MainScreen(viewModel: MainViewModel = koinViewModel()) {
                     onEditConsumptionLine = { entryLocalId, projectLocalId, lineLocalId ->
                         navController.navigate(ConsumptionLineFormRoute(entryLocalId, projectLocalId, lineLocalId))
                     },
+                    onReportEntry = { entryLocalId -> navController.navigate(ReportEntryRoute(entryLocalId)) },
                 )
             }
             composable<EntrySummaryRoute> { entry ->
@@ -280,6 +289,12 @@ fun MainScreen(viewModel: MainViewModel = koinViewModel()) {
                     onSaved = { navController.popBackStack() },
                     onBack = { navController.popBackStack() },
                     onTitleResolved = { formTitle = it },
+                )
+            }
+            composable<ReportEntryRoute> { entry ->
+                ReportEntryScreen(
+                    entryLocalId = entry.toRoute<ReportEntryRoute>().entryLocalId,
+                    onDone = { navController.popBackStack() },
                 )
             }
             composable<PurchaseLineFormRoute> { entry ->

@@ -234,7 +234,7 @@ class MainScreensSnapshotTest {
 
     /** Mirrors MainScreen: the detail top-bar title tracks the day date resolved by the screen. */
     @Composable
-    private fun DailyLogChrome(fallbackTitle: String) {
+    private fun DailyLogChrome(fallbackTitle: String, asSupervisorViewingPastDay: Boolean = false) {
         var title by remember { mutableStateOf<String?>(null) }
         Scaffold(
             topBar = { DetailTopBar(title = title ?: fallbackTitle, onBack = {}) },
@@ -243,7 +243,7 @@ class MainScreensSnapshotTest {
                 dailyLogLocalId = "log-1",
                 modifier = Modifier.padding(padding),
                 onDateResolved = { title = it },
-                viewModel = dailyLogVm(),
+                viewModel = dailyLogVm(asSupervisorViewingPastDay = asSupervisorViewingPastDay),
             )
         }
     }
@@ -415,7 +415,7 @@ class MainScreensSnapshotTest {
         return StageDetailViewModel(repo, projectRepo, logs, auth).also { it.load("s1") }
     }
 
-    private fun dailyLogVm(): DailyLogViewModel {
+    private fun dailyLogVm(asSupervisorViewingPastDay: Boolean = false): DailyLogViewModel {
         val stageRepo = FakeStageRepository(
             detail = StageDetail(
                 localId = "s1", projectLocalId = "1", name = "Gros œuvre", description = null,
@@ -429,8 +429,14 @@ class MainScreensSnapshotTest {
                 currency = "EUR", timezone = "Europe/Paris", status = ProjectStatus.IN_PROGRESS, ownerId = 1L,
                 ownerPlan = Plan.SEMI_FLEX,
             ),
+            members = if (asSupervisorViewingPastDay) {
+                listOf(ProjectMember(userId = 9, name = "Sam Superviseur", email = "sam@chantier.dev", role = ProjectRole.SUPERVISOR))
+            } else {
+                emptyList()
+            },
         )
-        val auth = FakeAuthRepository().apply { emitState(AuthState.Authenticated(User(1, "jean@chantier.dev", "Jean Marchand", true, GlobalRole.USER))) }
+        val viewerId = if (asSupervisorViewingPastDay) 9L else 1L
+        val auth = FakeAuthRepository().apply { emitState(AuthState.Authenticated(User(viewerId, "jean@chantier.dev", "Jean Marchand", true, GlobalRole.USER))) }
         val logs = FakeDailyLogRepository(
             detail = DailyLogDetail(
                 localId = "log-1", stageLocalId = "s1", date = "2026-09-04",
@@ -516,6 +522,10 @@ class MainScreensSnapshotTest {
         return com.dmb.chantiertracker.presentation.logs.ConsumptionLineFormViewModel(materials, FakeConsumptionLineRepository())
             .also { it.load("e2", "1", null); it.selectMaterial("m1"); it.onQuantityChange("4") }
     }
+
+    private fun reportEntryVm(): com.dmb.chantiertracker.presentation.reports.ReportEntryViewModel =
+        com.dmb.chantiertracker.presentation.reports.ReportEntryViewModel(com.dmb.chantiertracker.support.FakeReportRepository())
+            .also { it.load("e1"); it.onMessageChange("La quantité de ciment livrée ne correspond pas au bon de livraison.") }
 
     @Test
     fun capture_main_screens_in_french_and_english() {
@@ -643,6 +653,18 @@ class MainScreensSnapshotTest {
             ) {
                 DailyLogChrome(fallbackTitle = if (locale == "fr") "Journée" else "Day")
             }
+            snapshot(
+                "36-daily-log-supervisor-report",
+                locale,
+                awaitReady = {
+                    onAllNodes(hasContentDescription("facture-ciment.jpg")).fetchSemanticsNodes().isNotEmpty()
+                },
+            ) {
+                DailyLogChrome(
+                    fallbackTitle = if (locale == "fr") "Journée" else "Day",
+                    asSupervisorViewingPastDay = true,
+                )
+            }
             snapshot("33-video-player-desktop", locale) {
                 DetailChrome(title = if (locale == "fr") "Vidéo" else "Video") { m ->
                     Box(m.fillMaxSize(), contentAlignment = androidx.compose.ui.Alignment.Center) {
@@ -675,6 +697,13 @@ class MainScreensSnapshotTest {
             }
             snapshot("22-stage-date-picker", locale) {
                 Box(Modifier.padding(16.dp)) { StageDatePickerPreview() }
+            }
+            snapshot("35-report-entry", locale) {
+                DetailChrome(title = if (locale == "fr") "Signaler un problème" else "Report an issue") { m ->
+                    com.dmb.chantiertracker.presentation.reports.ReportEntryScreen(
+                        entryLocalId = "e1", onDone = {}, modifier = m, viewModel = reportEntryVm(),
+                    )
+                }
             }
         }
         for (locale in listOf("fr", "en")) {

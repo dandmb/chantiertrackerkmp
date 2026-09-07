@@ -110,3 +110,8 @@ val PlayIcon: ImageVector = icon(
     "PlayArrow",
     "M8,5v14l11,-7z",
 )
+
+val FlagIcon: ImageVector = icon(
+    "OutlinedFlag",
+    "M14.4,6L14,4L5,4v17h2v-7h5.6l0.4,2h7L18.4,6L14.4,6zM16,12h-3.8l-0.4,-2L7,10L7,6h5.8l0.4,2L16,8v4z",
+)

@@ -6,6 +6,7 @@
     <string name="staging_banner">PRÉPROD · DONNÉES RÉELLES</string>
 
     <string name="action_back">Retour</string>
+    <string name="action_close">Fermer</string>
     <string name="action_ok">OK</string>
     <string name="action_cancel">Annuler</string>
     <string name="action_save">Enregistrer</string>
@@ -204,6 +205,13 @@
     <string name="entry_title_placeholder">Décrivez les travaux réalisés</string>
     <string name="material_query_hint">Rechercher ou créer un matériau</string>
     <string name="entry_summary_required_work">Le titre est obligatoire.</string>
+
+    <string name="entry_report">Signaler</string>
+    <string name="report_entry_title">Signaler un problème</string>
+    <string name="report_message_label">Message</string>
+    <string name="report_message_placeholder">Ex. : quantité incorrecte, livraison oubliée…</string>
+    <string name="report_submit">Envoyer</string>
+    <string name="report_sent">Signalement envoyé. L'administrateur du projet en sera informé.</string>
 
     <string name="purchase_lines_title">Articles achetés</string>
     <string name="purchase_line_add">Ajouter un article</string>
