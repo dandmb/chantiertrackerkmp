@@ -192,6 +192,30 @@ class MainScreensSnapshotTest {
         ) { padding -> screen(Modifier.padding(padding)) }
     }
 
+    /** Mirrors MainScreen: the history sort control lives in the detail top bar. */
+    @Composable
+    private fun ProjectHistoryChrome(title: String) {
+        var sort by remember { mutableStateOf(com.dmb.chantiertracker.domain.model.HistorySort.NEWEST_FIRST) }
+        Scaffold(
+            topBar = {
+                DetailTopBar(
+                    title = title,
+                    onBack = {},
+                    actions = {
+                        com.dmb.chantiertracker.presentation.projects.history.HistorySortControl(
+                            current = sort, onSelect = { sort = it },
+                        )
+                    },
+                )
+            },
+        ) { padding ->
+            com.dmb.chantiertracker.presentation.projects.history.ProjectHistoryScreen(
+                projectLocalId = "1", modifier = Modifier.padding(padding), sort = sort,
+                viewModel = projectHistoryVm(Plan.FREE),
+            )
+        }
+    }
+
     /** Mirrors MainScreen: the detail top-bar title tracks the project name resolved by the screen. */
     @Composable
     private fun ProjectDetailChrome(fallbackTitle: String, projectVm: ProjectDetailViewModel) {
@@ -294,9 +318,9 @@ class MainScreensSnapshotTest {
                 com.dmb.chantiertracker.domain.model.HistoryPage(
                     items = listOf(
                         historyItem(5, "2026-09-05T14:32:11", "Jean Marchand a modifié le budget prévisionnel de l'étape Gros œuvre : 500 000 → 600 000 EUR"),
-                        historyItem(4, "2026-09-04T09:12:03", "Sam Ferreira (superviseur) a ajouté une ligne d'achat : 12 sacs de ciment à 3,5 EUR"),
-                        historyItem(3, "2026-09-02T17:45:00", "Jean Marchand a créé l'étape Fondations"),
-                        historyItem(2, "2026-08-30T08:00:00", "Jean Marchand a changé le statut du projet en « En cours »"),
+                        historyItem(4, "2026-09-04T09:12:03", "Sam Ferreira (superviseur) a ajouté un achat sur l'étape Gros œuvre : 12 sacs de ciment à 42 EUR"),
+                        historyItem(3, "2026-09-02T17:45:00", "Sam Ferreira (superviseur) a retiré 3 tonnes de Ciment du stock sur l'étape Fondations"),
+                        historyItem(2, "2026-08-30T08:00:00", "Jean Marchand a réactivé le projet Villa Vidal"),
                         historyItem(1, "2026-08-28T11:20:00", "Jean Marchand a créé le projet Villa Vidal"),
                     ),
                     page = 0, totalPages = 3, isFirst = true, isLast = false, totalElements = 45,
@@ -548,13 +572,7 @@ class MainScreensSnapshotTest {
                 locale,
                 awaitReady = { onAllNodes(hasText("Villa Vidal", substring = true)).fetchSemanticsNodes().isNotEmpty() },
             ) {
-                DetailChrome(
-                    title = if (locale == "fr") "Historique" else "History",
-                ) { m ->
-                    com.dmb.chantiertracker.presentation.projects.history.ProjectHistoryScreen(
-                        projectLocalId = "1", modifier = m, viewModel = projectHistoryVm(Plan.FREE),
-                    )
-                }
+                ProjectHistoryChrome(title = if (locale == "fr") "Historique" else "History")
             }
             snapshot("30-invite-member", locale) {
                 DetailChrome(

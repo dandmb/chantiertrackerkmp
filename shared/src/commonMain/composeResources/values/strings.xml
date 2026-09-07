@@ -106,6 +106,7 @@
 
     <string name="detail_title">Project</string>
     <string name="detail_edit_project">Edit project</string>
+    <string name="detail_section_info">Information</string>
     <string name="detail_currency">Currency</string>
     <string name="detail_timezone">Time zone</string>
     <string name="detail_section_stages">Stages</string>
@@ -133,6 +134,7 @@
     <string name="incoming_invitation_decline">Decline</string>
 
     <string name="detail_history">Modification history</string>
+    <string name="detail_history_hint">Who changed what, and when</string>
     <string name="history_title">History</string>
     <string name="history_sort_newest">Most recent</string>
     <string name="history_sort_oldest">Oldest first</string>

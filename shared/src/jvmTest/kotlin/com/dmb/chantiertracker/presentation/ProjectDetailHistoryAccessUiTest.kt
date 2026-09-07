@@ -76,8 +76,8 @@ class ProjectDetailHistoryAccessUiTest {
         waitUntil(timeoutMillis = 5_000L) {
             onAllNodes(hasText("Historique des modifications")).fetchSemanticsNodes().isNotEmpty()
         }
-
-        onNodeWithText("Historique des modifications").performScrollTo().performClick()
+        // The section header labels the block; the tappable row carries the hint.
+        onNodeWithText("Qui a changé quoi, et quand").performScrollTo().performClick()
 
         assertEquals("p1", opened)
     }

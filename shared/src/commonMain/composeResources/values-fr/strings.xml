@@ -106,6 +106,7 @@
 
     <string name="detail_title">Projet</string>
     <string name="detail_edit_project">Modifier le projet</string>
+    <string name="detail_section_info">Informations</string>
     <string name="detail_currency">Devise</string>
     <string name="detail_timezone">Fuseau horaire</string>
     <string name="detail_section_stages">Étapes</string>
@@ -133,6 +134,7 @@
     <string name="incoming_invitation_decline">Refuser</string>
 
     <string name="detail_history">Historique des modifications</string>
+    <string name="detail_history_hint">Qui a changé quoi, et quand</string>
     <string name="history_title">Historique</string>
     <string name="history_sort_newest">Plus récent</string>
     <string name="history_sort_oldest">Plus ancien</string>

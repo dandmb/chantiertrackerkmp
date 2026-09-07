@@ -43,6 +43,8 @@ import com.dmb.chantiertracker.presentation.projects.ProjectsScreen
 import com.dmb.chantiertracker.presentation.projects.create.CreateProjectScreen
 import com.dmb.chantiertracker.presentation.projects.detail.ProjectDetailScreen
 import com.dmb.chantiertracker.presentation.projects.edit.EditProjectScreen
+import com.dmb.chantiertracker.domain.model.HistorySort
+import com.dmb.chantiertracker.presentation.projects.history.HistorySortControl
 import com.dmb.chantiertracker.presentation.projects.history.ProjectHistoryScreen
 import com.dmb.chantiertracker.presentation.projects.invite.InviteMemberScreen
 import com.dmb.chantiertracker.presentation.settings.SettingsScreen
@@ -99,6 +101,9 @@ fun MainScreen(viewModel: MainViewModel = koinViewModel()) {
     var stageTitle by remember { mutableStateOf<String?>(null) }
     var logTitle by remember { mutableStateOf<String?>(null) }
     var formTitle by remember { mutableStateOf<String?>(null) }
+    // History sort lives here, not in the screen body: it belongs in the
+    // TopAppBar (Material 3 — a global filter, always reachable while scrolling).
+    var historySort by remember { mutableStateOf(HistorySort.NEWEST_FIRST) }
     val formDestinations = setOf(
         MainDestination.EntrySummary, MainDestination.PurchaseLineForm, MainDestination.ConsumptionLineForm,
     )
@@ -107,6 +112,7 @@ fun MainScreen(viewModel: MainViewModel = koinViewModel()) {
         if (current != MainDestination.StageDetail) stageTitle = null
         if (current != MainDestination.DailyLog) logTitle = null
         if (current !in formDestinations) formTitle = null
+        if (current != MainDestination.ProjectHistory) historySort = HistorySort.NEWEST_FIRST
     }
 
     Scaffold(
@@ -131,6 +137,7 @@ fun MainScreen(viewModel: MainViewModel = koinViewModel()) {
                 MainDestination.ProjectHistory -> DetailTopBar(
                     title = stringResource(Res.string.history_title),
                     onBack = { navController.popBackStack() },
+                    actions = { HistorySortControl(current = historySort, onSelect = { historySort = it }) },
                 )
                 MainDestination.CreateStage -> DetailTopBar(
                     title = stringResource(Res.string.create_stage_title),
@@ -225,6 +232,7 @@ fun MainScreen(viewModel: MainViewModel = koinViewModel()) {
             composable<ProjectHistoryRoute> { entry ->
                 ProjectHistoryScreen(
                     projectLocalId = entry.toRoute<ProjectHistoryRoute>().projectLocalId,
+                    sort = historySort,
                 )
             }
             composable<EditProjectRoute> { entry ->

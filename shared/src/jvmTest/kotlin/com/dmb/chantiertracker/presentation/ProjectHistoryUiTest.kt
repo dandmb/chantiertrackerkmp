@@ -8,6 +8,7 @@ import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.runComposeUiTest
@@ -22,6 +23,7 @@ import com.dmb.chantiertracker.domain.model.ProjectDetail
 import com.dmb.chantiertracker.domain.model.ProjectStatus
 import com.dmb.chantiertracker.presentation.i18n.AppEnvironment
 import com.dmb.chantiertracker.presentation.i18n.customAppLocale
+import com.dmb.chantiertracker.presentation.projects.history.HistorySortControl
 import com.dmb.chantiertracker.presentation.projects.history.ProjectHistoryScreen
 import com.dmb.chantiertracker.presentation.projects.history.ProjectHistoryViewModel
 import com.dmb.chantiertracker.presentation.theme.AppTheme
@@ -64,13 +66,17 @@ class ProjectHistoryUiTest {
         ),
     )
 
-    private fun ComposeUiTest.content(history: FakeHistoryRepository, ownerPlan: Plan? = Plan.LIBERTE) {
+    private fun ComposeUiTest.content(
+        history: FakeHistoryRepository,
+        ownerPlan: Plan? = Plan.LIBERTE,
+        sort: HistorySort = HistorySort.NEWEST_FIRST,
+    ) {
         setContent {
             customAppLocale = "fr"
             AppEnvironment {
                 AppTheme {
                     Box(Modifier.size(412.dp, 892.dp)) {
-                        ProjectHistoryScreen("p1", viewModel = vm(history, ownerPlan))
+                        ProjectHistoryScreen("p1", sort = sort, viewModel = vm(history, ownerPlan))
                     }
                 }
             }
@@ -85,11 +91,11 @@ class ProjectHistoryUiTest {
     @Test
     fun lists_entries_and_a_liberte_project_shows_no_retention_notice() = runComposeUiTest {
         content(FakeHistoryRepository(listOf(page(0, 1, listOf(
-            item(1, "Dan a créé le projet Villa"),
+            item(1, "Dan a créé le projet Villa Vidal"),
             item(2, "Dan a modifié le budget : 500 000 → 600 000 EUR"),
         )))))
 
-        awaitText("Dan a créé le projet Villa")
+        awaitText("Dan a créé le projet Villa Vidal")
         onNodeWithText("Dan a modifié le budget : 500 000 → 600 000 EUR").assertIsDisplayed()
         onNodeWithText("01-09-2026 · 14:32", substring = true).assertIsDisplayed()
         onNodeWithText("Historique limité", substring = true).assertDoesNotExist()
@@ -103,15 +109,10 @@ class ProjectHistoryUiTest {
     }
 
     @Test
-    fun choosing_a_different_sort_reloads_from_page_zero() = runComposeUiTest {
+    fun the_screen_uses_the_sort_passed_from_the_top_bar() = runComposeUiTest {
         val history = FakeHistoryRepository(listOf(page(0, 1, listOf(item(1, "Dan a créé le projet")))))
-        content(history)
+        content(history, sort = HistorySort.BY_ACTION)
         awaitText("Dan a créé le projet")
-
-        onNodeWithText("Plus récent").performClick()
-        awaitText("Par type d'action")
-        onNodeWithText("Par type d'action (A→Z)").performClick()
-        waitUntil(timeoutMillis = 5_000L) { history.calls.lastOrNull()?.third == HistorySort.BY_ACTION }
 
         assert(history.calls.last() == Triple("p1", 0, HistorySort.BY_ACTION))
     }
@@ -149,5 +150,25 @@ class ProjectHistoryUiTest {
         onNodeWithText("Réessayer").performClick()
 
         awaitText("Recovered entry")
+    }
+
+    @Test
+    fun the_sort_control_reports_the_chosen_option() = runComposeUiTest {
+        var chosen: HistorySort? = null
+        setContent {
+            customAppLocale = "fr"
+            AppEnvironment {
+                AppTheme {
+                    HistorySortControl(current = HistorySort.NEWEST_FIRST, onSelect = { chosen = it })
+                }
+            }
+        }
+
+        onNodeWithContentDescription("Trier").performClick()
+        waitForIdle()
+        onNodeWithText("Par type d'action (A→Z)").performClick()
+        waitForIdle()
+
+        assert(chosen == HistorySort.BY_ACTION)
     }
 }
