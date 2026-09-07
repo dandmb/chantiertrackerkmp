@@ -109,6 +109,21 @@ class PurchaseLineFormViewModelTest {
     }
 
     @Test
+    fun can_save_stays_false_until_material_quantity_and_price_are_all_present() = runTest {
+        val (v, _, _) = vm()
+        v.load("e1", "p1", lineLocalId = null)
+        advanceUntilIdle()
+
+        assertFalse(v.state.value.canSave)
+        v.selectMaterial(ciment)
+        assertFalse(v.state.value.canSave)
+        v.onQuantityChange("10")
+        assertFalse(v.state.value.canSave)
+        v.onUnitPriceChange("3")
+        assertTrue(v.state.value.canSave)
+    }
+
+    @Test
     fun a_missing_line_being_edited_is_flagged() = runTest {
         val (v, _, _) = vm()
         v.load("e1", "p1", lineLocalId = "ghost")

@@ -19,8 +19,6 @@ import com.dmb.chantiertracker.domain.model.StageDetail
 import com.dmb.chantiertracker.domain.model.StageStatus
 import com.dmb.chantiertracker.domain.model.User
 import com.dmb.chantiertracker.presentation.todayIn
-import com.dmb.chantiertracker.resources.Res
-import com.dmb.chantiertracker.resources.entry_summary_required_work
 import com.dmb.chantiertracker.support.FakeAttachmentRepository
 import com.dmb.chantiertracker.support.FakeAuthRepository
 import com.dmb.chantiertracker.support.FakeConsumptionLineRepository
