@@ -232,6 +232,22 @@ class MainScreensSnapshotTest {
         }
     }
 
+    /** Mirrors MainScreen: the detail top-bar title tracks the day date resolved by the screen. */
+    @Composable
+    private fun DailyLogChrome(fallbackTitle: String) {
+        var title by remember { mutableStateOf<String?>(null) }
+        Scaffold(
+            topBar = { DetailTopBar(title = title ?: fallbackTitle, onBack = {}) },
+        ) { padding ->
+            DailyLogScreen(
+                dailyLogLocalId = "log-1",
+                modifier = Modifier.padding(padding),
+                onDateResolved = { title = it },
+                viewModel = dailyLogVm(),
+            )
+        }
+    }
+
     private fun projectsVm(
         projects: List<Project>,
         incoming: List<com.dmb.chantiertracker.domain.model.IncomingInvitation> = emptyList(),
@@ -625,9 +641,7 @@ class MainScreensSnapshotTest {
                     onAllNodes(hasContentDescription("facture-ciment.jpg")).fetchSemanticsNodes().isNotEmpty()
                 },
             ) {
-                DetailChrome(
-                    title = if (locale == "fr") "Journée" else "Day",
-                ) { m -> DailyLogScreen(dailyLogLocalId = "log-1", modifier = m, viewModel = dailyLogVm()) }
+                DailyLogChrome(fallbackTitle = if (locale == "fr") "Journée" else "Day")
             }
             snapshot("33-video-player-desktop", locale) {
                 DetailChrome(title = if (locale == "fr") "Vidéo" else "Video") { m ->

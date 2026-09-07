@@ -6,7 +6,9 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -14,49 +16,46 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 
 // The single building block for every section of a detail screen
-// (ProjectDetailScreen, StageDetailScreen…): one title style everywhere
-// (titleMedium / SemiBold), an optional compact action on the right, and a
-// content column with a consistent inner rhythm. Sections are always separated
-// by [DetailSectionDivider] placed by the parent — never inside a section.
+// (ProjectDetailScreen, StageDetailScreen, DailyLogScreen…): one title style
+// everywhere (titleMedium / SemiBold), an optional leading icon, an optional
+// compact action on the right, and a content column with a consistent inner
+// rhythm. Sections are always separated by [DetailSectionDivider] placed by the
+// parent — never inside a section.
 @Composable
 fun DetailSection(
     title: String,
     modifier: Modifier = Modifier,
     titleColor: Color = MaterialTheme.colorScheme.onSurface,
+    leadingIcon: ImageVector? = null,
     action: (@Composable () -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        if (action == null) {
-            SectionTitle(title, titleColor)
-        } else {
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                SectionTitle(title, titleColor, Modifier.weight(1f))
-                action()
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            leadingIcon?.let {
+                Icon(it, contentDescription = null, tint = titleColor, modifier = Modifier.size(20.dp))
             }
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = titleColor,
+                modifier = Modifier.weight(1f),
+            )
+            action?.invoke()
         }
         content()
     }
-}
-
-@Composable
-private fun SectionTitle(title: String, color: Color, modifier: Modifier = Modifier) {
-    Text(
-        text = title,
-        style = MaterialTheme.typography.titleMedium,
-        fontWeight = FontWeight.SemiBold,
-        color = color,
-        modifier = modifier,
-    )
 }
 
 @Composable
