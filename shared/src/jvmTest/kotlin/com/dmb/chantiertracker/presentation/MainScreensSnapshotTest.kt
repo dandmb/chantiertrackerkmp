@@ -359,6 +359,37 @@ class MainScreensSnapshotTest {
             description = description, entryId = null, userId = 1L, fieldName = null, oldValue = null, newValue = null,
         )
 
+    private fun projectReportsVm(): com.dmb.chantiertracker.presentation.reports.ProjectReportsViewModel {
+        val repo = com.dmb.chantiertracker.support.FakeReportRepository(
+            listOf(
+                com.dmb.chantiertracker.domain.model.ReportPage(
+                    items = listOf(
+                        reportItem(
+                            id = 3, type = EntryType.PURCHASE, entryDate = "2026-09-04", author = "Sam Ferreira",
+                            createdAt = "2026-09-05T08:15:00", message = "La quantité de ciment livrée ne correspond pas au bon de livraison.",
+                            status = com.dmb.chantiertracker.domain.model.ReportStatus.NEW, processedAt = null,
+                        ),
+                        reportItem(
+                            id = 2, type = EntryType.WORK, entryDate = "2026-09-02", author = "Sam Ferreira",
+                            createdAt = "2026-09-02T18:40:00", message = "Coulage de dalle non mentionné dans le résumé.",
+                            status = com.dmb.chantiertracker.domain.model.ReportStatus.PROCESSED, processedAt = "2026-09-03T09:10:00",
+                        ),
+                    ),
+                    page = 0, totalPages = 2, isFirst = true, isLast = false, totalElements = 24,
+                ),
+            ),
+        )
+        return com.dmb.chantiertracker.presentation.reports.ProjectReportsViewModel(repo).also { it.load("1") }
+    }
+
+    private fun reportItem(
+        id: Long, type: EntryType, entryDate: String, author: String?, createdAt: String, message: String,
+        status: com.dmb.chantiertracker.domain.model.ReportStatus, processedAt: String?,
+    ) = com.dmb.chantiertracker.domain.model.Report(
+        id = id, entryId = id * 10, entryType = type, entryDate = entryDate, authorName = author,
+        message = message, createdAt = createdAt, status = status, processedAt = processedAt,
+    )
+
     private fun editProjectVm(): com.dmb.chantiertracker.presentation.projects.edit.EditProjectViewModel {
         val repo = FakeProjectRepository(
             detail = ProjectDetail(
@@ -702,6 +733,19 @@ class MainScreensSnapshotTest {
                 DetailChrome(title = if (locale == "fr") "Signaler un problème" else "Report an issue") { m ->
                     com.dmb.chantiertracker.presentation.reports.ReportEntryScreen(
                         entryLocalId = "e1", onDone = {}, modifier = m, viewModel = reportEntryVm(),
+                    )
+                }
+            }
+            snapshot(
+                "37-project-reports",
+                locale,
+                awaitReady = {
+                    onAllNodes(hasText("bon de livraison", substring = true)).fetchSemanticsNodes().isNotEmpty()
+                },
+            ) {
+                DetailChrome(title = if (locale == "fr") "Signalements" else "Reports") { m ->
+                    com.dmb.chantiertracker.presentation.reports.ProjectReportsScreen(
+                        projectLocalId = "1", modifier = m, viewModel = projectReportsVm(),
                     )
                 }
             }

@@ -212,6 +212,16 @@
     <string name="report_message_placeholder">e.g. wrong quantity, forgotten delivery…</string>
     <string name="report_submit">Send</string>
     <string name="report_sent">Report sent. The project admin will be notified.</string>
+    <string name="detail_reports">Reports</string>
+    <string name="detail_reports_hint">Problems flagged on daily entries</string>
+    <string name="reports_title">Reports</string>
+    <string name="reports_empty">No reports.</string>
+    <string name="reports_error">Couldn't load the reports.</string>
+    <string name="report_flagged_by">%1$s of %2$s · flagged by %3$s on %4$s</string>
+    <string name="report_author_unknown">a removed member</string>
+    <string name="report_mark_processed">Mark as processed</string>
+    <string name="report_processed_on">Processed on %1$s</string>
+    <string name="report_status_processed">Processed</string>
 
     <string name="purchase_lines_title">Purchased items</string>
     <string name="purchase_line_add">Add an item</string>

@@ -65,6 +65,9 @@ data class InviteMemberRoute(val projectLocalId: String)
 data class ProjectHistoryRoute(val projectLocalId: String)
 
 @Serializable
+data class ProjectReportsRoute(val projectLocalId: String)
+
+@Serializable
 data class CreateStageRoute(val projectLocalId: String)
 
 @Serializable
