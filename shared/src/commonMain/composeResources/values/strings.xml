@@ -132,6 +132,24 @@
     <string name="incoming_invitation_accept">Accept</string>
     <string name="incoming_invitation_decline">Decline</string>
 
+    <string name="detail_history">Modification history</string>
+    <string name="history_title">History</string>
+    <string name="history_sort_newest">Most recent</string>
+    <string name="history_sort_oldest">Oldest first</string>
+    <string name="history_sort_action">By action type (A→Z)</string>
+    <string name="history_sort_label">Sort</string>
+    <string name="history_empty">No history yet.</string>
+    <string name="history_error">Couldn't load the history.</string>
+    <string name="history_retry">Retry</string>
+    <string name="history_page">Page %1$d / %2$d</string>
+    <string name="history_prev">Previous</string>
+    <string name="history_next">Next</string>
+    <string name="history_limit_free">History is limited to the last 30 days. Upgrade to Semi-flex or Liberté for a longer history.</string>
+    <string name="history_limit_semi_flex">History is limited to the last 6 months. Upgrade to Liberté for unlimited history.</string>
+    <string name="history_action_creation">Creation</string>
+    <string name="history_action_modification">Modification</string>
+    <string name="history_action_deletion">Deletion</string>
+
     <string name="detail_danger_zone">Danger zone</string>
     <string name="detail_danger_zone_body">Permanently deletes this project and everything in it (stages, entries, materials, history).</string>
     <string name="detail_delete_project">Delete project</string>

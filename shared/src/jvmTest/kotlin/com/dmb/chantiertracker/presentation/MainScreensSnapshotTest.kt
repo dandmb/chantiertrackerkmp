@@ -26,6 +26,7 @@ import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isRoot
 import androidx.compose.ui.test.onLast
 import androidx.compose.ui.test.onRoot
@@ -280,6 +281,38 @@ class MainScreensSnapshotTest {
         ).also { it.load("1") }
     }
 
+    private fun projectHistoryVm(ownerPlan: Plan): com.dmb.chantiertracker.presentation.projects.history.ProjectHistoryViewModel {
+        val repo = FakeProjectRepository(
+            detail = ProjectDetail(
+                localId = "1", name = "Villa Vidal", description = null, location = "Nîmes",
+                currency = "EUR", timezone = "Europe/Paris", status = ProjectStatus.IN_PROGRESS,
+                ownerId = 1L, ownerPlan = ownerPlan,
+            ),
+        )
+        val history = com.dmb.chantiertracker.support.FakeHistoryRepository(
+            listOf(
+                com.dmb.chantiertracker.domain.model.HistoryPage(
+                    items = listOf(
+                        historyItem(5, "2026-09-05T14:32:11", "Jean Marchand a modifié le budget prévisionnel de l'étape Gros œuvre : 500 000 → 600 000 EUR"),
+                        historyItem(4, "2026-09-04T09:12:03", "Sam Ferreira (superviseur) a ajouté une ligne d'achat : 12 sacs de ciment à 3,5 EUR"),
+                        historyItem(3, "2026-09-02T17:45:00", "Jean Marchand a créé l'étape Fondations"),
+                        historyItem(2, "2026-08-30T08:00:00", "Jean Marchand a changé le statut du projet en « En cours »"),
+                        historyItem(1, "2026-08-28T11:20:00", "Jean Marchand a créé le projet Villa Vidal"),
+                    ),
+                    page = 0, totalPages = 3, isFirst = true, isLast = false, totalElements = 45,
+                ),
+            ),
+        )
+        return com.dmb.chantiertracker.presentation.projects.history.ProjectHistoryViewModel(history, repo).also { it.load("1") }
+    }
+
+    private fun historyItem(id: Long, at: String, description: String) =
+        com.dmb.chantiertracker.domain.model.ModificationHistoryItem(
+            id = id, modifiedAt = at,
+            actionType = com.dmb.chantiertracker.domain.model.HistoryActionType.MODIFICATION,
+            description = description, entryId = null, userId = 1L, fieldName = null, oldValue = null, newValue = null,
+        )
+
     private fun editProjectVm(): com.dmb.chantiertracker.presentation.projects.edit.EditProjectViewModel {
         val repo = FakeProjectRepository(
             detail = ProjectDetail(
@@ -509,6 +542,19 @@ class MainScreensSnapshotTest {
                 DetailChrome(
                     title = if (locale == "fr") "Modifier le projet" else "Edit project",
                 ) { m -> EditProjectScreen(projectLocalId = "1", onSaved = {}, onBack = {}, modifier = m, viewModel = editProjectVm()) }
+            }
+            snapshot(
+                "34-project-history",
+                locale,
+                awaitReady = { onAllNodes(hasText("Villa Vidal", substring = true)).fetchSemanticsNodes().isNotEmpty() },
+            ) {
+                DetailChrome(
+                    title = if (locale == "fr") "Historique" else "History",
+                ) { m ->
+                    com.dmb.chantiertracker.presentation.projects.history.ProjectHistoryScreen(
+                        projectLocalId = "1", modifier = m, viewModel = projectHistoryVm(Plan.FREE),
+                    )
+                }
             }
             snapshot("30-invite-member", locale) {
                 DetailChrome(

@@ -28,6 +28,7 @@ import com.dmb.chantiertracker.presentation.navigation.EditProjectRoute
 import com.dmb.chantiertracker.presentation.navigation.EntrySummaryRoute
 import com.dmb.chantiertracker.presentation.navigation.InviteMemberRoute
 import com.dmb.chantiertracker.presentation.navigation.ProjectDetailRoute
+import com.dmb.chantiertracker.presentation.navigation.ProjectHistoryRoute
 import com.dmb.chantiertracker.presentation.navigation.ProjectsRoute
 import com.dmb.chantiertracker.presentation.navigation.PurchaseLineFormRoute
 import com.dmb.chantiertracker.presentation.navigation.SettingsRoute
@@ -42,6 +43,7 @@ import com.dmb.chantiertracker.presentation.projects.ProjectsScreen
 import com.dmb.chantiertracker.presentation.projects.create.CreateProjectScreen
 import com.dmb.chantiertracker.presentation.projects.detail.ProjectDetailScreen
 import com.dmb.chantiertracker.presentation.projects.edit.EditProjectScreen
+import com.dmb.chantiertracker.presentation.projects.history.ProjectHistoryScreen
 import com.dmb.chantiertracker.presentation.projects.invite.InviteMemberScreen
 import com.dmb.chantiertracker.presentation.settings.SettingsScreen
 import com.dmb.chantiertracker.presentation.stages.create.CreateStageScreen
@@ -52,6 +54,7 @@ import com.dmb.chantiertracker.resources.create_stage_title
 import com.dmb.chantiertracker.resources.daily_log_title
 import com.dmb.chantiertracker.resources.detail_title
 import com.dmb.chantiertracker.resources.edit_project_title
+import com.dmb.chantiertracker.resources.history_title
 import com.dmb.chantiertracker.resources.invite_member_title
 import com.dmb.chantiertracker.resources.projects_new
 import com.dmb.chantiertracker.resources.stage_detail_title
@@ -59,7 +62,7 @@ import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 
 private enum class MainDestination {
-    Projects, Settings, CreateProject, ProjectDetail, EditProject, InviteMember, CreateStage, StageDetail, DailyLog,
+    Projects, Settings, CreateProject, ProjectDetail, EditProject, InviteMember, ProjectHistory, CreateStage, StageDetail, DailyLog,
     EntrySummary, PurchaseLineForm, ConsumptionLineForm
 }
 
@@ -77,6 +80,7 @@ fun MainScreen(viewModel: MainViewModel = koinViewModel()) {
         destination?.hasRoute(ProjectDetailRoute::class) == true -> MainDestination.ProjectDetail
         destination?.hasRoute(EditProjectRoute::class) == true -> MainDestination.EditProject
         destination?.hasRoute(InviteMemberRoute::class) == true -> MainDestination.InviteMember
+        destination?.hasRoute(ProjectHistoryRoute::class) == true -> MainDestination.ProjectHistory
         destination?.hasRoute(CreateStageRoute::class) == true -> MainDestination.CreateStage
         destination?.hasRoute(StageDetailRoute::class) == true -> MainDestination.StageDetail
         destination?.hasRoute(DailyLogRoute::class) == true -> MainDestination.DailyLog
@@ -122,6 +126,10 @@ fun MainScreen(viewModel: MainViewModel = koinViewModel()) {
                 )
                 MainDestination.InviteMember -> DetailTopBar(
                     title = stringResource(Res.string.invite_member_title),
+                    onBack = { navController.popBackStack() },
+                )
+                MainDestination.ProjectHistory -> DetailTopBar(
+                    title = stringResource(Res.string.history_title),
                     onBack = { navController.popBackStack() },
                 )
                 MainDestination.CreateStage -> DetailTopBar(
@@ -204,6 +212,7 @@ fun MainScreen(viewModel: MainViewModel = koinViewModel()) {
                     onStageClick = { stageLocalId -> navController.navigate(StageDetailRoute(stageLocalId)) },
                     onEditProject = { projectLocalId -> navController.navigate(EditProjectRoute(projectLocalId)) },
                     onInviteMember = { projectLocalId -> navController.navigate(InviteMemberRoute(projectLocalId)) },
+                    onOpenHistory = { projectLocalId -> navController.navigate(ProjectHistoryRoute(projectLocalId)) },
                     onProjectDeleted = { navController.popBackStack(ProjectsRoute, inclusive = false) },
                 )
             }
@@ -211,6 +220,11 @@ fun MainScreen(viewModel: MainViewModel = koinViewModel()) {
                 InviteMemberScreen(
                     projectLocalId = entry.toRoute<InviteMemberRoute>().projectLocalId,
                     onInvited = { navController.popBackStack() },
+                )
+            }
+            composable<ProjectHistoryRoute> { entry ->
+                ProjectHistoryScreen(
+                    projectLocalId = entry.toRoute<ProjectHistoryRoute>().projectLocalId,
                 )
             }
             composable<EditProjectRoute> { entry ->

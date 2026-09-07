@@ -132,6 +132,24 @@
     <string name="incoming_invitation_accept">Accepter</string>
     <string name="incoming_invitation_decline">Refuser</string>
 
+    <string name="detail_history">Historique des modifications</string>
+    <string name="history_title">Historique</string>
+    <string name="history_sort_newest">Plus récent</string>
+    <string name="history_sort_oldest">Plus ancien</string>
+    <string name="history_sort_action">Par type d'action (A→Z)</string>
+    <string name="history_sort_label">Trier</string>
+    <string name="history_empty">Aucun historique pour l'instant.</string>
+    <string name="history_error">Impossible de charger l'historique.</string>
+    <string name="history_retry">Réessayer</string>
+    <string name="history_page">Page %1$d / %2$d</string>
+    <string name="history_prev">Précédent</string>
+    <string name="history_next">Suivant</string>
+    <string name="history_limit_free">Historique limité aux 30 derniers jours. Passez à Semi-flex ou Liberté pour un historique plus long.</string>
+    <string name="history_limit_semi_flex">Historique limité aux 6 derniers mois. Passez à Liberté pour un historique illimité.</string>
+    <string name="history_action_creation">Création</string>
+    <string name="history_action_modification">Modification</string>
+    <string name="history_action_deletion">Suppression</string>
+
     <string name="detail_danger_zone">Zone de danger</string>
     <string name="detail_danger_zone_body">Supprime définitivement ce projet et tout son contenu (étapes, entrées, matériaux, historique).</string>
     <string name="detail_delete_project">Supprimer le projet</string>

@@ -55,6 +55,7 @@ import com.dmb.chantiertracker.resources.detail_danger_zone
 import com.dmb.chantiertracker.resources.detail_danger_zone_body
 import com.dmb.chantiertracker.resources.detail_delete_project
 import com.dmb.chantiertracker.resources.detail_edit_project
+import com.dmb.chantiertracker.resources.detail_history
 import com.dmb.chantiertracker.resources.detail_invitation_cancel
 import com.dmb.chantiertracker.resources.detail_invitation_sent_on
 import com.dmb.chantiertracker.resources.detail_invitations_empty
@@ -84,6 +85,7 @@ fun ProjectDetailScreen(
     onStageClick: (stageLocalId: String) -> Unit = {},
     onEditProject: (projectLocalId: String) -> Unit = {},
     onInviteMember: (projectLocalId: String) -> Unit = {},
+    onOpenHistory: (projectLocalId: String) -> Unit = {},
     onProjectDeleted: () -> Unit = {},
     viewModel: ProjectDetailViewModel = koinViewModel(),
 ) {
@@ -127,6 +129,7 @@ fun ProjectDetailScreen(
                 onStageClick = onStageClick,
                 onEditProject = { onEditProject(state.detail!!.localId) },
                 onInviteMember = { onInviteMember(state.detail!!.localId) },
+                onOpenHistory = { onOpenHistory(state.detail!!.localId) },
                 onCancelInvitation = viewModel::cancelInvitation,
                 onDeleteConfirmed = viewModel::deleteProject,
             )
@@ -149,6 +152,7 @@ private fun DetailContent(
     onStageClick: (String) -> Unit,
     onEditProject: () -> Unit,
     onInviteMember: () -> Unit,
+    onOpenHistory: () -> Unit,
     onCancelInvitation: (Long) -> Unit,
     onDeleteConfirmed: () -> Unit,
 ) {
@@ -216,6 +220,16 @@ private fun DetailContent(
             onInviteMember = onInviteMember,
             onCancelInvitation = onCancelInvitation,
         )
+
+        if (isAdmin) {
+            ClickableListRow(onClick = onOpenHistory) {
+                Text(
+                    text = stringResource(Res.string.detail_history),
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
 
         if (canEdit) {
             DangerZone(projectName = detail.name, isDeleting = isDeleting, onDeleteConfirmed = onDeleteConfirmed)

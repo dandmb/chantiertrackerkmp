@@ -483,6 +483,31 @@ class FakeInvitationRepository(
     }
 }
 
+class FakeHistoryRepository(
+    private val pages: List<com.dmb.chantiertracker.domain.model.HistoryPage> = emptyList(),
+) : com.dmb.chantiertracker.domain.repository.HistoryRepository {
+
+    // Every call is recorded so tests can assert the exact (page, sort) asked for.
+    val calls = mutableListOf<Triple<String, Int, com.dmb.chantiertracker.domain.model.HistorySort>>()
+    var error: com.dmb.chantiertracker.domain.model.DomainException? = null
+    var onCall: (suspend () -> Unit)? = null
+
+    override suspend fun projectHistory(
+        projectLocalId: String,
+        page: Int,
+        sort: com.dmb.chantiertracker.domain.model.HistorySort,
+    ): com.dmb.chantiertracker.domain.model.HistoryPage {
+        calls += Triple(projectLocalId, page, sort)
+        onCall?.invoke()
+        error?.let { throw it }
+        return pages.getOrNull(page)
+            ?: com.dmb.chantiertracker.domain.model.HistoryPage(
+                items = emptyList(), page = page, totalPages = pages.size,
+                isFirst = page == 0, isLast = page >= pages.size - 1, totalElements = 0,
+            )
+    }
+}
+
 class FakeAccountRepository(
     planUsage: com.dmb.chantiertracker.domain.model.PlanUsage? = null,
 ) : AccountRepository {
