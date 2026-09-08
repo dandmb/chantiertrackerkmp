@@ -31,6 +31,20 @@ data class Report(
 enum class ReportStatus { NEW, PROCESSED, UNKNOWN }
 
 /**
+ * The user-facing sort choices for the project's report list, each mapping to
+ * the backend's `sort`/`order` pair (`sort` ∈ {date, status}, `order` ∈ {asc,
+ * desc}) — the single place that translation lives, mirroring `HistorySort`.
+ * `UNPROCESSED_FIRST` = `status,asc`: the enum is stored as a string server-side
+ * so `NEW` < `PROCESSED`, which puts the untreated reports on top. Labels are
+ * resolved via i18n in the presentation layer.
+ */
+enum class ReportSort(val apiSort: String, val apiOrder: String) {
+    NEWEST_FIRST("date", "desc"),
+    OLDEST_FIRST("date", "asc"),
+    UNPROCESSED_FIRST("status", "asc"),
+}
+
+/**
  * One page of a project's reports. `page` is 0-based (the server's `number`);
  * `isFirst`/`isLast` drive Previous/Next. Same shape as `HistoryPage` — a
  * paginated, online-only projection.

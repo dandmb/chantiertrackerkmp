@@ -222,6 +222,9 @@
     <string name="report_mark_processed">Marquer comme traité</string>
     <string name="report_processed_on">Traité le %1$s</string>
     <string name="report_status_processed">Traité</string>
+    <string name="report_sort_newest">Plus récent</string>
+    <string name="report_sort_oldest">Plus ancien</string>
+    <string name="report_sort_unprocessed">Non traités en premier</string>
 
     <string name="purchase_lines_title">Articles achetés</string>
     <string name="purchase_line_add">Ajouter un article</string>

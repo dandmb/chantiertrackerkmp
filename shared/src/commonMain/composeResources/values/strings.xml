@@ -222,6 +222,9 @@
     <string name="report_mark_processed">Mark as processed</string>
     <string name="report_processed_on">Processed on %1$s</string>
     <string name="report_status_processed">Processed</string>
+    <string name="report_sort_newest">Most recent</string>
+    <string name="report_sort_oldest">Oldest first</string>
+    <string name="report_sort_unprocessed">Unprocessed first</string>
 
     <string name="purchase_lines_title">Purchased items</string>
     <string name="purchase_line_add">Add an item</string>

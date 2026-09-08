@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.dmb.chantiertracker.domain.model.DomainException
 import com.dmb.chantiertracker.domain.model.Report
+import com.dmb.chantiertracker.domain.model.ReportSort
 import com.dmb.chantiertracker.domain.repository.ReportRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -21,6 +22,7 @@ data class ProjectReportsUiState(
     val totalPages: Int = 0,
     val isFirst: Boolean = true,
     val isLast: Boolean = true,
+    val sort: ReportSort = ReportSort.NEWEST_FIRST,
     // Reports currently being marked processed — one row's button spins without
     // blocking the others.
     val processingIds: Set<Long> = emptySet(),
@@ -30,9 +32,10 @@ data class ProjectReportsUiState(
 }
 
 // ADMIN-only, online only (ADR-47). No local cache, no SyncEngine: same posture
-// as ProjectHistoryViewModel. Every page is fetched fresh; the server sort is
-// fixed (createdAt desc) so there is no sort control. `markProcessed` refreshes
-// the affected row in place from the server's response — no full re-fetch.
+// as ProjectHistoryViewModel. Every page is fetched fresh. The sort lives in the
+// TopAppBar (MainScreen) and comes in as the `sort` param of the screen, relayed
+// here via setSort. `markProcessed` refreshes the affected row in place from the
+// server's response — no full re-fetch.
 class ProjectReportsViewModel(
     private val reportRepository: ReportRepository,
 ) : ViewModel() {
@@ -50,6 +53,12 @@ class ProjectReportsViewModel(
     }
 
     fun retry() = fetch(page = _state.value.page)
+
+    fun setSort(sort: ReportSort) {
+        if (sort == _state.value.sort) return
+        _state.update { it.copy(sort = sort) }
+        fetch(page = 0)
+    }
 
     fun nextPage() {
         if (!_state.value.isLast && !_state.value.isLoading) fetch(_state.value.page + 1)
@@ -87,7 +96,7 @@ class ProjectReportsViewModel(
         _state.update { it.copy(isLoading = true, error = null) }
         fetchJob = viewModelScope.launch {
             try {
-                val result = reportRepository.projectReports(id, page)
+                val result = reportRepository.projectReports(id, page, _state.value.sort)
                 _state.update {
                     it.copy(
                         isLoading = false,

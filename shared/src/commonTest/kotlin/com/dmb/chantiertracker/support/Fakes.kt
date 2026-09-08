@@ -513,7 +513,7 @@ class FakeReportRepository(
 ) : com.dmb.chantiertracker.domain.repository.ReportRepository {
 
     val createdReports = mutableListOf<Pair<String, String>>()
-    val listCalls = mutableListOf<Pair<String, Int>>()
+    val listCalls = mutableListOf<Triple<String, Int, com.dmb.chantiertracker.domain.model.ReportSort>>()
     val processedIds = mutableListOf<Long>()
 
     var createError: com.dmb.chantiertracker.domain.model.DomainException? = null
@@ -528,8 +528,9 @@ class FakeReportRepository(
     override suspend fun projectReports(
         projectLocalId: String,
         page: Int,
+        sort: com.dmb.chantiertracker.domain.model.ReportSort,
     ): com.dmb.chantiertracker.domain.model.ReportPage {
-        listCalls += projectLocalId to page
+        listCalls += Triple(projectLocalId, page, sort)
         listError?.let { throw it }
         return pages.getOrNull(page)
             ?: com.dmb.chantiertracker.domain.model.ReportPage(

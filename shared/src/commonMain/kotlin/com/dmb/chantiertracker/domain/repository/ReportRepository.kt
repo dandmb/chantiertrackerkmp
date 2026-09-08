@@ -2,6 +2,7 @@ package com.dmb.chantiertracker.domain.repository
 
 import com.dmb.chantiertracker.domain.model.Report
 import com.dmb.chantiertracker.domain.model.ReportPage
+import com.dmb.chantiertracker.domain.model.ReportSort
 
 interface ReportRepository {
 
@@ -18,12 +19,12 @@ interface ReportRepository {
     suspend fun createReport(entryLocalId: String, message: String)
 
     /**
-     * One page of a project's reports, newest first (the server sort is fixed —
-     * no `sort`/`order`, unlike the history). **ADMIN only** server-side (`403`
-     * otherwise). Online only, no Room cache (ADR-47). `NotFound` without a
-     * network call if the project has never synced.
+     * One page of a project's reports, ordered by [sort] (the enum is the only
+     * place the server `sort`/`order` pair is chosen). **ADMIN only** server-side
+     * (`403` otherwise). Online only, no Room cache (ADR-47). `NotFound` without
+     * a network call if the project has never synced.
      */
-    suspend fun projectReports(projectLocalId: String, page: Int): ReportPage
+    suspend fun projectReports(projectLocalId: String, page: Int, sort: ReportSort): ReportPage
 
     /**
      * Mark a report processed — **ADMIN only**, **irreversible** (the backend

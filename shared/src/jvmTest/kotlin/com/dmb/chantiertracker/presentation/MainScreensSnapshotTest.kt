@@ -216,6 +216,30 @@ class MainScreensSnapshotTest {
         }
     }
 
+    /** Mirrors MainScreen: the report sort control lives in the detail top bar. */
+    @Composable
+    private fun ProjectReportsChrome(title: String) {
+        var sort by remember { mutableStateOf(com.dmb.chantiertracker.domain.model.ReportSort.NEWEST_FIRST) }
+        Scaffold(
+            topBar = {
+                DetailTopBar(
+                    title = title,
+                    onBack = {},
+                    actions = {
+                        com.dmb.chantiertracker.presentation.reports.ReportSortControl(
+                            current = sort, onSelect = { sort = it },
+                        )
+                    },
+                )
+            },
+        ) { padding ->
+            com.dmb.chantiertracker.presentation.reports.ProjectReportsScreen(
+                projectLocalId = "1", modifier = Modifier.padding(padding), sort = sort,
+                viewModel = projectReportsVm(),
+            )
+        }
+    }
+
     /** Mirrors MainScreen: the detail top-bar title tracks the project name resolved by the screen. */
     @Composable
     private fun ProjectDetailChrome(fallbackTitle: String, projectVm: ProjectDetailViewModel) {
@@ -743,11 +767,7 @@ class MainScreensSnapshotTest {
                     onAllNodes(hasText("bon de livraison", substring = true)).fetchSemanticsNodes().isNotEmpty()
                 },
             ) {
-                DetailChrome(title = if (locale == "fr") "Signalements" else "Reports") { m ->
-                    com.dmb.chantiertracker.presentation.reports.ProjectReportsScreen(
-                        projectLocalId = "1", modifier = m, viewModel = projectReportsVm(),
-                    )
-                }
+                ProjectReportsChrome(title = if (locale == "fr") "Signalements" else "Reports")
             }
         }
         for (locale in listOf("fr", "en")) {

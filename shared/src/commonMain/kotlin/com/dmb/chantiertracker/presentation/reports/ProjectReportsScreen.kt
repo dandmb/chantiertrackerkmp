@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dmb.chantiertracker.domain.model.EntryType
 import com.dmb.chantiertracker.domain.model.Report
+import com.dmb.chantiertracker.domain.model.ReportSort
 import com.dmb.chantiertracker.domain.model.ReportStatus
 import com.dmb.chantiertracker.presentation.auth.components.ErrorBanner
 import com.dmb.chantiertracker.presentation.formatIsoDate
@@ -58,11 +59,15 @@ import org.koin.compose.viewmodel.koinViewModel
 fun ProjectReportsScreen(
     projectLocalId: String,
     modifier: Modifier = Modifier,
+    // Driven from the TopAppBar in MainScreen — a global control that stays
+    // reachable while the list scrolls (Material 3 convention, same as history).
+    sort: ReportSort = ReportSort.NEWEST_FIRST,
     viewModel: ProjectReportsViewModel = koinViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
 
     LaunchedEffect(projectLocalId) { viewModel.load(projectLocalId) }
+    LaunchedEffect(sort) { viewModel.setSort(sort) }
 
     Column(modifier.fillMaxSize()) {
         state.processError?.let {

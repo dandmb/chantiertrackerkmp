@@ -10,6 +10,7 @@ import com.dmb.chantiertracker.data.remote.dto.ReportPageDto
 import com.dmb.chantiertracker.domain.model.DomainException
 import com.dmb.chantiertracker.domain.model.Report
 import com.dmb.chantiertracker.domain.model.ReportPage
+import com.dmb.chantiertracker.domain.model.ReportSort
 import com.dmb.chantiertracker.domain.model.ReportStatus
 import com.dmb.chantiertracker.domain.repository.ReportRepository
 
@@ -28,9 +29,11 @@ class ReportRepositoryImpl(
         apiCall { api.create(entryServerId, CreateReportRequestDto(message = message)) }
     }
 
-    override suspend fun projectReports(projectLocalId: String, page: Int): ReportPage {
+    override suspend fun projectReports(projectLocalId: String, page: Int, sort: ReportSort): ReportPage {
         val serverId = projectDao.findByLocalId(projectLocalId)?.serverId ?: throw DomainException.NotFound
-        return apiCall { api.projectReports(serverId, page = page, size = PAGE_SIZE) }.toReportPage()
+        return apiCall {
+            api.projectReports(serverId, page = page, size = PAGE_SIZE, sort = sort.apiSort, order = sort.apiOrder)
+        }.toReportPage()
     }
 
     override suspend fun markProcessed(reportId: Long): Report =

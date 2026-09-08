@@ -4,6 +4,7 @@ import com.dmb.chantiertracker.domain.model.DomainException
 import com.dmb.chantiertracker.domain.model.EntryType
 import com.dmb.chantiertracker.domain.model.Report
 import com.dmb.chantiertracker.domain.model.ReportPage
+import com.dmb.chantiertracker.domain.model.ReportSort
 import com.dmb.chantiertracker.domain.model.ReportStatus
 import com.dmb.chantiertracker.support.FakeReportRepository
 import com.dmb.chantiertracker.support.installTestMainDispatcher
@@ -44,12 +45,38 @@ class ProjectReportsViewModelTest {
         vm.load("p1")
         advanceUntilIdle()
 
-        assertEquals("p1" to 0, repo.listCalls.single())
+        assertEquals(Triple("p1", 0, ReportSort.NEWEST_FIRST), repo.listCalls.single())
         val state = vm.state.value
         assertFalse(state.isLoading)
         assertEquals(listOf(1L, 2L), state.items.map { it.id })
         assertTrue(state.isFirst && state.isLast)
         assertFalse(state.showPagination)
+    }
+
+    @Test
+    fun changing_the_sort_refetches_from_page_zero() = runTest {
+        val repo = FakeReportRepository(
+            listOf(page(0, 3, listOf(report(1))), page(1, 3, listOf(report(2))), page(2, 3, listOf(report(3)))),
+        )
+        val vm = ProjectReportsViewModel(repo)
+        vm.load("p1")
+        advanceUntilIdle()
+        vm.nextPage()
+        advanceUntilIdle()
+        assertEquals(1, vm.state.value.page)
+
+        vm.setSort(ReportSort.UNPROCESSED_FIRST)
+        advanceUntilIdle()
+
+        assertEquals(Triple("p1", 0, ReportSort.UNPROCESSED_FIRST), repo.listCalls.last())
+        assertEquals(0, vm.state.value.page)
+        assertEquals(ReportSort.UNPROCESSED_FIRST, vm.state.value.sort)
+
+        // Selecting the same sort again is a no-op — no extra fetch.
+        val callsBefore = repo.listCalls.size
+        vm.setSort(ReportSort.UNPROCESSED_FIRST)
+        advanceUntilIdle()
+        assertEquals(callsBefore, repo.listCalls.size)
     }
 
     @Test

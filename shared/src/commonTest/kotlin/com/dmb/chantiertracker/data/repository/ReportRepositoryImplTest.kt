@@ -4,6 +4,7 @@ import com.dmb.chantiertracker.data.local.AuthTokens
 import com.dmb.chantiertracker.data.remote.ReportApi
 import com.dmb.chantiertracker.domain.model.DomainException
 import com.dmb.chantiertracker.domain.model.EntryType
+import com.dmb.chantiertracker.domain.model.ReportSort
 import com.dmb.chantiertracker.domain.model.ReportStatus
 import com.dmb.chantiertracker.support.FakeDailyEntryDao
 import com.dmb.chantiertracker.support.FakeProjectDao
@@ -90,12 +91,14 @@ class ReportRepositoryImplTest {
     fun lists_a_page_of_project_reports_and_maps_it() = runTest {
         val (repo, client) = setup()
 
-        val page = repo.projectReports("p1", page = 0)
+        val page = repo.projectReports("p1", page = 0, sort = ReportSort.NEWEST_FIRST)
 
         val request = client.requests.single()
         assertEquals("/api/v1/projects/42/reports", request.url.encodedPath)
         assertEquals("0", request.url.parameters["page"])
         assertEquals("20", request.url.parameters["size"])
+        assertEquals("date", request.url.parameters["sort"])
+        assertEquals("desc", request.url.parameters["order"])
 
         assertEquals(0, page.page)
         assertEquals(2, page.totalPages)
@@ -120,16 +123,29 @@ class ReportRepositoryImplTest {
     fun requests_the_page_number_it_is_given() = runTest {
         val (repo, client) = setup()
 
-        repo.projectReports("p1", page = 3)
+        repo.projectReports("p1", page = 3, sort = ReportSort.NEWEST_FIRST)
 
         assertEquals("3", client.requests.single().url.parameters["page"])
+    }
+
+    @Test
+    fun each_sort_maps_to_the_right_server_sort_and_order() = runTest {
+        val (repo1, c1) = setup()
+        repo1.projectReports("p1", page = 0, sort = ReportSort.OLDEST_FIRST)
+        assertEquals("date", c1.requests.single().url.parameters["sort"])
+        assertEquals("asc", c1.requests.single().url.parameters["order"])
+
+        val (repo2, c2) = setup()
+        repo2.projectReports("p1", page = 0, sort = ReportSort.UNPROCESSED_FIRST)
+        assertEquals("status", c2.requests.single().url.parameters["sort"])
+        assertEquals("asc", c2.requests.single().url.parameters["order"])
     }
 
     @Test
     fun a_never_synced_project_fails_without_a_network_call() = runTest {
         val (repo, client) = setup(projectDao = FakeProjectDao(listOf(localProject("p1", serverId = null))))
 
-        assertFailsWith<DomainException.NotFound> { repo.projectReports("p1", page = 0) }
+        assertFailsWith<DomainException.NotFound> { repo.projectReports("p1", page = 0, sort = ReportSort.NEWEST_FIRST) }
         assertTrue(client.requests.isEmpty())
     }
 
@@ -139,7 +155,7 @@ class ReportRepositoryImplTest {
             respond = { respondProblem(HttpStatusCode.Forbidden, "Action reservee a un administrateur.") },
         )
 
-        assertFailsWith<DomainException.Forbidden> { repo.projectReports("p1", page = 0) }
+        assertFailsWith<DomainException.Forbidden> { repo.projectReports("p1", page = 0, sort = ReportSort.NEWEST_FIRST) }
     }
 
     @Test
@@ -173,7 +189,7 @@ class ReportRepositoryImplTest {
         """.trimIndent()
         val (repo, _) = setup(respond = { respondJson(json) })
 
-        val item = repo.projectReports("p1", page = 0).items.single()
+        val item = repo.projectReports("p1", page = 0, sort = ReportSort.NEWEST_FIRST).items.single()
 
         assertNull(item.authorName)
         assertEquals(ReportStatus.UNKNOWN, item.status)

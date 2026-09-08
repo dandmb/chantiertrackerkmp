@@ -23,12 +23,20 @@ class ReportApi(private val client: HttpClient) {
             setBody(body)
         }.body()
 
-    // GET /projects/{id}/reports — ADMIN-only server-side (403 otherwise),
-    // fixed sort (createdAt desc), standard `page`/`size` paging.
-    suspend fun projectReports(projectId: Long, page: Int, size: Int): ReportPageDto =
+    // GET /projects/{id}/reports — ADMIN-only server-side (403 otherwise).
+    // sort ∈ {date, status}, order ∈ {asc, desc}; a malformed value answers 400.
+    suspend fun projectReports(
+        projectId: Long,
+        page: Int,
+        size: Int,
+        sort: String,
+        order: String,
+    ): ReportPageDto =
         client.get(ApiRoutes.projectReports(projectId)) {
             parameter("page", page)
             parameter("size", size)
+            parameter("sort", sort)
+            parameter("order", order)
         }.body()
 
     // PATCH /reports/{id}/process — ADMIN of the report's project; no body.

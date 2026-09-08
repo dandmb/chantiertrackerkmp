@@ -8,6 +8,7 @@ import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.runComposeUiTest
@@ -16,11 +17,13 @@ import com.dmb.chantiertracker.domain.model.DomainException
 import com.dmb.chantiertracker.domain.model.EntryType
 import com.dmb.chantiertracker.domain.model.Report
 import com.dmb.chantiertracker.domain.model.ReportPage
+import com.dmb.chantiertracker.domain.model.ReportSort
 import com.dmb.chantiertracker.domain.model.ReportStatus
 import com.dmb.chantiertracker.presentation.i18n.AppEnvironment
 import com.dmb.chantiertracker.presentation.i18n.customAppLocale
 import com.dmb.chantiertracker.presentation.reports.ProjectReportsScreen
 import com.dmb.chantiertracker.presentation.reports.ProjectReportsViewModel
+import com.dmb.chantiertracker.presentation.reports.ReportSortControl
 import com.dmb.chantiertracker.presentation.theme.AppTheme
 import com.dmb.chantiertracker.support.FakeReportRepository
 import com.dmb.chantiertracker.support.installTestMainDispatcher
@@ -50,13 +53,13 @@ class ProjectReportsUiTest {
         isFirst = index == 0, isLast = index == total - 1, totalElements = total * 20,
     )
 
-    private fun ComposeUiTest.content(repo: FakeReportRepository) {
+    private fun ComposeUiTest.content(repo: FakeReportRepository, sort: ReportSort = ReportSort.NEWEST_FIRST) {
         setContent {
             customAppLocale = "fr"
             AppEnvironment {
                 AppTheme {
                     Box(Modifier.size(412.dp, 892.dp)) {
-                        ProjectReportsScreen("p1", viewModel = ProjectReportsViewModel(repo))
+                        ProjectReportsScreen("p1", sort = sort, viewModel = ProjectReportsViewModel(repo))
                     }
                 }
             }
@@ -146,5 +149,34 @@ class ProjectReportsUiTest {
         onNodeWithText("Réessayer").performClick()
 
         awaitText("Recovered")
+    }
+
+    @Test
+    fun the_screen_uses_the_sort_passed_from_the_top_bar() = runComposeUiTest {
+        val repo = FakeReportRepository(listOf(page(0, 1, listOf(report(1, ReportStatus.NEW, "Un signalement")))))
+        content(repo, sort = ReportSort.UNPROCESSED_FIRST)
+
+        awaitText("Un signalement")
+        assert(repo.listCalls.last().third == ReportSort.UNPROCESSED_FIRST)
+    }
+
+    @Test
+    fun the_sort_control_reports_the_chosen_option() = runComposeUiTest {
+        var chosen: ReportSort? = null
+        setContent {
+            customAppLocale = "fr"
+            AppEnvironment {
+                AppTheme {
+                    ReportSortControl(current = ReportSort.NEWEST_FIRST, onSelect = { chosen = it })
+                }
+            }
+        }
+
+        onNodeWithContentDescription("Trier").performClick()
+        waitForIdle()
+        onNodeWithText("Non traités en premier").performClick()
+        waitForIdle()
+
+        assert(chosen == ReportSort.UNPROCESSED_FIRST)
     }
 }
