@@ -69,9 +69,17 @@ data class DailyLogUiState(
     val videoTooLong: VideoDurationCheck.TooLong? = null,
     // The project OWNER's plan — gates the "Add a video" affordance and the duration pre-check.
     val ownerPlan: Plan? = null,
+    // Project IN_PROGRESS and stage not COMPLETED — the only server-side gate on
+    // creating a report (no date restriction, unlike a line).
+    val projectAndStageActive: Boolean = false,
 ) {
     val isMissing: Boolean get() = !isLoading && detail == null
     val canAddVideo: Boolean get() = VideoLimit.canAdd(ownerPlan)
+
+    // "Flag an issue" is for a member who can see the entry but can't fix it
+    // themselves — mirrors the web's `!isAdmin && !canEdit && projectAndStageActive`.
+    // An ADMIN or a SUPERVISOR editing today would just correct it directly.
+    val canReport: Boolean get() = !isAdmin && !canEdit && projectAndStageActive
 }
 
 private data class LogAccess(
@@ -81,6 +89,7 @@ private data class LogAccess(
     val currency: String?,
     val projectLocalId: String?,
     val ownerPlan: Plan? = null,
+    val projectAndStageActive: Boolean = false,
 )
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -142,6 +151,7 @@ class DailyLogViewModel(
                             consumptionLines = lines.second,
                             attachments = lines.third,
                             ownerPlan = access.ownerPlan,
+                            projectAndStageActive = access.projectAndStageActive,
                         )
                     }
                 }
@@ -179,6 +189,7 @@ class DailyLogViewModel(
                         currency = project?.currency,
                         projectLocalId = projectId,
                         ownerPlan = project?.ownerPlan,
+                        projectAndStageActive = projectAndStageActive,
                     )
                 }
             }

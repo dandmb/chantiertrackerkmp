@@ -60,6 +60,8 @@ import com.dmb.chantiertracker.resources.detail_delete_project
 import com.dmb.chantiertracker.resources.detail_edit_project
 import com.dmb.chantiertracker.resources.detail_history
 import com.dmb.chantiertracker.resources.detail_history_hint
+import com.dmb.chantiertracker.resources.detail_reports
+import com.dmb.chantiertracker.resources.detail_reports_hint
 import com.dmb.chantiertracker.resources.detail_invitation_cancel
 import com.dmb.chantiertracker.resources.detail_invitation_sent_on
 import com.dmb.chantiertracker.resources.detail_invitations_empty
@@ -92,6 +94,7 @@ fun ProjectDetailScreen(
     onEditProject: (projectLocalId: String) -> Unit = {},
     onInviteMember: (projectLocalId: String) -> Unit = {},
     onOpenHistory: (projectLocalId: String) -> Unit = {},
+    onOpenReports: (projectLocalId: String) -> Unit = {},
     onProjectDeleted: () -> Unit = {},
     viewModel: ProjectDetailViewModel = koinViewModel(),
 ) {
@@ -136,6 +139,7 @@ fun ProjectDetailScreen(
                 onEditProject = { onEditProject(state.detail!!.localId) },
                 onInviteMember = { onInviteMember(state.detail!!.localId) },
                 onOpenHistory = { onOpenHistory(state.detail!!.localId) },
+                onOpenReports = { onOpenReports(state.detail!!.localId) },
                 onCancelInvitation = viewModel::cancelInvitation,
                 onDeleteConfirmed = viewModel::deleteProject,
             )
@@ -159,6 +163,7 @@ private fun DetailContent(
     onEditProject: () -> Unit,
     onInviteMember: () -> Unit,
     onOpenHistory: () -> Unit,
+    onOpenReports: () -> Unit,
     onCancelInvitation: (Long) -> Unit,
     onDeleteConfirmed: () -> Unit,
 ) {
@@ -234,6 +239,18 @@ private fun DetailContent(
                 ClickableListRow(onClick = onOpenHistory) {
                     Text(
                         text = stringResource(Res.string.detail_history_hint),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+            }
+
+            DetailSectionDivider()
+            DetailSection(stringResource(Res.string.detail_reports)) {
+                ClickableListRow(onClick = onOpenReports) {
+                    Text(
+                        text = stringResource(Res.string.detail_reports_hint),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.weight(1f),

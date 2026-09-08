@@ -508,6 +508,52 @@ class FakeHistoryRepository(
     }
 }
 
+class FakeReportRepository(
+    private val pages: List<com.dmb.chantiertracker.domain.model.ReportPage> = emptyList(),
+) : com.dmb.chantiertracker.domain.repository.ReportRepository {
+
+    val createdReports = mutableListOf<Pair<String, String>>()
+    val listCalls = mutableListOf<Triple<String, Int, com.dmb.chantiertracker.domain.model.ReportSort>>()
+    val processedIds = mutableListOf<Long>()
+
+    var createError: com.dmb.chantiertracker.domain.model.DomainException? = null
+    var listError: com.dmb.chantiertracker.domain.model.DomainException? = null
+    var processError: com.dmb.chantiertracker.domain.model.DomainException? = null
+
+    override suspend fun createReport(entryLocalId: String, message: String) {
+        createdReports += entryLocalId to message
+        createError?.let { throw it }
+    }
+
+    override suspend fun projectReports(
+        projectLocalId: String,
+        page: Int,
+        sort: com.dmb.chantiertracker.domain.model.ReportSort,
+    ): com.dmb.chantiertracker.domain.model.ReportPage {
+        listCalls += Triple(projectLocalId, page, sort)
+        listError?.let { throw it }
+        return pages.getOrNull(page)
+            ?: com.dmb.chantiertracker.domain.model.ReportPage(
+                items = emptyList(), page = page, totalPages = pages.size,
+                isFirst = page == 0, isLast = page >= pages.size - 1, totalElements = 0,
+            )
+    }
+
+    override suspend fun markProcessed(reportId: Long): com.dmb.chantiertracker.domain.model.Report {
+        processedIds += reportId
+        processError?.let { throw it }
+        val existing = pages.flatMap { it.items }.firstOrNull { it.id == reportId }
+        return existing?.copy(
+            status = com.dmb.chantiertracker.domain.model.ReportStatus.PROCESSED,
+            processedAt = "2026-09-07T12:00:00",
+        ) ?: com.dmb.chantiertracker.domain.model.Report(
+            id = reportId, entryId = 0, entryType = com.dmb.chantiertracker.domain.model.EntryType.UNKNOWN,
+            entryDate = "2026-09-01", authorName = null, message = "", createdAt = "2026-09-01T08:00:00",
+            status = com.dmb.chantiertracker.domain.model.ReportStatus.PROCESSED, processedAt = "2026-09-07T12:00:00",
+        )
+    }
+}
+
 class FakeAccountRepository(
     planUsage: com.dmb.chantiertracker.domain.model.PlanUsage? = null,
 ) : AccountRepository {

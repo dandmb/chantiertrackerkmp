@@ -6,6 +6,7 @@
     <string name="staging_banner">PRÉPROD · DONNÉES RÉELLES</string>
 
     <string name="action_back">Retour</string>
+    <string name="action_close">Fermer</string>
     <string name="action_ok">OK</string>
     <string name="action_cancel">Annuler</string>
     <string name="action_save">Enregistrer</string>
@@ -204,6 +205,26 @@
     <string name="entry_title_placeholder">Décrivez les travaux réalisés</string>
     <string name="material_query_hint">Rechercher ou créer un matériau</string>
     <string name="entry_summary_required_work">Le titre est obligatoire.</string>
+
+    <string name="entry_report">Signaler</string>
+    <string name="report_entry_title">Signaler un problème</string>
+    <string name="report_message_label">Message</string>
+    <string name="report_message_placeholder">Ex. : quantité incorrecte, livraison oubliée…</string>
+    <string name="report_submit">Envoyer</string>
+    <string name="report_sent">Signalement envoyé. L'administrateur du projet en sera informé.</string>
+    <string name="detail_reports">Signalements</string>
+    <string name="detail_reports_hint">Problèmes signalés sur les entrées</string>
+    <string name="reports_title">Signalements</string>
+    <string name="reports_empty">Aucun signalement.</string>
+    <string name="reports_error">Impossible de charger les signalements.</string>
+    <string name="report_flagged_by">%1$s du %2$s · signalé par %3$s le %4$s</string>
+    <string name="report_author_unknown">un membre supprimé</string>
+    <string name="report_mark_processed">Marquer comme traité</string>
+    <string name="report_processed_on">Traité le %1$s</string>
+    <string name="report_status_processed">Traité</string>
+    <string name="report_sort_newest">Plus récent</string>
+    <string name="report_sort_oldest">Plus ancien</string>
+    <string name="report_sort_unprocessed">Non traités en premier</string>
 
     <string name="purchase_lines_title">Articles achetés</string>
     <string name="purchase_line_add">Ajouter un article</string>

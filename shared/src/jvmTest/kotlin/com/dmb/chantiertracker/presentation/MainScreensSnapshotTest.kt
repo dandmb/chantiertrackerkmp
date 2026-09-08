@@ -216,6 +216,30 @@ class MainScreensSnapshotTest {
         }
     }
 
+    /** Mirrors MainScreen: the report sort control lives in the detail top bar. */
+    @Composable
+    private fun ProjectReportsChrome(title: String) {
+        var sort by remember { mutableStateOf(com.dmb.chantiertracker.domain.model.ReportSort.NEWEST_FIRST) }
+        Scaffold(
+            topBar = {
+                DetailTopBar(
+                    title = title,
+                    onBack = {},
+                    actions = {
+                        com.dmb.chantiertracker.presentation.reports.ReportSortControl(
+                            current = sort, onSelect = { sort = it },
+                        )
+                    },
+                )
+            },
+        ) { padding ->
+            com.dmb.chantiertracker.presentation.reports.ProjectReportsScreen(
+                projectLocalId = "1", modifier = Modifier.padding(padding), sort = sort,
+                viewModel = projectReportsVm(),
+            )
+        }
+    }
+
     /** Mirrors MainScreen: the detail top-bar title tracks the project name resolved by the screen. */
     @Composable
     private fun ProjectDetailChrome(fallbackTitle: String, projectVm: ProjectDetailViewModel) {
@@ -234,7 +258,7 @@ class MainScreensSnapshotTest {
 
     /** Mirrors MainScreen: the detail top-bar title tracks the day date resolved by the screen. */
     @Composable
-    private fun DailyLogChrome(fallbackTitle: String) {
+    private fun DailyLogChrome(fallbackTitle: String, asSupervisorViewingPastDay: Boolean = false) {
         var title by remember { mutableStateOf<String?>(null) }
         Scaffold(
             topBar = { DetailTopBar(title = title ?: fallbackTitle, onBack = {}) },
@@ -243,7 +267,7 @@ class MainScreensSnapshotTest {
                 dailyLogLocalId = "log-1",
                 modifier = Modifier.padding(padding),
                 onDateResolved = { title = it },
-                viewModel = dailyLogVm(),
+                viewModel = dailyLogVm(asSupervisorViewingPastDay = asSupervisorViewingPastDay),
             )
         }
     }
@@ -359,6 +383,37 @@ class MainScreensSnapshotTest {
             description = description, entryId = null, userId = 1L, fieldName = null, oldValue = null, newValue = null,
         )
 
+    private fun projectReportsVm(): com.dmb.chantiertracker.presentation.reports.ProjectReportsViewModel {
+        val repo = com.dmb.chantiertracker.support.FakeReportRepository(
+            listOf(
+                com.dmb.chantiertracker.domain.model.ReportPage(
+                    items = listOf(
+                        reportItem(
+                            id = 3, type = EntryType.PURCHASE, entryDate = "2026-09-04", author = "Sam Ferreira",
+                            createdAt = "2026-09-05T08:15:00", message = "La quantité de ciment livrée ne correspond pas au bon de livraison.",
+                            status = com.dmb.chantiertracker.domain.model.ReportStatus.NEW, processedAt = null,
+                        ),
+                        reportItem(
+                            id = 2, type = EntryType.WORK, entryDate = "2026-09-02", author = "Sam Ferreira",
+                            createdAt = "2026-09-02T18:40:00", message = "Coulage de dalle non mentionné dans le résumé.",
+                            status = com.dmb.chantiertracker.domain.model.ReportStatus.PROCESSED, processedAt = "2026-09-03T09:10:00",
+                        ),
+                    ),
+                    page = 0, totalPages = 2, isFirst = true, isLast = false, totalElements = 24,
+                ),
+            ),
+        )
+        return com.dmb.chantiertracker.presentation.reports.ProjectReportsViewModel(repo).also { it.load("1") }
+    }
+
+    private fun reportItem(
+        id: Long, type: EntryType, entryDate: String, author: String?, createdAt: String, message: String,
+        status: com.dmb.chantiertracker.domain.model.ReportStatus, processedAt: String?,
+    ) = com.dmb.chantiertracker.domain.model.Report(
+        id = id, entryId = id * 10, entryType = type, entryDate = entryDate, authorName = author,
+        message = message, createdAt = createdAt, status = status, processedAt = processedAt,
+    )
+
     private fun editProjectVm(): com.dmb.chantiertracker.presentation.projects.edit.EditProjectViewModel {
         val repo = FakeProjectRepository(
             detail = ProjectDetail(
@@ -415,7 +470,7 @@ class MainScreensSnapshotTest {
         return StageDetailViewModel(repo, projectRepo, logs, auth).also { it.load("s1") }
     }
 
-    private fun dailyLogVm(): DailyLogViewModel {
+    private fun dailyLogVm(asSupervisorViewingPastDay: Boolean = false): DailyLogViewModel {
         val stageRepo = FakeStageRepository(
             detail = StageDetail(
                 localId = "s1", projectLocalId = "1", name = "Gros œuvre", description = null,
@@ -429,8 +484,14 @@ class MainScreensSnapshotTest {
                 currency = "EUR", timezone = "Europe/Paris", status = ProjectStatus.IN_PROGRESS, ownerId = 1L,
                 ownerPlan = Plan.SEMI_FLEX,
             ),
+            members = if (asSupervisorViewingPastDay) {
+                listOf(ProjectMember(userId = 9, name = "Sam Superviseur", email = "sam@chantier.dev", role = ProjectRole.SUPERVISOR))
+            } else {
+                emptyList()
+            },
         )
-        val auth = FakeAuthRepository().apply { emitState(AuthState.Authenticated(User(1, "jean@chantier.dev", "Jean Marchand", true, GlobalRole.USER))) }
+        val viewerId = if (asSupervisorViewingPastDay) 9L else 1L
+        val auth = FakeAuthRepository().apply { emitState(AuthState.Authenticated(User(viewerId, "jean@chantier.dev", "Jean Marchand", true, GlobalRole.USER))) }
         val logs = FakeDailyLogRepository(
             detail = DailyLogDetail(
                 localId = "log-1", stageLocalId = "s1", date = "2026-09-04",
@@ -516,6 +577,10 @@ class MainScreensSnapshotTest {
         return com.dmb.chantiertracker.presentation.logs.ConsumptionLineFormViewModel(materials, FakeConsumptionLineRepository())
             .also { it.load("e2", "1", null); it.selectMaterial("m1"); it.onQuantityChange("4") }
     }
+
+    private fun reportEntryVm(): com.dmb.chantiertracker.presentation.reports.ReportEntryViewModel =
+        com.dmb.chantiertracker.presentation.reports.ReportEntryViewModel(com.dmb.chantiertracker.support.FakeReportRepository())
+            .also { it.load("e1"); it.onMessageChange("La quantité de ciment livrée ne correspond pas au bon de livraison.") }
 
     @Test
     fun capture_main_screens_in_french_and_english() {
@@ -643,6 +708,18 @@ class MainScreensSnapshotTest {
             ) {
                 DailyLogChrome(fallbackTitle = if (locale == "fr") "Journée" else "Day")
             }
+            snapshot(
+                "36-daily-log-supervisor-report",
+                locale,
+                awaitReady = {
+                    onAllNodes(hasContentDescription("facture-ciment.jpg")).fetchSemanticsNodes().isNotEmpty()
+                },
+            ) {
+                DailyLogChrome(
+                    fallbackTitle = if (locale == "fr") "Journée" else "Day",
+                    asSupervisorViewingPastDay = true,
+                )
+            }
             snapshot("33-video-player-desktop", locale) {
                 DetailChrome(title = if (locale == "fr") "Vidéo" else "Video") { m ->
                     Box(m.fillMaxSize(), contentAlignment = androidx.compose.ui.Alignment.Center) {
@@ -675,6 +752,22 @@ class MainScreensSnapshotTest {
             }
             snapshot("22-stage-date-picker", locale) {
                 Box(Modifier.padding(16.dp)) { StageDatePickerPreview() }
+            }
+            snapshot("35-report-entry", locale) {
+                DetailChrome(title = if (locale == "fr") "Signaler un problème" else "Report an issue") { m ->
+                    com.dmb.chantiertracker.presentation.reports.ReportEntryScreen(
+                        entryLocalId = "e1", onDone = {}, modifier = m, viewModel = reportEntryVm(),
+                    )
+                }
+            }
+            snapshot(
+                "37-project-reports",
+                locale,
+                awaitReady = {
+                    onAllNodes(hasText("bon de livraison", substring = true)).fetchSemanticsNodes().isNotEmpty()
+                },
+            ) {
+                ProjectReportsChrome(title = if (locale == "fr") "Signalements" else "Reports")
             }
         }
         for (locale in listOf("fr", "en")) {

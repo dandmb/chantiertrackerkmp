@@ -67,6 +67,7 @@ import com.dmb.chantiertracker.presentation.format.formatMoney
 import com.dmb.chantiertracker.presentation.formatIsoDate
 import com.dmb.chantiertracker.presentation.i18n.localizedText
 import com.dmb.chantiertracker.presentation.main.AddIcon
+import com.dmb.chantiertracker.presentation.main.FlagIcon
 import com.dmb.chantiertracker.presentation.main.PlayIcon
 import com.dmb.chantiertracker.presentation.main.VideocamIcon
 import com.dmb.chantiertracker.presentation.main.CloseIcon
@@ -98,6 +99,7 @@ import com.dmb.chantiertracker.resources.entry_edit
 import com.dmb.chantiertracker.resources.entry_none_yet
 import com.dmb.chantiertracker.resources.entry_no_summary
 import com.dmb.chantiertracker.resources.entry_no_title
+import com.dmb.chantiertracker.resources.entry_report
 import com.dmb.chantiertracker.resources.entry_type_purchase
 import com.dmb.chantiertracker.resources.entry_type_work
 import com.dmb.chantiertracker.resources.error_not_found
@@ -129,6 +131,7 @@ fun DailyLogScreen(
     onEditPurchaseLine: (entryLocalId: String, projectLocalId: String, lineLocalId: String, currency: String?) -> Unit = { _, _, _, _ -> },
     onAddConsumptionLine: (entryLocalId: String, projectLocalId: String) -> Unit = { _, _ -> },
     onEditConsumptionLine: (entryLocalId: String, projectLocalId: String, lineLocalId: String) -> Unit = { _, _, _ -> },
+    onReportEntry: (entryLocalId: String) -> Unit = {},
     viewModel: DailyLogViewModel = koinViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -158,6 +161,7 @@ fun DailyLogScreen(
                 state = state,
                 viewModel = viewModel,
                 onEditEntry = onEditEntry,
+                onReportEntry = onReportEntry,
                 onAddPurchaseLine = { entryId, projectId -> onAddPurchaseLine(entryId, projectId, state.currency) },
                 onEditPurchaseLine = { entryId, projectId, lineId -> onEditPurchaseLine(entryId, projectId, lineId, state.currency) },
                 onAddConsumptionLine = onAddConsumptionLine,
@@ -172,6 +176,7 @@ private fun DailyLogContent(
     state: DailyLogUiState,
     viewModel: DailyLogViewModel,
     onEditEntry: (String) -> Unit,
+    onReportEntry: (String) -> Unit,
     onAddPurchaseLine: (String, String) -> Unit,
     onEditPurchaseLine: (String, String, String) -> Unit,
     onAddConsumptionLine: (String, String) -> Unit,
@@ -196,9 +201,11 @@ private fun DailyLogContent(
             icon = ShoppingCartIcon,
             entry = purchaseEntry,
             canEdit = state.canEdit,
+            canReport = state.canReport,
             emptyHint = stringResource(Res.string.entry_none_yet),
             onAdd = { viewModel.addEntry(EntryType.PURCHASE) },
             onEditSummary = { purchaseEntry?.let { onEditEntry(it.localId) } },
+            onReport = { purchaseEntry?.let { onReportEntry(it.localId) } },
         ) {
             if (purchaseEntry != null && projectId != null) {
                 PurchaseLinesSubSection(
@@ -226,9 +233,11 @@ private fun DailyLogContent(
             icon = ConstructionIcon,
             entry = workEntry,
             canEdit = state.canEdit,
+            canReport = state.canReport,
             emptyHint = stringResource(Res.string.entry_none_yet),
             onAdd = { viewModel.addEntry(EntryType.WORK) },
             onEditSummary = { workEntry?.let { onEditEntry(it.localId) } },
+            onReport = { workEntry?.let { onReportEntry(it.localId) } },
         ) {
             if (workEntry != null && projectId != null) {
                 ConsumptionLinesSubSection(
@@ -255,23 +264,37 @@ private fun EntrySection(
     icon: ImageVector,
     entry: DailyEntry?,
     canEdit: Boolean,
+    canReport: Boolean,
     emptyHint: String,
     onAdd: () -> Unit,
     onEditSummary: () -> Unit,
+    onReport: () -> Unit,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     DetailSection(
         title = title,
         leadingIcon = icon,
-        action = if (entry != null && canEdit) {
-            {
-                TextButton(onClick = onEditSummary) {
-                    Icon(EditIcon, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Text(stringResource(Res.string.entry_edit), Modifier.padding(start = 4.dp))
+        // "Modifier" and "Signaler" are mutually exclusive (canReport already
+        // requires !canEdit) — whichever the member is allowed to do sits in the
+        // header's action slot.
+        action = when {
+            entry != null && canEdit -> {
+                {
+                    TextButton(onClick = onEditSummary) {
+                        Icon(EditIcon, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Text(stringResource(Res.string.entry_edit), Modifier.padding(start = 4.dp))
+                    }
                 }
             }
-        } else {
-            null
+            entry != null && canReport -> {
+                {
+                    TextButton(onClick = onReport) {
+                        Icon(FlagIcon, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Text(stringResource(Res.string.entry_report), Modifier.padding(start = 4.dp))
+                    }
+                }
+            }
+            else -> null
         },
     ) {
         if (entry == null) {

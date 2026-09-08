@@ -151,6 +151,74 @@ class DailyLogViewModelTest {
         assertFalse(v.state.value.canEdit)
     }
 
+    // ─── canReport : signaler un problème (ADR-47, mirror web) ──────────────
+
+    @Test
+    fun a_supervisor_can_report_a_past_day_on_an_active_project() = runTest {
+        val members = listOf(ProjectMember(userId = 9, name = "Sam", email = "s@x.dev", role = ProjectRole.SUPERVISOR))
+        val logs = FakeDailyLogRepository(detail = logDetail(date = "2020-01-01"))
+        val v = vm(logs, projects = projectRepo(ownerId = 1L, members = members), authRepo = auth(userId = 9L))
+        v.load("log-1")
+        advanceUntilIdle()
+
+        assertFalse(v.state.value.canEdit)
+        assertTrue(v.state.value.canReport, "can't fix it, but can flag it")
+    }
+
+    @Test
+    fun a_supervisor_who_can_edit_today_does_not_see_report() = runTest {
+        val members = listOf(ProjectMember(userId = 9, name = "Sam", email = "s@x.dev", role = ProjectRole.SUPERVISOR))
+        val logs = FakeDailyLogRepository(detail = logDetail(date = today))
+        val v = vm(logs, projects = projectRepo(ownerId = 1L, members = members), authRepo = auth(userId = 9L))
+        v.load("log-1")
+        advanceUntilIdle()
+
+        assertTrue(v.state.value.canEdit)
+        assertFalse(v.state.value.canReport, "they'd just correct it directly")
+    }
+
+    @Test
+    fun an_admin_never_sees_report() = runTest {
+        val logs = FakeDailyLogRepository(detail = logDetail(date = "2020-01-01"))
+        val v = vm(logs, projects = projectRepo(ownerId = 1L))
+        v.load("log-1")
+        advanceUntilIdle()
+
+        assertTrue(v.state.value.isAdmin)
+        assertFalse(v.state.value.canReport)
+    }
+
+    @Test
+    fun a_supervisor_cannot_report_once_the_stage_is_completed() = runTest {
+        val members = listOf(ProjectMember(userId = 9, name = "Sam", email = "s@x.dev", role = ProjectRole.SUPERVISOR))
+        val logs = FakeDailyLogRepository(detail = logDetail(date = "2020-01-01"))
+        val v = vm(
+            logs,
+            stages = stageRepo(status = StageStatus.COMPLETED),
+            projects = projectRepo(ownerId = 1L, members = members),
+            authRepo = auth(userId = 9L),
+        )
+        v.load("log-1")
+        advanceUntilIdle()
+
+        assertFalse(v.state.value.canReport, "the project/stage being inactive blocks a report too")
+    }
+
+    @Test
+    fun a_supervisor_cannot_report_on_a_suspended_project() = runTest {
+        val members = listOf(ProjectMember(userId = 9, name = "Sam", email = "s@x.dev", role = ProjectRole.SUPERVISOR))
+        val logs = FakeDailyLogRepository(detail = logDetail(date = "2020-01-01"))
+        val v = vm(
+            logs,
+            projects = projectRepo(ownerId = 1L, status = ProjectStatus.SUSPENDED, members = members),
+            authRepo = auth(userId = 9L),
+        )
+        v.load("log-1")
+        advanceUntilIdle()
+
+        assertFalse(v.state.value.canReport)
+    }
+
     @Test
     fun a_missing_log_is_flagged_once_loading_settles() = runTest {
         val logs = FakeDailyLogRepository(detail = null)
