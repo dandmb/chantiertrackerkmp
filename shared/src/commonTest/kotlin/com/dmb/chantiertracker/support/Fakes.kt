@@ -554,6 +554,42 @@ class FakeReportRepository(
     }
 }
 
+class FakeExportRepository : com.dmb.chantiertracker.domain.repository.ExportRepository {
+    val calls = mutableListOf<String>()
+    var error: com.dmb.chantiertracker.domain.model.DomainException? = null
+    var result = com.dmb.chantiertracker.domain.model.ExportedPdf(
+        path = "/cache/exports/chantier-villa-2026-09-08.pdf",
+        fileName = "chantier-villa-2026-09-08.pdf",
+    )
+    var onCall: (suspend () -> Unit)? = null
+
+    override suspend fun exportProjectPdf(projectLocalId: String): com.dmb.chantiertracker.domain.model.ExportedPdf {
+        calls += projectLocalId
+        onCall?.invoke()
+        error?.let { throw it }
+        return result
+    }
+}
+
+class FakeExportFileStore : com.dmb.chantiertracker.data.local.ExportFileStore {
+    val saved = mutableListOf<Pair<String, Int>>()
+
+    override suspend fun save(bytes: ByteArray, fileName: String): String {
+        saved += fileName to bytes.size
+        return "/cache/exports/$fileName"
+    }
+}
+
+class FakePdfSharer : com.dmb.chantiertracker.presentation.projects.export.PdfSharer {
+    val shared = mutableListOf<String>()
+    var error: Throwable? = null
+
+    override suspend fun share(path: String) {
+        shared += path
+        error?.let { throw it }
+    }
+}
+
 class FakeAccountRepository(
     planUsage: com.dmb.chantiertracker.domain.model.PlanUsage? = null,
 ) : AccountRepository {

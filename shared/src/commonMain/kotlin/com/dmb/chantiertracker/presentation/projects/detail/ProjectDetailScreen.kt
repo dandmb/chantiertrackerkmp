@@ -51,6 +51,7 @@ import com.dmb.chantiertracker.presentation.main.EditIcon
 import com.dmb.chantiertracker.presentation.format.formatMoney
 import com.dmb.chantiertracker.presentation.projects.ProjectLocation
 import com.dmb.chantiertracker.presentation.projects.ProjectStatusBadge
+import com.dmb.chantiertracker.presentation.projects.export.ExportSection
 import com.dmb.chantiertracker.presentation.stages.StageStatusBadge
 import com.dmb.chantiertracker.resources.Res
 import com.dmb.chantiertracker.resources.detail_currency
@@ -181,6 +182,13 @@ private fun DetailContent(
         DetailSection(stringResource(Res.string.detail_section_info)) {
             DetailInfoRow(stringResource(Res.string.detail_currency), detail.currency)
             DetailInfoRow(stringResource(Res.string.detail_timezone), detail.timezone)
+        }
+
+        // Owner's plan unknown until the first detail pull (ADR-33) — same as
+        // the web, which renders nothing until `project.ownerPlan` is set.
+        detail.ownerPlan?.let { ownerPlan ->
+            DetailSectionDivider()
+            ExportSection(projectLocalId = detail.localId, ownerPlan = ownerPlan)
         }
 
         DetailSectionDivider()

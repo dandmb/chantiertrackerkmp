@@ -115,3 +115,8 @@ val FlagIcon: ImageVector = icon(
     "OutlinedFlag",
     "M14.4,6L14,4L5,4v17h2v-7h5.6l0.4,2h7L18.4,6L14.4,6zM16,12h-3.8l-0.4,-2L7,10L7,6h5.8l0.4,2L16,8v4z",
 )
+
+val DownloadIcon: ImageVector = icon(
+    "FileDownload",
+    "M19,9h-4L15,3L9,3v6L5,9l7,7 7,-7zM5,18v2h14v-2L5,18z",
+)

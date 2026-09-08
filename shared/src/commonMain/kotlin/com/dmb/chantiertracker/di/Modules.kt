@@ -3,7 +3,9 @@ package com.dmb.chantiertracker.di
 import com.dmb.chantiertracker.core.AppConfig
 import com.dmb.chantiertracker.data.AuthStateHolder
 import com.dmb.chantiertracker.data.local.AttachmentFileStore
+import com.dmb.chantiertracker.data.local.ExportFileStore
 import com.dmb.chantiertracker.data.local.FileKitAttachmentFileStore
+import com.dmb.chantiertracker.data.local.FileKitExportFileStore
 import com.dmb.chantiertracker.data.local.TokenStorage
 import com.dmb.chantiertracker.data.local.db.AppDatabase
 import com.dmb.chantiertracker.data.local.db.AttachmentDao
@@ -28,6 +30,7 @@ import com.dmb.chantiertracker.data.remote.HistoryApi
 import com.dmb.chantiertracker.data.remote.MaterialApi
 import com.dmb.chantiertracker.data.remote.ProjectApi
 import com.dmb.chantiertracker.data.remote.PurchaseLineApi
+import com.dmb.chantiertracker.data.remote.ExportApi
 import com.dmb.chantiertracker.data.remote.ReportApi
 import com.dmb.chantiertracker.data.remote.StageApi
 import com.dmb.chantiertracker.data.remote.createHttpClient
@@ -47,6 +50,7 @@ import com.dmb.chantiertracker.data.repository.HistoryRepositoryImpl
 import com.dmb.chantiertracker.data.repository.MaterialRepositoryImpl
 import com.dmb.chantiertracker.data.repository.ProjectRepositoryImpl
 import com.dmb.chantiertracker.data.repository.PurchaseLineRepositoryImpl
+import com.dmb.chantiertracker.data.repository.ExportRepositoryImpl
 import com.dmb.chantiertracker.data.repository.ReportRepositoryImpl
 import com.dmb.chantiertracker.data.repository.StageRepositoryImpl
 import com.dmb.chantiertracker.domain.model.AuthState
@@ -60,6 +64,7 @@ import com.dmb.chantiertracker.domain.repository.HistoryRepository
 import com.dmb.chantiertracker.domain.repository.MaterialRepository
 import com.dmb.chantiertracker.domain.repository.ProjectRepository
 import com.dmb.chantiertracker.domain.repository.PurchaseLineRepository
+import com.dmb.chantiertracker.domain.repository.ExportRepository
 import com.dmb.chantiertracker.domain.repository.ReportRepository
 import com.dmb.chantiertracker.domain.repository.StageRepository
 import com.dmb.chantiertracker.presentation.auth.forgot.ForgotPasswordViewModel
@@ -77,6 +82,9 @@ import com.dmb.chantiertracker.presentation.projects.ProjectSortHolder
 import com.dmb.chantiertracker.presentation.projects.ProjectsViewModel
 import com.dmb.chantiertracker.presentation.projects.create.CreateProjectViewModel
 import com.dmb.chantiertracker.presentation.projects.detail.ProjectDetailViewModel
+import com.dmb.chantiertracker.presentation.projects.export.PdfSharer
+import com.dmb.chantiertracker.presentation.projects.export.ProjectExportViewModel
+import com.dmb.chantiertracker.presentation.projects.export.shareExportedPdf
 import com.dmb.chantiertracker.presentation.projects.edit.EditProjectViewModel
 import com.dmb.chantiertracker.presentation.projects.history.ProjectHistoryViewModel
 import com.dmb.chantiertracker.presentation.projects.invite.InviteMemberViewModel
@@ -118,6 +126,7 @@ val networkModule: Module = module {
     singleOf(::InvitationApi)
     singleOf(::HistoryApi)
     singleOf(::ReportApi)
+    singleOf(::ExportApi)
 }
 
 val syncModule: Module = module {
@@ -133,6 +142,7 @@ val syncModule: Module = module {
     single<AttachmentDao> { get<AppDatabase>().attachmentDao() }
     single<InvitationDao> { get<AppDatabase>().invitationDao() }
     single<AttachmentFileStore> { FileKitAttachmentFileStore(newFileName = { kotlin.uuid.Uuid.random().toString() }) }
+    single<ExportFileStore> { FileKitExportFileStore() }
     single { AppCoroutineScope() }
     single { SyncStateHolder() }
     single {
@@ -177,6 +187,7 @@ val dataModule: Module = module {
     single<InvitationRepository> { InvitationRepositoryImpl(get(), get(), get(), get()) }
     single<HistoryRepository> { HistoryRepositoryImpl(get(), get()) }
     single<ReportRepository> { ReportRepositoryImpl(get(), get(), get()) }
+    single<ExportRepository> { ExportRepositoryImpl(get(), get(), get()) }
 }
 
 val presentationModule: Module = module {
@@ -197,6 +208,8 @@ val presentationModule: Module = module {
     viewModelOf(::InviteMemberViewModel)
     viewModelOf(::ReportEntryViewModel)
     viewModelOf(::ProjectReportsViewModel)
+    single<PdfSharer> { PdfSharer { path -> shareExportedPdf(path) } }
+    viewModelOf(::ProjectExportViewModel)
     viewModelOf(::CreateStageViewModel)
     viewModelOf(::StageDetailViewModel)
     viewModelOf(::DailyLogViewModel)

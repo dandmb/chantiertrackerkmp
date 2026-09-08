@@ -44,4 +44,6 @@ object ApiRoutes {
     fun entryReports(entryId: Long) = "entries/$entryId/reports"
     fun projectReports(id: Long) = "projects/$id/reports"
     fun reportProcess(id: Long) = "reports/$id/process"
+
+    fun projectExportPdf(id: Long) = "projects/$id/export/pdf"
 }
