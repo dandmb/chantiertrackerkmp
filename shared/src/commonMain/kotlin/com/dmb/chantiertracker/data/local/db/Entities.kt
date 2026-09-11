@@ -70,12 +70,27 @@ data class InvitationEntity(
     val status: String,
 )
 
+// projectsUsed/photosUsed/photosLimit/videosUsed/videosLimit/
+// videoDurationLimitSeconds/supervisorsUsed/supervisorsLimit/planExpiresAt/
+// hasStripeCustomer added ADR-49 (billing screen) — all nullable so a row
+// cached before this migration (MIGRATION_10_11) reads back as "unknown"
+// rather than a fabricated zero, until the next refreshPlanUsage() call.
 @Entity(tableName = "plan_usage")
 data class PlanUsageEntity(
     @PrimaryKey val id: Int = 0,
     val plan: String,
     val projectsLimit: Int?,
     val refreshedAt: Long,
+    val projectsUsed: Int? = null,
+    val photosUsed: Int? = null,
+    val photosLimit: Int? = null,
+    val videosUsed: Int? = null,
+    val videosLimit: Int? = null,
+    val videoDurationLimitSeconds: Int? = null,
+    val supervisorsUsed: Int? = null,
+    val supervisorsLimit: Int? = null,
+    val planExpiresAt: String? = null,
+    val hasStripeCustomer: Boolean? = null,
 )
 
 @Entity(

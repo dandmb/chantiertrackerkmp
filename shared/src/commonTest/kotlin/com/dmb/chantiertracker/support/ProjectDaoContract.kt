@@ -332,9 +332,36 @@ suspend fun verifyPlanUsageDaoContract(db: AppDatabase) {
     assertEquals(1, dao.observe().first()?.projectsLimit)
 
     // Single row, id = 0: a later fetch replaces it (not a second row).
-    dao.upsert(PlanUsageEntity(id = 0, plan = "LIBERTE", projectsLimit = null, refreshedAt = 2_000L))
+    dao.upsert(
+        PlanUsageEntity(
+            id = 0,
+            plan = "LIBERTE",
+            projectsLimit = null,
+            refreshedAt = 2_000L,
+            projectsUsed = 4,
+            photosUsed = 120,
+            photosLimit = null,
+            videosUsed = 2,
+            videosLimit = 20,
+            videoDurationLimitSeconds = 300,
+            supervisorsUsed = 1,
+            supervisorsLimit = null,
+            planExpiresAt = "2026-10-08T12:00:00",
+            hasStripeCustomer = true,
+        ),
+    )
     val row = dao.observe().first()!!
     assertEquals("LIBERTE", row.plan)
     assertNull(row.projectsLimit)
     assertEquals(2_000L, row.refreshedAt)
+    assertEquals(4, row.projectsUsed)
+    assertEquals(120, row.photosUsed)
+    assertNull(row.photosLimit)
+    assertEquals(2, row.videosUsed)
+    assertEquals(20, row.videosLimit)
+    assertEquals(300, row.videoDurationLimitSeconds)
+    assertEquals(1, row.supervisorsUsed)
+    assertNull(row.supervisorsLimit)
+    assertEquals("2026-10-08T12:00:00", row.planExpiresAt)
+    assertEquals(true, row.hasStripeCustomer)
 }

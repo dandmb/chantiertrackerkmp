@@ -35,6 +35,16 @@ class AccountRepositoryImpl(
                 plan = dto.plan.uppercase(),
                 projectsLimit = dto.projectsLimit,
                 refreshedAt = clock.nowEpochMillis(),
+                projectsUsed = dto.projectsUsed.toInt(),
+                photosUsed = dto.photosUsed.toInt(),
+                photosLimit = dto.photosLimit,
+                videosUsed = dto.videosUsed.toInt(),
+                videosLimit = dto.videosLimit,
+                videoDurationLimitSeconds = dto.videoDurationLimitSeconds,
+                supervisorsUsed = dto.supervisorsUsed.toInt(),
+                supervisorsLimit = dto.supervisorsLimit,
+                planExpiresAt = dto.planExpiresAt,
+                hasStripeCustomer = dto.hasStripeCustomer,
             ),
         )
     }
@@ -47,4 +57,17 @@ internal fun String.toPlan(): Plan = when (uppercase()) {
     else -> Plan.UNKNOWN
 }
 
-internal fun PlanUsageEntity.toPlanUsage(): PlanUsage = PlanUsage(plan.toPlan(), projectsLimit)
+internal fun PlanUsageEntity.toPlanUsage(): PlanUsage = PlanUsage(
+    plan = plan.toPlan(),
+    projectsLimit = projectsLimit,
+    projectsUsed = projectsUsed ?: 0,
+    photosUsed = photosUsed ?: 0,
+    photosLimit = photosLimit,
+    videosUsed = videosUsed ?: 0,
+    videosLimit = videosLimit ?: 0,
+    videoDurationLimitSeconds = videoDurationLimitSeconds ?: 0,
+    supervisorsUsed = supervisorsUsed ?: 0,
+    supervisorsLimit = supervisorsLimit,
+    planExpiresAt = planExpiresAt,
+    hasStripeCustomer = hasStripeCustomer ?: false,
+)

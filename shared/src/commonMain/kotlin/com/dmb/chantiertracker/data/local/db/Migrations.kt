@@ -308,3 +308,26 @@ val MIGRATION_9_10 = object : Migration(9, 10) {
         )
     }
 }
+
+/**
+ * v10 → v11 : `plan_usage` gagne les compteurs d'usage réels (projets/photos/
+ * vidéos/superviseurs), `planExpiresAt` et `hasStripeCustomer` — jusqu'ici
+ * seuls `plan`/`projectsLimit` étaient persistés (ADR-25). Support de l'écran
+ * de facturation (ADR-49). Toutes nullables, aucun défaut — une ligne mise en
+ * cache avant cette migration se lit « inconnu » plutôt qu'un zéro fabriqué,
+ * jusqu'au prochain `refreshPlanUsage()`.
+ */
+val MIGRATION_10_11 = object : Migration(10, 11) {
+    override fun migrate(connection: SQLiteConnection) {
+        connection.execSQL("ALTER TABLE `plan_usage` ADD COLUMN `projectsUsed` INTEGER")
+        connection.execSQL("ALTER TABLE `plan_usage` ADD COLUMN `photosUsed` INTEGER")
+        connection.execSQL("ALTER TABLE `plan_usage` ADD COLUMN `photosLimit` INTEGER")
+        connection.execSQL("ALTER TABLE `plan_usage` ADD COLUMN `videosUsed` INTEGER")
+        connection.execSQL("ALTER TABLE `plan_usage` ADD COLUMN `videosLimit` INTEGER")
+        connection.execSQL("ALTER TABLE `plan_usage` ADD COLUMN `videoDurationLimitSeconds` INTEGER")
+        connection.execSQL("ALTER TABLE `plan_usage` ADD COLUMN `supervisorsUsed` INTEGER")
+        connection.execSQL("ALTER TABLE `plan_usage` ADD COLUMN `supervisorsLimit` INTEGER")
+        connection.execSQL("ALTER TABLE `plan_usage` ADD COLUMN `planExpiresAt` TEXT")
+        connection.execSQL("ALTER TABLE `plan_usage` ADD COLUMN `hasStripeCustomer` INTEGER")
+    }
+}
