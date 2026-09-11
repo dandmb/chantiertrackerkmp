@@ -606,6 +606,14 @@ class FakeUrlOpener : com.dmb.chantiertracker.presentation.billing.UrlOpener {
     }
 }
 
+class FakeCheckoutLauncher : com.dmb.chantiertracker.presentation.billing.CheckoutLauncher {
+    val calls = mutableListOf<Pair<com.dmb.chantiertracker.domain.model.Plan, com.dmb.chantiertracker.domain.model.BillingCycle>>()
+
+    override fun launch(plan: com.dmb.chantiertracker.domain.model.Plan, billingCycle: com.dmb.chantiertracker.domain.model.BillingCycle) {
+        calls += plan to billingCycle
+    }
+}
+
 class FakeExportFileStore : com.dmb.chantiertracker.data.local.ExportFileStore {
     val saved = mutableListOf<Pair<String, Int>>()
 

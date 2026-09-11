@@ -94,6 +94,8 @@ private fun AuthNavHost(startPoint: AuthStartPoint, onOnboardingFinished: () -> 
                 },
                 prefilledEmail = route.prefilledEmail,
                 notice = LoginNotice.fromArg(route.notice),
+                checkoutPlan = route.checkoutPlan,
+                checkoutCycle = route.checkoutCycle,
             )
         }
         composable<RegisterRoute> { entry ->

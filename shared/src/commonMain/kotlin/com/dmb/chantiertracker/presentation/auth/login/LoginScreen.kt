@@ -24,12 +24,14 @@ import com.dmb.chantiertracker.presentation.auth.components.ErrorBanner
 import com.dmb.chantiertracker.presentation.auth.components.InfoBanner
 import com.dmb.chantiertracker.presentation.auth.components.PasswordField
 import com.dmb.chantiertracker.presentation.i18n.localizedText
+import com.dmb.chantiertracker.presentation.main.labelRes
 import com.dmb.chantiertracker.presentation.navigation.LoginNotice
 import com.dmb.chantiertracker.resources.Res
 import com.dmb.chantiertracker.resources.login_forgot_password
 import com.dmb.chantiertracker.resources.login_no_account_action
 import com.dmb.chantiertracker.resources.login_no_account_prompt
 import com.dmb.chantiertracker.resources.login_notice_account_activated
+import com.dmb.chantiertracker.resources.login_notice_checkout_pending
 import com.dmb.chantiertracker.resources.login_notice_password_reset
 import com.dmb.chantiertracker.resources.login_resend_verification
 import com.dmb.chantiertracker.resources.login_submit
@@ -45,6 +47,8 @@ fun LoginScreen(
     onBack: (() -> Unit)? = null,
     prefilledEmail: String? = null,
     notice: LoginNotice? = null,
+    checkoutPlan: String? = null,
+    checkoutCycle: String? = null,
     viewModel: LoginViewModel = koinViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -53,15 +57,29 @@ fun LoginScreen(
         if (prefilledEmail != null) viewModel.prefillEmail(prefilledEmail)
     }
 
+    LaunchedEffect(checkoutPlan, checkoutCycle) {
+        viewModel.setCheckoutIntent(checkoutPlan, checkoutCycle)
+    }
+
     AuthScreenLayout(
         title = stringResource(Res.string.login_title),
         subtitle = stringResource(Res.string.login_subtitle),
         onBack = onBack,
     ) {
-        when (notice) {
-            LoginNotice.AccountActivated -> InfoBanner(stringResource(Res.string.login_notice_account_activated))
-            LoginNotice.PasswordReset -> InfoBanner(stringResource(Res.string.login_notice_password_reset))
-            null -> Unit
+        // ADR-50 — a resolved checkout intent takes priority over the ordinary
+        // `notice` banner: it can only be reached right after email
+        // verification, coming from PlanSelectionScreen, so this always
+        // supersedes AccountActivated (same underlying moment, more specific
+        // message) and never coexists with PasswordReset in practice.
+        val checkoutPlanValue = state.checkoutPlan
+        if (checkoutPlanValue != null) {
+            InfoBanner(stringResource(Res.string.login_notice_checkout_pending, stringResource(checkoutPlanValue.labelRes())))
+        } else {
+            when (notice) {
+                LoginNotice.AccountActivated -> InfoBanner(stringResource(Res.string.login_notice_account_activated))
+                LoginNotice.PasswordReset -> InfoBanner(stringResource(Res.string.login_notice_password_reset))
+                null -> Unit
+            }
         }
         state.formError?.let { ErrorBanner(it.localizedText()) }
 

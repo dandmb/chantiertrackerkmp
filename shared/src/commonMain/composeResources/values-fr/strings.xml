@@ -49,6 +49,7 @@
     <string name="login_no_account_action">Créer un compte</string>
     <string name="login_notice_account_activated">Compte activé. Vous pouvez vous connecter.</string>
     <string name="login_notice_password_reset">Mot de passe mis à jour. Vous pouvez vous connecter.</string>
+    <string name="login_notice_checkout_pending">Compte activé ! Connectez-vous pour finaliser votre abonnement %1$s.</string>
 
     <string name="register_title">Créer un compte</string>
     <string name="register_subtitle">Quelques informations pour démarrer.</string>

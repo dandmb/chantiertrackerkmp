@@ -30,6 +30,7 @@ import com.dmb.chantiertracker.presentation.onboarding.ONBOARDING_PAGES
 import com.dmb.chantiertracker.presentation.onboarding.OnboardingScreenContent
 import com.dmb.chantiertracker.presentation.theme.AppTheme
 import com.dmb.chantiertracker.support.FakeAuthRepository
+import com.dmb.chantiertracker.support.FakeCheckoutLauncher
 import com.dmb.chantiertracker.support.installTestMainDispatcher
 import com.dmb.chantiertracker.support.resetTestMainDispatcher
 import java.io.File
@@ -91,7 +92,18 @@ class AuthScreensSnapshotTest {
                     onNavigateToForgotPassword = {},
                     onBack = {},
                     notice = LoginNotice.AccountActivated,
-                    viewModel = LoginViewModel(repo),
+                    viewModel = LoginViewModel(repo, FakeCheckoutLauncher()),
+                )
+            }
+            snapshot("01b-login-checkout-pending", locale) {
+                LoginScreen(
+                    onNavigateToRegister = {},
+                    onNavigateToForgotPassword = {},
+                    onBack = {},
+                    notice = LoginNotice.AccountActivated,
+                    checkoutPlan = "SEMI_FLEX",
+                    checkoutCycle = "MONTHLY",
+                    viewModel = LoginViewModel(repo, FakeCheckoutLauncher()),
                 )
             }
             snapshot("02-register", locale) {
@@ -119,7 +131,7 @@ class AuthScreensSnapshotTest {
                 )
             }
             snapshot("06-login-dark", locale, dark = true) {
-                LoginScreen(onNavigateToRegister = {}, onNavigateToForgotPassword = {}, viewModel = LoginViewModel(repo))
+                LoginScreen(onNavigateToRegister = {}, onNavigateToForgotPassword = {}, viewModel = LoginViewModel(repo, FakeCheckoutLauncher()))
             }
             snapshot("07-register-dark", locale, dark = true) {
                 RegisterScreen(onRegistered = {}, onBackToLogin = {}, viewModel = RegisterViewModel(repo))

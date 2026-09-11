@@ -49,6 +49,7 @@
     <string name="login_no_account_action">Create one</string>
     <string name="login_notice_account_activated">Account activated. You can sign in now.</string>
     <string name="login_notice_password_reset">Password updated. You can sign in now.</string>
+    <string name="login_notice_checkout_pending">Account activated! Sign in to complete your %1$s subscription.</string>
 
     <string name="register_title">Create an account</string>
     <string name="register_subtitle">A few details to get started.</string>
