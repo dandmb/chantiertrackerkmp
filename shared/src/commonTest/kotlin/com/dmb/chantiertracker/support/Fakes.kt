@@ -590,6 +590,16 @@ class FakePdfSharer : com.dmb.chantiertracker.presentation.projects.export.PdfSh
     }
 }
 
+class FakePdfOpener : com.dmb.chantiertracker.presentation.projects.export.PdfOpener {
+    val opened = mutableListOf<String>()
+    var error: Throwable? = null
+
+    override suspend fun open(path: String) {
+        opened += path
+        error?.let { throw it }
+    }
+}
+
 class FakeAccountRepository(
     planUsage: com.dmb.chantiertracker.domain.model.PlanUsage? = null,
 ) : AccountRepository {

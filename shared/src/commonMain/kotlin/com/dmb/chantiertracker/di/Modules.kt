@@ -82,8 +82,10 @@ import com.dmb.chantiertracker.presentation.projects.ProjectSortHolder
 import com.dmb.chantiertracker.presentation.projects.ProjectsViewModel
 import com.dmb.chantiertracker.presentation.projects.create.CreateProjectViewModel
 import com.dmb.chantiertracker.presentation.projects.detail.ProjectDetailViewModel
+import com.dmb.chantiertracker.presentation.projects.export.PdfOpener
 import com.dmb.chantiertracker.presentation.projects.export.PdfSharer
 import com.dmb.chantiertracker.presentation.projects.export.ProjectExportViewModel
+import com.dmb.chantiertracker.presentation.projects.export.openExportedPdf
 import com.dmb.chantiertracker.presentation.projects.export.shareExportedPdf
 import com.dmb.chantiertracker.presentation.projects.edit.EditProjectViewModel
 import com.dmb.chantiertracker.presentation.projects.history.ProjectHistoryViewModel
@@ -208,6 +210,7 @@ val presentationModule: Module = module {
     viewModelOf(::InviteMemberViewModel)
     viewModelOf(::ReportEntryViewModel)
     viewModelOf(::ProjectReportsViewModel)
+    single<PdfOpener> { PdfOpener { path -> openExportedPdf(path) } }
     single<PdfSharer> { PdfSharer { path -> shareExportedPdf(path) } }
     viewModelOf(::ProjectExportViewModel)
     viewModelOf(::CreateStageViewModel)

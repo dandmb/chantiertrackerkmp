@@ -585,6 +585,7 @@ class MainScreensSnapshotTest {
     private fun projectExportVm(): com.dmb.chantiertracker.presentation.projects.export.ProjectExportViewModel =
         com.dmb.chantiertracker.presentation.projects.export.ProjectExportViewModel(
             com.dmb.chantiertracker.support.FakeExportRepository(),
+            com.dmb.chantiertracker.support.FakePdfOpener(),
             com.dmb.chantiertracker.support.FakePdfSharer(),
         )
 
