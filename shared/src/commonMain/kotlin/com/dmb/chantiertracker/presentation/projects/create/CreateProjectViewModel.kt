@@ -6,6 +6,7 @@ import com.dmb.chantiertracker.core.deviceTimeZoneId
 import com.dmb.chantiertracker.domain.model.AuthState
 import com.dmb.chantiertracker.domain.model.CreateProjectInput
 import com.dmb.chantiertracker.domain.model.DomainException
+import com.dmb.chantiertracker.domain.model.GlobalRole
 import com.dmb.chantiertracker.domain.repository.AccountRepository
 import com.dmb.chantiertracker.domain.repository.AuthRepository
 import com.dmb.chantiertracker.domain.repository.ProjectRepository
@@ -30,6 +31,7 @@ data class CreateProjectUiState(
     val isSubmitting: Boolean = false,
     val created: Boolean = false,
     val atProjectLimit: Boolean = false,
+    val isSuperAdmin: Boolean = false,
 )
 
 class CreateProjectViewModel(
@@ -42,7 +44,11 @@ class CreateProjectViewModel(
     val state = _state.asStateFlow()
 
     init {
-        val currentUserId = (authRepository.authState.value as? AuthState.Authenticated)?.user?.id
+        val currentUser = (authRepository.authState.value as? AuthState.Authenticated)?.user
+        val currentUserId = currentUser?.id
+        if (currentUser?.globalRole == GlobalRole.SUPER_ADMIN) {
+            _state.update { it.copy(isSuperAdmin = true) }
+        }
         if (currentUserId != null) {
             viewModelScope.launch {
                 combine(
@@ -73,8 +79,10 @@ class CreateProjectViewModel(
 
     fun submit() {
         val current = _state.value
-        // Plan limit reached → never touch Room, never nudge the syncer (ADR-25).
-        if (current.atProjectLimit) return
+        // Plan limit reached, or the caller is a SUPER_ADMIN (never owns or joins
+        // a project, backend/web both enforce this — ADR-25 posture) → never
+        // touch Room, never nudge the syncer.
+        if (current.atProjectLimit || current.isSuperAdmin) return
         val nameError = validateName(current.name.trim())
         if (nameError != null) {
             _state.update { it.copy(nameError = nameError) }

@@ -103,6 +103,7 @@
     <string name="create_currency_hint">EUR, USD, XAF…</string>
     <string name="create_timezone_label">Fuseau horaire</string>
     <string name="create_timezone_help">Fuseau horaire du chantier. Il détermine comment sont comptées les journées pour la personne sur place.</string>
+    <string name="create_super_admin_blocked">En tant que super-administrateur, vous ne pouvez pas créer ni rejoindre de projet.</string>
     <string name="create_submit">Créer le projet</string>
 
     <string name="detail_title">Projet</string>

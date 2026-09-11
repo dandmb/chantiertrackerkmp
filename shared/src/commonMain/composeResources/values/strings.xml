@@ -103,6 +103,7 @@
     <string name="create_currency_hint">EUR, USD, XAF…</string>
     <string name="create_timezone_label">Time zone</string>
     <string name="create_timezone_help">Time zone of the site. It sets how days are counted for the person on site.</string>
+    <string name="create_super_admin_blocked">As a super-admin, you cannot create or join a project.</string>
     <string name="create_submit">Create project</string>
 
     <string name="detail_title">Project</string>
