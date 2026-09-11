@@ -70,6 +70,7 @@ import com.dmb.chantiertracker.domain.repository.PurchaseLineRepository
 import com.dmb.chantiertracker.domain.repository.ExportRepository
 import com.dmb.chantiertracker.domain.repository.ReportRepository
 import com.dmb.chantiertracker.domain.repository.StageRepository
+import com.dmb.chantiertracker.presentation.billing.BillingViewModel
 import com.dmb.chantiertracker.presentation.billing.UrlOpener
 import com.dmb.chantiertracker.presentation.auth.forgot.ForgotPasswordViewModel
 import com.dmb.chantiertracker.presentation.auth.login.LoginViewModel
@@ -226,6 +227,7 @@ val presentationModule: Module = module {
     viewModelOf(::PurchaseLineFormViewModel)
     viewModelOf(::ConsumptionLineFormViewModel)
     viewModelOf(::SettingsViewModel)
+    viewModelOf(::BillingViewModel)
 }
 
 fun appModules(): List<Module> = listOf(

@@ -50,6 +50,9 @@ data object ProjectsRoute
 data object SettingsRoute
 
 @Serializable
+data object BillingRoute
+
+@Serializable
 data object CreateProjectRoute
 
 @Serializable

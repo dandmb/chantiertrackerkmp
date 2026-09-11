@@ -589,6 +589,13 @@ class MainScreensSnapshotTest {
             com.dmb.chantiertracker.support.FakePdfSharer(),
         )
 
+    private fun billingVm(planUsage: com.dmb.chantiertracker.domain.model.PlanUsage?): com.dmb.chantiertracker.presentation.billing.BillingViewModel =
+        com.dmb.chantiertracker.presentation.billing.BillingViewModel(
+            com.dmb.chantiertracker.support.FakeAccountRepository(planUsage),
+            com.dmb.chantiertracker.support.FakeBillingRepository(),
+            com.dmb.chantiertracker.support.FakeUrlOpener(),
+        )
+
     @Test
     fun capture_main_screens_in_french_and_english() {
         for (locale in listOf("fr", "en")) {
@@ -785,6 +792,28 @@ class MainScreensSnapshotTest {
                             viewModel = projectExportVm(),
                         )
                     }
+                }
+            }
+            snapshot("39-billing", locale) {
+                DetailChrome(title = if (locale == "fr") "Abonnement" else "Subscription") { m ->
+                    com.dmb.chantiertracker.presentation.billing.BillingScreen(
+                        modifier = m,
+                        viewModel = billingVm(
+                            com.dmb.chantiertracker.domain.model.PlanUsage(
+                                plan = Plan.SEMI_FLEX,
+                                projectsLimit = 3,
+                                projectsUsed = 2,
+                                photosUsed = 40,
+                                photosLimit = 300,
+                                videosUsed = 1,
+                                videosLimit = 5,
+                                videoDurationLimitSeconds = 120,
+                                supervisorsUsed = 1,
+                                supervisorsLimit = 3,
+                                hasStripeCustomer = true,
+                            ),
+                        ),
+                    )
                 }
             }
         }

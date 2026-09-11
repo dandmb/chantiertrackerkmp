@@ -20,6 +20,8 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
+import com.dmb.chantiertracker.presentation.billing.BillingScreen
+import com.dmb.chantiertracker.presentation.navigation.BillingRoute
 import com.dmb.chantiertracker.presentation.navigation.ConsumptionLineFormRoute
 import com.dmb.chantiertracker.presentation.navigation.CreateProjectRoute
 import com.dmb.chantiertracker.presentation.navigation.CreateStageRoute
@@ -57,6 +59,7 @@ import com.dmb.chantiertracker.presentation.settings.SettingsScreen
 import com.dmb.chantiertracker.presentation.stages.create.CreateStageScreen
 import com.dmb.chantiertracker.presentation.stages.detail.StageDetailScreen
 import com.dmb.chantiertracker.resources.Res
+import com.dmb.chantiertracker.resources.billing_title
 import com.dmb.chantiertracker.resources.create_project_title
 import com.dmb.chantiertracker.resources.create_stage_title
 import com.dmb.chantiertracker.resources.daily_log_title
@@ -73,7 +76,7 @@ import org.koin.compose.viewmodel.koinViewModel
 
 private enum class MainDestination {
     Projects, Settings, CreateProject, ProjectDetail, EditProject, InviteMember, ProjectHistory, ProjectReports, CreateStage, StageDetail, DailyLog,
-    EntrySummary, PurchaseLineForm, ConsumptionLineForm, ReportEntry
+    EntrySummary, PurchaseLineForm, ConsumptionLineForm, ReportEntry, Billing
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -99,6 +102,7 @@ fun MainScreen(viewModel: MainViewModel = koinViewModel()) {
         destination?.hasRoute(PurchaseLineFormRoute::class) == true -> MainDestination.PurchaseLineForm
         destination?.hasRoute(ConsumptionLineFormRoute::class) == true -> MainDestination.ConsumptionLineForm
         destination?.hasRoute(ReportEntryRoute::class) == true -> MainDestination.ReportEntry
+        destination?.hasRoute(BillingRoute::class) == true -> MainDestination.Billing
         else -> MainDestination.Projects
     }
     val currentTab = when (current) {
@@ -176,11 +180,15 @@ fun MainScreen(viewModel: MainViewModel = koinViewModel()) {
                     title = stringResource(Res.string.report_entry_title),
                     onBack = { navController.popBackStack() },
                 )
+                MainDestination.Billing -> DetailTopBar(
+                    title = stringResource(Res.string.billing_title),
+                    onBack = { navController.popBackStack() },
+                )
                 else -> AppTopBar(
                     userName = account.userName,
                     email = account.email,
                     plan = account.plan,
-                    onSubscription = {},
+                    onSubscription = { navController.navigate(BillingRoute) },
                     onLogout = viewModel::logout,
                     leadingActions = {
                         if (current == MainDestination.Projects) {
@@ -224,6 +232,9 @@ fun MainScreen(viewModel: MainViewModel = koinViewModel()) {
             }
             composable<SettingsRoute> {
                 SettingsScreen()
+            }
+            composable<BillingRoute> {
+                BillingScreen()
             }
             composable<CreateProjectRoute> {
                 CreateProjectScreen(
