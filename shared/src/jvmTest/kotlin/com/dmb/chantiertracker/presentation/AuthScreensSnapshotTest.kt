@@ -14,6 +14,7 @@ import com.dmb.chantiertracker.presentation.auth.forgot.ForgotPasswordScreen
 import com.dmb.chantiertracker.presentation.auth.forgot.ForgotPasswordViewModel
 import com.dmb.chantiertracker.presentation.auth.login.LoginScreen
 import com.dmb.chantiertracker.presentation.auth.login.LoginViewModel
+import com.dmb.chantiertracker.presentation.auth.plans.PlanSelectionScreen
 import com.dmb.chantiertracker.presentation.auth.register.RegisterScreen
 import com.dmb.chantiertracker.presentation.auth.register.RegisterViewModel
 import com.dmb.chantiertracker.presentation.auth.reset.ResetPasswordScreen
@@ -79,7 +80,10 @@ class AuthScreensSnapshotTest {
                 OnboardingScreenContent(pagerState = pagerState, loop = 0.3f, onFinish = {})
             }
             snapshot("00-welcome", locale) {
-                WelcomeScreen(onCreateAccount = {}, onSignIn = {})
+                WelcomeScreen(onCreateAccount = {}, onSignIn = {}, onDiscoverPlans = {})
+            }
+            snapshot("00b-plan-selection", locale) {
+                PlanSelectionScreen(onSelectPlan = { _, _ -> }, onBack = {})
             }
             snapshot("01-login", locale) {
                 LoginScreen(
@@ -121,7 +125,7 @@ class AuthScreensSnapshotTest {
                 RegisterScreen(onRegistered = {}, onBackToLogin = {}, viewModel = RegisterViewModel(repo))
             }
             snapshot("08-welcome-dark", locale, dark = true) {
-                WelcomeScreen(onCreateAccount = {}, onSignIn = {})
+                WelcomeScreen(onCreateAccount = {}, onSignIn = {}, onDiscoverPlans = {})
             }
         }
     }

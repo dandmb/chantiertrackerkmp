@@ -24,6 +24,10 @@
     <string name="welcome_title">Bon retour !</string>
     <string name="welcome_create_account">Créer un compte</string>
     <string name="welcome_sign_in">Se connecter</string>
+    <string name="welcome_discover_plans">Découvrir nos formules</string>
+    <string name="plan_selection_title">Choisir une formule</string>
+    <string name="plan_selection_subtitle">Passez à un palier payant dès la création de votre compte.</string>
+    <string name="plan_selection_choose">Choisir cette formule</string>
 
     <string name="onboarding_skip">Passer</string>
     <string name="onboarding_next">Suivant</string>

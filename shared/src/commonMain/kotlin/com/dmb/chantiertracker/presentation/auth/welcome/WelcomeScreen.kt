@@ -1,11 +1,13 @@
 package com.dmb.chantiertracker.presentation.auth.welcome
 
 import androidx.compose.runtime.Composable
+import com.dmb.chantiertracker.presentation.auth.components.AuthLink
 import com.dmb.chantiertracker.presentation.auth.components.AuthPrimaryButton
 import com.dmb.chantiertracker.presentation.auth.components.AuthScreenLayout
 import com.dmb.chantiertracker.presentation.auth.components.AuthSecondaryButton
 import com.dmb.chantiertracker.resources.Res
 import com.dmb.chantiertracker.resources.welcome_create_account
+import com.dmb.chantiertracker.resources.welcome_discover_plans
 import com.dmb.chantiertracker.resources.welcome_sign_in
 import com.dmb.chantiertracker.resources.welcome_title
 import org.jetbrains.compose.resources.stringResource
@@ -14,6 +16,7 @@ import org.jetbrains.compose.resources.stringResource
 fun WelcomeScreen(
     onCreateAccount: () -> Unit,
     onSignIn: () -> Unit,
+    onDiscoverPlans: () -> Unit,
 ) {
     AuthScreenLayout(
         title = stringResource(Res.string.welcome_title),
@@ -21,5 +24,6 @@ fun WelcomeScreen(
     ) {
         AuthPrimaryButton(text = stringResource(Res.string.welcome_create_account), onClick = onCreateAccount)
         AuthSecondaryButton(text = stringResource(Res.string.welcome_sign_in), onClick = onSignIn)
+        AuthLink(text = stringResource(Res.string.welcome_discover_plans), onClick = onDiscoverPlans)
     }
 }

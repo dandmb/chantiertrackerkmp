@@ -24,6 +24,10 @@
     <string name="welcome_title">Welcome back</string>
     <string name="welcome_create_account">Create an account</string>
     <string name="welcome_sign_in">Sign in</string>
+    <string name="welcome_discover_plans">Discover our plans</string>
+    <string name="plan_selection_title">Choose a plan</string>
+    <string name="plan_selection_subtitle">Go straight to a paid tier as soon as you create your account.</string>
+    <string name="plan_selection_choose">Choose this plan</string>
 
     <string name="onboarding_skip">Skip</string>
     <string name="onboarding_next">Next</string>

@@ -26,16 +26,34 @@ data object OnboardingRoute
 data object WelcomeRoute
 
 @Serializable
+data object PlanSelectionRoute
+
+/**
+ * checkoutPlan/checkoutCycle : intention d'achat portée depuis
+ * [PlanSelectionRoute] à travers l'inscription (ADR-50) — `Plan.name`/
+ * `BillingCycle.name` bruts, même contrainte `String?` que [notice] ci-dessus
+ * (pas d'enum). `null` = parcours FREE normal, inchangé.
+ */
+@Serializable
 data class LoginRoute(
     val prefilledEmail: String? = null,
     val notice: String? = null,
+    val checkoutPlan: String? = null,
+    val checkoutCycle: String? = null,
 )
 
 @Serializable
-data object RegisterRoute
+data class RegisterRoute(
+    val checkoutPlan: String? = null,
+    val checkoutCycle: String? = null,
+)
 
 @Serializable
-data class VerifyEmailRoute(val email: String)
+data class VerifyEmailRoute(
+    val email: String,
+    val checkoutPlan: String? = null,
+    val checkoutCycle: String? = null,
+)
 
 @Serializable
 data object ForgotPasswordRoute
