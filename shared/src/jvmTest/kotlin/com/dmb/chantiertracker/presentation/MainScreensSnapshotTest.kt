@@ -582,6 +582,13 @@ class MainScreensSnapshotTest {
         com.dmb.chantiertracker.presentation.reports.ReportEntryViewModel(com.dmb.chantiertracker.support.FakeReportRepository())
             .also { it.load("e1"); it.onMessageChange("La quantité de ciment livrée ne correspond pas au bon de livraison.") }
 
+    private fun projectExportVm(): com.dmb.chantiertracker.presentation.projects.export.ProjectExportViewModel =
+        com.dmb.chantiertracker.presentation.projects.export.ProjectExportViewModel(
+            com.dmb.chantiertracker.support.FakeExportRepository(),
+            com.dmb.chantiertracker.support.FakePdfOpener(),
+            com.dmb.chantiertracker.support.FakePdfSharer(),
+        )
+
     @Test
     fun capture_main_screens_in_french_and_english() {
         for (locale in listOf("fr", "en")) {
@@ -768,6 +775,17 @@ class MainScreensSnapshotTest {
                 },
             ) {
                 ProjectReportsChrome(title = if (locale == "fr") "Signalements" else "Reports")
+            }
+            snapshot("38-project-export", locale) {
+                DetailChrome(title = if (locale == "fr") "Détail du projet" else "Project detail") { m ->
+                    Box(m.padding(horizontal = 24.dp, vertical = 20.dp)) {
+                        com.dmb.chantiertracker.presentation.projects.export.ExportSection(
+                            projectLocalId = "1",
+                            ownerPlan = Plan.SEMI_FLEX,
+                            viewModel = projectExportVm(),
+                        )
+                    }
+                }
             }
         }
         for (locale in listOf("fr", "en")) {

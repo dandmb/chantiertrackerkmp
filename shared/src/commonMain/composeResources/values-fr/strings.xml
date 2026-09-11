@@ -153,6 +153,16 @@
     <string name="history_action_modification">Modification</string>
     <string name="history_action_deletion">Suppression</string>
 
+    <string name="detail_export_title">Export PDF</string>
+    <string name="detail_export_hint">Génère un PDF complet du projet.</string>
+    <string name="detail_export_action">Exporter en PDF</string>
+    <string name="detail_export_generating">Génération du PDF…</string>
+    <string name="detail_export_ready">PDF généré.</string>
+    <string name="detail_export_open">Ouvrir</string>
+    <string name="detail_export_share">Partager</string>
+    <string name="detail_export_regenerate">Régénérer</string>
+    <string name="detail_export_upgrade">Passez à Semi-flex ou Liberté pour exporter ce projet en PDF.</string>
+
     <string name="detail_danger_zone">Zone de danger</string>
     <string name="detail_danger_zone_body">Supprime définitivement ce projet et tout son contenu (étapes, entrées, matériaux, historique).</string>
     <string name="detail_delete_project">Supprimer le projet</string>
