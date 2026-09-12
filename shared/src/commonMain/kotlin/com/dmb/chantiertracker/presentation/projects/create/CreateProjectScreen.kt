@@ -28,6 +28,7 @@ import com.dmb.chantiertracker.resources.create_description_label
 import com.dmb.chantiertracker.resources.create_location_label
 import com.dmb.chantiertracker.resources.create_name_label
 import com.dmb.chantiertracker.resources.create_submit
+import com.dmb.chantiertracker.resources.create_super_admin_blocked
 import com.dmb.chantiertracker.resources.create_timezone_help
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
@@ -39,7 +40,7 @@ fun CreateProjectScreen(
     viewModel: CreateProjectViewModel = koinViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    val locked = state.isSubmitting || state.atProjectLimit
+    val locked = state.isSubmitting || state.atProjectLimit || state.isSuperAdmin
 
     LaunchedEffect(state.created) {
         if (state.created) onCreated()
@@ -54,6 +55,9 @@ fun CreateProjectScreen(
     ) {
         if (state.atProjectLimit) {
             ErrorBanner(DomainException.PlanLimitReached.localizedText())
+        }
+        if (state.isSuperAdmin) {
+            ErrorBanner(stringResource(Res.string.create_super_admin_blocked))
         }
         state.formError?.let { ErrorBanner(it.localizedText()) }
 
@@ -112,7 +116,7 @@ fun CreateProjectScreen(
             text = stringResource(Res.string.create_submit),
             onClick = viewModel::submit,
             loading = state.isSubmitting,
-            enabled = !state.atProjectLimit,
+            enabled = !state.atProjectLimit && !state.isSuperAdmin,
         )
     }
 }

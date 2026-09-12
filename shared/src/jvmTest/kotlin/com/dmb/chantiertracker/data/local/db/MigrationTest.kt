@@ -759,6 +759,49 @@ class MigrationTest {
             db.close()
         }
     }
+
+    /**
+     * Seeds a v10 database by hand, then opens [AppDatabase] (v11) and lets
+     * MIGRATION_10_11 add the billing-screen usage/expiry/customer columns to
+     * `plan_usage` (ADR-49) — all nullable, existing `plan`/`projectsLimit`
+     * untouched.
+     */
+    @Test
+    fun migrating_from_v10_adds_plan_usage_detail_columns_and_keeps_existing_data() = runTest {
+        val v10Path = dir.resolve("migration-v10.db").absolutePathString()
+        BundledSQLiteDriver().open(v10Path).use { c ->
+            seedV7Schema(c)
+            c.execSQL("ALTER TABLE `projects` ADD COLUMN `ownerPlan` TEXT")
+            c.execSQL("ALTER TABLE `attachments` ADD COLUMN `durationSeconds` INTEGER")
+            c.execSQL("CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)")
+            c.execSQL(
+                "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'd02df2e8cdb59fb510f00b1c877527a8')",
+            )
+            c.execSQL("PRAGMA user_version = 10")
+            c.execSQL(
+                "INSERT INTO plan_usage (id, plan, projectsLimit, refreshedAt) VALUES (0, 'SEMI_FLEX', 3, 5000)",
+            )
+        }
+
+        val db = Room.databaseBuilder<AppDatabase>(name = v10Path).buildChantierDatabase()
+        try {
+            val row = db.planUsageDao().observe().first()
+            assertEquals("SEMI_FLEX", row?.plan, "the pre-existing plan/limit survive")
+            assertEquals(3, row?.projectsLimit)
+            assertEquals(null, row?.projectsUsed, "a row cached before this migration reads the new columns as unknown, not a fabricated 0")
+            assertEquals(null, row?.hasStripeCustomer)
+        } finally {
+            db.close()
+        }
+
+        // The migrated schema behaves exactly like a freshly built v11 one.
+        val fresh = Room.inMemoryDatabaseBuilder<AppDatabase>().buildChantierDatabase()
+        try {
+            verifyPlanUsageDaoContract(fresh)
+        } finally {
+            fresh.close()
+        }
+    }
 }
 
 /** The full v7 table set — shared by the v7→v8 and v8→v9 migration tests. */

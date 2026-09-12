@@ -22,8 +22,18 @@
     <string name="password_hide">Masquer le mot de passe</string>
 
     <string name="welcome_title">Bon retour !</string>
+    <string name="welcome_subtitle">Connectez-vous ou créez un compte pour suivre vos chantiers.</string>
     <string name="welcome_create_account">Créer un compte</string>
     <string name="welcome_sign_in">Se connecter</string>
+    <string name="welcome_discover_plans">Découvrir nos formules</string>
+    <string name="welcome_discover_plans_teaser">Passez directement à une formule payante, dès l'inscription.</string>
+    <string name="plan_selection_title">Choisir une formule</string>
+    <string name="plan_selection_subtitle">Passez à un palier payant dès la création de votre compte.</string>
+    <string name="plan_selection_choose">Choisir cette formule</string>
+    <string name="plan_selection_continue_free">Créer un compte gratuit</string>
+    <string name="plan_selection_tab_free">Gratuit</string>
+    <string name="plan_selection_tab_semi_flex">Semi-Flex</string>
+    <string name="plan_selection_tab_liberte">Liberté</string>
 
     <string name="onboarding_skip">Passer</string>
     <string name="onboarding_next">Suivant</string>
@@ -45,6 +55,7 @@
     <string name="login_no_account_action">Créer un compte</string>
     <string name="login_notice_account_activated">Compte activé. Vous pouvez vous connecter.</string>
     <string name="login_notice_password_reset">Mot de passe mis à jour. Vous pouvez vous connecter.</string>
+    <string name="login_notice_checkout_pending">Compte activé ! Connectez-vous pour finaliser votre abonnement %1$s.</string>
 
     <string name="register_title">Créer un compte</string>
     <string name="register_subtitle">Quelques informations pour démarrer.</string>
@@ -103,6 +114,7 @@
     <string name="create_currency_hint">EUR, USD, XAF…</string>
     <string name="create_timezone_label">Fuseau horaire</string>
     <string name="create_timezone_help">Fuseau horaire du chantier. Il détermine comment sont comptées les journées pour la personne sur place.</string>
+    <string name="create_super_admin_blocked">En tant que super-administrateur, vous ne pouvez pas créer ni rejoindre de projet.</string>
     <string name="create_submit">Créer le projet</string>
 
     <string name="detail_title">Projet</string>
@@ -162,6 +174,53 @@
     <string name="detail_export_share">Partager</string>
     <string name="detail_export_regenerate">Régénérer</string>
     <string name="detail_export_upgrade">Passez à Semi-flex ou Liberté pour exporter ce projet en PDF.</string>
+
+    <string name="billing_title">Abonnement</string>
+    <string name="billing_plan_section">Plan actuel</string>
+    <string name="billing_next_due">Prochaine échéance : %1$s</string>
+    <string name="billing_usage_section">Usage</string>
+    <string name="billing_usage_projects">%1$d/%2$d projets utilisés</string>
+    <string name="billing_usage_projects_unlimited">Projets : illimité</string>
+    <string name="billing_usage_photos">%1$d/%2$d photos utilisées</string>
+    <string name="billing_usage_photos_unlimited">Photos : illimité</string>
+    <string name="billing_usage_videos">%1$d/%2$d vidéos utilisées</string>
+    <string name="billing_usage_supervisors">%1$d/%2$d superviseurs par projet</string>
+    <string name="billing_usage_supervisors_unlimited">Superviseurs : illimité par projet</string>
+    <string name="billing_manage_subscription">Gérer mon abonnement</string>
+    <string name="billing_no_action">Aucune action de facturation n'est disponible pour ce plan.</string>
+    <string name="billing_notice_checkout_succeeded">Paiement reçu — la mise à jour de votre abonnement peut prendre quelques instants.</string>
+    <string name="billing_upgrade_section">Passer à un palier supérieur</string>
+    <string name="billing_cycle_monthly">Mensuel</string>
+    <string name="billing_cycle_yearly">Annuel</string>
+    <string name="billing_subscribe">S'abonner</string>
+    <string name="billing_subscribe_pending">Redirection…</string>
+    <string name="billing_price_semi_flex_monthly">3,99 € / mois</string>
+    <string name="billing_price_semi_flex_monthly_note">ou 39 € / an</string>
+    <string name="billing_price_semi_flex_yearly">39 € / an</string>
+    <string name="billing_price_semi_flex_yearly_note">soit 3,25 € / mois</string>
+    <string name="billing_price_liberte_monthly">8,99 € / mois</string>
+    <string name="billing_price_liberte_monthly_note">ou 89 € / an</string>
+    <string name="billing_price_liberte_yearly">89 € / an</string>
+    <string name="billing_price_liberte_yearly_note">soit 7,42 € / mois</string>
+    <string name="billing_feature_semi_flex_projects">3 projets</string>
+    <string name="billing_feature_semi_flex_photos">300 photos</string>
+    <string name="billing_feature_semi_flex_videos">5 vidéos, 2 min max</string>
+    <string name="billing_feature_semi_flex_supervisors">3 superviseurs par projet</string>
+    <string name="billing_feature_semi_flex_export">Export PDF</string>
+    <string name="billing_feature_semi_flex_history">Historique 6 mois</string>
+    <string name="billing_feature_liberte_projects">Projets illimités</string>
+    <string name="billing_feature_liberte_photos">Photos illimitées</string>
+    <string name="billing_feature_liberte_videos">20 vidéos, 5 min max</string>
+    <string name="billing_feature_liberte_supervisors">Superviseurs illimités</string>
+    <string name="billing_feature_liberte_export">Export PDF</string>
+    <string name="billing_feature_liberte_history">Historique illimité</string>
+    <string name="billing_price_free">0 €</string>
+    <string name="billing_feature_free_projects">1 projet</string>
+    <string name="billing_feature_free_photos">35 photos</string>
+    <string name="billing_feature_free_videos_excluded">Pas de vidéo</string>
+    <string name="billing_feature_free_supervisors">1 superviseur par projet</string>
+    <string name="billing_feature_free_export_excluded">Pas d'export PDF</string>
+    <string name="billing_feature_free_history">Historique 30 jours</string>
 
     <string name="detail_danger_zone">Zone de danger</string>
     <string name="detail_danger_zone_body">Supprime définitivement ce projet et tout son contenu (étapes, entrées, matériaux, historique).</string>

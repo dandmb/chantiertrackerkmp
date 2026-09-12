@@ -20,6 +20,11 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
+import com.dmb.chantiertracker.presentation.billing.BillingScreen
+import com.dmb.chantiertracker.presentation.billing.CheckoutDeepLink
+import com.dmb.chantiertracker.presentation.billing.CheckoutDeepLinkDispatcher
+import com.dmb.chantiertracker.presentation.navigation.BillingNotice
+import com.dmb.chantiertracker.presentation.navigation.BillingRoute
 import com.dmb.chantiertracker.presentation.navigation.ConsumptionLineFormRoute
 import com.dmb.chantiertracker.presentation.navigation.CreateProjectRoute
 import com.dmb.chantiertracker.presentation.navigation.CreateStageRoute
@@ -57,6 +62,7 @@ import com.dmb.chantiertracker.presentation.settings.SettingsScreen
 import com.dmb.chantiertracker.presentation.stages.create.CreateStageScreen
 import com.dmb.chantiertracker.presentation.stages.detail.StageDetailScreen
 import com.dmb.chantiertracker.resources.Res
+import com.dmb.chantiertracker.resources.billing_title
 import com.dmb.chantiertracker.resources.create_project_title
 import com.dmb.chantiertracker.resources.create_stage_title
 import com.dmb.chantiertracker.resources.daily_log_title
@@ -73,7 +79,7 @@ import org.koin.compose.viewmodel.koinViewModel
 
 private enum class MainDestination {
     Projects, Settings, CreateProject, ProjectDetail, EditProject, InviteMember, ProjectHistory, ProjectReports, CreateStage, StageDetail, DailyLog,
-    EntrySummary, PurchaseLineForm, ConsumptionLineForm, ReportEntry
+    EntrySummary, PurchaseLineForm, ConsumptionLineForm, ReportEntry, Billing
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -81,6 +87,36 @@ private enum class MainDestination {
 fun MainScreen(viewModel: MainViewModel = koinViewModel()) {
     val navController = rememberNavController()
     val account by viewModel.state.collectAsStateWithLifecycle()
+
+    // ADR-51 point 4 — a chantiertracker:// deep link (Stripe checkout/portal
+    // return) can arrive at any time, independent of whatever is currently on
+    // screen; this dispatcher is the single funnel platform code (Android
+    // onNewIntent, iOS onOpenURL) feeds into. BillingScreen itself already
+    // refreshes on entry (BillingViewModel.init), so simply landing on
+    // BillingRoute is all that's needed beyond the one-shot success banner.
+    val deepLinkDispatcher = koinInject<CheckoutDeepLinkDispatcher>()
+    val pendingDeepLink by deepLinkDispatcher.pending.collectAsStateWithLifecycle()
+    LaunchedEffect(pendingDeepLink) {
+        val notice = when (pendingDeepLink) {
+            CheckoutDeepLink.CheckoutSuccess -> BillingNotice.CheckoutSucceeded.toArg()
+            CheckoutDeepLink.CheckoutCancelled, CheckoutDeepLink.PortalReturn -> null
+            null -> return@LaunchedEffect
+        }
+        // popUpTo(...) { inclusive = true } + launchSingleTop — replaces an
+        // existing BillingRoute entry instead of stacking a second one on
+        // top of it. The common case is landing here from BillingRoute
+        // itself ("Gérer mon abonnement" lives on that screen): without
+        // this, the deep link would push a duplicate, invisible entry
+        // (same screen rendered twice in a row) that silently adds one more
+        // required back-press before really leaving the screen — see
+        // retour-checkout-stripe.md for the device-confirmed bug this fed
+        // into (back landing on the leftover browser tab).
+        navController.navigate(BillingRoute(notice)) {
+            popUpTo(BillingRoute::class) { inclusive = true }
+            launchSingleTop = true
+        }
+        deepLinkDispatcher.consume()
+    }
 
     val backStackEntry by navController.currentBackStackEntryAsState()
     val destination = backStackEntry?.destination
@@ -99,6 +135,7 @@ fun MainScreen(viewModel: MainViewModel = koinViewModel()) {
         destination?.hasRoute(PurchaseLineFormRoute::class) == true -> MainDestination.PurchaseLineForm
         destination?.hasRoute(ConsumptionLineFormRoute::class) == true -> MainDestination.ConsumptionLineForm
         destination?.hasRoute(ReportEntryRoute::class) == true -> MainDestination.ReportEntry
+        destination?.hasRoute(BillingRoute::class) == true -> MainDestination.Billing
         else -> MainDestination.Projects
     }
     val currentTab = when (current) {
@@ -176,11 +213,15 @@ fun MainScreen(viewModel: MainViewModel = koinViewModel()) {
                     title = stringResource(Res.string.report_entry_title),
                     onBack = { navController.popBackStack() },
                 )
+                MainDestination.Billing -> DetailTopBar(
+                    title = stringResource(Res.string.billing_title),
+                    onBack = { navController.popBackStack() },
+                )
                 else -> AppTopBar(
                     userName = account.userName,
                     email = account.email,
                     plan = account.plan,
-                    onSubscription = {},
+                    onSubscription = { navController.navigate(BillingRoute()) },
                     onLogout = viewModel::logout,
                     leadingActions = {
                         if (current == MainDestination.Projects) {
@@ -224,6 +265,9 @@ fun MainScreen(viewModel: MainViewModel = koinViewModel()) {
             }
             composable<SettingsRoute> {
                 SettingsScreen()
+            }
+            composable<BillingRoute> { entry ->
+                BillingScreen(notice = BillingNotice.fromArg(entry.toRoute<BillingRoute>().notice))
             }
             composable<CreateProjectRoute> {
                 CreateProjectScreen(

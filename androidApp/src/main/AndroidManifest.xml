@@ -14,11 +14,27 @@
         <activity
             android:exported="true"
             android:name=".MainActivity"
+            android:launchMode="singleTask"
             android:theme="@style/Theme.ChantierTracker.Starting">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+            <!-- Stripe checkout/portal return (ADR-51 point 4) — the app
+                 registers this scheme itself, no Universal Links / hosted
+                 verification file needed: the checkout only ever starts from
+                 inside this app. singleTask above is required for this to
+                 land in the existing instance via onNewIntent() instead of
+                 stacking a second one on top of it. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data android:scheme="chantiertracker" />
             </intent-filter>
         </activity>
     </application>

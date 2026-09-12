@@ -571,6 +571,49 @@ class FakeExportRepository : com.dmb.chantiertracker.domain.repository.ExportRep
     }
 }
 
+class FakeBillingRepository : com.dmb.chantiertracker.domain.repository.BillingRepository {
+    val checkoutCalls = mutableListOf<Pair<com.dmb.chantiertracker.domain.model.Plan, com.dmb.chantiertracker.domain.model.BillingCycle>>()
+    var portalCalls = 0
+        private set
+    var checkoutError: com.dmb.chantiertracker.domain.model.DomainException? = null
+    var portalError: com.dmb.chantiertracker.domain.model.DomainException? = null
+    var checkoutUrl = "https://checkout.stripe.com/session-test"
+    var portalUrl = "https://billing.stripe.com/portal-test"
+
+    override suspend fun startCheckout(
+        plan: com.dmb.chantiertracker.domain.model.Plan,
+        billingCycle: com.dmb.chantiertracker.domain.model.BillingCycle,
+    ): String {
+        checkoutCalls += plan to billingCycle
+        checkoutError?.let { throw it }
+        return checkoutUrl
+    }
+
+    override suspend fun openManageSubscription(): String {
+        portalCalls++
+        portalError?.let { throw it }
+        return portalUrl
+    }
+}
+
+class FakeUrlOpener : com.dmb.chantiertracker.presentation.billing.UrlOpener {
+    val opened = mutableListOf<String>()
+    var error: Throwable? = null
+
+    override suspend fun open(url: String) {
+        opened += url
+        error?.let { throw it }
+    }
+}
+
+class FakeCheckoutLauncher : com.dmb.chantiertracker.presentation.billing.CheckoutLauncher {
+    val calls = mutableListOf<Pair<com.dmb.chantiertracker.domain.model.Plan, com.dmb.chantiertracker.domain.model.BillingCycle>>()
+
+    override fun launch(plan: com.dmb.chantiertracker.domain.model.Plan, billingCycle: com.dmb.chantiertracker.domain.model.BillingCycle) {
+        calls += plan to billingCycle
+    }
+}
+
 class FakeExportFileStore : com.dmb.chantiertracker.data.local.ExportFileStore {
     val saved = mutableListOf<Pair<String, Int>>()
 

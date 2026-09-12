@@ -289,16 +289,17 @@ class MainScreensSnapshotTest {
         ),
     )
 
-    private fun authedRepo() = FakeAuthRepository().apply {
-        emitState(AuthState.Authenticated(User(1, "jean@chantier.dev", "Jean", true, GlobalRole.USER)))
+    private fun authedRepo(globalRole: GlobalRole = GlobalRole.USER) = FakeAuthRepository().apply {
+        emitState(AuthState.Authenticated(User(1, "jean@chantier.dev", "Jean", true, globalRole)))
     }
 
-    private fun createProjectVm(atLimit: Boolean = false): CreateProjectViewModel {
+    private fun createProjectVm(atLimit: Boolean = false, superAdmin: Boolean = false): CreateProjectViewModel {
         val projects = FakeProjectRepository().apply { if (atLimit) activeProjectCountFlow.value = 1 }
         val account = FakeAccountRepository(
             planUsage = if (atLimit) PlanUsage(Plan.FREE, projectsLimit = 1) else null,
         )
-        return CreateProjectViewModel(projects, account, authedRepo())
+        val role = if (superAdmin) GlobalRole.SUPER_ADMIN else GlobalRole.USER
+        return CreateProjectViewModel(projects, account, authedRepo(role))
     }
 
     private val sampleStages = listOf(
@@ -589,6 +590,13 @@ class MainScreensSnapshotTest {
             com.dmb.chantiertracker.support.FakePdfSharer(),
         )
 
+    private fun billingVm(planUsage: com.dmb.chantiertracker.domain.model.PlanUsage?): com.dmb.chantiertracker.presentation.billing.BillingViewModel =
+        com.dmb.chantiertracker.presentation.billing.BillingViewModel(
+            com.dmb.chantiertracker.support.FakeAccountRepository(planUsage),
+            com.dmb.chantiertracker.support.FakeBillingRepository(),
+            com.dmb.chantiertracker.support.FakeUrlOpener(),
+        )
+
     @Test
     fun capture_main_screens_in_french_and_english() {
         for (locale in listOf("fr", "en")) {
@@ -649,6 +657,11 @@ class MainScreensSnapshotTest {
                 DetailChrome(
                     title = if (locale == "fr") "Nouveau projet" else "New project",
                 ) { m -> CreateProjectScreen(onCreated = {}, modifier = m, viewModel = createProjectVm(atLimit = true)) }
+            }
+            snapshot("40-create-project-super-admin", locale) {
+                DetailChrome(
+                    title = if (locale == "fr") "Nouveau projet" else "New project",
+                ) { m -> CreateProjectScreen(onCreated = {}, modifier = m, viewModel = createProjectVm(superAdmin = true)) }
             }
             snapshot("16-project-detail", locale) {
                 ProjectDetailChrome(
@@ -785,6 +798,28 @@ class MainScreensSnapshotTest {
                             viewModel = projectExportVm(),
                         )
                     }
+                }
+            }
+            snapshot("39-billing", locale) {
+                DetailChrome(title = if (locale == "fr") "Abonnement" else "Subscription") { m ->
+                    com.dmb.chantiertracker.presentation.billing.BillingScreen(
+                        modifier = m,
+                        viewModel = billingVm(
+                            com.dmb.chantiertracker.domain.model.PlanUsage(
+                                plan = Plan.SEMI_FLEX,
+                                projectsLimit = 3,
+                                projectsUsed = 2,
+                                photosUsed = 40,
+                                photosLimit = 300,
+                                videosUsed = 1,
+                                videosLimit = 5,
+                                videoDurationLimitSeconds = 120,
+                                supervisorsUsed = 1,
+                                supervisorsLimit = 3,
+                                hasStripeCustomer = true,
+                            ),
+                        ),
+                    )
                 }
             }
         }

@@ -11,6 +11,7 @@ import androidx.navigation.toRoute
 import com.dmb.chantiertracker.domain.model.AuthState
 import com.dmb.chantiertracker.presentation.auth.forgot.ForgotPasswordScreen
 import com.dmb.chantiertracker.presentation.auth.login.LoginScreen
+import com.dmb.chantiertracker.presentation.auth.plans.PlanSelectionScreen
 import com.dmb.chantiertracker.presentation.auth.register.RegisterScreen
 import com.dmb.chantiertracker.presentation.auth.reset.ResetPasswordScreen
 import com.dmb.chantiertracker.presentation.auth.verify.VerifyEmailScreen
@@ -68,14 +69,24 @@ private fun AuthNavHost(startPoint: AuthStartPoint, onOnboardingFinished: () -> 
         }
         composable<WelcomeRoute> {
             WelcomeScreen(
-                onCreateAccount = { navController.navigate(RegisterRoute) },
+                onCreateAccount = { navController.navigate(RegisterRoute()) },
                 onSignIn = { navController.navigate(LoginRoute()) },
+                onDiscoverPlans = { navController.navigate(PlanSelectionRoute) },
+            )
+        }
+        composable<PlanSelectionRoute> {
+            PlanSelectionScreen(
+                onSelectPlan = { plan, cycle ->
+                    navController.navigate(RegisterRoute(checkoutPlan = plan.name, checkoutCycle = cycle.name))
+                },
+                onContinueFree = { navController.navigate(RegisterRoute()) },
+                onBack = { navController.popBackStack() },
             )
         }
         composable<LoginRoute> { entry ->
             val route = entry.toRoute<LoginRoute>()
             LoginScreen(
-                onNavigateToRegister = { navController.navigate(RegisterRoute) },
+                onNavigateToRegister = { navController.navigate(RegisterRoute()) },
                 onNavigateToForgotPassword = { navController.navigate(ForgotPasswordRoute) },
                 onBack = if (navController.previousBackStackEntry != null) {
                     { navController.popBackStack() }
@@ -84,11 +95,16 @@ private fun AuthNavHost(startPoint: AuthStartPoint, onOnboardingFinished: () -> 
                 },
                 prefilledEmail = route.prefilledEmail,
                 notice = LoginNotice.fromArg(route.notice),
+                checkoutPlan = route.checkoutPlan,
+                checkoutCycle = route.checkoutCycle,
             )
         }
-        composable<RegisterRoute> {
+        composable<RegisterRoute> { entry ->
+            val route = entry.toRoute<RegisterRoute>()
             RegisterScreen(
-                onRegistered = { email -> navController.navigate(VerifyEmailRoute(email)) },
+                onRegistered = { email ->
+                    navController.navigate(VerifyEmailRoute(email, route.checkoutPlan, route.checkoutCycle))
+                },
                 onBackToLogin = { navController.backToLogin(neverLoggedIn) },
                 onBack = { navController.popBackStack() },
             )
@@ -97,7 +113,15 @@ private fun AuthNavHost(startPoint: AuthStartPoint, onOnboardingFinished: () -> 
             val route = entry.toRoute<VerifyEmailRoute>()
             VerifyEmailScreen(
                 email = route.email,
-                onVerified = { navController.backToLogin(neverLoggedIn, route.email, LoginNotice.AccountActivated) },
+                onVerified = {
+                    navController.backToLogin(
+                        neverLoggedIn,
+                        route.email,
+                        LoginNotice.AccountActivated,
+                        route.checkoutPlan,
+                        route.checkoutCycle,
+                    )
+                },
                 onCancelVerification = { navController.backToLogin(neverLoggedIn) },
                 onBack = { navController.popBackStack() },
             )
@@ -124,8 +148,10 @@ private fun NavController.backToLogin(
     neverLoggedIn: Boolean,
     prefilledEmail: String? = null,
     notice: LoginNotice? = null,
+    checkoutPlan: String? = null,
+    checkoutCycle: String? = null,
 ) {
-    navigate(LoginRoute(prefilledEmail, notice?.toArg())) {
+    navigate(LoginRoute(prefilledEmail, notice?.toArg(), checkoutPlan, checkoutCycle)) {
         if (neverLoggedIn) {
             popUpTo(WelcomeRoute) { inclusive = false }
         } else {

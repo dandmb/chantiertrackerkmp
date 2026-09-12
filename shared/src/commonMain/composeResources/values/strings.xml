@@ -22,8 +22,18 @@
     <string name="password_hide">Hide password</string>
 
     <string name="welcome_title">Welcome back</string>
+    <string name="welcome_subtitle">Sign in or create an account to keep track of your sites.</string>
     <string name="welcome_create_account">Create an account</string>
     <string name="welcome_sign_in">Sign in</string>
+    <string name="welcome_discover_plans">Discover our plans</string>
+    <string name="welcome_discover_plans_teaser">Go straight to a paid plan, right from sign-up.</string>
+    <string name="plan_selection_title">Choose a plan</string>
+    <string name="plan_selection_subtitle">Go straight to a paid tier as soon as you create your account.</string>
+    <string name="plan_selection_choose">Choose this plan</string>
+    <string name="plan_selection_continue_free">Create a free account</string>
+    <string name="plan_selection_tab_free">Free</string>
+    <string name="plan_selection_tab_semi_flex">Semi-Flex</string>
+    <string name="plan_selection_tab_liberte">Liberté</string>
 
     <string name="onboarding_skip">Skip</string>
     <string name="onboarding_next">Next</string>
@@ -45,6 +55,7 @@
     <string name="login_no_account_action">Create one</string>
     <string name="login_notice_account_activated">Account activated. You can sign in now.</string>
     <string name="login_notice_password_reset">Password updated. You can sign in now.</string>
+    <string name="login_notice_checkout_pending">Account activated! Sign in to complete your %1$s subscription.</string>
 
     <string name="register_title">Create an account</string>
     <string name="register_subtitle">A few details to get started.</string>
@@ -103,6 +114,7 @@
     <string name="create_currency_hint">EUR, USD, XAF…</string>
     <string name="create_timezone_label">Time zone</string>
     <string name="create_timezone_help">Time zone of the site. It sets how days are counted for the person on site.</string>
+    <string name="create_super_admin_blocked">As a super-admin, you cannot create or join a project.</string>
     <string name="create_submit">Create project</string>
 
     <string name="detail_title">Project</string>
@@ -162,6 +174,53 @@
     <string name="detail_export_share">Share</string>
     <string name="detail_export_regenerate">Regenerate</string>
     <string name="detail_export_upgrade">Upgrade to Semi-flex or Liberté to export this project to PDF.</string>
+
+    <string name="billing_title">Subscription</string>
+    <string name="billing_plan_section">Current plan</string>
+    <string name="billing_next_due">Next due date: %1$s</string>
+    <string name="billing_usage_section">Usage</string>
+    <string name="billing_usage_projects">%1$d/%2$d projects used</string>
+    <string name="billing_usage_projects_unlimited">Projects: unlimited</string>
+    <string name="billing_usage_photos">%1$d/%2$d photos used</string>
+    <string name="billing_usage_photos_unlimited">Photos: unlimited</string>
+    <string name="billing_usage_videos">%1$d/%2$d videos used</string>
+    <string name="billing_usage_supervisors">%1$d/%2$d supervisors per project</string>
+    <string name="billing_usage_supervisors_unlimited">Supervisors: unlimited per project</string>
+    <string name="billing_manage_subscription">Manage my subscription</string>
+    <string name="billing_no_action">No billing action is available for this plan.</string>
+    <string name="billing_notice_checkout_succeeded">Payment received — updating your subscription may take a few moments.</string>
+    <string name="billing_upgrade_section">Upgrade to a higher tier</string>
+    <string name="billing_cycle_monthly">Monthly</string>
+    <string name="billing_cycle_yearly">Yearly</string>
+    <string name="billing_subscribe">Subscribe</string>
+    <string name="billing_subscribe_pending">Redirecting…</string>
+    <string name="billing_price_semi_flex_monthly">€3.99 / month</string>
+    <string name="billing_price_semi_flex_monthly_note">or €39 / year</string>
+    <string name="billing_price_semi_flex_yearly">€39 / year</string>
+    <string name="billing_price_semi_flex_yearly_note">i.e. €3.25 / month</string>
+    <string name="billing_price_liberte_monthly">€8.99 / month</string>
+    <string name="billing_price_liberte_monthly_note">or €89 / year</string>
+    <string name="billing_price_liberte_yearly">€89 / year</string>
+    <string name="billing_price_liberte_yearly_note">i.e. €7.42 / month</string>
+    <string name="billing_feature_semi_flex_projects">3 projects</string>
+    <string name="billing_feature_semi_flex_photos">300 photos</string>
+    <string name="billing_feature_semi_flex_videos">5 videos, 2 min max</string>
+    <string name="billing_feature_semi_flex_supervisors">3 supervisors per project</string>
+    <string name="billing_feature_semi_flex_export">PDF export</string>
+    <string name="billing_feature_semi_flex_history">6-month history</string>
+    <string name="billing_feature_liberte_projects">Unlimited projects</string>
+    <string name="billing_feature_liberte_photos">Unlimited photos</string>
+    <string name="billing_feature_liberte_videos">20 videos, 5 min max</string>
+    <string name="billing_feature_liberte_supervisors">Unlimited supervisors</string>
+    <string name="billing_feature_liberte_export">PDF export</string>
+    <string name="billing_feature_liberte_history">Unlimited history</string>
+    <string name="billing_price_free">€0</string>
+    <string name="billing_feature_free_projects">1 project</string>
+    <string name="billing_feature_free_photos">35 photos</string>
+    <string name="billing_feature_free_videos_excluded">No videos</string>
+    <string name="billing_feature_free_supervisors">1 supervisor per project</string>
+    <string name="billing_feature_free_export_excluded">No PDF export</string>
+    <string name="billing_feature_free_history">30-day history</string>
 
     <string name="detail_danger_zone">Danger zone</string>
     <string name="detail_danger_zone_body">Permanently deletes this project and everything in it (stages, entries, materials, history).</string>

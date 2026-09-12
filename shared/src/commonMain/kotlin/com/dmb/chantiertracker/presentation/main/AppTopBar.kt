@@ -123,7 +123,7 @@ fun AccountMenuBody(
     )
 }
 
-private fun Plan?.labelRes() = when (this) {
+internal fun Plan?.labelRes() = when (this) {
     Plan.FREE -> Res.string.plan_free
     Plan.SEMI_FLEX -> Res.string.plan_semi_flex
     Plan.LIBERTE -> Res.string.plan_liberte

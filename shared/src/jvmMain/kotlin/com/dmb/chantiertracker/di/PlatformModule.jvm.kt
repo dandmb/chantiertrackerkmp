@@ -13,6 +13,8 @@ import com.dmb.chantiertracker.data.local.db.projectDatabaseBuilder
 import com.dmb.chantiertracker.data.sync.AppCoroutineScope
 import com.dmb.chantiertracker.data.sync.ConnectivityObserver
 import com.dmb.chantiertracker.data.sync.DesktopConnectivityObserver
+import com.dmb.chantiertracker.presentation.billing.DesktopUrlOpener
+import com.dmb.chantiertracker.presentation.billing.UrlOpener
 import androidx.room.RoomDatabase
 import org.koin.core.module.Module
 import org.koin.dsl.module
@@ -23,5 +25,6 @@ actual fun platformModule(): Module = module {
     single<OnboardingStore> { DesktopOnboardingStore() }
     single<AppPreferences> { DesktopAppPreferences() }
     single<RoomDatabase.Builder<AppDatabase>> { projectDatabaseBuilder() }
+    single<UrlOpener> { DesktopUrlOpener() }
     single<ConnectivityObserver> { DesktopConnectivityObserver(get<AppCoroutineScope>()) }
 }
