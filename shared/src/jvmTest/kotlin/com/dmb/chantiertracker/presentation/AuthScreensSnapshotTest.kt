@@ -5,9 +5,12 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.toAwtImage
+import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.captureToImage
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.runComposeUiTest
 import androidx.compose.ui.unit.dp
 import com.dmb.chantiertracker.presentation.auth.forgot.ForgotPasswordScreen
@@ -51,19 +54,26 @@ class AuthScreensSnapshotTest {
         resetTestMainDispatcher()
     }
 
-    private fun snapshot(name: String, locale: String, dark: Boolean = false, screen: @Composable () -> Unit) =
-        runComposeUiTest {
-            setContent {
-                customAppLocale = locale
-                AppEnvironment {
-                    AppTheme(darkTheme = dark) {
-                        Box(Modifier.size(412.dp, 892.dp)) { screen() }
-                    }
+    private fun snapshot(
+        name: String,
+        locale: String,
+        dark: Boolean = false,
+        interact: ComposeUiTest.() -> Unit = {},
+        screen: @Composable () -> Unit,
+    ) = runComposeUiTest {
+        setContent {
+            customAppLocale = locale
+            AppEnvironment {
+                AppTheme(darkTheme = dark) {
+                    Box(Modifier.size(412.dp, 892.dp)) { screen() }
                 }
             }
-            waitForIdle()
-            ImageIO.write(onRoot().captureToImage().toAwtImage(), "png", File(outDir, "$name-$locale.png"))
         }
+        waitForIdle()
+        interact()
+        waitForIdle()
+        ImageIO.write(onRoot().captureToImage().toAwtImage(), "png", File(outDir, "$name-$locale.png"))
+    }
 
     @Test
     fun capture_all_auth_screens_in_french_and_english() {
@@ -84,7 +94,15 @@ class AuthScreensSnapshotTest {
                 WelcomeScreen(onCreateAccount = {}, onSignIn = {}, onDiscoverPlans = {})
             }
             snapshot("00b-plan-selection", locale) {
-                PlanSelectionScreen(onSelectPlan = { _, _ -> }, onBack = {})
+                PlanSelectionScreen(onSelectPlan = { _, _ -> }, onContinueFree = {}, onBack = {})
+            }
+            val freeTabLabel = if (locale == "fr") "Gratuit" else "Free"
+            snapshot(
+                "00c-plan-selection-free",
+                locale,
+                interact = { onNodeWithText(freeTabLabel).performClick() },
+            ) {
+                PlanSelectionScreen(onSelectPlan = { _, _ -> }, onContinueFree = {}, onBack = {})
             }
             snapshot("01-login", locale) {
                 LoginScreen(

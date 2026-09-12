@@ -57,6 +57,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.dmb.chantiertracker.presentation.branding.ConstructionIllustration
+import com.dmb.chantiertracker.presentation.main.ChevronRightIcon
 import com.dmb.chantiertracker.presentation.theme.TerracottaDark
 import com.dmb.chantiertracker.presentation.theme.TerracottaLight
 import com.dmb.chantiertracker.resources.Res
@@ -137,6 +138,7 @@ fun AuthScreenLayout(
                     Column(
                         Modifier
                             .fillMaxSize()
+                            .imePadding()
                             .navigationBarsPadding()
                             .padding(horizontal = 24.dp)
                             .padding(top = 32.dp, bottom = 28.dp),
@@ -425,5 +427,45 @@ fun AuthFooterPrompt(prompt: String, action: String, onClick: () -> Unit, modifi
             fontWeight = FontWeight.SemiBold,
             color = MaterialTheme.colorScheme.primary,
         )
+    }
+}
+
+// A tappable, filled promo block for a secondary action that still deserves
+// real visual weight (e.g. WelcomeScreen's entry into plan selection) —
+// deliberately not just another AuthLink: primaryContainer fill + a chevron
+// give it the same affordance as a button, without competing with the
+// screen's actual primary/secondary buttons for top billing.
+@Composable
+fun AuthHighlightCard(title: String, subtitle: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Surface(
+        onClick = onClick,
+        modifier = modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.primaryContainer,
+        shape = MaterialTheme.shapes.large,
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 18.dp, vertical = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                )
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                )
+            }
+            Icon(
+                imageVector = ChevronRightIcon,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+            )
+        }
     }
 }

@@ -43,6 +43,11 @@ fun PricingCard(
     onAction: (BillingCycle) -> Unit,
     modifier: Modifier = Modifier,
     actionEnabled: Boolean = true,
+    // PlanSelectionScreen (ADR-51) already names the plan on its tab switcher
+    // right above the card — repeating it as a heading inside the card too
+    // would be pure duplication. BillingScreen has no such label nearby, so
+    // it keeps the default.
+    showTitle: Boolean = true,
 ) {
     var cycle by remember { mutableStateOf(BillingCycle.MONTHLY) }
 
@@ -52,7 +57,9 @@ fun PricingCard(
         modifier = modifier.fillMaxWidth(),
     ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(stringResource(tier.plan.labelRes()), style = MaterialTheme.typography.titleMedium)
+            if (showTitle) {
+                Text(stringResource(tier.plan.labelRes()), style = MaterialTheme.typography.titleMedium)
+            }
 
             SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
                 BillingCycle.entries.forEachIndexed { index, option ->

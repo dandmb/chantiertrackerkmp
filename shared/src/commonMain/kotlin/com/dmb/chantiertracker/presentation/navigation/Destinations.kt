@@ -67,8 +67,27 @@ data object ProjectsRoute
 @Serializable
 data object SettingsRoute
 
+/**
+ * Bannière affichée sur l'écran de facturation après un retour de checkout
+ * Stripe réussi (ADR-51 point 4, deep link `chantiertracker://checkout-success`)
+ * — même idiome que [LoginNotice] : transportée en `String?` (Navigation
+ * Compose type-safe ne génère pas de `NavType` pour un enum sur Kotlin/Native).
+ * Pas d'équivalent pour une annulation ou un retour du portail : rien à
+ * annoncer dans ces deux cas, l'écran se contente de se rafraîchir.
+ */
+enum class BillingNotice {
+    CheckoutSucceeded;
+
+    fun toArg(): String = name
+
+    companion object {
+        fun fromArg(arg: String?): BillingNotice? =
+            arg?.let { name -> entries.firstOrNull { it.name == name } }
+    }
+}
+
 @Serializable
-data object BillingRoute
+data class BillingRoute(val notice: String? = null)
 
 @Serializable
 data object CreateProjectRoute

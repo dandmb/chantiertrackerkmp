@@ -26,13 +26,16 @@ import com.dmb.chantiertracker.domain.model.PlanUsage
 import com.dmb.chantiertracker.presentation.DetailSection
 import com.dmb.chantiertracker.presentation.DetailSectionDivider
 import com.dmb.chantiertracker.presentation.auth.components.ErrorBanner
+import com.dmb.chantiertracker.presentation.auth.components.InfoBanner
 import com.dmb.chantiertracker.presentation.formatIsoDateTime
 import com.dmb.chantiertracker.presentation.i18n.localizedText
 import com.dmb.chantiertracker.presentation.main.labelRes
+import com.dmb.chantiertracker.presentation.navigation.BillingNotice
 import com.dmb.chantiertracker.resources.Res
 import com.dmb.chantiertracker.resources.billing_manage_subscription
 import com.dmb.chantiertracker.resources.billing_next_due
 import com.dmb.chantiertracker.resources.billing_no_action
+import com.dmb.chantiertracker.resources.billing_notice_checkout_succeeded
 import com.dmb.chantiertracker.resources.billing_plan_section
 import com.dmb.chantiertracker.resources.billing_subscribe
 import com.dmb.chantiertracker.resources.billing_subscribe_pending
@@ -53,6 +56,7 @@ import org.koin.compose.viewmodel.koinViewModel
 @Composable
 fun BillingScreen(
     modifier: Modifier = Modifier,
+    notice: BillingNotice? = null,
     viewModel: BillingViewModel = koinViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -65,6 +69,15 @@ fun BillingScreen(
             .padding(start = 24.dp, end = 24.dp, top = 20.dp, bottom = 32.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
+        // ADR-51 point 4 — set only right after a chantiertracker://
+        // checkout-success deep link; a cancelled checkout or a portal return
+        // lands here with notice == null, nothing to announce. The webhook
+        // that actually activates the new plan is asynchronous, so this is
+        // deliberately non-committal rather than a premature "Done!".
+        if (notice == BillingNotice.CheckoutSucceeded) {
+            InfoBanner(stringResource(Res.string.billing_notice_checkout_succeeded))
+        }
+
         if (usage == null) {
             Box(Modifier.fillMaxWidth().padding(vertical = 40.dp), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator()

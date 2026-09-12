@@ -22,12 +22,18 @@
     <string name="password_hide">Hide password</string>
 
     <string name="welcome_title">Welcome back</string>
+    <string name="welcome_subtitle">Sign in or create an account to keep track of your sites.</string>
     <string name="welcome_create_account">Create an account</string>
     <string name="welcome_sign_in">Sign in</string>
     <string name="welcome_discover_plans">Discover our plans</string>
+    <string name="welcome_discover_plans_teaser">Go straight to a paid plan, right from sign-up.</string>
     <string name="plan_selection_title">Choose a plan</string>
     <string name="plan_selection_subtitle">Go straight to a paid tier as soon as you create your account.</string>
     <string name="plan_selection_choose">Choose this plan</string>
+    <string name="plan_selection_continue_free">Create a free account</string>
+    <string name="plan_selection_tab_free">Free</string>
+    <string name="plan_selection_tab_semi_flex">Semi-Flex</string>
+    <string name="plan_selection_tab_liberte">Liberté</string>
 
     <string name="onboarding_skip">Skip</string>
     <string name="onboarding_next">Next</string>
@@ -182,6 +188,7 @@
     <string name="billing_usage_supervisors_unlimited">Supervisors: unlimited per project</string>
     <string name="billing_manage_subscription">Manage my subscription</string>
     <string name="billing_no_action">No billing action is available for this plan.</string>
+    <string name="billing_notice_checkout_succeeded">Payment received — updating your subscription may take a few moments.</string>
     <string name="billing_upgrade_section">Upgrade to a higher tier</string>
     <string name="billing_cycle_monthly">Monthly</string>
     <string name="billing_cycle_yearly">Yearly</string>
@@ -207,6 +214,13 @@
     <string name="billing_feature_liberte_supervisors">Unlimited supervisors</string>
     <string name="billing_feature_liberte_export">PDF export</string>
     <string name="billing_feature_liberte_history">Unlimited history</string>
+    <string name="billing_price_free">€0</string>
+    <string name="billing_feature_free_projects">1 project</string>
+    <string name="billing_feature_free_photos">35 photos</string>
+    <string name="billing_feature_free_videos_excluded">No videos</string>
+    <string name="billing_feature_free_supervisors">1 supervisor per project</string>
+    <string name="billing_feature_free_export_excluded">No PDF export</string>
+    <string name="billing_feature_free_history">30-day history</string>
 
     <string name="detail_danger_zone">Danger zone</string>
     <string name="detail_danger_zone_body">Permanently deletes this project and everything in it (stages, entries, materials, history).</string>

@@ -79,6 +79,7 @@ private fun AuthNavHost(startPoint: AuthStartPoint, onOnboardingFinished: () -> 
                 onSelectPlan = { plan, cycle ->
                     navController.navigate(RegisterRoute(checkoutPlan = plan.name, checkoutCycle = cycle.name))
                 },
+                onContinueFree = { navController.navigate(RegisterRoute()) },
                 onBack = { navController.popBackStack() },
             )
         }

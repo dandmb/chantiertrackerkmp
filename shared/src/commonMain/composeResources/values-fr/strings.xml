@@ -22,12 +22,18 @@
     <string name="password_hide">Masquer le mot de passe</string>
 
     <string name="welcome_title">Bon retour !</string>
+    <string name="welcome_subtitle">Connectez-vous ou créez un compte pour suivre vos chantiers.</string>
     <string name="welcome_create_account">Créer un compte</string>
     <string name="welcome_sign_in">Se connecter</string>
     <string name="welcome_discover_plans">Découvrir nos formules</string>
+    <string name="welcome_discover_plans_teaser">Passez directement à une formule payante, dès l'inscription.</string>
     <string name="plan_selection_title">Choisir une formule</string>
     <string name="plan_selection_subtitle">Passez à un palier payant dès la création de votre compte.</string>
     <string name="plan_selection_choose">Choisir cette formule</string>
+    <string name="plan_selection_continue_free">Créer un compte gratuit</string>
+    <string name="plan_selection_tab_free">Gratuit</string>
+    <string name="plan_selection_tab_semi_flex">Semi-Flex</string>
+    <string name="plan_selection_tab_liberte">Liberté</string>
 
     <string name="onboarding_skip">Passer</string>
     <string name="onboarding_next">Suivant</string>
@@ -182,6 +188,7 @@
     <string name="billing_usage_supervisors_unlimited">Superviseurs : illimité par projet</string>
     <string name="billing_manage_subscription">Gérer mon abonnement</string>
     <string name="billing_no_action">Aucune action de facturation n'est disponible pour ce plan.</string>
+    <string name="billing_notice_checkout_succeeded">Paiement reçu — la mise à jour de votre abonnement peut prendre quelques instants.</string>
     <string name="billing_upgrade_section">Passer à un palier supérieur</string>
     <string name="billing_cycle_monthly">Mensuel</string>
     <string name="billing_cycle_yearly">Annuel</string>
@@ -207,6 +214,13 @@
     <string name="billing_feature_liberte_supervisors">Superviseurs illimités</string>
     <string name="billing_feature_liberte_export">Export PDF</string>
     <string name="billing_feature_liberte_history">Historique illimité</string>
+    <string name="billing_price_free">0 €</string>
+    <string name="billing_feature_free_projects">1 projet</string>
+    <string name="billing_feature_free_photos">35 photos</string>
+    <string name="billing_feature_free_videos_excluded">Pas de vidéo</string>
+    <string name="billing_feature_free_supervisors">1 superviseur par projet</string>
+    <string name="billing_feature_free_export_excluded">Pas d'export PDF</string>
+    <string name="billing_feature_free_history">Historique 30 jours</string>
 
     <string name="detail_danger_zone">Zone de danger</string>
     <string name="detail_danger_zone_body">Supprime définitivement ce projet et tout son contenu (étapes, entrées, matériaux, historique).</string>

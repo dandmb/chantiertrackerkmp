@@ -21,6 +21,9 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import com.dmb.chantiertracker.presentation.billing.BillingScreen
+import com.dmb.chantiertracker.presentation.billing.CheckoutDeepLink
+import com.dmb.chantiertracker.presentation.billing.CheckoutDeepLinkDispatcher
+import com.dmb.chantiertracker.presentation.navigation.BillingNotice
 import com.dmb.chantiertracker.presentation.navigation.BillingRoute
 import com.dmb.chantiertracker.presentation.navigation.ConsumptionLineFormRoute
 import com.dmb.chantiertracker.presentation.navigation.CreateProjectRoute
@@ -84,6 +87,25 @@ private enum class MainDestination {
 fun MainScreen(viewModel: MainViewModel = koinViewModel()) {
     val navController = rememberNavController()
     val account by viewModel.state.collectAsStateWithLifecycle()
+
+    // ADR-51 point 4 — a chantiertracker:// deep link (Stripe checkout/portal
+    // return) can arrive at any time, independent of whatever is currently on
+    // screen; this dispatcher is the single funnel platform code (Android
+    // onNewIntent, iOS onOpenURL) feeds into. BillingScreen itself already
+    // refreshes on entry (BillingViewModel.init), so simply landing on
+    // BillingRoute is all that's needed beyond the one-shot success banner.
+    val deepLinkDispatcher = koinInject<CheckoutDeepLinkDispatcher>()
+    val pendingDeepLink by deepLinkDispatcher.pending.collectAsStateWithLifecycle()
+    LaunchedEffect(pendingDeepLink) {
+        when (pendingDeepLink) {
+            CheckoutDeepLink.CheckoutSuccess ->
+                navController.navigate(BillingRoute(BillingNotice.CheckoutSucceeded.toArg()))
+            CheckoutDeepLink.CheckoutCancelled, CheckoutDeepLink.PortalReturn ->
+                navController.navigate(BillingRoute())
+            null -> return@LaunchedEffect
+        }
+        deepLinkDispatcher.consume()
+    }
 
     val backStackEntry by navController.currentBackStackEntryAsState()
     val destination = backStackEntry?.destination
@@ -188,7 +210,7 @@ fun MainScreen(viewModel: MainViewModel = koinViewModel()) {
                     userName = account.userName,
                     email = account.email,
                     plan = account.plan,
-                    onSubscription = { navController.navigate(BillingRoute) },
+                    onSubscription = { navController.navigate(BillingRoute()) },
                     onLogout = viewModel::logout,
                     leadingActions = {
                         if (current == MainDestination.Projects) {
@@ -233,8 +255,8 @@ fun MainScreen(viewModel: MainViewModel = koinViewModel()) {
             composable<SettingsRoute> {
                 SettingsScreen()
             }
-            composable<BillingRoute> {
-                BillingScreen()
+            composable<BillingRoute> { entry ->
+                BillingScreen(notice = BillingNotice.fromArg(entry.toRoute<BillingRoute>().notice))
             }
             composable<CreateProjectRoute> {
                 CreateProjectScreen(

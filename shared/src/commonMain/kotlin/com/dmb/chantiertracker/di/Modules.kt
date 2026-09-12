@@ -72,6 +72,7 @@ import com.dmb.chantiertracker.domain.repository.ReportRepository
 import com.dmb.chantiertracker.domain.repository.StageRepository
 import com.dmb.chantiertracker.presentation.billing.BillingViewModel
 import com.dmb.chantiertracker.presentation.billing.AppScopeCheckoutLauncher
+import com.dmb.chantiertracker.presentation.billing.CheckoutDeepLinkDispatcher
 import com.dmb.chantiertracker.presentation.billing.CheckoutLauncher
 import com.dmb.chantiertracker.presentation.billing.UrlOpener
 import com.dmb.chantiertracker.presentation.auth.forgot.ForgotPasswordViewModel
@@ -204,6 +205,7 @@ val dataModule: Module = module {
 val presentationModule: Module = module {
     single { ProjectSortHolder() }
     single<CheckoutLauncher> { AppScopeCheckoutLauncher(get<BillingRepository>(), get<UrlOpener>(), get<AppCoroutineScope>()) }
+    single { CheckoutDeepLinkDispatcher() }
     single { AppSettings(get(), get<AppCoroutineScope>()) }
     viewModelOf(::RootViewModel)
     viewModelOf(::LoginViewModel)

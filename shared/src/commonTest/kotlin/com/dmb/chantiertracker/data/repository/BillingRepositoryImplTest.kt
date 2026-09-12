@@ -37,11 +37,15 @@ class BillingRepositoryImplTest {
         val request = client.requests.single()
         assertEquals("/api/v1/billing/checkout", request.url.encodedPath)
         assertEquals(
-            """{"plan":"SEMI_FLEX","billingCycle":"MONTHLY"}""",
+            """{"plan":"SEMI_FLEX","billingCycle":"MONTHLY","platform":"MOBILE"}""",
             request.body.toByteArray().decodeToString(),
         )
     }
 
+    // ADR-51 point 4 — the backend picks chantiertracker:// success/cancel
+    // URLs over the web frontend's based on this field alone; never a URL the
+    // client dictates itself (see the backend walkthrough for the security
+    // reasoning).
     @Test
     fun opens_the_billing_portal_and_returns_its_url() = runTest {
         val (repo, client) = setup { respondJson("""{"portalUrl":"https://billing.stripe.com/portal-abc"}""") }
@@ -49,7 +53,9 @@ class BillingRepositoryImplTest {
         val url = repo.openManageSubscription()
 
         assertEquals("https://billing.stripe.com/portal-abc", url)
-        assertEquals("/api/v1/billing/portal", client.requests.single().url.encodedPath)
+        val request = client.requests.single()
+        assertEquals("/api/v1/billing/portal", request.url.encodedPath)
+        assertEquals("MOBILE", request.url.parameters["platform"])
     }
 
     @Test
