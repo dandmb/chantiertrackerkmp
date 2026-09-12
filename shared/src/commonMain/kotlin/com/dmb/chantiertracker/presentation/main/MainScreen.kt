@@ -97,12 +97,23 @@ fun MainScreen(viewModel: MainViewModel = koinViewModel()) {
     val deepLinkDispatcher = koinInject<CheckoutDeepLinkDispatcher>()
     val pendingDeepLink by deepLinkDispatcher.pending.collectAsStateWithLifecycle()
     LaunchedEffect(pendingDeepLink) {
-        when (pendingDeepLink) {
-            CheckoutDeepLink.CheckoutSuccess ->
-                navController.navigate(BillingRoute(BillingNotice.CheckoutSucceeded.toArg()))
-            CheckoutDeepLink.CheckoutCancelled, CheckoutDeepLink.PortalReturn ->
-                navController.navigate(BillingRoute())
+        val notice = when (pendingDeepLink) {
+            CheckoutDeepLink.CheckoutSuccess -> BillingNotice.CheckoutSucceeded.toArg()
+            CheckoutDeepLink.CheckoutCancelled, CheckoutDeepLink.PortalReturn -> null
             null -> return@LaunchedEffect
+        }
+        // popUpTo(...) { inclusive = true } + launchSingleTop — replaces an
+        // existing BillingRoute entry instead of stacking a second one on
+        // top of it. The common case is landing here from BillingRoute
+        // itself ("Gérer mon abonnement" lives on that screen): without
+        // this, the deep link would push a duplicate, invisible entry
+        // (same screen rendered twice in a row) that silently adds one more
+        // required back-press before really leaving the screen — see
+        // retour-checkout-stripe.md for the device-confirmed bug this fed
+        // into (back landing on the leftover browser tab).
+        navController.navigate(BillingRoute(notice)) {
+            popUpTo(BillingRoute::class) { inclusive = true }
+            launchSingleTop = true
         }
         deepLinkDispatcher.consume()
     }
