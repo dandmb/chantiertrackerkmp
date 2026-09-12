@@ -89,6 +89,12 @@ enum class BillingNotice {
 @Serializable
 data class BillingRoute(val notice: String? = null)
 
+// ADR-52 — SUPER_ADMIN only, the Administration tab's landing destination
+// for now (sub-step 1/4: list only). Revisited once statistics (sous-étape
+// 4/4) give the tab a real landing/dashboard choice to make.
+@Serializable
+data object AdminUsersRoute
+
 @Serializable
 data object CreateProjectRoute
 

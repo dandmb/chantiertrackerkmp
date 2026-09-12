@@ -29,9 +29,16 @@ fun RootNavHost(viewModel: RootViewModel = koinViewModel()) {
     val hasLoggedInBefore by viewModel.hasLoggedInBefore.collectAsStateWithLifecycle()
     val hasSeenOnboarding by viewModel.hasSeenOnboarding.collectAsStateWithLifecycle()
 
+    // Read here, not inside MainViewModel's own (async-populated) state: the
+    // Projects↔Administration tab swap (ADR-52) decides MainScreen's NavHost
+    // startDestination, which Compose Navigation only ever evaluates once —
+    // it must already be correct on the very first composition, and
+    // AuthState.Authenticated already carries it synchronously.
+    val authenticatedUser = (authState as? AuthState.Authenticated)?.user
+
     when {
         authState is AuthState.Unknown || hasLoggedInBefore == null || hasSeenOnboarding == null -> SplashScreen()
-        authState is AuthState.Authenticated -> MainScreen()
+        authenticatedUser != null -> MainScreen(globalRole = authenticatedUser.globalRole)
         else -> AuthNavHost(
             startPoint = when {
                 hasLoggedInBefore == true -> AuthStartPoint.Login

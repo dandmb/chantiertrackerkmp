@@ -82,6 +82,7 @@
 
     <string name="nav_projects">Projects</string>
     <string name="nav_settings">Settings</string>
+    <string name="nav_administration">Administration</string>
 
     <string name="menu_open">Account menu</string>
     <string name="menu_subscription">My subscription</string>
@@ -386,4 +387,19 @@
     <string name="error_not_found">This project no longer exists, or you don't have access to it.</string>
     <string name="error_network">Can't reach the server. Check your connection.</string>
     <string name="error_unexpected">Something went wrong. Please try again.</string>
+
+    <string name="admin_users_empty">No users yet.</string>
+    <string name="admin_users_retry">Retry</string>
+    <string name="admin_users_status_active">Active</string>
+    <string name="admin_users_status_inactive">Inactive</string>
+    <string name="admin_users_role_super_admin">Super-admin</string>
+    <string name="admin_users_role_user">User</string>
+    <string name="admin_users_plan_source_stripe">Paid (Stripe)</string>
+    <string name="admin_users_plan_source_admin_granted">Gifted (admin)</string>
+    <string name="admin_users_projects_count">%1$d projects</string>
+    <string name="admin_users_created_at">Created %1$s</string>
+    <string name="admin_users_plan_expires">Expires %1$s</string>
+    <string name="admin_users_page">Page %1$d / %2$d</string>
+    <string name="admin_users_prev">Previous</string>
+    <string name="admin_users_next">Next</string>
 </resources>

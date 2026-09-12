@@ -643,6 +643,25 @@ class FakePdfOpener : com.dmb.chantiertracker.presentation.projects.export.PdfOp
     }
 }
 
+class FakeAdminRepository(
+    private val pages: List<com.dmb.chantiertracker.domain.model.AdminUserPage> = emptyList(),
+) : com.dmb.chantiertracker.domain.repository.AdminRepository {
+
+    // Every call is recorded so tests can assert exactly which page was asked for.
+    val calls = mutableListOf<Int>()
+    var error: com.dmb.chantiertracker.domain.model.DomainException? = null
+
+    override suspend fun listUsers(page: Int): com.dmb.chantiertracker.domain.model.AdminUserPage {
+        calls += page
+        error?.let { throw it }
+        return pages.getOrNull(page)
+            ?: com.dmb.chantiertracker.domain.model.AdminUserPage(
+                items = emptyList(), page = page, totalPages = pages.size,
+                isFirst = page == 0, isLast = page >= pages.size - 1, totalElements = 0,
+            )
+    }
+}
+
 class FakeAccountRepository(
     planUsage: com.dmb.chantiertracker.domain.model.PlanUsage? = null,
 ) : AccountRepository {

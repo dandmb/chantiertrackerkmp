@@ -20,9 +20,12 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
+import com.dmb.chantiertracker.domain.model.GlobalRole
+import com.dmb.chantiertracker.presentation.admin.AdminUsersScreen
 import com.dmb.chantiertracker.presentation.billing.BillingScreen
 import com.dmb.chantiertracker.presentation.billing.CheckoutDeepLink
 import com.dmb.chantiertracker.presentation.billing.CheckoutDeepLinkDispatcher
+import com.dmb.chantiertracker.presentation.navigation.AdminUsersRoute
 import com.dmb.chantiertracker.presentation.navigation.BillingNotice
 import com.dmb.chantiertracker.presentation.navigation.BillingRoute
 import com.dmb.chantiertracker.presentation.navigation.ConsumptionLineFormRoute
@@ -78,15 +81,33 @@ import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 
 private enum class MainDestination {
-    Projects, Settings, CreateProject, ProjectDetail, EditProject, InviteMember, ProjectHistory, ProjectReports, CreateStage, StageDetail, DailyLog,
+    Projects, Administration, Settings, CreateProject, ProjectDetail, EditProject, InviteMember, ProjectHistory, ProjectReports, CreateStage, StageDetail, DailyLog,
     EntrySummary, PurchaseLineForm, ConsumptionLineForm, ReportEntry, Billing
 }
 
+// ADR-52 — a SUPER_ADMIN can neither own nor join a project (blocked
+// upstream, ADR-25 correction): the Projects tab would be permanently dead
+// for that account, so it is replaced by Administration rather than added
+// as a 3rd tab next to one it could never use. Read once, from a value
+// AuthState.Authenticated already carries synchronously (see RootNavHost) —
+// NavHost's startDestination is only ever evaluated on first composition.
+private fun startDestinationFor(globalRole: GlobalRole): Any =
+    if (globalRole == GlobalRole.SUPER_ADMIN) AdminUsersRoute else ProjectsRoute
+
+private fun tabsFor(globalRole: GlobalRole): List<MainTab> =
+    if (globalRole == GlobalRole.SUPER_ADMIN) {
+        listOf(MainTab.Administration, MainTab.Settings)
+    } else {
+        listOf(MainTab.Projects, MainTab.Settings)
+    }
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MainScreen(viewModel: MainViewModel = koinViewModel()) {
+fun MainScreen(globalRole: GlobalRole, viewModel: MainViewModel = koinViewModel()) {
     val navController = rememberNavController()
     val account by viewModel.state.collectAsStateWithLifecycle()
+    val startDestination = remember(globalRole) { startDestinationFor(globalRole) }
+    val tabs = remember(globalRole) { tabsFor(globalRole) }
 
     // ADR-51 point 4 — a chantiertracker:// deep link (Stripe checkout/portal
     // return) can arrive at any time, independent of whatever is currently on
@@ -121,6 +142,7 @@ fun MainScreen(viewModel: MainViewModel = koinViewModel()) {
     val backStackEntry by navController.currentBackStackEntryAsState()
     val destination = backStackEntry?.destination
     val current = when {
+        destination?.hasRoute(AdminUsersRoute::class) == true -> MainDestination.Administration
         destination?.hasRoute(SettingsRoute::class) == true -> MainDestination.Settings
         destination?.hasRoute(CreateProjectRoute::class) == true -> MainDestination.CreateProject
         destination?.hasRoute(ProjectDetailRoute::class) == true -> MainDestination.ProjectDetail
@@ -140,6 +162,7 @@ fun MainScreen(viewModel: MainViewModel = koinViewModel()) {
     }
     val currentTab = when (current) {
         MainDestination.Projects -> MainTab.Projects
+        MainDestination.Administration -> MainTab.Administration
         MainDestination.Settings -> MainTab.Settings
         else -> null
     }
@@ -237,9 +260,10 @@ fun MainScreen(viewModel: MainViewModel = koinViewModel()) {
             if (currentTab != null) {
                 AppBottomBar(
                     current = currentTab,
+                    tabs = tabs,
                     onSelect = { tab ->
                         navController.navigate(tab.route()) {
-                            popUpTo(ProjectsRoute) { inclusive = false; saveState = true }
+                            popUpTo(startDestination) { inclusive = false; saveState = true }
                             launchSingleTop = true
                             restoreState = true
                         }
@@ -257,11 +281,14 @@ fun MainScreen(viewModel: MainViewModel = koinViewModel()) {
     ) { padding ->
         NavHost(
             navController = navController,
-            startDestination = ProjectsRoute,
+            startDestination = startDestination,
             modifier = Modifier.padding(padding),
         ) {
             composable<ProjectsRoute> {
                 ProjectsScreen(onProjectClick = { localId -> navController.navigate(ProjectDetailRoute(localId)) })
+            }
+            composable<AdminUsersRoute> {
+                AdminUsersScreen()
             }
             composable<SettingsRoute> {
                 SettingsScreen()

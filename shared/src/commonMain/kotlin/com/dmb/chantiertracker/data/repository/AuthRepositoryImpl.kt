@@ -88,9 +88,13 @@ private fun UserResponseDto.toUser(): User = User(
     email = email,
     name = name,
     active = active,
-    globalRole = when (globalRole.uppercase()) {
-        "USER" -> GlobalRole.USER
-        "SUPER_ADMIN" -> GlobalRole.SUPER_ADMIN
-        else -> GlobalRole.UNKNOWN
-    },
+    globalRole = globalRole.toGlobalRole(),
 )
+
+// internal, not private: reused by AdminRepositoryImpl for the same field on
+// AdminUserResponseDto (ADR-52) — one tolerant mapping, never GlobalRole.valueOf().
+internal fun String.toGlobalRole(): GlobalRole = when (uppercase()) {
+    "USER" -> GlobalRole.USER
+    "SUPER_ADMIN" -> GlobalRole.SUPER_ADMIN
+    else -> GlobalRole.UNKNOWN
+}

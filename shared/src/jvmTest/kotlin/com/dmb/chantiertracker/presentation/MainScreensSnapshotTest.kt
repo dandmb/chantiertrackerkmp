@@ -176,7 +176,14 @@ class MainScreensSnapshotTest {
                     },
                 )
             },
-            bottomBar = { AppBottomBar(current = tab, onSelect = {}) },
+            bottomBar = {
+                val tabs = if (tab == MainTab.Administration) {
+                    listOf(MainTab.Administration, MainTab.Settings)
+                } else {
+                    listOf(MainTab.Projects, MainTab.Settings)
+                }
+                AppBottomBar(current = tab, tabs = tabs, onSelect = {})
+            },
             floatingActionButton = {
                 if (tab == MainTab.Projects) {
                     FloatingActionButton(onClick = {}) { Icon(AddIcon, contentDescription = null) }
@@ -597,6 +604,17 @@ class MainScreensSnapshotTest {
             com.dmb.chantiertracker.support.FakeUrlOpener(),
         )
 
+    private fun adminUsersVm(users: List<com.dmb.chantiertracker.domain.model.AdminUser>): com.dmb.chantiertracker.presentation.admin.AdminUsersViewModel =
+        com.dmb.chantiertracker.presentation.admin.AdminUsersViewModel(
+            com.dmb.chantiertracker.support.FakeAdminRepository(
+                listOf(
+                    com.dmb.chantiertracker.domain.model.AdminUserPage(
+                        items = users, page = 0, totalPages = 1, isFirst = true, isLast = true, totalElements = users.size,
+                    ),
+                ),
+            ),
+        )
+
     @Test
     fun capture_main_screens_in_french_and_english() {
         for (locale in listOf("fr", "en")) {
@@ -817,6 +835,36 @@ class MainScreensSnapshotTest {
                                 supervisorsUsed = 1,
                                 supervisorsLimit = 3,
                                 hasStripeCustomer = true,
+                            ),
+                        ),
+                    )
+                }
+            }
+            snapshot("41-admin-users", locale) {
+                Chrome(MainTab.Administration) { m ->
+                    com.dmb.chantiertracker.presentation.admin.AdminUsersScreen(
+                        modifier = m,
+                        viewModel = adminUsersVm(
+                            listOf(
+                                com.dmb.chantiertracker.domain.model.AdminUser(
+                                    id = 1, email = "jean@chantier.dev", name = "Jean Marchand", active = true,
+                                    globalRole = com.dmb.chantiertracker.domain.model.GlobalRole.USER, projectCount = 2,
+                                    createdAt = "2026-08-01T09:00:00", plan = Plan.SEMI_FLEX,
+                                    planSource = com.dmb.chantiertracker.domain.model.PlanSource.STRIPE, planExpiresAt = null,
+                                ),
+                                com.dmb.chantiertracker.domain.model.AdminUser(
+                                    id = 2, email = "amelie@chantier.dev", name = "Amélie Roy", active = false,
+                                    globalRole = com.dmb.chantiertracker.domain.model.GlobalRole.USER, projectCount = 0,
+                                    createdAt = "2026-08-15T09:00:00", plan = Plan.FREE,
+                                    planSource = null, planExpiresAt = null,
+                                ),
+                                com.dmb.chantiertracker.domain.model.AdminUser(
+                                    id = 3, email = "admin@chantier.dev", name = "Dan", active = true,
+                                    globalRole = com.dmb.chantiertracker.domain.model.GlobalRole.SUPER_ADMIN, projectCount = 0,
+                                    createdAt = "2026-07-01T09:00:00", plan = Plan.LIBERTE,
+                                    planSource = com.dmb.chantiertracker.domain.model.PlanSource.ADMIN_GRANTED,
+                                    planExpiresAt = "2026-12-31T23:59:59",
+                                ),
                             ),
                         ),
                     )

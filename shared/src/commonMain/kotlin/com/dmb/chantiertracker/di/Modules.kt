@@ -22,6 +22,7 @@ import com.dmb.chantiertracker.data.local.db.buildChantierDatabase
 import androidx.room.RoomDatabase
 import com.dmb.chantiertracker.data.remote.AccountApi
 import com.dmb.chantiertracker.data.remote.AttachmentApi
+import com.dmb.chantiertracker.data.remote.AdminApi
 import com.dmb.chantiertracker.data.remote.BillingApi
 import com.dmb.chantiertracker.data.remote.InvitationApi
 import com.dmb.chantiertracker.data.remote.AuthApi
@@ -43,6 +44,7 @@ import com.dmb.chantiertracker.data.sync.backgroundSyncModule
 import com.dmb.chantiertracker.presentation.sync.SyncStateHolder
 import com.dmb.chantiertracker.data.repository.AccountRepositoryImpl
 import com.dmb.chantiertracker.data.repository.AttachmentRepositoryImpl
+import com.dmb.chantiertracker.data.repository.AdminRepositoryImpl
 import com.dmb.chantiertracker.data.repository.BillingRepositoryImpl
 import com.dmb.chantiertracker.data.repository.InvitationRepositoryImpl
 import com.dmb.chantiertracker.data.repository.AuthRepositoryImpl
@@ -58,6 +60,7 @@ import com.dmb.chantiertracker.data.repository.StageRepositoryImpl
 import com.dmb.chantiertracker.domain.model.AuthState
 import com.dmb.chantiertracker.domain.repository.AccountRepository
 import com.dmb.chantiertracker.domain.repository.AttachmentRepository
+import com.dmb.chantiertracker.domain.repository.AdminRepository
 import com.dmb.chantiertracker.domain.repository.BillingRepository
 import com.dmb.chantiertracker.domain.repository.InvitationRepository
 import com.dmb.chantiertracker.domain.repository.AuthRepository
@@ -70,6 +73,7 @@ import com.dmb.chantiertracker.domain.repository.PurchaseLineRepository
 import com.dmb.chantiertracker.domain.repository.ExportRepository
 import com.dmb.chantiertracker.domain.repository.ReportRepository
 import com.dmb.chantiertracker.domain.repository.StageRepository
+import com.dmb.chantiertracker.presentation.admin.AdminUsersViewModel
 import com.dmb.chantiertracker.presentation.billing.BillingViewModel
 import com.dmb.chantiertracker.presentation.billing.AppScopeCheckoutLauncher
 import com.dmb.chantiertracker.presentation.billing.CheckoutDeepLinkDispatcher
@@ -138,6 +142,7 @@ val networkModule: Module = module {
     singleOf(::ReportApi)
     singleOf(::ExportApi)
     singleOf(::BillingApi)
+    singleOf(::AdminApi)
 }
 
 val syncModule: Module = module {
@@ -200,6 +205,7 @@ val dataModule: Module = module {
     single<ReportRepository> { ReportRepositoryImpl(get(), get(), get()) }
     single<ExportRepository> { ExportRepositoryImpl(get(), get(), get()) }
     single<BillingRepository> { BillingRepositoryImpl(get()) }
+    single<AdminRepository> { AdminRepositoryImpl(get()) }
 }
 
 val presentationModule: Module = module {
@@ -233,6 +239,7 @@ val presentationModule: Module = module {
     viewModelOf(::ConsumptionLineFormViewModel)
     viewModelOf(::SettingsViewModel)
     viewModelOf(::BillingViewModel)
+    viewModelOf(::AdminUsersViewModel)
 }
 
 fun appModules(): List<Module> = listOf(
