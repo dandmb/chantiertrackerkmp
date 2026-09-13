@@ -105,7 +105,7 @@ fun AuthScreenLayout(
                 contentAlignment = Alignment.Center,
             ) {
                 AnimatedVisibility(!keyboardVisible) {
-                    ConstructionIllustration(Modifier.fillMaxWidth(0.62f).widthIn(max = 260.dp))
+                    ConstructionIllustration(Modifier.widthIn(max = 260.dp).fillMaxWidth(0.62f))
                 }
             }
 
@@ -145,14 +145,14 @@ fun AuthScreenLayout(
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
                         Column(
-                            Modifier.fillMaxWidth().widthIn(max = 440.dp),
+                            Modifier.widthIn(max = 440.dp).fillMaxWidth(),
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.spacedBy(14.dp),
                         ) {
                             AuthTitleBlock(title, subtitle)
                         }
                         Box(
-                            Modifier.fillMaxWidth().widthIn(max = 440.dp).weight(1f),
+                            Modifier.widthIn(max = 440.dp).fillMaxWidth().weight(1f),
                             contentAlignment = Alignment.Center,
                         ) {
                             Column(
@@ -176,7 +176,7 @@ fun AuthScreenLayout(
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
                         Column(
-                            Modifier.fillMaxWidth().widthIn(max = 440.dp),
+                            Modifier.widthIn(max = 440.dp).fillMaxWidth(),
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.spacedBy(14.dp),
                         ) {

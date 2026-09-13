@@ -127,7 +127,7 @@ fun OnboardingScreenContent(pagerState: PagerState, loop: Float, onFinish: () ->
 fun OnboardingPage(page: Int, entrance: Float, loop: Float) {
     Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
         Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
-            val illustrationModifier = Modifier.fillMaxWidth(0.72f).widthIn(max = 300.dp)
+            val illustrationModifier = Modifier.widthIn(max = 300.dp).fillMaxWidth(0.72f)
             when (page) {
                 0 -> RemoteSiteIllustration(illustrationModifier, entrance, loop)
                 1 -> PhotoProofIllustration(illustrationModifier, entrance, loop)
