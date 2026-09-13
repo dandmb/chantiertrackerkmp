@@ -71,6 +71,7 @@ kotlin {
             implementation(libs.connectivity.core)
             implementation(libs.filekit.core)
             implementation(libs.filekit.dialogs.compose)
+            implementation(libs.koalaplot.core)
 
             implementation(libs.compose.runtime)
             implementation(libs.compose.foundation)

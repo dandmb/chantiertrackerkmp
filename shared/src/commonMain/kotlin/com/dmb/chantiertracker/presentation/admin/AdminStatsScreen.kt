@@ -6,11 +6,12 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -20,8 +21,10 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dmb.chantiertracker.domain.model.Granularity
@@ -29,10 +32,8 @@ import com.dmb.chantiertracker.domain.model.StatsPoint
 import com.dmb.chantiertracker.presentation.ClickableListRow
 import com.dmb.chantiertracker.presentation.DateField
 import com.dmb.chantiertracker.presentation.DetailEmptyHint
-import com.dmb.chantiertracker.presentation.DetailInfoRow
 import com.dmb.chantiertracker.presentation.DetailSection
 import com.dmb.chantiertracker.presentation.DetailSectionDivider
-import com.dmb.chantiertracker.presentation.formatIsoDate
 import com.dmb.chantiertracker.presentation.i18n.localizedText
 import com.dmb.chantiertracker.presentation.main.AccountIcon
 import com.dmb.chantiertracker.resources.Res
@@ -47,6 +48,15 @@ import com.dmb.chantiertracker.resources.admin_stats_to_label
 import com.dmb.chantiertracker.resources.admin_stats_users
 import com.dmb.chantiertracker.resources.admin_users_retry
 import com.dmb.chantiertracker.resources.date_field_placeholder
+import io.github.koalaplot.core.Symbol
+import io.github.koalaplot.core.line.CubicBezierLinePlot
+import io.github.koalaplot.core.style.LineStyle
+import io.github.koalaplot.core.util.ExperimentalKoalaPlotApi
+import io.github.koalaplot.core.xygraph.CategoryAxisModel
+import io.github.koalaplot.core.xygraph.DefaultPoint
+import io.github.koalaplot.core.xygraph.LongLinearAxisModel
+import io.github.koalaplot.core.xygraph.XYGraph
+import io.github.koalaplot.core.xygraph.rememberAxisContent
 import kotlinx.datetime.LocalDate
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
@@ -141,12 +151,12 @@ fun AdminStatsScreen(
                 DetailSectionDivider()
 
                 DetailSection(stringResource(Res.string.admin_stats_registrations)) {
-                    StatsPointList(stats.registrations)
+                    StatsLineChart(stats.registrations, granularity)
                 }
                 DetailSectionDivider()
 
                 DetailSection(stringResource(Res.string.admin_stats_projects_created)) {
-                    StatsPointList(stats.projectsCreated)
+                    StatsLineChart(stats.projectsCreated, granularity)
                 }
             }
         }
@@ -166,18 +176,49 @@ private fun StatCounter(label: String, value: Long) {
     }
 }
 
+// A smoothed time-series line chart, matching the web's TimeSeriesChart.tsx
+// (recharts LineChart, type="monotone") — ADR-52 sous-étape 4/4 originally
+// chose a plain list here deliberately, but the user later asked for parity
+// with the web's real chart (ADR-55). KoalaPlot 0.12.1, chosen and verified
+// against this project's exact Kotlin/Compose/AGP pins before adopting
+// (see docs/walkthrough/administration-plateforme.md §10).
+@OptIn(ExperimentalKoalaPlotApi::class)
 @Composable
-private fun StatsPointList(points: List<StatsPoint>) {
+private fun StatsLineChart(points: List<StatsPoint>, granularity: Granularity) {
     if (points.isEmpty()) {
         DetailEmptyHint(stringResource(Res.string.admin_stats_empty))
         return
     }
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        points.forEachIndexed { index, point ->
-            DetailInfoRow(formatIsoDate(point.bucket), point.count.toString())
-            if (index < points.lastIndex) {
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-            }
-        }
+    val lineColor = MaterialTheme.colorScheme.primary
+    val labels = points.map { formatStatsBucket(it.bucket, granularity) }
+    val data = points.mapIndexed { index, point -> DefaultPoint(labels[index], point.count) }
+    // count is never negative — a plain 0-based range keeps the line's shape
+    // meaningful (a flat low period reads as low, not as filling the whole
+    // graph height the way an auto-fit min could make it).
+    val maxCount = points.maxOf { it.count }.coerceAtLeast(1L)
+
+    XYGraph(
+        xAxisModel = CategoryAxisModel(labels),
+        yAxisModel = LongLinearAxisModel(0L..maxCount),
+        xAxisContent = rememberAxisContent(labels = { StatsAxisLabel(it) }),
+        yAxisContent = rememberAxisContent(labels = { StatsAxisLabel(it.toString()) }),
+        modifier = Modifier.fillMaxWidth().height(220.dp),
+    ) {
+        CubicBezierLinePlot(
+            data = data,
+            lineStyle = LineStyle(brush = SolidColor(lineColor), strokeWidth = 2.dp),
+            symbol = { Symbol(shape = CircleShape, fillBrush = SolidColor(lineColor), size = 6.dp) },
+        )
     }
+}
+
+@Composable
+private fun StatsAxisLabel(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+    )
 }
