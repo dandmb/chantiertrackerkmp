@@ -134,3 +134,31 @@ val ShareIcon: ImageVector = icon(
         "9.31 5.79,9 5,9c-1.66,0 -3,1.34 -3,3s1.34,3 3,3c0.79,0 1.5,-0.31 2.04,-0.81l7.12,4.16c-0.05,0.21 -0.08,0.43 " +
         "-0.08,0.65 0,1.61 1.31,2.92 2.92,2.92 1.61,0 2.92,-1.31 2.92,-2.92s-1.31,-2.92 -2.92,-2.92z",
 )
+
+// ADR-52 — the Administration bottom-nav tab (SUPER_ADMIN only).
+val AdminIcon: ImageVector = icon(
+    "Security",
+    "M12,1L3,5v6c0,5.55 3.84,10.74 9,12 5.16,-1.26 9,-6.45 9,-12V5L12,1z",
+)
+
+// ADR-52 sub-step 2/4 — per-row action menu on AdminUsersScreen.
+val MoreVertIcon: ImageVector = icon(
+    "MoreVert",
+    "M12,8c1.1,0 2,-0.9 2,-2s-0.9,-2 -2,-2 -2,0.9 -2,2 0.9,2 2,2zM12,10c-1.1,0 -2,0.9 -2,2s0.9,2 2,2 2,-0.9 2,-2 -0.9,-2 -2,-2zM12,16c-1.1,0 -2,0.9 -2,2s0.9,2 2,2 2,-0.9 2,-2 -0.9,-2 -2,-2z",
+)
+
+val KeyIcon: ImageVector = icon(
+    "VpnKey",
+    "M12.65,10C11.83,7.67 9.61,6 7,6c-3.31,0 -6,2.69 -6,6s2.69,6 6,6c2.61,0 4.83,-1.67 5.65,-4H17v4h4v-4h2v-4H12.65zM7,14c-1.1,0 -2,-0.9 -2,-2s0.9,-2 2,-2 2,0.9 2,2 -0.9,2 -2,2z",
+)
+
+val SendIcon: ImageVector = icon(
+    "Send",
+    "M2.01,21L23,12 2.01,3 2,10l15,2 -15,2z",
+)
+
+// ADR-52 sub-step 3/4 — "Modifier le plan" menu item.
+val CreditCardIcon: ImageVector = icon(
+    "CreditCard",
+    "M20,4L4,4c-1.11,0 -1.99,0.89 -1.99,2L2,18c0,1.11 0.89,2 2,2h16c1.11,0 2,-0.89 2,-2L22,6c0,-1.11 -0.89,-2 -2,-2zM20,18L4,18L4,12h16v6zM20,8L4,8L4,6h16v2z",
+)

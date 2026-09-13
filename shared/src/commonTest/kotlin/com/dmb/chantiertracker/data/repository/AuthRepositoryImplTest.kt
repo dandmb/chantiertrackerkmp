@@ -183,4 +183,69 @@ class AuthRepositoryImplTest {
         f.repo.bootstrap()
         assertIs<AuthState.Authenticated>(f.holder.state.value)
     }
+
+    @Test
+    fun login_with_must_change_password_sets_that_state_not_authenticated() = runTest {
+        val f = Fixture {
+            when (it.url.encodedPath) {
+                "/api/v1/auth/login" -> respondJson(TOKENS_JSON)
+                "/api/v1/users/me" ->
+                    respondProblem(HttpStatusCode.Forbidden, "Vous devez changer votre mot de passe avant de continuer.")
+                else -> error("unexpected ${it.url}")
+            }
+        }
+        f.repo.login("jean@chantier.dev", "Temp1234!Pass")
+        assertEquals(AuthState.MustChangePassword("jean@chantier.dev"), f.holder.state.value)
+        // The tokens the block just issued must be kept — /auth/change-password
+        // needs them, they are not invalid, just restricted.
+        assertEquals(AuthTokens("access-1", "refresh-1"), f.storage.tokens)
+    }
+
+    @Test
+    fun bootstrap_with_must_change_password_decodes_the_email_from_the_stored_token() = runTest {
+        // header {"alg":"HS256","typ":"JWT"}, payload {"sub":"admin@chantier.dev"}
+        val token = "eyJhbGciOiAiSFMyNTYiLCAidHlwIjogIkpXVCJ9." +
+            "eyJzdWIiOiAiYWRtaW5AY2hhbnRpZXIuZGV2In0.sig"
+        val f = Fixture(storage = FakeTokenStorage(AuthTokens(token, "r"))) {
+            respondProblem(HttpStatusCode.Forbidden, "Vous devez changer votre mot de passe avant de continuer.")
+        }
+        f.repo.bootstrap()
+        assertEquals(AuthState.MustChangePassword("admin@chantier.dev"), f.holder.state.value)
+        // The token is still valid server-side (the filter runs on an already
+        // -authenticated principal) — never clear it here, that would strand
+        // the account: /auth/change-password is the only way out.
+        assertEquals(AuthTokens(token, "r"), f.storage.tokens)
+    }
+
+    @Test
+    fun bootstrap_with_must_change_password_and_an_undecodable_token_falls_back_to_unauthenticated() = runTest {
+        val f = Fixture(storage = FakeTokenStorage(AuthTokens("not-a-real-jwt", "r"))) {
+            respondProblem(HttpStatusCode.Forbidden, "Vous devez changer votre mot de passe avant de continuer.")
+        }
+        f.repo.bootstrap()
+        assertEquals(AuthState.Unauthenticated, f.holder.state.value)
+        assertNull(f.storage.tokens)
+    }
+
+    @Test
+    fun change_password_posts_both_passwords() = runTest {
+        val f = Fixture {
+            assertEquals("/api/v1/auth/change-password", it.url.encodedPath)
+            val body = it.body.toByteArray().decodeToString()
+            assertTrue("oldPass1234!" in body && "NewPass1234!" in body)
+            respondJson("", HttpStatusCode.NoContent)
+        }
+        f.repo.changePassword("oldPass1234!", "NewPass1234!")
+    }
+
+    @Test
+    fun change_password_maps_400_to_invalid_current_password_not_invalid_code() = runTest {
+        // InvalidCurrentPasswordException is a 400 with no field errors —
+        // apiCall's generic mapping would otherwise call this "invalid or
+        // expired code", nonsensical for a wrong current password.
+        val f = Fixture { respondProblem(HttpStatusCode.BadRequest, "Le mot de passe actuel est incorrect.") }
+        assertFailsWith<DomainException.InvalidCurrentPassword> {
+            f.repo.changePassword("wrong", "NewPass1234!")
+        }
+    }
 }

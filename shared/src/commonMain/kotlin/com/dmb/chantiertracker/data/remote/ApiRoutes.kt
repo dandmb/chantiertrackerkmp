@@ -9,11 +9,14 @@ object ApiRoutes {
     const val AUTH_LOGOUT = "auth/logout"
     const val AUTH_FORGOT_PASSWORD = "auth/forgot-password"
     const val AUTH_RESET_PASSWORD = "auth/reset-password"
+    const val AUTH_CHANGE_PASSWORD = "auth/change-password"
     const val USERS_ME = "users/me"
     const val USERS_ME_PLAN_USAGE = "users/me/plan-usage"
     const val USERS_ME_INVITATIONS = "users/me/invitations"
     const val BILLING_CHECKOUT = "billing/checkout"
     const val BILLING_PORTAL = "billing/portal"
+    const val ADMIN_USERS = "admin/users"
+    const val ADMIN_STATS = "admin/stats"
     const val PROJECTS = "projects"
 
     fun project(id: Long) = "projects/$id"
@@ -48,4 +51,9 @@ object ApiRoutes {
     fun reportProcess(id: Long) = "reports/$id/process"
 
     fun projectExportPdf(id: Long) = "projects/$id/export/pdf"
+
+    fun adminUser(id: Long) = "admin/users/$id"
+    fun adminUserResetPassword(id: Long) = "admin/users/$id/reset-password"
+    fun adminUserResendActivation(id: Long) = "admin/users/$id/resend-activation"
+    fun adminUserPlan(id: Long) = "admin/users/$id/plan"
 }

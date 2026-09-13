@@ -10,6 +10,18 @@ sealed class DomainException : Exception() {
     data object EmailAlreadyUsed : DomainException()
     data object AccountNotVerified : DomainException()
     data object AccountLocked : DomainException()
+    // Cross-cutting, any endpoint could return it (a security filter, not a
+    // specific business rule) — mapped globally in ApiError.kt, same posture
+    // as AccountLocked/AccountNotVerified. Caught internally by
+    // AuthRepositoryImpl (login/bootstrap) to drive AuthState.MustChangePassword,
+    // never actually shown to the user as an error banner.
+    data object MustChangePassword : DomainException()
+    // Specific to POST /auth/change-password — the generic 400-without-field-
+    // errors mapping (InvalidCode) would say "invalid or expired code",
+    // nonsensical for a wrong current password. Remapped locally in
+    // AuthRepositoryImpl.changePassword, same posture as other local remaps
+    // (BillingRepositoryImpl, AdminRepositoryImpl).
+    data object InvalidCurrentPassword : DomainException()
     data object InvalidCode : DomainException()
     data object Validation : DomainException()
     data object RateLimited : DomainException()

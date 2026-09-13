@@ -89,6 +89,20 @@ enum class BillingNotice {
 @Serializable
 data class BillingRoute(val notice: String? = null)
 
+// ADR-52 sous-étape 4/4 — the Administration tab's landing destination,
+// revisited from sub-step 1/4's placeholder (AdminUsersRoute) now that
+// statistics give the tab a real dashboard choice — dashboard-first, mirrors
+// the real web's own /admin root. AdminUsersRoute is reached from here,
+// no longer the tab root itself.
+@Serializable
+data object AdminStatsRoute
+
+@Serializable
+data object AdminUsersRoute
+
+@Serializable
+data object AdminCreateUserRoute
+
 @Serializable
 data object CreateProjectRoute
 

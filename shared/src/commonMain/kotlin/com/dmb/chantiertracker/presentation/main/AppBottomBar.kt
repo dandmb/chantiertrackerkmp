@@ -10,9 +10,11 @@ import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.vector.ImageVector
+import com.dmb.chantiertracker.presentation.navigation.AdminStatsRoute
 import com.dmb.chantiertracker.presentation.navigation.ProjectsRoute
 import com.dmb.chantiertracker.presentation.navigation.SettingsRoute
 import com.dmb.chantiertracker.resources.Res
+import com.dmb.chantiertracker.resources.nav_administration
 import com.dmb.chantiertracker.resources.nav_projects
 import com.dmb.chantiertracker.resources.nav_settings
 import org.jetbrains.compose.resources.StringResource
@@ -20,20 +22,25 @@ import org.jetbrains.compose.resources.stringResource
 
 enum class MainTab(val icon: ImageVector, val label: StringResource) {
     Projects(ProjectsIcon, Res.string.nav_projects),
+    // ADR-52 — never shown alongside Projects: a SUPER_ADMIN account
+    // replaces it (see MainScreen.tabsFor), never adds a 3rd tab next to a
+    // Projects tab it could never use.
+    Administration(AdminIcon, Res.string.nav_administration),
     Settings(SettingsIcon, Res.string.nav_settings),
 }
 
 fun MainTab.route(): Any = when (this) {
     MainTab.Projects -> ProjectsRoute
+    MainTab.Administration -> AdminStatsRoute
     MainTab.Settings -> SettingsRoute
 }
 
 @Composable
-fun AppBottomBar(current: MainTab, onSelect: (MainTab) -> Unit) {
+fun AppBottomBar(current: MainTab, tabs: List<MainTab>, onSelect: (MainTab) -> Unit) {
     Column {
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
-            MainTab.entries.forEach { tab ->
+            tabs.forEach { tab ->
                 NavigationBarItem(
                     selected = tab == current,
                     onClick = { onSelect(tab) },

@@ -173,10 +173,24 @@ class MainScreensSnapshotTest {
                         if (tab == MainTab.Projects) {
                             ProjectSortControl(current = ProjectSort.NEWEST_FIRST, onSelect = {})
                         }
+                        // ADR-52 sous-étape 4/4 — the Administration tab now
+                        // lands on stats, mirroring MainScreen's real wiring.
+                        if (tab == MainTab.Administration) {
+                            com.dmb.chantiertracker.presentation.admin.AdminStatsGranularityControl(
+                                current = com.dmb.chantiertracker.domain.model.Granularity.MONTH, onSelect = {},
+                            )
+                        }
                     },
                 )
             },
-            bottomBar = { AppBottomBar(current = tab, onSelect = {}) },
+            bottomBar = {
+                val tabs = if (tab == MainTab.Administration) {
+                    listOf(MainTab.Administration, MainTab.Settings)
+                } else {
+                    listOf(MainTab.Projects, MainTab.Settings)
+                }
+                AppBottomBar(current = tab, tabs = tabs, onSelect = {})
+            },
             floatingActionButton = {
                 if (tab == MainTab.Projects) {
                     FloatingActionButton(onClick = {}) { Icon(AddIcon, contentDescription = null) }
@@ -186,9 +200,14 @@ class MainScreensSnapshotTest {
     }
 
     @Composable
-    private fun DetailChrome(title: String, screen: @Composable (Modifier) -> Unit) {
+    private fun DetailChrome(
+        title: String,
+        floatingActionButton: @Composable () -> Unit = {},
+        screen: @Composable (Modifier) -> Unit,
+    ) {
         Scaffold(
             topBar = { DetailTopBar(title = title, onBack = {}) },
+            floatingActionButton = floatingActionButton,
         ) { padding -> screen(Modifier.padding(padding)) }
     }
 
@@ -597,6 +616,50 @@ class MainScreensSnapshotTest {
             com.dmb.chantiertracker.support.FakeUrlOpener(),
         )
 
+    private fun adminStatsVm(): com.dmb.chantiertracker.presentation.admin.AdminStatsViewModel {
+        val repo = com.dmb.chantiertracker.support.FakeAdminRepository().apply {
+            statsResult = com.dmb.chantiertracker.domain.model.AdminStats(
+                totalUsers = 128,
+                totalProjects = 47,
+                registrations = listOf(
+                    com.dmb.chantiertracker.domain.model.StatsPoint("2026-07-01", 12),
+                    com.dmb.chantiertracker.domain.model.StatsPoint("2026-08-01", 20),
+                    com.dmb.chantiertracker.domain.model.StatsPoint("2026-09-01", 8),
+                ),
+                projectsCreated = listOf(
+                    com.dmb.chantiertracker.domain.model.StatsPoint("2026-07-01", 5),
+                    com.dmb.chantiertracker.domain.model.StatsPoint("2026-08-01", 9),
+                    com.dmb.chantiertracker.domain.model.StatsPoint("2026-09-01", 3),
+                ),
+            )
+        }
+        return com.dmb.chantiertracker.presentation.admin.AdminStatsViewModel(repo)
+    }
+
+    private fun adminUsersVm(
+        users: List<com.dmb.chantiertracker.domain.model.AdminUser>,
+        currentUserId: Long = 3,
+        totalPages: Int = 1,
+    ): com.dmb.chantiertracker.presentation.admin.AdminUsersViewModel =
+        com.dmb.chantiertracker.presentation.admin.AdminUsersViewModel(
+            com.dmb.chantiertracker.support.FakeAdminRepository(
+                listOf(
+                    com.dmb.chantiertracker.domain.model.AdminUserPage(
+                        items = users, page = 0, totalPages = totalPages, isFirst = true, isLast = totalPages <= 1,
+                        totalElements = users.size,
+                    ),
+                ),
+            ),
+            FakeAuthRepository().apply {
+                emitState(
+                    AuthState.Authenticated(User(currentUserId, "admin@chantier.dev", "Dan", true, GlobalRole.SUPER_ADMIN)),
+                )
+            },
+        ).also { it.load() }
+
+    private fun adminCreateUserVm(): com.dmb.chantiertracker.presentation.admin.AdminCreateUserViewModel =
+        com.dmb.chantiertracker.presentation.admin.AdminCreateUserViewModel(com.dmb.chantiertracker.support.FakeAdminRepository())
+
     @Test
     fun capture_main_screens_in_french_and_english() {
         for (locale in listOf("fr", "en")) {
@@ -822,6 +885,96 @@ class MainScreensSnapshotTest {
                     )
                 }
             }
+            snapshot("48-admin-stats", locale) {
+                Chrome(MainTab.Administration) { m ->
+                    com.dmb.chantiertracker.presentation.admin.AdminStatsScreen(
+                        granularity = com.dmb.chantiertracker.domain.model.Granularity.MONTH,
+                        onManageUsers = {},
+                        modifier = m,
+                        viewModel = adminStatsVm(),
+                    )
+                }
+            }
+            snapshot("41-admin-users", locale) {
+                DetailChrome(
+                    title = if (locale == "fr") "Utilisateurs" else "Users",
+                    floatingActionButton = {
+                        FloatingActionButton(onClick = {}) { Icon(AddIcon, contentDescription = null) }
+                    },
+                ) { m ->
+                    com.dmb.chantiertracker.presentation.admin.AdminUsersScreen(
+                        modifier = m,
+                        viewModel = adminUsersVm(
+                            listOf(
+                                com.dmb.chantiertracker.domain.model.AdminUser(
+                                    id = 1, email = "jean@chantier.dev", name = "Jean Marchand", active = true,
+                                    globalRole = com.dmb.chantiertracker.domain.model.GlobalRole.USER, projectCount = 2,
+                                    createdAt = "2026-08-01T09:00:00", plan = Plan.SEMI_FLEX,
+                                    planSource = com.dmb.chantiertracker.domain.model.PlanSource.STRIPE, planExpiresAt = null,
+                                ),
+                                com.dmb.chantiertracker.domain.model.AdminUser(
+                                    id = 2, email = "amelie@chantier.dev", name = "Amélie Roy", active = false,
+                                    globalRole = com.dmb.chantiertracker.domain.model.GlobalRole.USER, projectCount = 0,
+                                    createdAt = "2026-08-15T09:00:00", plan = Plan.FREE,
+                                    planSource = null, planExpiresAt = null,
+                                ),
+                                com.dmb.chantiertracker.domain.model.AdminUser(
+                                    id = 3, email = "admin@chantier.dev", name = "Dan", active = true,
+                                    globalRole = com.dmb.chantiertracker.domain.model.GlobalRole.SUPER_ADMIN, projectCount = 0,
+                                    createdAt = "2026-07-01T09:00:00", plan = Plan.LIBERTE,
+                                    planSource = com.dmb.chantiertracker.domain.model.PlanSource.ADMIN_GRANTED,
+                                    planExpiresAt = "2026-12-31T23:59:59",
+                                ),
+                            ),
+                        ),
+                    )
+                }
+            }
+            // ADR-54 point 5/5: 41-admin-users above never showed pagination
+            // (totalPages = 1) — the exact state where the FAB used to sit
+            // directly over the "Next" button, since Scaffold floats it
+            // instead of reserving room for it in the padding it hands down.
+            // This one turns pagination on, with the real FAB alongside it
+            // (DetailChrome mirrors MainScreen's own Scaffold exactly).
+            snapshot("55-admin-users-pagination-fab", locale) {
+                DetailChrome(
+                    title = if (locale == "fr") "Utilisateurs" else "Users",
+                    floatingActionButton = {
+                        FloatingActionButton(onClick = {}) { Icon(AddIcon, contentDescription = null) }
+                    },
+                ) { m ->
+                    com.dmb.chantiertracker.presentation.admin.AdminUsersScreen(
+                        modifier = m,
+                        viewModel = adminUsersVm(
+                            listOf(
+                                com.dmb.chantiertracker.domain.model.AdminUser(
+                                    id = 1, email = "jean@chantier.dev", name = "Jean Marchand", active = true,
+                                    globalRole = com.dmb.chantiertracker.domain.model.GlobalRole.USER, projectCount = 2,
+                                    createdAt = "2026-08-01T09:00:00", plan = Plan.SEMI_FLEX,
+                                    planSource = com.dmb.chantiertracker.domain.model.PlanSource.STRIPE, planExpiresAt = null,
+                                ),
+                                com.dmb.chantiertracker.domain.model.AdminUser(
+                                    id = 2, email = "amelie@chantier.dev", name = "Amélie Roy", active = false,
+                                    globalRole = com.dmb.chantiertracker.domain.model.GlobalRole.USER, projectCount = 0,
+                                    createdAt = "2026-08-15T09:00:00", plan = Plan.FREE,
+                                    planSource = null, planExpiresAt = null,
+                                ),
+                            ),
+                            totalPages = 3,
+                        ),
+                    )
+                }
+            }
+            snapshot("42-admin-create-user", locale) {
+                DetailChrome(
+                    title = if (locale == "fr") "Créer un utilisateur" else "Create user",
+                ) { m -> com.dmb.chantiertracker.presentation.admin.AdminCreateUserScreen(onCreated = {}, modifier = m, viewModel = adminCreateUserVm()) }
+            }
+            dialogSnapshot("43-admin-delete-user-dialog", locale) {
+                com.dmb.chantiertracker.presentation.admin.DeleteAdminUserDialog(
+                    email = "amelie@chantier.dev", onDismiss = {}, onConfirm = {},
+                )
+            }
         }
         for (locale in listOf("fr", "en")) {
             snapshot("15-account-menu", locale) {
@@ -839,6 +992,105 @@ class MainScreensSnapshotTest {
                 MenuSurface {
                     ProjectSortMenuItems(current = ProjectSort.NEWEST_FIRST, onSelect = {})
                 }
+            }
+            snapshot("44-admin-user-actions-menu", locale) {
+                MenuSurface {
+                    com.dmb.chantiertracker.presentation.admin.AdminUserActionMenuItems(
+                        isSelf = false, showResendActivation = true, showAssignPlan = true,
+                        onRename = {}, onResetPassword = {}, onResendActivation = {}, onAssignPlan = {}, onDelete = {},
+                    )
+                }
+            }
+            snapshot("45-admin-user-actions-menu-self", locale) {
+                MenuSurface {
+                    com.dmb.chantiertracker.presentation.admin.AdminUserActionMenuItems(
+                        isSelf = true, showResendActivation = false, showAssignPlan = false,
+                        onRename = {}, onResetPassword = {}, onResendActivation = {}, onAssignPlan = {}, onDelete = {},
+                    )
+                }
+            }
+            dialogSnapshot("46-admin-assign-plan-dialog", locale) {
+                com.dmb.chantiertracker.presentation.admin.AssignPlanDialog(
+                    user = com.dmb.chantiertracker.domain.model.AdminUser(
+                        id = 2, email = "amelie@chantier.dev", name = "Amélie Roy", active = true,
+                        globalRole = GlobalRole.USER, projectCount = 1, createdAt = "2026-08-15T09:00:00",
+                        plan = Plan.FREE, planSource = null, planExpiresAt = null,
+                    ),
+                    onDismiss = {}, onConfirm = { _, _ -> },
+                )
+            }
+            dialogSnapshot("47-admin-assign-plan-dialog-stripe-guard", locale) {
+                com.dmb.chantiertracker.presentation.admin.AssignPlanDialog(
+                    user = com.dmb.chantiertracker.domain.model.AdminUser(
+                        id = 1, email = "jean@chantier.dev", name = "Jean Marchand", active = true,
+                        globalRole = GlobalRole.USER, projectCount = 2, createdAt = "2026-08-01T09:00:00",
+                        plan = Plan.SEMI_FLEX,
+                        planSource = com.dmb.chantiertracker.domain.model.PlanSource.STRIPE, planExpiresAt = null,
+                    ),
+                    onDismiss = {}, onConfirm = { _, _ -> },
+                )
+            }
+            dialogSnapshot("49-confirm-delete-purchase-line-dialog", locale) {
+                ConfirmActionDialog(
+                    title = if (locale == "fr") "Supprimer cet article ?" else "Delete this item?",
+                    body = if (locale == "fr") {
+                        "Ciment sera définitivement retiré de cet achat."
+                    } else {
+                        "Ciment will be permanently removed from this purchase."
+                    },
+                    confirmLabel = if (locale == "fr") "Supprimer" else "Delete",
+                    onDismiss = {}, onConfirm = {},
+                )
+            }
+            dialogSnapshot("53-confirm-delete-consumption-line-dialog", locale) {
+                ConfirmActionDialog(
+                    title = if (locale == "fr") "Supprimer ce matériau ?" else "Delete this material?",
+                    body = if (locale == "fr") {
+                        "Sable sera définitivement retiré de cette consommation."
+                    } else {
+                        "Sable will be permanently removed from this consumption."
+                    },
+                    confirmLabel = if (locale == "fr") "Supprimer" else "Delete",
+                    onDismiss = {}, onConfirm = {},
+                )
+            }
+            dialogSnapshot("50-confirm-delete-attachment-dialog", locale) {
+                ConfirmActionDialog(
+                    title = if (locale == "fr") "Supprimer ce justificatif ?" else "Delete this attachment?",
+                    body = if (locale == "fr") {
+                        "Ce fichier sera définitivement supprimé."
+                    } else {
+                        "This file will be permanently deleted."
+                    },
+                    confirmLabel = if (locale == "fr") "Supprimer la photo" else "Delete photo",
+                    onDismiss = {}, onConfirm = {},
+                )
+            }
+            dialogSnapshot("51-confirm-decline-invitation-dialog", locale) {
+                ConfirmActionDialog(
+                    title = if (locale == "fr") "Refuser cette invitation ?" else "Decline this invitation?",
+                    body = if (locale == "fr") {
+                        "Tu ne rejoindras pas Villa Vidal. Il faudra une nouvelle invitation pour rejoindre le projet plus tard."
+                    } else {
+                        "You won't join Villa Vidal. You'd need a new invitation to join later."
+                    },
+                    confirmLabel = if (locale == "fr") "Refuser" else "Decline",
+                    destructive = false,
+                    onDismiss = {}, onConfirm = {},
+                )
+            }
+            dialogSnapshot("52-confirm-cancel-invitation-dialog", locale) {
+                ConfirmActionDialog(
+                    title = if (locale == "fr") "Annuler cette invitation ?" else "Cancel this invitation?",
+                    body = if (locale == "fr") {
+                        "amelie@chantier.dev ne pourra plus rejoindre le projet avec ce lien. Tu pourras l'inviter à nouveau plus tard."
+                    } else {
+                        "amelie@chantier.dev will no longer be able to join with this link. You can invite them again later."
+                    },
+                    confirmLabel = if (locale == "fr") "Annuler l'invitation" else "Cancel invitation",
+                    destructive = false,
+                    onDismiss = {}, onConfirm = {},
+                )
             }
         }
     }

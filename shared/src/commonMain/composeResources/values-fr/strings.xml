@@ -16,6 +16,7 @@
     <string name="field_email_label">Email</string>
     <string name="field_name_label">Nom</string>
     <string name="field_password_label">Mot de passe</string>
+    <string name="field_current_password_label">Mot de passe actuel</string>
     <string name="field_new_password_label">Nouveau mot de passe</string>
     <string name="field_code_label">Code de vérification</string>
     <string name="password_show">Afficher le mot de passe</string>
@@ -80,8 +81,14 @@
     <string name="reset_submit">Réinitialiser</string>
     <string name="reset_back_to_login">Retour à la connexion</string>
 
+    <string name="change_password_title">Changement de mot de passe requis</string>
+    <string name="change_password_subtitle">Pour des raisons de sécurité, vous devez définir un nouveau mot de passe avant de continuer.</string>
+    <string name="change_password_submit">Changer mon mot de passe</string>
+    <string name="change_password_logout">Se déconnecter</string>
+
     <string name="nav_projects">Projets</string>
     <string name="nav_settings">Paramètres</string>
+    <string name="nav_administration">Administration</string>
 
     <string name="menu_open">Menu du compte</string>
     <string name="menu_subscription">Mon abonnement</string>
@@ -131,6 +138,9 @@
     <string name="detail_invitations_empty">Aucune invitation en attente.</string>
     <string name="detail_invitation_sent_on">Envoyée le %1$s</string>
     <string name="detail_invitation_cancel">Annuler</string>
+    <string name="detail_invitation_cancel_confirm_title">Annuler cette invitation ?</string>
+    <string name="detail_invitation_cancel_confirm_body">%1$s ne pourra plus rejoindre le projet avec ce lien. Tu pourras l'inviter à nouveau plus tard.</string>
+    <string name="detail_invitation_cancel_confirm_button">Annuler l'invitation</string>
     <string name="detail_invite_member">Inviter un superviseur</string>
     <string name="role_admin">Admin</string>
     <string name="role_supervisor">Superviseur</string>
@@ -145,6 +155,8 @@
     <string name="incoming_invitation_body_with_inviter">Tu as une invitation en attente pour rejoindre %1$s en tant que %2$s, envoyée par %3$s.</string>
     <string name="incoming_invitation_accept">Accepter</string>
     <string name="incoming_invitation_decline">Refuser</string>
+    <string name="incoming_invitation_decline_confirm_title">Refuser cette invitation ?</string>
+    <string name="incoming_invitation_decline_confirm_body">Tu ne rejoindras pas %1$s. Il faudra une nouvelle invitation pour rejoindre le projet plus tard.</string>
 
     <string name="detail_history">Historique des modifications</string>
     <string name="detail_history_hint">Qui a changé quoi, et quand</string>
@@ -300,12 +312,16 @@
     <string name="purchase_lines_empty">Aucun article pour l'instant.</string>
     <string name="purchase_line_add_title">Ajouter un article</string>
     <string name="purchase_line_edit_title">Modifier l'article</string>
+    <string name="purchase_line_delete_confirm_title">Supprimer cet article ?</string>
+    <string name="purchase_line_delete_confirm_body">%1$s sera définitivement retiré de cet achat.</string>
 
     <string name="consumption_lines_title">Matériaux consommés</string>
     <string name="consumption_line_add">Ajouter un matériau consommé</string>
     <string name="consumption_lines_empty">Aucun matériau consommé pour l'instant.</string>
     <string name="consumption_line_add_title">Ajouter un matériau consommé</string>
     <string name="consumption_line_edit_title">Modifier le matériau consommé</string>
+    <string name="consumption_line_delete_confirm_title">Supprimer ce matériau ?</string>
+    <string name="consumption_line_delete_confirm_body">%1$s sera définitivement retiré de cette consommation.</string>
 
     <string name="attachments_title">Justificatifs</string>
     <string name="attachment_add">Ajouter une photo</string>
@@ -315,6 +331,8 @@
     <string name="attachment_close">Fermer</string>
     <string name="attachment_add_video">Ajouter une vidéo</string>
     <string name="attachment_video_delete">Supprimer la vidéo</string>
+    <string name="attachment_delete_confirm_title">Supprimer ce justificatif ?</string>
+    <string name="attachment_delete_confirm_body">Ce fichier sera définitivement supprimé.</string>
     <string name="video_upload_in_progress">Envoi de la vidéo…</string>
     <string name="attachment_finalizing">Finalisation…</string>
     <string name="attachments_loading">Chargement des justificatifs…</string>
@@ -378,6 +396,7 @@
     <string name="error_email_already_used">Cette adresse email est déjà utilisée.</string>
     <string name="error_account_not_verified">Votre compte n'est pas encore activé. Vérifiez votre email.</string>
     <string name="error_account_locked">Compte bloqué après trop de tentatives. Réessayez plus tard.</string>
+    <string name="error_invalid_current_password">Le mot de passe actuel est incorrect.</string>
     <string name="error_invalid_code">Ce code est invalide ou a expiré.</string>
     <string name="error_validation">Vérifiez les informations saisies.</string>
     <string name="error_rate_limited">Trop de tentatives. Réessayez dans quelques minutes.</string>
@@ -386,4 +405,66 @@
     <string name="error_not_found">Ce projet n'existe plus, ou vous n'y avez pas accès.</string>
     <string name="error_network">Connexion au serveur impossible. Vérifiez votre connexion.</string>
     <string name="error_unexpected">Une erreur est survenue. Réessayez.</string>
+
+    <string name="admin_users_empty">Aucun utilisateur pour l'instant.</string>
+    <string name="admin_users_retry">Réessayer</string>
+    <string name="admin_users_status_active">Actif</string>
+    <string name="admin_users_status_inactive">Inactif</string>
+    <string name="admin_users_role_super_admin">Super-admin</string>
+    <string name="admin_users_role_user">Utilisateur</string>
+    <string name="admin_users_plan_source_stripe">Payé (Stripe)</string>
+    <string name="admin_users_plan_source_admin_granted">Offert (admin)</string>
+    <string name="admin_users_projects_count">%1$d projets</string>
+    <string name="admin_users_created_at">Créé le %1$s</string>
+    <string name="admin_users_plan_expires">Expire le %1$s</string>
+    <string name="admin_users_page">Page %1$d / %2$d</string>
+    <string name="admin_users_prev">Précédent</string>
+    <string name="admin_users_next">Suivant</string>
+    <string name="admin_users_create">Ajouter un utilisateur</string>
+    <string name="admin_users_actions">Actions</string>
+    <string name="admin_users_action_rename">Modifier le nom</string>
+    <string name="admin_users_action_reset_password">Réinitialiser le mot de passe</string>
+    <string name="admin_users_action_resend_activation">Renvoyer l'activation</string>
+    <string name="admin_users_action_delete">Supprimer</string>
+    <string name="admin_users_rename_title">Modifier le nom</string>
+    <string name="admin_users_reset_password_title">Réinitialiser le mot de passe</string>
+    <string name="admin_users_reset_password_body">Un lien de réinitialisation sera envoyé à %1$s. Continuer ?</string>
+    <string name="admin_users_reset_password_sent">Lien de réinitialisation envoyé à %1$s.</string>
+    <string name="admin_users_resend_activation_title">Renvoyer l'activation</string>
+    <string name="admin_users_resend_activation_body">Un nouvel email d'activation sera envoyé à %1$s. Continuer ?</string>
+    <string name="admin_users_activation_resent">Email d'activation renvoyé à %1$s.</string>
+    <string name="admin_users_delete_title">Supprimer %1$s ?</string>
+    <string name="admin_users_delete_warning">Cette action supprime définitivement le compte et tous les projets qu'il possède. Cette action est irréversible.</string>
+    <string name="admin_users_delete_confirm_prompt">Tapez %1$s pour confirmer.</string>
+    <string name="admin_users_delete_confirm_button">Supprimer définitivement</string>
+    <string name="admin_create_user_title">Créer un utilisateur</string>
+    <string name="admin_create_user_password_help">Cet utilisateur devra changer ce mot de passe lors de sa première connexion.</string>
+    <string name="admin_create_user_role_label">Rôle</string>
+    <string name="admin_create_user_submit">Créer</string>
+    <string name="admin_users_action_assign_plan">Modifier le plan</string>
+    <string name="admin_plan_dialog_title">Modifier le plan de %1$s</string>
+    <string name="admin_plan_stripe_guard">Cet utilisateur a un abonnement Stripe actif. Annulez-le d'abord via le portail de facturation avant de modifier son plan manuellement.</string>
+    <string name="admin_plan_expires_label">Date d'expiration (optionnel)</string>
+    <string name="admin_plan_expires_help">Laisser vide pour un accès indéfini.</string>
+    <string name="admin_plan_expires_help_free">Non applicable au plan gratuit.</string>
+    <string name="admin_plan_confirm">Confirmer</string>
+    <string name="admin_plan_change_free">Le plan de %1$s passera à Gratuit.</string>
+    <string name="admin_plan_change_with_date">Le plan de %1$s passera à %2$s, jusqu'au %3$s.</string>
+    <string name="admin_plan_change_indefinite">Le plan de %1$s passera à %2$s, sans date d'expiration (accès indéfini jusqu'à révocation manuelle).</string>
+    <string name="admin_users_title">Utilisateurs</string>
+    <string name="admin_stats_manage_users">Gérer les utilisateurs</string>
+    <string name="admin_stats_from_label">Du</string>
+    <string name="admin_stats_to_label">Au</string>
+    <string name="admin_stats_date_range_future">La date de fin ne peut pas être postérieure à aujourd'hui.</string>
+    <string name="admin_stats_date_range_order">La date de début ne peut pas être postérieure à la date de fin.</string>
+    <string name="admin_stats_overview">Vue d'ensemble</string>
+    <string name="admin_stats_users">Utilisateurs</string>
+    <string name="admin_stats_projects">Projets</string>
+    <string name="admin_stats_registrations">Nouveaux comptes</string>
+    <string name="admin_stats_projects_created">Nouveaux projets</string>
+    <string name="admin_stats_empty">Aucune donnée pour cette période.</string>
+    <string name="admin_stats_granularity_label">Granularité</string>
+    <string name="admin_stats_granularity_day">Jour</string>
+    <string name="admin_stats_granularity_month">Mois</string>
+    <string name="admin_stats_granularity_year">Année</string>
 </resources>
