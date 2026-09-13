@@ -140,3 +140,19 @@ val AdminIcon: ImageVector = icon(
     "Security",
     "M12,1L3,5v6c0,5.55 3.84,10.74 9,12 5.16,-1.26 9,-6.45 9,-12V5L12,1z",
 )
+
+// ADR-52 sub-step 2/4 — per-row action menu on AdminUsersScreen.
+val MoreVertIcon: ImageVector = icon(
+    "MoreVert",
+    "M12,8c1.1,0 2,-0.9 2,-2s-0.9,-2 -2,-2 -2,0.9 -2,2 0.9,2 2,2zM12,10c-1.1,0 -2,0.9 -2,2s0.9,2 2,2 2,-0.9 2,-2 -0.9,-2 -2,-2zM12,16c-1.1,0 -2,0.9 -2,2s0.9,2 2,2 2,-0.9 2,-2 -0.9,-2 -2,-2z",
+)
+
+val KeyIcon: ImageVector = icon(
+    "VpnKey",
+    "M12.65,10C11.83,7.67 9.61,6 7,6c-3.31,0 -6,2.69 -6,6s2.69,6 6,6c2.61,0 4.83,-1.67 5.65,-4H17v4h4v-4h2v-4H12.65zM7,14c-1.1,0 -2,-0.9 -2,-2s0.9,-2 2,-2 2,0.9 2,2 -0.9,2 -2,2z",
+)
+
+val SendIcon: ImageVector = icon(
+    "Send",
+    "M2.01,21L23,12 2.01,3 2,10l15,2 -15,2z",
+)

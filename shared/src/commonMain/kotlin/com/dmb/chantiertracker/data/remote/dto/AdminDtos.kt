@@ -28,3 +28,16 @@ data class AdminUserPageDto(
     val first: Boolean = true,
     val last: Boolean = true,
 )
+
+@Serializable
+data class CreateAdminUserRequestDto(
+    val email: String,
+    val name: String,
+    val password: String,
+    // GlobalRole.name raw ("USER"/"SUPER_ADMIN") — matches the backend Java
+    // enum's constant names exactly, verified against GlobalRole.java.
+    val globalRole: String,
+)
+
+@Serializable
+data class UpdateAdminUserRequestDto(val name: String)

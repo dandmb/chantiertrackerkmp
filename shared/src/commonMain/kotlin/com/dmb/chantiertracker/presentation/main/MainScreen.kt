@@ -21,10 +21,12 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import com.dmb.chantiertracker.domain.model.GlobalRole
+import com.dmb.chantiertracker.presentation.admin.AdminCreateUserScreen
 import com.dmb.chantiertracker.presentation.admin.AdminUsersScreen
 import com.dmb.chantiertracker.presentation.billing.BillingScreen
 import com.dmb.chantiertracker.presentation.billing.CheckoutDeepLink
 import com.dmb.chantiertracker.presentation.billing.CheckoutDeepLinkDispatcher
+import com.dmb.chantiertracker.presentation.navigation.AdminCreateUserRoute
 import com.dmb.chantiertracker.presentation.navigation.AdminUsersRoute
 import com.dmb.chantiertracker.presentation.navigation.BillingNotice
 import com.dmb.chantiertracker.presentation.navigation.BillingRoute
@@ -65,6 +67,8 @@ import com.dmb.chantiertracker.presentation.settings.SettingsScreen
 import com.dmb.chantiertracker.presentation.stages.create.CreateStageScreen
 import com.dmb.chantiertracker.presentation.stages.detail.StageDetailScreen
 import com.dmb.chantiertracker.resources.Res
+import com.dmb.chantiertracker.resources.admin_create_user_title
+import com.dmb.chantiertracker.resources.admin_users_create
 import com.dmb.chantiertracker.resources.billing_title
 import com.dmb.chantiertracker.resources.create_project_title
 import com.dmb.chantiertracker.resources.create_stage_title
@@ -81,7 +85,7 @@ import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 
 private enum class MainDestination {
-    Projects, Administration, Settings, CreateProject, ProjectDetail, EditProject, InviteMember, ProjectHistory, ProjectReports, CreateStage, StageDetail, DailyLog,
+    Projects, Administration, AdminCreateUser, Settings, CreateProject, ProjectDetail, EditProject, InviteMember, ProjectHistory, ProjectReports, CreateStage, StageDetail, DailyLog,
     EntrySummary, PurchaseLineForm, ConsumptionLineForm, ReportEntry, Billing
 }
 
@@ -143,6 +147,7 @@ fun MainScreen(globalRole: GlobalRole, viewModel: MainViewModel = koinViewModel(
     val destination = backStackEntry?.destination
     val current = when {
         destination?.hasRoute(AdminUsersRoute::class) == true -> MainDestination.Administration
+        destination?.hasRoute(AdminCreateUserRoute::class) == true -> MainDestination.AdminCreateUser
         destination?.hasRoute(SettingsRoute::class) == true -> MainDestination.Settings
         destination?.hasRoute(CreateProjectRoute::class) == true -> MainDestination.CreateProject
         destination?.hasRoute(ProjectDetailRoute::class) == true -> MainDestination.ProjectDetail
@@ -240,6 +245,10 @@ fun MainScreen(globalRole: GlobalRole, viewModel: MainViewModel = koinViewModel(
                     title = stringResource(Res.string.billing_title),
                     onBack = { navController.popBackStack() },
                 )
+                MainDestination.AdminCreateUser -> DetailTopBar(
+                    title = stringResource(Res.string.admin_create_user_title),
+                    onBack = { navController.popBackStack() },
+                )
                 else -> AppTopBar(
                     userName = account.userName,
                     email = account.email,
@@ -277,6 +286,11 @@ fun MainScreen(globalRole: GlobalRole, viewModel: MainViewModel = koinViewModel(
                     Icon(AddIcon, contentDescription = stringResource(Res.string.projects_new))
                 }
             }
+            if (currentTab == MainTab.Administration) {
+                FloatingActionButton(onClick = { navController.navigate(AdminCreateUserRoute) }) {
+                    Icon(AddIcon, contentDescription = stringResource(Res.string.admin_users_create))
+                }
+            }
         },
     ) { padding ->
         NavHost(
@@ -289,6 +303,9 @@ fun MainScreen(globalRole: GlobalRole, viewModel: MainViewModel = koinViewModel(
             }
             composable<AdminUsersRoute> {
                 AdminUsersScreen()
+            }
+            composable<AdminCreateUserRoute> {
+                AdminCreateUserScreen(onCreated = { navController.popBackStack() })
             }
             composable<SettingsRoute> {
                 SettingsScreen()

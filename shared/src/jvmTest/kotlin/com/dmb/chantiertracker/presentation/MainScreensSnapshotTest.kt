@@ -185,7 +185,7 @@ class MainScreensSnapshotTest {
                 AppBottomBar(current = tab, tabs = tabs, onSelect = {})
             },
             floatingActionButton = {
-                if (tab == MainTab.Projects) {
+                if (tab == MainTab.Projects || tab == MainTab.Administration) {
                     FloatingActionButton(onClick = {}) { Icon(AddIcon, contentDescription = null) }
                 }
             },
@@ -604,7 +604,10 @@ class MainScreensSnapshotTest {
             com.dmb.chantiertracker.support.FakeUrlOpener(),
         )
 
-    private fun adminUsersVm(users: List<com.dmb.chantiertracker.domain.model.AdminUser>): com.dmb.chantiertracker.presentation.admin.AdminUsersViewModel =
+    private fun adminUsersVm(
+        users: List<com.dmb.chantiertracker.domain.model.AdminUser>,
+        currentUserId: Long = 3,
+    ): com.dmb.chantiertracker.presentation.admin.AdminUsersViewModel =
         com.dmb.chantiertracker.presentation.admin.AdminUsersViewModel(
             com.dmb.chantiertracker.support.FakeAdminRepository(
                 listOf(
@@ -613,7 +616,15 @@ class MainScreensSnapshotTest {
                     ),
                 ),
             ),
-        )
+            FakeAuthRepository().apply {
+                emitState(
+                    AuthState.Authenticated(User(currentUserId, "admin@chantier.dev", "Dan", true, GlobalRole.SUPER_ADMIN)),
+                )
+            },
+        ).also { it.load() }
+
+    private fun adminCreateUserVm(): com.dmb.chantiertracker.presentation.admin.AdminCreateUserViewModel =
+        com.dmb.chantiertracker.presentation.admin.AdminCreateUserViewModel(com.dmb.chantiertracker.support.FakeAdminRepository())
 
     @Test
     fun capture_main_screens_in_french_and_english() {
@@ -870,6 +881,16 @@ class MainScreensSnapshotTest {
                     )
                 }
             }
+            snapshot("42-admin-create-user", locale) {
+                DetailChrome(
+                    title = if (locale == "fr") "Créer un utilisateur" else "Create user",
+                ) { m -> com.dmb.chantiertracker.presentation.admin.AdminCreateUserScreen(onCreated = {}, modifier = m, viewModel = adminCreateUserVm()) }
+            }
+            dialogSnapshot("43-admin-delete-user-dialog", locale) {
+                com.dmb.chantiertracker.presentation.admin.DeleteAdminUserDialog(
+                    email = "amelie@chantier.dev", onDismiss = {}, onConfirm = {},
+                )
+            }
         }
         for (locale in listOf("fr", "en")) {
             snapshot("15-account-menu", locale) {
@@ -886,6 +907,22 @@ class MainScreensSnapshotTest {
             snapshot("17-project-sort", locale) {
                 MenuSurface {
                     ProjectSortMenuItems(current = ProjectSort.NEWEST_FIRST, onSelect = {})
+                }
+            }
+            snapshot("44-admin-user-actions-menu", locale) {
+                MenuSurface {
+                    com.dmb.chantiertracker.presentation.admin.AdminUserActionMenuItems(
+                        isSelf = false, showResendActivation = true,
+                        onRename = {}, onResetPassword = {}, onResendActivation = {}, onDelete = {},
+                    )
+                }
+            }
+            snapshot("45-admin-user-actions-menu-self", locale) {
+                MenuSurface {
+                    com.dmb.chantiertracker.presentation.admin.AdminUserActionMenuItems(
+                        isSelf = true, showResendActivation = false,
+                        onRename = {}, onResetPassword = {}, onResendActivation = {}, onDelete = {},
+                    )
                 }
             }
         }

@@ -4,10 +4,15 @@ import com.dmb.chantiertracker.data.remote.AdminApi
 import com.dmb.chantiertracker.data.remote.apiCall
 import com.dmb.chantiertracker.data.remote.dto.AdminUserPageDto
 import com.dmb.chantiertracker.data.remote.dto.AdminUserResponseDto
+import com.dmb.chantiertracker.data.remote.dto.CreateAdminUserRequestDto
+import com.dmb.chantiertracker.data.remote.dto.UpdateAdminUserRequestDto
 import com.dmb.chantiertracker.domain.model.AdminUser
 import com.dmb.chantiertracker.domain.model.AdminUserPage
+import com.dmb.chantiertracker.domain.model.DomainException
+import com.dmb.chantiertracker.domain.model.GlobalRole
 import com.dmb.chantiertracker.domain.model.PlanSource
 import com.dmb.chantiertracker.domain.repository.AdminRepository
+import kotlinx.coroutines.CancellationException
 
 // Online only, no Room cache — see AdminRepository / ADR-52. Talks to
 // AdminApi directly via apiCall, same posture as HistoryRepositoryImpl/
@@ -16,6 +21,35 @@ class AdminRepositoryImpl(private val api: AdminApi) : AdminRepository {
 
     override suspend fun listUsers(page: Int): AdminUserPage =
         apiCall { api.listUsers(page, PAGE_SIZE) }.toAdminUserPage()
+
+    override suspend fun createUser(email: String, name: String, password: String, globalRole: GlobalRole): AdminUser =
+        apiCall {
+            api.createUser(CreateAdminUserRequestDto(email = email, name = name, password = password, globalRole = globalRole.name))
+        }.toAdminUser()
+
+    override suspend fun updateUserName(id: Long, name: String): AdminUser =
+        apiCall { api.updateUser(id, UpdateAdminUserRequestDto(name)) }.toAdminUser()
+
+    override suspend fun deleteUser(id: Long) = apiCall { api.deleteUser(id) }
+
+    override suspend fun resetPassword(id: Long) = apiCall { api.resetPassword(id) }
+
+    // apiCall's generic mapping sends every 409 to EmailAlreadyUsed (correct
+    // for createUser's real duplicate-email conflict) — nonsensical here: the
+    // only 409 this endpoint can return is AccountAlreadyActiveException. The
+    // UI already hides "resend activation" once a row is active, so this is
+    // only reachable via a race (activated between page load and the tap);
+    // remapped to the honest generic message, same posture as
+    // BillingRepositoryImpl's local InvalidCode -> Unexpected remap.
+    override suspend fun resendActivation(id: Long) {
+        try {
+            apiCall { api.resendActivation(id) }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: DomainException.EmailAlreadyUsed) {
+            throw DomainException.Unexpected
+        }
+    }
 
     companion object {
         // Same full-screen size as History/Reports (ADR-44/47) — well under

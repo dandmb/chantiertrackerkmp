@@ -11,6 +11,7 @@ import com.dmb.chantiertracker.support.RecordingMockClient
 import com.dmb.chantiertracker.support.respondJson
 import com.dmb.chantiertracker.support.respondProblem
 import io.ktor.client.engine.mock.MockRequestHandleScope
+import io.ktor.client.engine.mock.toByteArray
 import io.ktor.client.request.HttpResponseData
 import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.test.runTest
@@ -108,5 +109,94 @@ class AdminRepositoryImplTest {
         )
 
         assertFailsWith<DomainException.Forbidden> { repo.listUsers(page = 0) }
+    }
+
+    @Test
+    fun creates_a_user_and_maps_the_response() = runTest {
+        val json = """
+            {"id": 42, "email": "new@chantier.dev", "name": "New User", "active": true,
+             "globalRole": "USER", "projectCount": 0, "createdAt": "2026-09-12T00:00:00",
+             "plan": "FREE", "planSource": null, "planExpiresAt": null}
+        """.trimIndent()
+        val (repo, client) = setup(respond = { respondJson(json, HttpStatusCode.Created) })
+
+        val user = repo.createUser("new@chantier.dev", "New User", "Str0ng!Pass", GlobalRole.USER)
+
+        val request = client.requests.single()
+        assertEquals("/api/v1/admin/users", request.url.encodedPath)
+        assertEquals(
+            """{"email":"new@chantier.dev","name":"New User","password":"Str0ng!Pass","globalRole":"USER"}""",
+            request.body.toByteArray().decodeToString(),
+        )
+        assertEquals(42L, user.id)
+        assertEquals("new@chantier.dev", user.email)
+    }
+
+    @Test
+    fun a_duplicate_email_on_create_surfaces_as_email_already_used() = runTest {
+        val (repo, _) = setup(
+            respond = { respondProblem(HttpStatusCode.Conflict, "Cet email est deja utilise.") },
+        )
+
+        assertFailsWith<DomainException.EmailAlreadyUsed> {
+            repo.createUser("dup@chantier.dev", "Dup", "Str0ng!Pass", GlobalRole.USER)
+        }
+    }
+
+    @Test
+    fun updates_the_name_and_maps_the_response() = runTest {
+        val json = """
+            {"id": 5, "email": "jean@chantier.dev", "name": "Jean Renamed", "active": true,
+             "globalRole": "USER", "projectCount": 2, "createdAt": "2026-09-05T14:32:11",
+             "plan": "SEMI_FLEX", "planSource": "STRIPE", "planExpiresAt": null}
+        """.trimIndent()
+        val (repo, client) = setup(respond = { respondJson(json) })
+
+        val user = repo.updateUserName(5, "Jean Renamed")
+
+        val request = client.requests.single()
+        assertEquals("/api/v1/admin/users/5", request.url.encodedPath)
+        assertEquals("Jean Renamed", user.name)
+    }
+
+    @Test
+    fun deletes_a_user() = runTest {
+        val (repo, client) = setup(respond = { respondJson("", HttpStatusCode.NoContent) })
+
+        repo.deleteUser(5)
+
+        val request = client.requests.single()
+        assertEquals("/api/v1/admin/users/5", request.url.encodedPath)
+    }
+
+    @Test
+    fun resets_a_password() = runTest {
+        val (repo, client) = setup(respond = { respondJson("", HttpStatusCode.NoContent) })
+
+        repo.resetPassword(5)
+
+        assertEquals("/api/v1/admin/users/5/reset-password", client.requests.single().url.encodedPath)
+    }
+
+    @Test
+    fun resends_activation() = runTest {
+        val (repo, client) = setup(respond = { respondJson("", HttpStatusCode.NoContent) })
+
+        repo.resendActivation(5)
+
+        assertEquals("/api/v1/admin/users/5/resend-activation", client.requests.single().url.encodedPath)
+    }
+
+    @Test
+    fun resend_activation_409_is_remapped_to_unexpected_not_email_already_used() = runTest {
+        // AccountAlreadyActiveException is also a 409 — apiCall's generic
+        // mapping would otherwise call this "email already used", which is
+        // nonsensical (the UI already hides the button once active; this is
+        // only reachable via a race).
+        val (repo, _) = setup(
+            respond = { respondProblem(HttpStatusCode.Conflict, "Ce compte est deja active.") },
+        )
+
+        assertFailsWith<DomainException.Unexpected> { repo.resendActivation(5) }
     }
 }

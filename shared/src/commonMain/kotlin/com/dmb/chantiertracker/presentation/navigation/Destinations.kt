@@ -96,6 +96,9 @@ data class BillingRoute(val notice: String? = null)
 data object AdminUsersRoute
 
 @Serializable
+data object AdminCreateUserRoute
+
+@Serializable
 data object CreateProjectRoute
 
 @Serializable

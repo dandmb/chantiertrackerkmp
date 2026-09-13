@@ -402,4 +402,25 @@
     <string name="admin_users_page">Page %1$d / %2$d</string>
     <string name="admin_users_prev">Précédent</string>
     <string name="admin_users_next">Suivant</string>
+    <string name="admin_users_create">Ajouter un utilisateur</string>
+    <string name="admin_users_actions">Actions</string>
+    <string name="admin_users_action_rename">Modifier le nom</string>
+    <string name="admin_users_action_reset_password">Réinitialiser le mot de passe</string>
+    <string name="admin_users_action_resend_activation">Renvoyer l'activation</string>
+    <string name="admin_users_action_delete">Supprimer</string>
+    <string name="admin_users_rename_title">Modifier le nom</string>
+    <string name="admin_users_reset_password_title">Réinitialiser le mot de passe</string>
+    <string name="admin_users_reset_password_body">Un lien de réinitialisation sera envoyé à %1$s. Continuer ?</string>
+    <string name="admin_users_reset_password_sent">Lien de réinitialisation envoyé à %1$s.</string>
+    <string name="admin_users_resend_activation_title">Renvoyer l'activation</string>
+    <string name="admin_users_resend_activation_body">Un nouvel email d'activation sera envoyé à %1$s. Continuer ?</string>
+    <string name="admin_users_activation_resent">Email d'activation renvoyé à %1$s.</string>
+    <string name="admin_users_delete_title">Supprimer %1$s ?</string>
+    <string name="admin_users_delete_warning">Cette action supprime définitivement le compte et tous les projets qu'il possède. Cette action est irréversible.</string>
+    <string name="admin_users_delete_confirm_prompt">Tapez %1$s pour confirmer.</string>
+    <string name="admin_users_delete_confirm_button">Supprimer définitivement</string>
+    <string name="admin_create_user_title">Créer un utilisateur</string>
+    <string name="admin_create_user_password_help">Cet utilisateur devra changer ce mot de passe lors de sa première connexion.</string>
+    <string name="admin_create_user_role_label">Rôle</string>
+    <string name="admin_create_user_submit">Créer</string>
 </resources>

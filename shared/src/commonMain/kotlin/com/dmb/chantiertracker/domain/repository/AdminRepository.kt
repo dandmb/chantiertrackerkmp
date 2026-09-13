@@ -1,6 +1,8 @@
 package com.dmb.chantiertracker.domain.repository
 
+import com.dmb.chantiertracker.domain.model.AdminUser
 import com.dmb.chantiertracker.domain.model.AdminUserPage
+import com.dmb.chantiertracker.domain.model.GlobalRole
 
 /**
  * Platform-wide administration (SUPER_ADMIN only, ADR-52) — online only, no
@@ -10,4 +12,9 @@ import com.dmb.chantiertracker.domain.model.AdminUserPage
  */
 interface AdminRepository {
     suspend fun listUsers(page: Int): AdminUserPage
+    suspend fun createUser(email: String, name: String, password: String, globalRole: GlobalRole): AdminUser
+    suspend fun updateUserName(id: Long, name: String): AdminUser
+    suspend fun deleteUser(id: Long)
+    suspend fun resetPassword(id: Long)
+    suspend fun resendActivation(id: Long)
 }

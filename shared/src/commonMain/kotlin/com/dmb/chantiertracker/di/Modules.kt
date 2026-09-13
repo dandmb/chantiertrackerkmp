@@ -73,6 +73,7 @@ import com.dmb.chantiertracker.domain.repository.PurchaseLineRepository
 import com.dmb.chantiertracker.domain.repository.ExportRepository
 import com.dmb.chantiertracker.domain.repository.ReportRepository
 import com.dmb.chantiertracker.domain.repository.StageRepository
+import com.dmb.chantiertracker.presentation.admin.AdminCreateUserViewModel
 import com.dmb.chantiertracker.presentation.admin.AdminUsersViewModel
 import com.dmb.chantiertracker.presentation.billing.BillingViewModel
 import com.dmb.chantiertracker.presentation.billing.AppScopeCheckoutLauncher
@@ -240,6 +241,7 @@ val presentationModule: Module = module {
     viewModelOf(::SettingsViewModel)
     viewModelOf(::BillingViewModel)
     viewModelOf(::AdminUsersViewModel)
+    viewModelOf(::AdminCreateUserViewModel)
 }
 
 fun appModules(): List<Module> = listOf(

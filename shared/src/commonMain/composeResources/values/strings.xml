@@ -402,4 +402,25 @@
     <string name="admin_users_page">Page %1$d / %2$d</string>
     <string name="admin_users_prev">Previous</string>
     <string name="admin_users_next">Next</string>
+    <string name="admin_users_create">Add user</string>
+    <string name="admin_users_actions">Actions</string>
+    <string name="admin_users_action_rename">Edit name</string>
+    <string name="admin_users_action_reset_password">Reset password</string>
+    <string name="admin_users_action_resend_activation">Resend activation</string>
+    <string name="admin_users_action_delete">Delete</string>
+    <string name="admin_users_rename_title">Edit name</string>
+    <string name="admin_users_reset_password_title">Reset password</string>
+    <string name="admin_users_reset_password_body">A password reset link will be sent to %1$s. Continue?</string>
+    <string name="admin_users_reset_password_sent">Reset link sent to %1$s.</string>
+    <string name="admin_users_resend_activation_title">Resend activation</string>
+    <string name="admin_users_resend_activation_body">A new activation email will be sent to %1$s. Continue?</string>
+    <string name="admin_users_activation_resent">Activation email resent to %1$s.</string>
+    <string name="admin_users_delete_title">Delete %1$s?</string>
+    <string name="admin_users_delete_warning">This permanently deletes the account and every project it owns. This cannot be undone.</string>
+    <string name="admin_users_delete_confirm_prompt">Type %1$s to confirm.</string>
+    <string name="admin_users_delete_confirm_button">Delete permanently</string>
+    <string name="admin_create_user_title">Create user</string>
+    <string name="admin_create_user_password_help">This user will be required to change this password on first sign-in.</string>
+    <string name="admin_create_user_role_label">Role</string>
+    <string name="admin_create_user_submit">Create</string>
 </resources>

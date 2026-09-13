@@ -651,6 +651,25 @@ class FakeAdminRepository(
     val calls = mutableListOf<Int>()
     var error: com.dmb.chantiertracker.domain.model.DomainException? = null
 
+    val createCalls = mutableListOf<CreateUserCall>()
+    val updateNameCalls = mutableListOf<Pair<Long, String>>()
+    val deleteCalls = mutableListOf<Long>()
+    val resetPasswordCalls = mutableListOf<Long>()
+    val resendActivationCalls = mutableListOf<Long>()
+    var createError: com.dmb.chantiertracker.domain.model.DomainException? = null
+    var updateNameError: com.dmb.chantiertracker.domain.model.DomainException? = null
+    var deleteError: com.dmb.chantiertracker.domain.model.DomainException? = null
+    var resetPasswordError: com.dmb.chantiertracker.domain.model.DomainException? = null
+    var resendActivationError: com.dmb.chantiertracker.domain.model.DomainException? = null
+    private var nextCreatedId = 1000L
+
+    data class CreateUserCall(
+        val email: String,
+        val name: String,
+        val password: String,
+        val globalRole: com.dmb.chantiertracker.domain.model.GlobalRole,
+    )
+
     override suspend fun listUsers(page: Int): com.dmb.chantiertracker.domain.model.AdminUserPage {
         calls += page
         error?.let { throw it }
@@ -659,6 +678,48 @@ class FakeAdminRepository(
                 items = emptyList(), page = page, totalPages = pages.size,
                 isFirst = page == 0, isLast = page >= pages.size - 1, totalElements = 0,
             )
+    }
+
+    override suspend fun createUser(
+        email: String,
+        name: String,
+        password: String,
+        globalRole: com.dmb.chantiertracker.domain.model.GlobalRole,
+    ): com.dmb.chantiertracker.domain.model.AdminUser {
+        createCalls += CreateUserCall(email, name, password, globalRole)
+        createError?.let { throw it }
+        return com.dmb.chantiertracker.domain.model.AdminUser(
+            id = nextCreatedId++, email = email, name = name, active = true, globalRole = globalRole,
+            projectCount = 0, createdAt = "2026-09-12T00:00:00", plan = com.dmb.chantiertracker.domain.model.Plan.FREE,
+            planSource = null, planExpiresAt = null,
+        )
+    }
+
+    override suspend fun updateUserName(id: Long, name: String): com.dmb.chantiertracker.domain.model.AdminUser {
+        updateNameCalls += id to name
+        updateNameError?.let { throw it }
+        val existing = pages.flatMap { it.items }.firstOrNull { it.id == id }
+        return existing?.copy(name = name) ?: com.dmb.chantiertracker.domain.model.AdminUser(
+            id = id, email = "user$id@chantier.dev", name = name, active = true,
+            globalRole = com.dmb.chantiertracker.domain.model.GlobalRole.USER, projectCount = 0,
+            createdAt = "2026-09-01T00:00:00", plan = com.dmb.chantiertracker.domain.model.Plan.FREE,
+            planSource = null, planExpiresAt = null,
+        )
+    }
+
+    override suspend fun deleteUser(id: Long) {
+        deleteCalls += id
+        deleteError?.let { throw it }
+    }
+
+    override suspend fun resetPassword(id: Long) {
+        resetPasswordCalls += id
+        resetPasswordError?.let { throw it }
+    }
+
+    override suspend fun resendActivation(id: Long) {
+        resendActivationCalls += id
+        resendActivationError?.let { throw it }
     }
 }
 

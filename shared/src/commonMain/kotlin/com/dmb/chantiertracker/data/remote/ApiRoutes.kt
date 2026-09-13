@@ -49,4 +49,8 @@ object ApiRoutes {
     fun reportProcess(id: Long) = "reports/$id/process"
 
     fun projectExportPdf(id: Long) = "projects/$id/export/pdf"
+
+    fun adminUser(id: Long) = "admin/users/$id"
+    fun adminUserResetPassword(id: Long) = "admin/users/$id/reset-password"
+    fun adminUserResendActivation(id: Long) = "admin/users/$id/resend-activation"
 }
