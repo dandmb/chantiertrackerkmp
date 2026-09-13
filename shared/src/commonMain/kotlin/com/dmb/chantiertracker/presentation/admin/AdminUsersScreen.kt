@@ -97,7 +97,15 @@ fun AdminUsersScreen(
 
     LaunchedEffect(Unit) { viewModel.load() }
 
-    Column(modifier.fillMaxSize()) {
+    // This screen always has a floating "create user" FAB (MainScreen.kt) —
+    // Scaffold floats it over the content instead of reserving room for it in
+    // the padding it hands down, so without this the pagination row's
+    // right-aligned "Next" button sat directly under it, permanently
+    // unreachable (found by inspection, not a snapshot: the shared harness
+    // never renders this screen's own FAB alongside it in the same frame).
+    // 56dp default FAB + Scaffold's 16dp margin = 72dp clearance, +16dp so
+    // the row doesn't visually hug the button either.
+    Column(modifier.fillMaxSize().padding(bottom = 88.dp)) {
         state.actionError?.let {
             ErrorBanner(
                 message = it.localizedText(),

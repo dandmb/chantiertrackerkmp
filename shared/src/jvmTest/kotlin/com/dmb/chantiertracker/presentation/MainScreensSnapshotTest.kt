@@ -639,12 +639,14 @@ class MainScreensSnapshotTest {
     private fun adminUsersVm(
         users: List<com.dmb.chantiertracker.domain.model.AdminUser>,
         currentUserId: Long = 3,
+        totalPages: Int = 1,
     ): com.dmb.chantiertracker.presentation.admin.AdminUsersViewModel =
         com.dmb.chantiertracker.presentation.admin.AdminUsersViewModel(
             com.dmb.chantiertracker.support.FakeAdminRepository(
                 listOf(
                     com.dmb.chantiertracker.domain.model.AdminUserPage(
-                        items = users, page = 0, totalPages = 1, isFirst = true, isLast = true, totalElements = users.size,
+                        items = users, page = 0, totalPages = totalPages, isFirst = true, isLast = totalPages <= 1,
+                        totalElements = users.size,
                     ),
                 ),
             ),
@@ -924,6 +926,41 @@ class MainScreensSnapshotTest {
                                     planExpiresAt = "2026-12-31T23:59:59",
                                 ),
                             ),
+                        ),
+                    )
+                }
+            }
+            // ADR-54 point 5/5: 41-admin-users above never showed pagination
+            // (totalPages = 1) — the exact state where the FAB used to sit
+            // directly over the "Next" button, since Scaffold floats it
+            // instead of reserving room for it in the padding it hands down.
+            // This one turns pagination on, with the real FAB alongside it
+            // (DetailChrome mirrors MainScreen's own Scaffold exactly).
+            snapshot("55-admin-users-pagination-fab", locale) {
+                DetailChrome(
+                    title = if (locale == "fr") "Utilisateurs" else "Users",
+                    floatingActionButton = {
+                        FloatingActionButton(onClick = {}) { Icon(AddIcon, contentDescription = null) }
+                    },
+                ) { m ->
+                    com.dmb.chantiertracker.presentation.admin.AdminUsersScreen(
+                        modifier = m,
+                        viewModel = adminUsersVm(
+                            listOf(
+                                com.dmb.chantiertracker.domain.model.AdminUser(
+                                    id = 1, email = "jean@chantier.dev", name = "Jean Marchand", active = true,
+                                    globalRole = com.dmb.chantiertracker.domain.model.GlobalRole.USER, projectCount = 2,
+                                    createdAt = "2026-08-01T09:00:00", plan = Plan.SEMI_FLEX,
+                                    planSource = com.dmb.chantiertracker.domain.model.PlanSource.STRIPE, planExpiresAt = null,
+                                ),
+                                com.dmb.chantiertracker.domain.model.AdminUser(
+                                    id = 2, email = "amelie@chantier.dev", name = "Amélie Roy", active = false,
+                                    globalRole = com.dmb.chantiertracker.domain.model.GlobalRole.USER, projectCount = 0,
+                                    createdAt = "2026-08-15T09:00:00", plan = Plan.FREE,
+                                    planSource = null, planExpiresAt = null,
+                                ),
+                            ),
+                            totalPages = 3,
                         ),
                     )
                 }
