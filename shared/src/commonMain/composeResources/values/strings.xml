@@ -433,4 +433,20 @@
     <string name="admin_plan_change_free">%1$s's plan will change to Free.</string>
     <string name="admin_plan_change_with_date">%1$s's plan will change to %2$s, until %3$s.</string>
     <string name="admin_plan_change_indefinite">%1$s's plan will change to %2$s, with no expiration date (indefinite access until manually revoked).</string>
+    <string name="admin_users_title">Users</string>
+    <string name="admin_stats_manage_users">Manage users</string>
+    <string name="admin_stats_from_label">From</string>
+    <string name="admin_stats_to_label">To</string>
+    <string name="admin_stats_date_range_future">The end date can't be after today.</string>
+    <string name="admin_stats_date_range_order">The start date can't be after the end date.</string>
+    <string name="admin_stats_overview">Overview</string>
+    <string name="admin_stats_users">Users</string>
+    <string name="admin_stats_projects">Projects</string>
+    <string name="admin_stats_registrations">New accounts</string>
+    <string name="admin_stats_projects_created">New projects</string>
+    <string name="admin_stats_empty">No data for this period.</string>
+    <string name="admin_stats_granularity_label">Granularity</string>
+    <string name="admin_stats_granularity_day">Day</string>
+    <string name="admin_stats_granularity_month">Month</string>
+    <string name="admin_stats_granularity_year">Year</string>
 </resources>

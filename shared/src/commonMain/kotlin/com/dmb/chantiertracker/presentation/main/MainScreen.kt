@@ -21,12 +21,16 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import com.dmb.chantiertracker.domain.model.GlobalRole
+import com.dmb.chantiertracker.domain.model.Granularity
 import com.dmb.chantiertracker.presentation.admin.AdminCreateUserScreen
+import com.dmb.chantiertracker.presentation.admin.AdminStatsGranularityControl
+import com.dmb.chantiertracker.presentation.admin.AdminStatsScreen
 import com.dmb.chantiertracker.presentation.admin.AdminUsersScreen
 import com.dmb.chantiertracker.presentation.billing.BillingScreen
 import com.dmb.chantiertracker.presentation.billing.CheckoutDeepLink
 import com.dmb.chantiertracker.presentation.billing.CheckoutDeepLinkDispatcher
 import com.dmb.chantiertracker.presentation.navigation.AdminCreateUserRoute
+import com.dmb.chantiertracker.presentation.navigation.AdminStatsRoute
 import com.dmb.chantiertracker.presentation.navigation.AdminUsersRoute
 import com.dmb.chantiertracker.presentation.navigation.BillingNotice
 import com.dmb.chantiertracker.presentation.navigation.BillingRoute
@@ -69,6 +73,7 @@ import com.dmb.chantiertracker.presentation.stages.detail.StageDetailScreen
 import com.dmb.chantiertracker.resources.Res
 import com.dmb.chantiertracker.resources.admin_create_user_title
 import com.dmb.chantiertracker.resources.admin_users_create
+import com.dmb.chantiertracker.resources.admin_users_title
 import com.dmb.chantiertracker.resources.billing_title
 import com.dmb.chantiertracker.resources.create_project_title
 import com.dmb.chantiertracker.resources.create_stage_title
@@ -85,7 +90,7 @@ import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 
 private enum class MainDestination {
-    Projects, Administration, AdminCreateUser, Settings, CreateProject, ProjectDetail, EditProject, InviteMember, ProjectHistory, ProjectReports, CreateStage, StageDetail, DailyLog,
+    Projects, Administration, AdminUsers, AdminCreateUser, Settings, CreateProject, ProjectDetail, EditProject, InviteMember, ProjectHistory, ProjectReports, CreateStage, StageDetail, DailyLog,
     EntrySummary, PurchaseLineForm, ConsumptionLineForm, ReportEntry, Billing
 }
 
@@ -95,8 +100,12 @@ private enum class MainDestination {
 // as a 3rd tab next to one it could never use. Read once, from a value
 // AuthState.Authenticated already carries synchronously (see RootNavHost) —
 // NavHost's startDestination is only ever evaluated on first composition.
+// Sous-étape 4/4 — the tab now lands on the stats dashboard (AdminStatsRoute),
+// mirroring the real web's own /admin root; AdminUsersRoute (the sub-step
+// 1/4 placeholder) is reached from there via a nav row, no longer the
+// tab's own landing.
 private fun startDestinationFor(globalRole: GlobalRole): Any =
-    if (globalRole == GlobalRole.SUPER_ADMIN) AdminUsersRoute else ProjectsRoute
+    if (globalRole == GlobalRole.SUPER_ADMIN) AdminStatsRoute else ProjectsRoute
 
 private fun tabsFor(globalRole: GlobalRole): List<MainTab> =
     if (globalRole == GlobalRole.SUPER_ADMIN) {
@@ -146,7 +155,8 @@ fun MainScreen(globalRole: GlobalRole, viewModel: MainViewModel = koinViewModel(
     val backStackEntry by navController.currentBackStackEntryAsState()
     val destination = backStackEntry?.destination
     val current = when {
-        destination?.hasRoute(AdminUsersRoute::class) == true -> MainDestination.Administration
+        destination?.hasRoute(AdminStatsRoute::class) == true -> MainDestination.Administration
+        destination?.hasRoute(AdminUsersRoute::class) == true -> MainDestination.AdminUsers
         destination?.hasRoute(AdminCreateUserRoute::class) == true -> MainDestination.AdminCreateUser
         destination?.hasRoute(SettingsRoute::class) == true -> MainDestination.Settings
         destination?.hasRoute(CreateProjectRoute::class) == true -> MainDestination.CreateProject
@@ -180,6 +190,7 @@ fun MainScreen(globalRole: GlobalRole, viewModel: MainViewModel = koinViewModel(
     // the TopAppBar (Material 3 — a global filter, always reachable while scrolling).
     var historySort by remember { mutableStateOf(HistorySort.NEWEST_FIRST) }
     var reportSort by remember { mutableStateOf(ReportSort.NEWEST_FIRST) }
+    var statsGranularity by remember { mutableStateOf(Granularity.MONTH) }
     val formDestinations = setOf(
         MainDestination.EntrySummary, MainDestination.PurchaseLineForm, MainDestination.ConsumptionLineForm,
     )
@@ -190,6 +201,7 @@ fun MainScreen(globalRole: GlobalRole, viewModel: MainViewModel = koinViewModel(
         if (current !in formDestinations) formTitle = null
         if (current != MainDestination.ProjectHistory) historySort = HistorySort.NEWEST_FIRST
         if (current != MainDestination.ProjectReports) reportSort = ReportSort.NEWEST_FIRST
+        if (current != MainDestination.Administration) statsGranularity = Granularity.MONTH
     }
 
     Scaffold(
@@ -245,6 +257,10 @@ fun MainScreen(globalRole: GlobalRole, viewModel: MainViewModel = koinViewModel(
                     title = stringResource(Res.string.billing_title),
                     onBack = { navController.popBackStack() },
                 )
+                MainDestination.AdminUsers -> DetailTopBar(
+                    title = stringResource(Res.string.admin_users_title),
+                    onBack = { navController.popBackStack() },
+                )
                 MainDestination.AdminCreateUser -> DetailTopBar(
                     title = stringResource(Res.string.admin_create_user_title),
                     onBack = { navController.popBackStack() },
@@ -260,6 +276,9 @@ fun MainScreen(globalRole: GlobalRole, viewModel: MainViewModel = koinViewModel(
                             val sortHolder = koinInject<ProjectSortHolder>()
                             val sort by sortHolder.sort.collectAsStateWithLifecycle()
                             ProjectSortControl(current = sort, onSelect = sortHolder::set)
+                        }
+                        if (current == MainDestination.Administration) {
+                            AdminStatsGranularityControl(current = statsGranularity, onSelect = { statsGranularity = it })
                         }
                     },
                 )
@@ -286,7 +305,7 @@ fun MainScreen(globalRole: GlobalRole, viewModel: MainViewModel = koinViewModel(
                     Icon(AddIcon, contentDescription = stringResource(Res.string.projects_new))
                 }
             }
-            if (currentTab == MainTab.Administration) {
+            if (current == MainDestination.AdminUsers) {
                 FloatingActionButton(onClick = { navController.navigate(AdminCreateUserRoute) }) {
                     Icon(AddIcon, contentDescription = stringResource(Res.string.admin_users_create))
                 }
@@ -300,6 +319,12 @@ fun MainScreen(globalRole: GlobalRole, viewModel: MainViewModel = koinViewModel(
         ) {
             composable<ProjectsRoute> {
                 ProjectsScreen(onProjectClick = { localId -> navController.navigate(ProjectDetailRoute(localId)) })
+            }
+            composable<AdminStatsRoute> {
+                AdminStatsScreen(
+                    granularity = statsGranularity,
+                    onManageUsers = { navController.navigate(AdminUsersRoute) },
+                )
             }
             composable<AdminUsersRoute> {
                 AdminUsersScreen()

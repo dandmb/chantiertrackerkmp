@@ -2,6 +2,7 @@ package com.dmb.chantiertracker.data.remote
 
 import com.dmb.chantiertracker.data.remote.dto.AdminUserPageDto
 import com.dmb.chantiertracker.data.remote.dto.AdminUserResponseDto
+import com.dmb.chantiertracker.data.remote.dto.AdminStatsResponseDto
 import com.dmb.chantiertracker.data.remote.dto.CreateAdminUserRequestDto
 import com.dmb.chantiertracker.data.remote.dto.UpdateAdminUserRequestDto
 import com.dmb.chantiertracker.data.remote.dto.UpdateUserPlanRequestDto
@@ -60,4 +61,14 @@ class AdminApi(private val client: HttpClient) {
     suspend fun resendActivation(id: Long) {
         client.post(ApiRoutes.adminUserResendActivation(id))
     }
+
+    // granularity is always sent (the UI always has a selection, default
+    // MONTH); from/to are omitted when blank, letting the backend resolve
+    // its own defaults — same posture as the web (AdminDashboardPage.tsx).
+    suspend fun getStats(granularity: String, from: String?, to: String?): AdminStatsResponseDto =
+        client.get(ApiRoutes.ADMIN_STATS) {
+            parameter("granularity", granularity)
+            from?.let { parameter("from", it) }
+            to?.let { parameter("to", it) }
+        }.body()
 }

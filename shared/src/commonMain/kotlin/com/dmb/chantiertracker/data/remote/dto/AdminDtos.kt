@@ -49,3 +49,14 @@ data class UpdateUserPlanRequestDto(
     // server-side when plan is FREE (verified in UserService.grantPlanByAdmin).
     val expiresAt: String? = null,
 )
+
+@Serializable
+data class TimeSeriesPointDto(val bucket: String, val count: Long)
+
+@Serializable
+data class AdminStatsResponseDto(
+    val totalUsers: Long,
+    val totalProjects: Long,
+    val registrations: List<TimeSeriesPointDto> = emptyList(),
+    val projectsCreated: List<TimeSeriesPointDto> = emptyList(),
+)

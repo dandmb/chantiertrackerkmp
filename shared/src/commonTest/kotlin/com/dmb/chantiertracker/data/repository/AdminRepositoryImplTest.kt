@@ -4,6 +4,7 @@ import com.dmb.chantiertracker.data.local.AuthTokens
 import com.dmb.chantiertracker.data.remote.AdminApi
 import com.dmb.chantiertracker.domain.model.DomainException
 import com.dmb.chantiertracker.domain.model.GlobalRole
+import com.dmb.chantiertracker.domain.model.Granularity
 import com.dmb.chantiertracker.domain.model.Plan
 import com.dmb.chantiertracker.domain.model.PlanSource
 import com.dmb.chantiertracker.support.FakeTokenStorage
@@ -253,5 +254,56 @@ class AdminRepositoryImplTest {
         )
 
         assertFailsWith<DomainException.Unexpected> { repo.updateUserPlan(5, Plan.LIBERTE, null) }
+    }
+
+    @Test
+    fun fetches_stats_with_all_filters_and_maps_the_response() = runTest {
+        val json = """
+            {"totalUsers": 128, "totalProjects": 47,
+             "registrations": [{"bucket": "2026-08-01", "count": 20}, {"bucket": "2026-09-01", "count": 8}],
+             "projectsCreated": [{"bucket": "2026-09-01", "count": 3}]}
+        """.trimIndent()
+        val (repo, client) = setup(respond = { respondJson(json) })
+
+        val stats = repo.getStats(Granularity.MONTH, "2026-08-01", "2026-09-13")
+
+        val request = client.requests.single()
+        assertEquals("/api/v1/admin/stats", request.url.encodedPath)
+        assertEquals("MONTH", request.url.parameters["granularity"])
+        assertEquals("2026-08-01", request.url.parameters["from"])
+        assertEquals("2026-09-13", request.url.parameters["to"])
+        assertEquals(128L, stats.totalUsers)
+        assertEquals(47L, stats.totalProjects)
+        assertEquals(2, stats.registrations.size)
+        assertEquals("2026-09-01", stats.registrations[1].bucket)
+        assertEquals(8L, stats.registrations[1].count)
+        assertEquals(1, stats.projectsCreated.size)
+    }
+
+    @Test
+    fun blank_date_bounds_are_omitted_from_the_request() = runTest {
+        val json = """{"totalUsers": 0, "totalProjects": 0, "registrations": [], "projectsCreated": []}"""
+        val (repo, client) = setup(respond = { respondJson(json) })
+
+        repo.getStats(Granularity.YEAR, null, null)
+
+        val request = client.requests.single()
+        assertEquals("YEAR", request.url.parameters["granularity"])
+        assertNull(request.url.parameters["from"])
+        assertNull(request.url.parameters["to"])
+    }
+
+    @Test
+    fun an_invalid_date_range_400_is_remapped_to_validation_not_invalid_code() = runTest {
+        // InvalidStatsDateRangeException is a 400 with no field-level errors
+        // (a business rule, not @Valid) — apiCall's generic mapping would
+        // otherwise call this "invalid or expired code", nonsensical here.
+        // The UI already validates the same two rules before submitting
+        // (validateStatsDateRange), so this is only reachable via a race.
+        val (repo, _) = setup(
+            respond = { respondProblem(HttpStatusCode.BadRequest, "La date de fin ne peut pas etre posterieure a aujourd'hui.") },
+        )
+
+        assertFailsWith<DomainException.Validation> { repo.getStats(Granularity.MONTH, null, "2099-01-01") }
     }
 }

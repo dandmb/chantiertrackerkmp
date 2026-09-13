@@ -2,17 +2,22 @@ package com.dmb.chantiertracker.data.repository
 
 import com.dmb.chantiertracker.data.remote.AdminApi
 import com.dmb.chantiertracker.data.remote.apiCall
+import com.dmb.chantiertracker.data.remote.dto.AdminStatsResponseDto
 import com.dmb.chantiertracker.data.remote.dto.AdminUserPageDto
 import com.dmb.chantiertracker.data.remote.dto.AdminUserResponseDto
 import com.dmb.chantiertracker.data.remote.dto.CreateAdminUserRequestDto
+import com.dmb.chantiertracker.data.remote.dto.TimeSeriesPointDto
 import com.dmb.chantiertracker.data.remote.dto.UpdateAdminUserRequestDto
 import com.dmb.chantiertracker.data.remote.dto.UpdateUserPlanRequestDto
+import com.dmb.chantiertracker.domain.model.AdminStats
 import com.dmb.chantiertracker.domain.model.AdminUser
 import com.dmb.chantiertracker.domain.model.AdminUserPage
 import com.dmb.chantiertracker.domain.model.DomainException
 import com.dmb.chantiertracker.domain.model.GlobalRole
+import com.dmb.chantiertracker.domain.model.Granularity
 import com.dmb.chantiertracker.domain.model.Plan
 import com.dmb.chantiertracker.domain.model.PlanSource
+import com.dmb.chantiertracker.domain.model.StatsPoint
 import com.dmb.chantiertracker.domain.repository.AdminRepository
 import kotlinx.coroutines.CancellationException
 
@@ -68,6 +73,22 @@ class AdminRepositoryImpl(private val api: AdminApi) : AdminRepository {
             throw DomainException.Unexpected
         }
 
+    // InvalidStatsDateRangeException is a 400 with no field errors (a
+    // business rule, not a @Valid violation) — apiCall's generic mapping
+    // sends it to InvalidCode ("that code is invalid or expired"), nonsensical
+    // for a date range. The UI already validates the same two rules before
+    // submitting (validateStatsDateRange), so this is only reachable via a
+    // race (e.g. the device clock rolled over "today" mid-session); Validation
+    // ("please check the information you entered") is the honest remap here.
+    override suspend fun getStats(granularity: Granularity, from: String?, to: String?): AdminStats =
+        try {
+            apiCall { api.getStats(granularity.name, from, to) }.toAdminStats()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: DomainException.InvalidCode) {
+            throw DomainException.Validation
+        }
+
     companion object {
         // Same full-screen size as History/Reports (ADR-44/47) — well under
         // the backend's default Spring Data page-size bound.
@@ -96,6 +117,15 @@ private fun AdminUserResponseDto.toAdminUser() = AdminUser(
     planSource = planSource?.toPlanSourceOrNull(),
     planExpiresAt = planExpiresAt,
 )
+
+private fun AdminStatsResponseDto.toAdminStats() = AdminStats(
+    totalUsers = totalUsers,
+    totalProjects = totalProjects,
+    registrations = registrations.map(TimeSeriesPointDto::toStatsPoint),
+    projectsCreated = projectsCreated.map(TimeSeriesPointDto::toStatsPoint),
+)
+
+private fun TimeSeriesPointDto.toStatsPoint() = StatsPoint(bucket, count)
 
 // Tolerant: an unrecognized value resolves to null exactly like the field
 // being absent (FREE plan) — never a crash, and there is nothing more

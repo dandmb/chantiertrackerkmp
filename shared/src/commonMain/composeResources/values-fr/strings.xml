@@ -433,4 +433,20 @@
     <string name="admin_plan_change_free">Le plan de %1$s passera à Gratuit.</string>
     <string name="admin_plan_change_with_date">Le plan de %1$s passera à %2$s, jusqu'au %3$s.</string>
     <string name="admin_plan_change_indefinite">Le plan de %1$s passera à %2$s, sans date d'expiration (accès indéfini jusqu'à révocation manuelle).</string>
+    <string name="admin_users_title">Utilisateurs</string>
+    <string name="admin_stats_manage_users">Gérer les utilisateurs</string>
+    <string name="admin_stats_from_label">Du</string>
+    <string name="admin_stats_to_label">Au</string>
+    <string name="admin_stats_date_range_future">La date de fin ne peut pas être postérieure à aujourd'hui.</string>
+    <string name="admin_stats_date_range_order">La date de début ne peut pas être postérieure à la date de fin.</string>
+    <string name="admin_stats_overview">Vue d'ensemble</string>
+    <string name="admin_stats_users">Utilisateurs</string>
+    <string name="admin_stats_projects">Projets</string>
+    <string name="admin_stats_registrations">Nouveaux comptes</string>
+    <string name="admin_stats_projects_created">Nouveaux projets</string>
+    <string name="admin_stats_empty">Aucune donnée pour cette période.</string>
+    <string name="admin_stats_granularity_label">Granularité</string>
+    <string name="admin_stats_granularity_day">Jour</string>
+    <string name="admin_stats_granularity_month">Mois</string>
+    <string name="admin_stats_granularity_year">Année</string>
 </resources>

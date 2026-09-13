@@ -15,6 +15,7 @@ object ApiRoutes {
     const val BILLING_CHECKOUT = "billing/checkout"
     const val BILLING_PORTAL = "billing/portal"
     const val ADMIN_USERS = "admin/users"
+    const val ADMIN_STATS = "admin/stats"
     const val PROJECTS = "projects"
 
     fun project(id: Long) = "projects/$id"

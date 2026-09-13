@@ -173,6 +173,13 @@ class MainScreensSnapshotTest {
                         if (tab == MainTab.Projects) {
                             ProjectSortControl(current = ProjectSort.NEWEST_FIRST, onSelect = {})
                         }
+                        // ADR-52 sous-étape 4/4 — the Administration tab now
+                        // lands on stats, mirroring MainScreen's real wiring.
+                        if (tab == MainTab.Administration) {
+                            com.dmb.chantiertracker.presentation.admin.AdminStatsGranularityControl(
+                                current = com.dmb.chantiertracker.domain.model.Granularity.MONTH, onSelect = {},
+                            )
+                        }
                     },
                 )
             },
@@ -185,7 +192,7 @@ class MainScreensSnapshotTest {
                 AppBottomBar(current = tab, tabs = tabs, onSelect = {})
             },
             floatingActionButton = {
-                if (tab == MainTab.Projects || tab == MainTab.Administration) {
+                if (tab == MainTab.Projects) {
                     FloatingActionButton(onClick = {}) { Icon(AddIcon, contentDescription = null) }
                 }
             },
@@ -193,9 +200,14 @@ class MainScreensSnapshotTest {
     }
 
     @Composable
-    private fun DetailChrome(title: String, screen: @Composable (Modifier) -> Unit) {
+    private fun DetailChrome(
+        title: String,
+        floatingActionButton: @Composable () -> Unit = {},
+        screen: @Composable (Modifier) -> Unit,
+    ) {
         Scaffold(
             topBar = { DetailTopBar(title = title, onBack = {}) },
+            floatingActionButton = floatingActionButton,
         ) { padding -> screen(Modifier.padding(padding)) }
     }
 
@@ -604,6 +616,26 @@ class MainScreensSnapshotTest {
             com.dmb.chantiertracker.support.FakeUrlOpener(),
         )
 
+    private fun adminStatsVm(): com.dmb.chantiertracker.presentation.admin.AdminStatsViewModel {
+        val repo = com.dmb.chantiertracker.support.FakeAdminRepository().apply {
+            statsResult = com.dmb.chantiertracker.domain.model.AdminStats(
+                totalUsers = 128,
+                totalProjects = 47,
+                registrations = listOf(
+                    com.dmb.chantiertracker.domain.model.StatsPoint("2026-07-01", 12),
+                    com.dmb.chantiertracker.domain.model.StatsPoint("2026-08-01", 20),
+                    com.dmb.chantiertracker.domain.model.StatsPoint("2026-09-01", 8),
+                ),
+                projectsCreated = listOf(
+                    com.dmb.chantiertracker.domain.model.StatsPoint("2026-07-01", 5),
+                    com.dmb.chantiertracker.domain.model.StatsPoint("2026-08-01", 9),
+                    com.dmb.chantiertracker.domain.model.StatsPoint("2026-09-01", 3),
+                ),
+            )
+        }
+        return com.dmb.chantiertracker.presentation.admin.AdminStatsViewModel(repo)
+    }
+
     private fun adminUsersVm(
         users: List<com.dmb.chantiertracker.domain.model.AdminUser>,
         currentUserId: Long = 3,
@@ -851,8 +883,23 @@ class MainScreensSnapshotTest {
                     )
                 }
             }
-            snapshot("41-admin-users", locale) {
+            snapshot("48-admin-stats", locale) {
                 Chrome(MainTab.Administration) { m ->
+                    com.dmb.chantiertracker.presentation.admin.AdminStatsScreen(
+                        granularity = com.dmb.chantiertracker.domain.model.Granularity.MONTH,
+                        onManageUsers = {},
+                        modifier = m,
+                        viewModel = adminStatsVm(),
+                    )
+                }
+            }
+            snapshot("41-admin-users", locale) {
+                DetailChrome(
+                    title = if (locale == "fr") "Utilisateurs" else "Users",
+                    floatingActionButton = {
+                        FloatingActionButton(onClick = {}) { Icon(AddIcon, contentDescription = null) }
+                    },
+                ) { m ->
                     com.dmb.chantiertracker.presentation.admin.AdminUsersScreen(
                         modifier = m,
                         viewModel = adminUsersVm(

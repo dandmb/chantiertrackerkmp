@@ -657,12 +657,17 @@ class FakeAdminRepository(
     val resetPasswordCalls = mutableListOf<Long>()
     val resendActivationCalls = mutableListOf<Long>()
     val updatePlanCalls = mutableListOf<Triple<Long, com.dmb.chantiertracker.domain.model.Plan, String?>>()
+    val getStatsCalls = mutableListOf<Triple<com.dmb.chantiertracker.domain.model.Granularity, String?, String?>>()
     var createError: com.dmb.chantiertracker.domain.model.DomainException? = null
     var updateNameError: com.dmb.chantiertracker.domain.model.DomainException? = null
     var deleteError: com.dmb.chantiertracker.domain.model.DomainException? = null
     var resetPasswordError: com.dmb.chantiertracker.domain.model.DomainException? = null
     var resendActivationError: com.dmb.chantiertracker.domain.model.DomainException? = null
     var updatePlanError: com.dmb.chantiertracker.domain.model.DomainException? = null
+    var getStatsError: com.dmb.chantiertracker.domain.model.DomainException? = null
+    var statsResult: com.dmb.chantiertracker.domain.model.AdminStats = com.dmb.chantiertracker.domain.model.AdminStats(
+        totalUsers = 0, totalProjects = 0, registrations = emptyList(), projectsCreated = emptyList(),
+    )
     private var nextCreatedId = 1000L
 
     data class CreateUserCall(
@@ -744,6 +749,16 @@ class FakeAdminRepository(
             createdAt = "2026-09-01T00:00:00", plan = com.dmb.chantiertracker.domain.model.Plan.FREE,
             planSource = null, planExpiresAt = null,
         )).copy(plan = plan, planSource = planSource, planExpiresAt = resolvedExpiresAt)
+    }
+
+    override suspend fun getStats(
+        granularity: com.dmb.chantiertracker.domain.model.Granularity,
+        from: String?,
+        to: String?,
+    ): com.dmb.chantiertracker.domain.model.AdminStats {
+        getStatsCalls += Triple(granularity, from, to)
+        getStatsError?.let { throw it }
+        return statsResult
     }
 }
 

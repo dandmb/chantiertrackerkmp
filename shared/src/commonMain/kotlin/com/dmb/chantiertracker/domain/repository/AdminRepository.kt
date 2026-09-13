@@ -1,8 +1,10 @@
 package com.dmb.chantiertracker.domain.repository
 
+import com.dmb.chantiertracker.domain.model.AdminStats
 import com.dmb.chantiertracker.domain.model.AdminUser
 import com.dmb.chantiertracker.domain.model.AdminUserPage
 import com.dmb.chantiertracker.domain.model.GlobalRole
+import com.dmb.chantiertracker.domain.model.Granularity
 import com.dmb.chantiertracker.domain.model.Plan
 
 /**
@@ -20,4 +22,8 @@ interface AdminRepository {
     suspend fun resendActivation(id: Long)
     // expiresAt: yyyy-MM-ddTHH:mm:ss or null (indefinite grant). Ignored server-side for FREE.
     suspend fun updateUserPlan(id: Long, plan: Plan, expiresAt: String?): AdminUser
+    // from/to: yyyy-MM-dd or null — the backend defaults an omitted bound
+    // itself (today / today minus 12 months), same posture as the web
+    // (never pre-filled client-side, see AdminDashboardPage.tsx).
+    suspend fun getStats(granularity: Granularity, from: String?, to: String?): AdminStats
 }

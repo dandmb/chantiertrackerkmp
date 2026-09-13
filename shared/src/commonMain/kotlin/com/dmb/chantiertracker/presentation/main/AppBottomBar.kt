@@ -10,7 +10,7 @@ import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.vector.ImageVector
-import com.dmb.chantiertracker.presentation.navigation.AdminUsersRoute
+import com.dmb.chantiertracker.presentation.navigation.AdminStatsRoute
 import com.dmb.chantiertracker.presentation.navigation.ProjectsRoute
 import com.dmb.chantiertracker.presentation.navigation.SettingsRoute
 import com.dmb.chantiertracker.resources.Res
@@ -31,7 +31,7 @@ enum class MainTab(val icon: ImageVector, val label: StringResource) {
 
 fun MainTab.route(): Any = when (this) {
     MainTab.Projects -> ProjectsRoute
-    MainTab.Administration -> AdminUsersRoute
+    MainTab.Administration -> AdminStatsRoute
     MainTab.Settings -> SettingsRoute
 }
 
