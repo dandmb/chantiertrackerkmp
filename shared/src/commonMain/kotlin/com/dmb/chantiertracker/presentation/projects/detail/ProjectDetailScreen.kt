@@ -39,6 +39,7 @@ import com.dmb.chantiertracker.domain.model.ProjectMember
 import com.dmb.chantiertracker.domain.model.ProjectRole
 import com.dmb.chantiertracker.domain.model.Stage
 import com.dmb.chantiertracker.presentation.ClickableListRow
+import com.dmb.chantiertracker.presentation.ConfirmActionDialog
 import com.dmb.chantiertracker.presentation.DetailEmptyHint
 import com.dmb.chantiertracker.presentation.DetailInfoRow
 import com.dmb.chantiertracker.presentation.DetailSection
@@ -64,6 +65,9 @@ import com.dmb.chantiertracker.resources.detail_history_hint
 import com.dmb.chantiertracker.resources.detail_reports
 import com.dmb.chantiertracker.resources.detail_reports_hint
 import com.dmb.chantiertracker.resources.detail_invitation_cancel
+import com.dmb.chantiertracker.resources.detail_invitation_cancel_confirm_body
+import com.dmb.chantiertracker.resources.detail_invitation_cancel_confirm_button
+import com.dmb.chantiertracker.resources.detail_invitation_cancel_confirm_title
 import com.dmb.chantiertracker.resources.detail_invitation_sent_on
 import com.dmb.chantiertracker.resources.detail_invitations_empty
 import com.dmb.chantiertracker.resources.detail_invitations_title
@@ -225,6 +229,8 @@ private fun DetailContent(
 
         if (isAdmin) {
             DetailSectionDivider()
+            var pendingCancelInvitation by remember { mutableStateOf<Invitation?>(null) }
+
             DetailSection(stringResource(Res.string.detail_invitations_title)) {
                 invitationActionError?.let { ErrorBanner(it) }
                 if (pendingInvitations.isEmpty()) {
@@ -234,10 +240,24 @@ private fun DetailContent(
                         InvitationRow(
                             invitation = invitation,
                             isCancelling = invitation.id in cancellingInvitationIds,
-                            onCancel = { onCancelInvitation(invitation.id) },
+                            onCancel = { pendingCancelInvitation = invitation },
                         )
                     }
                 }
+            }
+
+            pendingCancelInvitation?.let { invitation ->
+                ConfirmActionDialog(
+                    title = stringResource(Res.string.detail_invitation_cancel_confirm_title),
+                    body = stringResource(Res.string.detail_invitation_cancel_confirm_body, invitation.email),
+                    confirmLabel = stringResource(Res.string.detail_invitation_cancel_confirm_button),
+                    destructive = false,
+                    onDismiss = { pendingCancelInvitation = null },
+                    onConfirm = {
+                        pendingCancelInvitation = null
+                        onCancelInvitation(invitation.id)
+                    },
+                )
             }
         }
 

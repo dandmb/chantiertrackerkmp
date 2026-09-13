@@ -993,6 +993,68 @@ class MainScreensSnapshotTest {
                     onDismiss = {}, onConfirm = { _, _ -> },
                 )
             }
+            dialogSnapshot("49-confirm-delete-purchase-line-dialog", locale) {
+                ConfirmActionDialog(
+                    title = if (locale == "fr") "Supprimer cet article ?" else "Delete this item?",
+                    body = if (locale == "fr") {
+                        "Ciment sera définitivement retiré de cet achat."
+                    } else {
+                        "Ciment will be permanently removed from this purchase."
+                    },
+                    confirmLabel = if (locale == "fr") "Supprimer" else "Delete",
+                    onDismiss = {}, onConfirm = {},
+                )
+            }
+            dialogSnapshot("53-confirm-delete-consumption-line-dialog", locale) {
+                ConfirmActionDialog(
+                    title = if (locale == "fr") "Supprimer ce matériau ?" else "Delete this material?",
+                    body = if (locale == "fr") {
+                        "Sable sera définitivement retiré de cette consommation."
+                    } else {
+                        "Sable will be permanently removed from this consumption."
+                    },
+                    confirmLabel = if (locale == "fr") "Supprimer" else "Delete",
+                    onDismiss = {}, onConfirm = {},
+                )
+            }
+            dialogSnapshot("50-confirm-delete-attachment-dialog", locale) {
+                ConfirmActionDialog(
+                    title = if (locale == "fr") "Supprimer ce justificatif ?" else "Delete this attachment?",
+                    body = if (locale == "fr") {
+                        "Ce fichier sera définitivement supprimé."
+                    } else {
+                        "This file will be permanently deleted."
+                    },
+                    confirmLabel = if (locale == "fr") "Supprimer la photo" else "Delete photo",
+                    onDismiss = {}, onConfirm = {},
+                )
+            }
+            dialogSnapshot("51-confirm-decline-invitation-dialog", locale) {
+                ConfirmActionDialog(
+                    title = if (locale == "fr") "Refuser cette invitation ?" else "Decline this invitation?",
+                    body = if (locale == "fr") {
+                        "Tu ne rejoindras pas Villa Vidal. Il faudra une nouvelle invitation pour rejoindre le projet plus tard."
+                    } else {
+                        "You won't join Villa Vidal. You'd need a new invitation to join later."
+                    },
+                    confirmLabel = if (locale == "fr") "Refuser" else "Decline",
+                    destructive = false,
+                    onDismiss = {}, onConfirm = {},
+                )
+            }
+            dialogSnapshot("52-confirm-cancel-invitation-dialog", locale) {
+                ConfirmActionDialog(
+                    title = if (locale == "fr") "Annuler cette invitation ?" else "Cancel this invitation?",
+                    body = if (locale == "fr") {
+                        "amelie@chantier.dev ne pourra plus rejoindre le projet avec ce lien. Tu pourras l'inviter à nouveau plus tard."
+                    } else {
+                        "amelie@chantier.dev will no longer be able to join with this link. You can invite them again later."
+                    },
+                    confirmLabel = if (locale == "fr") "Annuler l'invitation" else "Cancel invitation",
+                    destructive = false,
+                    onDismiss = {}, onConfirm = {},
+                )
+            }
         }
     }
 

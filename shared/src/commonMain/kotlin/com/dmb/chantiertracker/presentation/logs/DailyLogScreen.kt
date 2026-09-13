@@ -59,6 +59,7 @@ import com.dmb.chantiertracker.domain.model.EntryType
 import com.dmb.chantiertracker.domain.model.Material
 import com.dmb.chantiertracker.domain.model.MaterialStock
 import com.dmb.chantiertracker.domain.model.PurchaseLine
+import com.dmb.chantiertracker.presentation.ConfirmActionDialog
 import com.dmb.chantiertracker.presentation.DetailEmptyHint
 import com.dmb.chantiertracker.presentation.DetailSection
 import com.dmb.chantiertracker.presentation.DetailSectionDivider
@@ -82,6 +83,8 @@ import com.dmb.chantiertracker.resources.attachment_add
 import com.dmb.chantiertracker.resources.attachment_add_video
 import com.dmb.chantiertracker.resources.attachment_close
 import com.dmb.chantiertracker.resources.attachment_delete
+import com.dmb.chantiertracker.resources.attachment_delete_confirm_body
+import com.dmb.chantiertracker.resources.attachment_delete_confirm_title
 import com.dmb.chantiertracker.resources.attachment_finalizing
 import com.dmb.chantiertracker.resources.attachment_upload_error
 import com.dmb.chantiertracker.resources.attachment_video_delete
@@ -92,6 +95,8 @@ import com.dmb.chantiertracker.resources.video_play
 import com.dmb.chantiertracker.resources.video_too_long_no_upgrade
 import com.dmb.chantiertracker.resources.video_too_long_upgrade
 import com.dmb.chantiertracker.resources.video_upload_in_progress
+import com.dmb.chantiertracker.resources.consumption_line_delete_confirm_body
+import com.dmb.chantiertracker.resources.consumption_line_delete_confirm_title
 import com.dmb.chantiertracker.resources.consumption_lines_empty
 import com.dmb.chantiertracker.resources.consumption_lines_title
 import com.dmb.chantiertracker.resources.entry_add
@@ -105,6 +110,8 @@ import com.dmb.chantiertracker.resources.entry_type_work
 import com.dmb.chantiertracker.resources.error_not_found
 import com.dmb.chantiertracker.resources.per_unit_suffix
 import com.dmb.chantiertracker.resources.projects_retry
+import com.dmb.chantiertracker.resources.purchase_line_delete_confirm_body
+import com.dmb.chantiertracker.resources.purchase_line_delete_confirm_title
 import com.dmb.chantiertracker.resources.purchase_lines_empty
 import com.dmb.chantiertracker.resources.purchase_lines_title
 import io.github.vinceglb.filekit.PlatformFile
@@ -365,6 +372,8 @@ private fun PurchaseLinesSubSection(
     onEdit: (PurchaseLine) -> Unit,
     onDelete: (PurchaseLine) -> Unit,
 ) {
+    var pendingDelete by remember { mutableStateOf<PurchaseLine?>(null) }
+
     SubSection(
         title = stringResource(Res.string.purchase_lines_title),
         action = if (canEdit) {
@@ -389,10 +398,24 @@ private fun PurchaseLinesSubSection(
                     canEdit = canEdit,
                     isAdmin = isAdmin,
                     onEdit = { onEdit(line) },
-                    onDelete = { onDelete(line) },
+                    onDelete = { pendingDelete = line },
                 )
             }
         }
+    }
+
+    pendingDelete?.let { line ->
+        val materialName = materials.firstOrNull { it.localId == line.materialLocalId }?.name ?: line.materialLocalId
+        ConfirmActionDialog(
+            title = stringResource(Res.string.purchase_line_delete_confirm_title),
+            body = stringResource(Res.string.purchase_line_delete_confirm_body, materialName),
+            confirmLabel = stringResource(Res.string.action_delete),
+            onDismiss = { pendingDelete = null },
+            onConfirm = {
+                pendingDelete = null
+                onDelete(line)
+            },
+        )
     }
 }
 
@@ -406,6 +429,8 @@ private fun ConsumptionLinesSubSection(
     onEdit: (ConsumptionLine) -> Unit,
     onDelete: (ConsumptionLine) -> Unit,
 ) {
+    var pendingDelete by remember { mutableStateOf<ConsumptionLine?>(null) }
+
     SubSection(
         title = stringResource(Res.string.consumption_lines_title),
         action = if (canEdit) {
@@ -425,10 +450,24 @@ private fun ConsumptionLinesSubSection(
                     canEdit = canEdit,
                     isAdmin = isAdmin,
                     onEdit = { onEdit(line) },
-                    onDelete = { onDelete(line) },
+                    onDelete = { pendingDelete = line },
                 )
             }
         }
+    }
+
+    pendingDelete?.let { line ->
+        val materialName = stock.firstOrNull { it.materialLocalId == line.materialLocalId }?.materialName ?: line.materialLocalId
+        ConfirmActionDialog(
+            title = stringResource(Res.string.consumption_line_delete_confirm_title),
+            body = stringResource(Res.string.consumption_line_delete_confirm_body, materialName),
+            confirmLabel = stringResource(Res.string.action_delete),
+            onDismiss = { pendingDelete = null },
+            onConfirm = {
+                pendingDelete = null
+                onDelete(line)
+            },
+        )
     }
 }
 
@@ -466,6 +505,7 @@ private fun AttachmentsSection(
     val attachments = state.attachments
     val canEdit = state.canEdit
     var zoomedAttachment by remember { mutableStateOf<Attachment?>(null) }
+    var pendingDelete by remember { mutableStateOf<Attachment?>(null) }
     var photoReadError by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val upload = state.attachmentUpload
@@ -594,7 +634,7 @@ private fun AttachmentsSection(
                         bitmap = if (attachment.isVideo) null else thumbnails[attachment.localPath],
                         canEdit = canEdit,
                         onClick = { zoomedAttachment = attachment },
-                        onDelete = { viewModel.deleteAttachment(attachment.localId) },
+                        onDelete = { pendingDelete = attachment },
                     )
                 }
             }
@@ -603,6 +643,21 @@ private fun AttachmentsSection(
 
     zoomedAttachment?.let { attachment ->
         AttachmentZoomDialog(attachment = attachment, onDismiss = { zoomedAttachment = null })
+    }
+
+    pendingDelete?.let { attachment ->
+        ConfirmActionDialog(
+            title = stringResource(Res.string.attachment_delete_confirm_title),
+            body = stringResource(Res.string.attachment_delete_confirm_body),
+            confirmLabel = stringResource(
+                if (attachment.isVideo) Res.string.attachment_video_delete else Res.string.attachment_delete,
+            ),
+            onDismiss = { pendingDelete = null },
+            onConfirm = {
+                pendingDelete = null
+                viewModel.deleteAttachment(attachment.localId)
+            },
+        )
     }
 }
 

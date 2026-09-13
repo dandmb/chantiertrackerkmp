@@ -138,6 +138,9 @@
     <string name="detail_invitations_empty">Aucune invitation en attente.</string>
     <string name="detail_invitation_sent_on">Envoyée le %1$s</string>
     <string name="detail_invitation_cancel">Annuler</string>
+    <string name="detail_invitation_cancel_confirm_title">Annuler cette invitation ?</string>
+    <string name="detail_invitation_cancel_confirm_body">%1$s ne pourra plus rejoindre le projet avec ce lien. Tu pourras l'inviter à nouveau plus tard.</string>
+    <string name="detail_invitation_cancel_confirm_button">Annuler l'invitation</string>
     <string name="detail_invite_member">Inviter un superviseur</string>
     <string name="role_admin">Admin</string>
     <string name="role_supervisor">Superviseur</string>
@@ -152,6 +155,8 @@
     <string name="incoming_invitation_body_with_inviter">Tu as une invitation en attente pour rejoindre %1$s en tant que %2$s, envoyée par %3$s.</string>
     <string name="incoming_invitation_accept">Accepter</string>
     <string name="incoming_invitation_decline">Refuser</string>
+    <string name="incoming_invitation_decline_confirm_title">Refuser cette invitation ?</string>
+    <string name="incoming_invitation_decline_confirm_body">Tu ne rejoindras pas %1$s. Il faudra une nouvelle invitation pour rejoindre le projet plus tard.</string>
 
     <string name="detail_history">Historique des modifications</string>
     <string name="detail_history_hint">Qui a changé quoi, et quand</string>
@@ -307,12 +312,16 @@
     <string name="purchase_lines_empty">Aucun article pour l'instant.</string>
     <string name="purchase_line_add_title">Ajouter un article</string>
     <string name="purchase_line_edit_title">Modifier l'article</string>
+    <string name="purchase_line_delete_confirm_title">Supprimer cet article ?</string>
+    <string name="purchase_line_delete_confirm_body">%1$s sera définitivement retiré de cet achat.</string>
 
     <string name="consumption_lines_title">Matériaux consommés</string>
     <string name="consumption_line_add">Ajouter un matériau consommé</string>
     <string name="consumption_lines_empty">Aucun matériau consommé pour l'instant.</string>
     <string name="consumption_line_add_title">Ajouter un matériau consommé</string>
     <string name="consumption_line_edit_title">Modifier le matériau consommé</string>
+    <string name="consumption_line_delete_confirm_title">Supprimer ce matériau ?</string>
+    <string name="consumption_line_delete_confirm_body">%1$s sera définitivement retiré de cette consommation.</string>
 
     <string name="attachments_title">Justificatifs</string>
     <string name="attachment_add">Ajouter une photo</string>
@@ -322,6 +331,8 @@
     <string name="attachment_close">Fermer</string>
     <string name="attachment_add_video">Ajouter une vidéo</string>
     <string name="attachment_video_delete">Supprimer la vidéo</string>
+    <string name="attachment_delete_confirm_title">Supprimer ce justificatif ?</string>
+    <string name="attachment_delete_confirm_body">Ce fichier sera définitivement supprimé.</string>
     <string name="video_upload_in_progress">Envoi de la vidéo…</string>
     <string name="attachment_finalizing">Finalisation…</string>
     <string name="attachments_loading">Chargement des justificatifs…</string>
