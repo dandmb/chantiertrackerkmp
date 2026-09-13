@@ -31,6 +31,9 @@ data class ForgotPasswordRequestDto(val email: String)
 data class ResetPasswordRequestDto(val email: String, val code: String, val newPassword: String)
 
 @Serializable
+data class ChangePasswordRequestDto(val currentPassword: String, val newPassword: String)
+
+@Serializable
 data class UserResponseDto(
     val id: Long,
     val email: String,

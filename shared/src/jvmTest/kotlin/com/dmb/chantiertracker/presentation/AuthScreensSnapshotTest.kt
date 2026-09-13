@@ -13,6 +13,8 @@ import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.runComposeUiTest
 import androidx.compose.ui.unit.dp
+import com.dmb.chantiertracker.presentation.auth.changepassword.ChangePasswordScreen
+import com.dmb.chantiertracker.presentation.auth.changepassword.ChangePasswordViewModel
 import com.dmb.chantiertracker.presentation.auth.forgot.ForgotPasswordScreen
 import com.dmb.chantiertracker.presentation.auth.forgot.ForgotPasswordViewModel
 import com.dmb.chantiertracker.presentation.auth.login.LoginScreen
@@ -147,6 +149,9 @@ class AuthScreensSnapshotTest {
                     onBack = {},
                     viewModel = ResetPasswordViewModel(repo),
                 )
+            }
+            snapshot("05b-change-password", locale) {
+                ChangePasswordScreen(email = "dan@chantier.dev", viewModel = ChangePasswordViewModel(repo))
             }
             snapshot("06-login-dark", locale, dark = true) {
                 LoginScreen(onNavigateToRegister = {}, onNavigateToForgotPassword = {}, viewModel = LoginViewModel(repo, FakeCheckoutLauncher()))

@@ -1,5 +1,6 @@
 package com.dmb.chantiertracker.data.remote
 
+import com.dmb.chantiertracker.data.remote.dto.ChangePasswordRequestDto
 import com.dmb.chantiertracker.data.remote.dto.ForgotPasswordRequestDto
 import com.dmb.chantiertracker.data.remote.dto.LoginRequestDto
 import com.dmb.chantiertracker.data.remote.dto.LoginResponseDto
@@ -47,6 +48,10 @@ class AuthApi(private val client: HttpClient) {
 
     suspend fun me(): UserResponseDto =
         client.get(ApiRoutes.USERS_ME).body()
+
+    suspend fun changePassword(body: ChangePasswordRequestDto) {
+        client.post(ApiRoutes.AUTH_CHANGE_PASSWORD) { json(body) }
+    }
 }
 
 private inline fun <reified T> io.ktor.client.request.HttpRequestBuilder.json(body: T) {

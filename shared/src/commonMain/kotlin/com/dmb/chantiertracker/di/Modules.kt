@@ -84,6 +84,7 @@ import com.dmb.chantiertracker.presentation.billing.UrlOpener
 import com.dmb.chantiertracker.presentation.auth.forgot.ForgotPasswordViewModel
 import com.dmb.chantiertracker.presentation.auth.login.LoginViewModel
 import com.dmb.chantiertracker.presentation.auth.register.RegisterViewModel
+import com.dmb.chantiertracker.presentation.auth.changepassword.ChangePasswordViewModel
 import com.dmb.chantiertracker.presentation.auth.reset.ResetPasswordViewModel
 import com.dmb.chantiertracker.presentation.auth.verify.VerifyEmailViewModel
 import com.dmb.chantiertracker.presentation.logs.ConsumptionLineFormViewModel
@@ -221,6 +222,7 @@ val presentationModule: Module = module {
     viewModelOf(::VerifyEmailViewModel)
     viewModelOf(::ForgotPasswordViewModel)
     viewModelOf(::ResetPasswordViewModel)
+    viewModelOf(::ChangePasswordViewModel)
     viewModelOf(::MainViewModel)
     viewModelOf(::ProjectsViewModel)
     viewModelOf(::CreateProjectViewModel)

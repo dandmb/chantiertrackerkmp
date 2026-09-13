@@ -9,6 +9,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import com.dmb.chantiertracker.domain.model.AuthState
+import com.dmb.chantiertracker.presentation.auth.changepassword.ChangePasswordScreen
 import com.dmb.chantiertracker.presentation.auth.forgot.ForgotPasswordScreen
 import com.dmb.chantiertracker.presentation.auth.login.LoginScreen
 import com.dmb.chantiertracker.presentation.auth.plans.PlanSelectionScreen
@@ -35,9 +36,11 @@ fun RootNavHost(viewModel: RootViewModel = koinViewModel()) {
     // it must already be correct on the very first composition, and
     // AuthState.Authenticated already carries it synchronously.
     val authenticatedUser = (authState as? AuthState.Authenticated)?.user
+    val mustChangePasswordEmail = (authState as? AuthState.MustChangePassword)?.email
 
     when {
         authState is AuthState.Unknown || hasLoggedInBefore == null || hasSeenOnboarding == null -> SplashScreen()
+        mustChangePasswordEmail != null -> ChangePasswordScreen(email = mustChangePasswordEmail)
         authenticatedUser != null -> MainScreen(globalRole = authenticatedUser.globalRole)
         else -> AuthNavHost(
             startPoint = when {

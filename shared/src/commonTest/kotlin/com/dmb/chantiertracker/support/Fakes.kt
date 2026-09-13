@@ -74,6 +74,8 @@ class FakeAuthRepository : AuthRepository {
     override suspend fun forgotPassword(email: String) = record("forgotPassword:$email")
     override suspend fun resetPassword(email: String, code: String, newPassword: String) =
         record("resetPassword:$email:$code:$newPassword")
+    override suspend fun changePassword(currentPassword: String, newPassword: String) =
+        record("changePassword:$currentPassword:$newPassword")
 }
 
 class FakeBackgroundSync : com.dmb.chantiertracker.data.sync.BackgroundSync {

@@ -8,6 +8,7 @@ import com.dmb.chantiertracker.resources.error_account_not_verified
 import com.dmb.chantiertracker.resources.error_email_already_used
 import com.dmb.chantiertracker.resources.error_forbidden
 import com.dmb.chantiertracker.resources.error_invalid_code
+import com.dmb.chantiertracker.resources.error_invalid_current_password
 import com.dmb.chantiertracker.resources.error_invalid_credentials
 import com.dmb.chantiertracker.resources.error_network
 import com.dmb.chantiertracker.resources.error_not_found
@@ -23,6 +24,10 @@ fun DomainException.textRes(): StringResource = when (this) {
     DomainException.EmailAlreadyUsed -> Res.string.error_email_already_used
     DomainException.AccountNotVerified -> Res.string.error_account_not_verified
     DomainException.AccountLocked -> Res.string.error_account_locked
+    // Never actually shown — caught internally by AuthRepositoryImpl to drive
+    // AuthState.MustChangePassword before any screen could display it.
+    DomainException.MustChangePassword -> Res.string.error_unexpected
+    DomainException.InvalidCurrentPassword -> Res.string.error_invalid_current_password
     DomainException.InvalidCode -> Res.string.error_invalid_code
     DomainException.Validation -> Res.string.error_validation
     DomainException.RateLimited -> Res.string.error_rate_limited

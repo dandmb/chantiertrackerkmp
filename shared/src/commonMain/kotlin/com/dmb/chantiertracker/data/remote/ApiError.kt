@@ -33,6 +33,13 @@ private suspend fun ResponseException.toDomainException(): DomainException {
             detail.containsAny("verrouillé", "locked") -> DomainException.AccountLocked
             detail.containsAny("activé", "vérifi", "verif", "activate") -> DomainException.AccountNotVerified
             detail.containsAny("limite", "plan", "palier", "formule", "limit") -> DomainException.PlanLimitReached
+            // MustChangePasswordFilter blocks every endpoint but /auth/change-password
+            // and /auth/logout with this exact detail — a security filter, not a
+            // specific business rule, so any endpoint could in principle return it
+            // (same posture as the three cases above), even though in practice only
+            // /users/me (called right after login/on bootstrap) ever does.
+            detail.containsAny("changer votre mot de passe", "must change your password") ->
+                DomainException.MustChangePassword
             else -> DomainException.Forbidden
         }
         HttpStatusCode.TooManyRequests -> DomainException.RateLimited
