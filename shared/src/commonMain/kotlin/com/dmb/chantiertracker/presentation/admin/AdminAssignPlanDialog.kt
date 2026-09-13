@@ -23,7 +23,7 @@ import com.dmb.chantiertracker.domain.model.Plan
 import com.dmb.chantiertracker.domain.model.PlanSource
 import com.dmb.chantiertracker.presentation.DateField
 import com.dmb.chantiertracker.presentation.auth.components.ErrorBanner
-import com.dmb.chantiertracker.presentation.main.labelRes
+import com.dmb.chantiertracker.presentation.auth.plans.tabLabelRes
 import com.dmb.chantiertracker.presentation.todayInSystemZone
 import com.dmb.chantiertracker.resources.Res
 import com.dmb.chantiertracker.resources.action_cancel
@@ -103,6 +103,11 @@ fun AssignPlanDialog(user: AdminUser, onDismiss: () -> Unit, onConfirm: (Plan, S
     )
 }
 
+// tabLabelRes(), not the dialog's own Plan.labelRes(): three segments in the
+// width of a dialog (narrower than PlanSelectionScreen's full-screen row)
+// wrapped "Formule Semi-Flex" onto 3 uneven lines on a real phone — found by
+// re-rendering this dialog at phone width (412dp) instead of the desktop-width
+// snapshot harness, which had missed it (ADR-54 point 4/5).
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun PlanChoiceRow(selected: Plan, enabled: Boolean, onSelect: (Plan) -> Unit) {
@@ -115,7 +120,7 @@ private fun PlanChoiceRow(selected: Plan, enabled: Boolean, onSelect: (Plan) -> 
                 enabled = enabled,
                 shape = SegmentedButtonDefaults.itemShape(index, options.size),
             ) {
-                Text(stringResource(option.labelRes()), style = MaterialTheme.typography.bodyMedium)
+                Text(stringResource(option.tabLabelRes()), style = MaterialTheme.typography.bodyMedium)
             }
         }
     }

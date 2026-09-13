@@ -102,8 +102,10 @@ fun PlanSelectionScreen(
 // Short by design: three tabs share one row on a phone-width screen —
 // Plan.labelRes() ("Formule Semi-Flex"/"Semi-Flex plan") wraps or crowds at
 // that width, unlike when it labelled only two tabs (ADR-50) or a single
-// heading (AppTopBar, BillingScreen).
-private fun Plan.tabLabelRes() = when (this) {
+// heading (AppTopBar, BillingScreen). internal, not private: AssignPlanDialog
+// (admin) hits the exact same 3-tab-on-a-dialog width constraint and reuses
+// this rather than repeating the lesson (ADR-54 point 4/5).
+internal fun Plan.tabLabelRes() = when (this) {
     Plan.FREE -> Res.string.plan_selection_tab_free
     Plan.SEMI_FLEX -> Res.string.plan_selection_tab_semi_flex
     Plan.LIBERTE, Plan.UNKNOWN -> Res.string.plan_selection_tab_liberte
