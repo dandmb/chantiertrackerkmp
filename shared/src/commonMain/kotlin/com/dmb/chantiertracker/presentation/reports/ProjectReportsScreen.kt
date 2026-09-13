@@ -36,6 +36,7 @@ import com.dmb.chantiertracker.domain.model.EntryType
 import com.dmb.chantiertracker.domain.model.Report
 import com.dmb.chantiertracker.domain.model.ReportSort
 import com.dmb.chantiertracker.domain.model.ReportStatus
+import com.dmb.chantiertracker.presentation.ResponsiveContent
 import com.dmb.chantiertracker.presentation.auth.components.ErrorBanner
 import com.dmb.chantiertracker.presentation.formatIsoDate
 import com.dmb.chantiertracker.presentation.i18n.localizedText
@@ -69,77 +70,79 @@ fun ProjectReportsScreen(
     LaunchedEffect(projectLocalId) { viewModel.load(projectLocalId) }
     LaunchedEffect(sort) { viewModel.setSort(sort) }
 
-    Column(modifier.fillMaxSize()) {
-        state.processError?.let {
-            ErrorBanner(
-                message = it.localizedText(),
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-            )
-        }
+    ResponsiveContent(modifier) {
+        Column(Modifier.fillMaxSize()) {
+            state.processError?.let {
+                ErrorBanner(
+                    message = it.localizedText(),
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                )
+            }
 
-        Box(Modifier.weight(1f).fillMaxWidth()) {
-            when {
-                state.isLoading && state.items.isEmpty() ->
-                    CircularProgressIndicator(Modifier.align(Alignment.Center))
+            Box(Modifier.weight(1f).fillMaxWidth()) {
+                when {
+                    state.isLoading && state.items.isEmpty() ->
+                        CircularProgressIndicator(Modifier.align(Alignment.Center))
 
-                state.error != null -> Column(
-                    modifier = Modifier.align(Alignment.Center).padding(horizontal = 32.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    Text(
-                        text = state.error!!.localizedText(),
+                    state.error != null -> Column(
+                        modifier = Modifier.align(Alignment.Center).padding(horizontal = 32.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        Text(
+                            text = state.error!!.localizedText(),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center,
+                        )
+                        OutlinedButton(onClick = viewModel::retry) {
+                            Text(stringResource(Res.string.history_retry))
+                        }
+                    }
+
+                    state.items.isEmpty() -> Text(
+                        text = stringResource(Res.string.reports_empty),
+                        modifier = Modifier.align(Alignment.Center),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center,
                     )
-                    OutlinedButton(onClick = viewModel::retry) {
-                        Text(stringResource(Res.string.history_retry))
-                    }
-                }
 
-                state.items.isEmpty() -> Text(
-                    text = stringResource(Res.string.reports_empty),
-                    modifier = Modifier.align(Alignment.Center),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-
-                else -> LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(vertical = 8.dp)) {
-                    itemsIndexed(state.items, key = { _, report -> report.id }) { index, report ->
-                        ReportRow(
-                            report = report,
-                            isProcessing = report.id in state.processingIds,
-                            onMarkProcessed = { viewModel.markProcessed(report.id) },
-                        )
-                        if (index < state.items.lastIndex) {
-                            HorizontalDivider(
-                                color = MaterialTheme.colorScheme.outlineVariant,
-                                modifier = Modifier.padding(horizontal = 16.dp),
+                    else -> LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(vertical = 8.dp)) {
+                        itemsIndexed(state.items, key = { _, report -> report.id }) { index, report ->
+                            ReportRow(
+                                report = report,
+                                isProcessing = report.id in state.processingIds,
+                                onMarkProcessed = { viewModel.markProcessed(report.id) },
                             )
+                            if (index < state.items.lastIndex) {
+                                HorizontalDivider(
+                                    color = MaterialTheme.colorScheme.outlineVariant,
+                                    modifier = Modifier.padding(horizontal = 16.dp),
+                                )
+                            }
                         }
                     }
                 }
             }
-        }
 
-        if (state.showPagination) {
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-            Row(
-                Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                TextButton(onClick = viewModel::previousPage, enabled = !state.isFirst && !state.isLoading) {
-                    Text(stringResource(Res.string.history_prev))
-                }
-                Text(
-                    text = stringResource(Res.string.history_page, state.page + 1, state.totalPages),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                TextButton(onClick = viewModel::nextPage, enabled = !state.isLast && !state.isLoading) {
-                    Text(stringResource(Res.string.history_next))
+            if (state.showPagination) {
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    TextButton(onClick = viewModel::previousPage, enabled = !state.isFirst && !state.isLoading) {
+                        Text(stringResource(Res.string.history_prev))
+                    }
+                    Text(
+                        text = stringResource(Res.string.history_page, state.page + 1, state.totalPages),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    TextButton(onClick = viewModel::nextPage, enabled = !state.isLast && !state.isLoading) {
+                        Text(stringResource(Res.string.history_next))
+                    }
                 }
             }
         }

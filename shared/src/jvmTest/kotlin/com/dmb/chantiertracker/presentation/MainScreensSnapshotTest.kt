@@ -1117,4 +1117,45 @@ class MainScreensSnapshotTest {
         )
         DatePicker(state = state, showModeToggle = false)
     }
+
+    // ADR-56 sous-étape 3/5: every screen's own content is now width-capped
+    // and centered via ResponsiveContent (found, while building it in
+    // sous-étape 1/5, that a naive `fillMaxWidth().widthIn(max = X)` silently
+    // never caps at all — the harness above renders everything at 412dp,
+    // where that bug and this fix look identical). Desktop-width captures
+    // are the only way to actually see either — same discipline as
+    // AssignPlanDialogPhoneWidthSnapshotTest (ADR-54 point 4/5) and
+    // ResponsiveContentSnapshotTest (this ADR, sous-étape 1/5), just at the
+    // opposite end of the width range.
+    @OptIn(androidx.compose.ui.test.ExperimentalTestApi::class)
+    private fun wideScreenSnapshot(name: String, content: @Composable (Modifier) -> Unit) =
+        androidx.compose.ui.test.runDesktopComposeUiTest(width = 1440, height = 900) {
+            setContent {
+                customAppLocale = "fr"
+                AppEnvironment { AppTheme { Box(Modifier.size(1440.dp, 900.dp)) { content(Modifier) } } }
+            }
+            waitForIdle()
+            ImageIO.write(onRoot().captureToImage().toAwtImage(), "png", File(outDir, "57-$name-wide-fr.png"))
+        }
+
+    // Two genuinely independent, parallel groups of sections — laid out in
+    // 2 real columns at this width, not just capped (see ProjectDetailScreen's
+    // own `twoColumns` branch).
+    @Test
+    fun capture_wide_project_detail_two_columns() = wideScreenSnapshot("project-detail") {
+        ProjectDetailChrome(fallbackTitle = "Projet", projectVm = detailVm(canEdit = true))
+    }
+
+    // Achats | Travaux side by side — same reasoning as project detail above.
+    @Test
+    fun capture_wide_daily_log_two_columns() = wideScreenSnapshot("daily-log") {
+        DailyLogChrome(fallbackTitle = "Journée")
+    }
+
+    // A plain list screen: content capped and centered, not stretched edge to
+    // edge — the more common case than the two 2-column screens above.
+    @Test
+    fun capture_wide_projects_list_capped() = wideScreenSnapshot("projects") {
+        Chrome(MainTab.Projects) { m -> ProjectsScreen(onProjectClick = {}, modifier = m, viewModel = projectsVm(sampleProjects)) }
+    }
 }

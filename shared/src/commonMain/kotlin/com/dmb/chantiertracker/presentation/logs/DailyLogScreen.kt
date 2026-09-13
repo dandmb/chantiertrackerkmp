@@ -63,6 +63,8 @@ import com.dmb.chantiertracker.presentation.ConfirmActionDialog
 import com.dmb.chantiertracker.presentation.DetailEmptyHint
 import com.dmb.chantiertracker.presentation.DetailSection
 import com.dmb.chantiertracker.presentation.DetailSectionDivider
+import com.dmb.chantiertracker.presentation.ResponsiveContent
+import com.dmb.chantiertracker.presentation.WidthSizeClass
 import com.dmb.chantiertracker.presentation.format.formatAmount
 import com.dmb.chantiertracker.presentation.format.formatMoney
 import com.dmb.chantiertracker.presentation.formatIsoDate
@@ -148,32 +150,35 @@ fun DailyLogScreen(
         state.detail?.date?.let { onDateResolved(formatIsoDate(it)) }
     }
 
-    Box(modifier.fillMaxSize()) {
-        when {
-            state.isLoading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
-            state.isMissing -> Column(
-                modifier = Modifier.align(Alignment.Center).fillMaxWidth().padding(horizontal = 32.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-            ) {
-                Text(
-                    text = stringResource(Res.string.error_not_found),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center,
+    ResponsiveContent(modifier, maxContentWidth = 900.dp) { widthClass ->
+        Box(Modifier.fillMaxSize()) {
+            when {
+                state.isLoading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
+                state.isMissing -> Column(
+                    modifier = Modifier.align(Alignment.Center).fillMaxWidth().padding(horizontal = 32.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
+                    Text(
+                        text = stringResource(Res.string.error_not_found),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                    )
+                    OutlinedButton(onClick = viewModel::retry) { Text(stringResource(Res.string.projects_retry)) }
+                }
+                state.detail != null -> DailyLogContent(
+                    state = state,
+                    viewModel = viewModel,
+                    onEditEntry = onEditEntry,
+                    onReportEntry = onReportEntry,
+                    onAddPurchaseLine = { entryId, projectId -> onAddPurchaseLine(entryId, projectId, state.currency) },
+                    onEditPurchaseLine = { entryId, projectId, lineId -> onEditPurchaseLine(entryId, projectId, lineId, state.currency) },
+                    onAddConsumptionLine = onAddConsumptionLine,
+                    onEditConsumptionLine = onEditConsumptionLine,
+                    twoColumns = widthClass == WidthSizeClass.EXPANDED,
                 )
-                OutlinedButton(onClick = viewModel::retry) { Text(stringResource(Res.string.projects_retry)) }
             }
-            state.detail != null -> DailyLogContent(
-                state = state,
-                viewModel = viewModel,
-                onEditEntry = onEditEntry,
-                onReportEntry = onReportEntry,
-                onAddPurchaseLine = { entryId, projectId -> onAddPurchaseLine(entryId, projectId, state.currency) },
-                onEditPurchaseLine = { entryId, projectId, lineId -> onEditPurchaseLine(entryId, projectId, lineId, state.currency) },
-                onAddConsumptionLine = onAddConsumptionLine,
-                onEditConsumptionLine = onEditConsumptionLine,
-            )
         }
     }
 }
@@ -188,6 +193,12 @@ private fun DailyLogContent(
     onEditPurchaseLine: (String, String, String) -> Unit,
     onAddConsumptionLine: (String, String) -> Unit,
     onEditConsumptionLine: (String, String, String) -> Unit,
+    // Achats and Travaux are two fully independent daily-entry blocks — a
+    // real 2-column layout on a wide window, not just a width cap (ADR-56
+    // sous-étape 3/5, same reasoning as ProjectDetailScreen). EXPANDED only
+    // (840dp+): MEDIUM stays single-column, narrow enough that two columns
+    // would cramp both, especially the photo/video thumbnail row.
+    twoColumns: Boolean,
 ) {
     val detail = state.detail!!
     val purchaseEntry = detail.entries.firstOrNull { it.type == EntryType.PURCHASE }
@@ -203,60 +214,97 @@ private fun DailyLogContent(
             .padding(start = 24.dp, end = 24.dp, top = 20.dp, bottom = 32.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
-        EntrySection(
-            title = stringResource(Res.string.entry_type_purchase),
-            icon = ShoppingCartIcon,
-            entry = purchaseEntry,
-            canEdit = state.canEdit,
-            canReport = state.canReport,
-            emptyHint = stringResource(Res.string.entry_none_yet),
-            onAdd = { viewModel.addEntry(EntryType.PURCHASE) },
-            onEditSummary = { purchaseEntry?.let { onEditEntry(it.localId) } },
-            onReport = { purchaseEntry?.let { onReportEntry(it.localId) } },
-        ) {
-            if (purchaseEntry != null && projectId != null) {
-                PurchaseLinesSubSection(
-                    materials = state.materials,
-                    lines = state.purchaseLines,
-                    currency = state.currency,
-                    canEdit = state.canEdit,
-                    isAdmin = state.isAdmin,
-                    onAdd = { onAddPurchaseLine(purchaseEntry.localId, projectId) },
-                    onEdit = { line -> onEditPurchaseLine(purchaseEntry.localId, projectId, line.localId) },
-                    onDelete = { line -> viewModel.deletePurchaseLine(line.localId) },
-                )
-                AttachmentsSection(
-                    entryLocalId = purchaseEntry.localId,
-                    state = state,
-                    viewModel = viewModel,
-                )
+        if (twoColumns) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(32.dp)) {
+                Box(Modifier.weight(1f)) {
+                    PurchaseEntrySection(state, viewModel, projectId, purchaseEntry, onEditEntry, onReportEntry, onAddPurchaseLine, onEditPurchaseLine)
+                }
+                Box(Modifier.weight(1f)) {
+                    WorkEntrySection(state, viewModel, projectId, workEntry, onEditEntry, onReportEntry, onAddConsumptionLine, onEditConsumptionLine)
+                }
             }
+        } else {
+            PurchaseEntrySection(state, viewModel, projectId, purchaseEntry, onEditEntry, onReportEntry, onAddPurchaseLine, onEditPurchaseLine)
+            DetailSectionDivider()
+            WorkEntrySection(state, viewModel, projectId, workEntry, onEditEntry, onReportEntry, onAddConsumptionLine, onEditConsumptionLine)
         }
+    }
+}
 
-        DetailSectionDivider()
+@Composable
+private fun PurchaseEntrySection(
+    state: DailyLogUiState,
+    viewModel: DailyLogViewModel,
+    projectId: String?,
+    purchaseEntry: DailyEntry?,
+    onEditEntry: (String) -> Unit,
+    onReportEntry: (String) -> Unit,
+    onAddPurchaseLine: (String, String) -> Unit,
+    onEditPurchaseLine: (String, String, String) -> Unit,
+) {
+    EntrySection(
+        title = stringResource(Res.string.entry_type_purchase),
+        icon = ShoppingCartIcon,
+        entry = purchaseEntry,
+        canEdit = state.canEdit,
+        canReport = state.canReport,
+        emptyHint = stringResource(Res.string.entry_none_yet),
+        onAdd = { viewModel.addEntry(EntryType.PURCHASE) },
+        onEditSummary = { purchaseEntry?.let { onEditEntry(it.localId) } },
+        onReport = { purchaseEntry?.let { onReportEntry(it.localId) } },
+    ) {
+        if (purchaseEntry != null && projectId != null) {
+            PurchaseLinesSubSection(
+                materials = state.materials,
+                lines = state.purchaseLines,
+                currency = state.currency,
+                canEdit = state.canEdit,
+                isAdmin = state.isAdmin,
+                onAdd = { onAddPurchaseLine(purchaseEntry.localId, projectId) },
+                onEdit = { line -> onEditPurchaseLine(purchaseEntry.localId, projectId, line.localId) },
+                onDelete = { line -> viewModel.deletePurchaseLine(line.localId) },
+            )
+            AttachmentsSection(
+                entryLocalId = purchaseEntry.localId,
+                state = state,
+                viewModel = viewModel,
+            )
+        }
+    }
+}
 
-        EntrySection(
-            title = stringResource(Res.string.entry_type_work),
-            icon = ConstructionIcon,
-            entry = workEntry,
-            canEdit = state.canEdit,
-            canReport = state.canReport,
-            emptyHint = stringResource(Res.string.entry_none_yet),
-            onAdd = { viewModel.addEntry(EntryType.WORK) },
-            onEditSummary = { workEntry?.let { onEditEntry(it.localId) } },
-            onReport = { workEntry?.let { onReportEntry(it.localId) } },
-        ) {
-            if (workEntry != null && projectId != null) {
-                ConsumptionLinesSubSection(
-                    stock = state.stock,
-                    lines = state.consumptionLines,
-                    canEdit = state.canEdit,
-                    isAdmin = state.isAdmin,
-                    onAdd = { onAddConsumptionLine(workEntry.localId, projectId) },
-                    onEdit = { line -> onEditConsumptionLine(workEntry.localId, projectId, line.localId) },
-                    onDelete = { line -> viewModel.deleteConsumptionLine(line.localId) },
-                )
-            }
+@Composable
+private fun WorkEntrySection(
+    state: DailyLogUiState,
+    viewModel: DailyLogViewModel,
+    projectId: String?,
+    workEntry: DailyEntry?,
+    onEditEntry: (String) -> Unit,
+    onReportEntry: (String) -> Unit,
+    onAddConsumptionLine: (String, String) -> Unit,
+    onEditConsumptionLine: (String, String, String) -> Unit,
+) {
+    EntrySection(
+        title = stringResource(Res.string.entry_type_work),
+        icon = ConstructionIcon,
+        entry = workEntry,
+        canEdit = state.canEdit,
+        canReport = state.canReport,
+        emptyHint = stringResource(Res.string.entry_none_yet),
+        onAdd = { viewModel.addEntry(EntryType.WORK) },
+        onEditSummary = { workEntry?.let { onEditEntry(it.localId) } },
+        onReport = { workEntry?.let { onReportEntry(it.localId) } },
+    ) {
+        if (workEntry != null && projectId != null) {
+            ConsumptionLinesSubSection(
+                stock = state.stock,
+                lines = state.consumptionLines,
+                canEdit = state.canEdit,
+                isAdmin = state.isAdmin,
+                onAdd = { onAddConsumptionLine(workEntry.localId, projectId) },
+                onEdit = { line -> onEditConsumptionLine(workEntry.localId, projectId, line.localId) },
+                onDelete = { line -> viewModel.deleteConsumptionLine(line.localId) },
+            )
         }
     }
 }

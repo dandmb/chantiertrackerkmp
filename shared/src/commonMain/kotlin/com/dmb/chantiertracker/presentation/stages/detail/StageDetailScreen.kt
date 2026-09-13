@@ -38,6 +38,7 @@ import com.dmb.chantiertracker.presentation.DetailEmptyHint
 import com.dmb.chantiertracker.presentation.DetailInfoRow
 import com.dmb.chantiertracker.presentation.DetailSection
 import com.dmb.chantiertracker.presentation.DetailSectionDivider
+import com.dmb.chantiertracker.presentation.ResponsiveContent
 import com.dmb.chantiertracker.presentation.formatIsoDate
 import com.dmb.chantiertracker.presentation.format.formatMoney
 import com.dmb.chantiertracker.presentation.main.AddIcon
@@ -76,33 +77,35 @@ fun StageDetailScreen(
         state.detail?.name?.let(onStageNameResolved)
     }
 
-    Box(modifier.fillMaxSize()) {
-        when {
-            state.isLoading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
-            state.isMissing -> Column(
-                modifier = Modifier.align(Alignment.Center).fillMaxWidth().padding(horizontal = 32.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-            ) {
-                Text(
-                    text = stringResource(Res.string.error_not_found),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center,
-                )
-                OutlinedButton(onClick = viewModel::retry) {
-                    Text(stringResource(Res.string.projects_retry))
+    ResponsiveContent(modifier) {
+        Box(Modifier.fillMaxSize()) {
+            when {
+                state.isLoading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
+                state.isMissing -> Column(
+                    modifier = Modifier.align(Alignment.Center).fillMaxWidth().padding(horizontal = 32.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
+                    Text(
+                        text = stringResource(Res.string.error_not_found),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                    )
+                    OutlinedButton(onClick = viewModel::retry) {
+                        Text(stringResource(Res.string.projects_retry))
+                    }
                 }
+                state.detail != null -> StageDetailContent(
+                    detail = state.detail!!,
+                    currency = state.currency,
+                    logs = state.logs,
+                    todayDate = state.todayDate,
+                    canAddToday = state.canAddToday,
+                    onOpenLog = onOpenLog,
+                    onAddToday = { type -> viewModel.addTodayEntry(type) },
+                )
             }
-            state.detail != null -> StageDetailContent(
-                detail = state.detail!!,
-                currency = state.currency,
-                logs = state.logs,
-                todayDate = state.todayDate,
-                canAddToday = state.canAddToday,
-                onOpenLog = onOpenLog,
-                onAddToday = { type -> viewModel.addTodayEntry(type) },
-            )
         }
     }
 }

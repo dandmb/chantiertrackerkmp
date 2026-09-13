@@ -39,6 +39,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dmb.chantiertracker.domain.model.IncomingInvitation
 import com.dmb.chantiertracker.domain.model.ProjectRole
 import com.dmb.chantiertracker.presentation.ConfirmActionDialog
+import com.dmb.chantiertracker.presentation.ResponsiveContent
 import com.dmb.chantiertracker.presentation.auth.components.ErrorBanner
 import com.dmb.chantiertracker.presentation.i18n.localizedText
 import com.dmb.chantiertracker.resources.Res
@@ -71,30 +72,32 @@ fun ProjectsScreen(
         onRefresh = viewModel::refresh,
         modifier = modifier.fillMaxSize(),
     ) {
-        Column(Modifier.fillMaxSize()) {
-            if (state.incomingInvitations.isNotEmpty() || state.invitationError != null) {
-                IncomingInvitations(
-                    invitations = state.incomingInvitations,
-                    busyTokens = state.busyInvitationTokens,
-                    error = state.invitationError?.localizedText(),
-                    onAccept = viewModel::acceptInvitation,
-                    onDecline = viewModel::declineInvitation,
-                )
-            }
-            when {
-                state.isLoading -> Column(
-                    Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.Center,
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) { CircularProgressIndicator() }
-                state.isEmpty -> EmptyState()
-                else -> LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    items(state.projects, key = { it.localId }) { project ->
-                        ProjectCard(project = project, onClick = { onProjectClick(project.localId) })
+        ResponsiveContent {
+            Column(Modifier.fillMaxSize()) {
+                if (state.incomingInvitations.isNotEmpty() || state.invitationError != null) {
+                    IncomingInvitations(
+                        invitations = state.incomingInvitations,
+                        busyTokens = state.busyInvitationTokens,
+                        error = state.invitationError?.localizedText(),
+                        onAccept = viewModel::acceptInvitation,
+                        onDecline = viewModel::declineInvitation,
+                    )
+                }
+                when {
+                    state.isLoading -> Column(
+                        Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.Center,
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) { CircularProgressIndicator() }
+                    state.isEmpty -> EmptyState()
+                    else -> LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        items(state.projects, key = { it.localId }) { project ->
+                            ProjectCard(project = project, onClick = { onProjectClick(project.localId) })
+                        }
                     }
                 }
             }

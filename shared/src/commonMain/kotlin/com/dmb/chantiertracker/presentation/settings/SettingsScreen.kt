@@ -22,6 +22,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dmb.chantiertracker.presentation.DetailInfoRow
 import com.dmb.chantiertracker.presentation.DetailSection
 import com.dmb.chantiertracker.presentation.DetailSectionDivider
+import com.dmb.chantiertracker.presentation.ResponsiveContent
 import com.dmb.chantiertracker.presentation.i18n.AppLanguage
 import com.dmb.chantiertracker.presentation.theme.ThemeMode
 import com.dmb.chantiertracker.resources.Res
@@ -46,37 +47,39 @@ fun SettingsScreen(
     val language by viewModel.language.collectAsStateWithLifecycle()
     val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(start = 24.dp, end = 24.dp, top = 20.dp, bottom = 32.dp),
-        verticalArrangement = Arrangement.spacedBy(20.dp),
-    ) {
-        DetailSection(stringResource(Res.string.settings_language)) {
-            ChoiceRow(
-                options = AppLanguage.entries,
-                selected = language,
-                label = ::languageLabel,
-                onSelect = viewModel::onLanguageSelected,
-            )
-        }
+    ResponsiveContent(modifier) {
+        Column(
+            Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(start = 24.dp, end = 24.dp, top = 20.dp, bottom = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp),
+        ) {
+            DetailSection(stringResource(Res.string.settings_language)) {
+                ChoiceRow(
+                    options = AppLanguage.entries,
+                    selected = language,
+                    label = ::languageLabel,
+                    onSelect = viewModel::onLanguageSelected,
+                )
+            }
 
-        DetailSectionDivider()
+            DetailSectionDivider()
 
-        DetailSection(stringResource(Res.string.settings_theme)) {
-            ChoiceRow(
-                options = ThemeMode.entries,
-                selected = themeMode,
-                label = ::themeLabel,
-                onSelect = viewModel::onThemeSelected,
-            )
-        }
+            DetailSection(stringResource(Res.string.settings_theme)) {
+                ChoiceRow(
+                    options = ThemeMode.entries,
+                    selected = themeMode,
+                    label = ::themeLabel,
+                    onSelect = viewModel::onThemeSelected,
+                )
+            }
 
-        DetailSectionDivider()
+            DetailSectionDivider()
 
-        DetailSection(stringResource(Res.string.settings_about)) {
-            DetailInfoRow(stringResource(Res.string.settings_version), viewModel.appVersion)
+            DetailSection(stringResource(Res.string.settings_about)) {
+                DetailInfoRow(stringResource(Res.string.settings_version), viewModel.appVersion)
+            }
         }
     }
 }
