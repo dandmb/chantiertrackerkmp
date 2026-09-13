@@ -1158,4 +1158,21 @@ class MainScreensSnapshotTest {
     fun capture_wide_projects_list_capped() = wideScreenSnapshot("projects") {
         Chrome(MainTab.Projects) { m -> ProjectsScreen(onProjectClick = {}, modifier = m, viewModel = projectsVm(sampleProjects)) }
     }
+
+    // Forms get a simple centered cap (no 2-column layout attempt) — one
+    // short form and one longer, field-heavy one, both confirmed capped.
+    @Test
+    fun capture_wide_create_project_capped() = wideScreenSnapshot("create-project") {
+        DetailChrome(title = "Nouveau projet") { m -> CreateProjectScreen(onCreated = {}, modifier = m, viewModel = createProjectVm()) }
+    }
+
+    @Test
+    fun capture_wide_purchase_line_form_capped() = wideScreenSnapshot("purchase-line-form") {
+        DetailChrome(title = "Ajouter un article") { m ->
+            com.dmb.chantiertracker.presentation.logs.PurchaseLineFormScreen(
+                entryLocalId = "e1", projectLocalId = "1", lineLocalId = null, currency = "EUR",
+                onSaved = {}, onBack = {}, modifier = m, viewModel = purchaseLineFormVm(),
+            )
+        }
+    }
 }

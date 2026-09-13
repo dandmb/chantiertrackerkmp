@@ -19,6 +19,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.dmb.chantiertracker.presentation.ResponsiveContent
 import com.dmb.chantiertracker.presentation.auth.components.AuthPrimaryButton
 import com.dmb.chantiertracker.presentation.auth.components.ErrorBanner
 import com.dmb.chantiertracker.presentation.auth.components.InfoBanner
@@ -45,41 +46,43 @@ fun InviteMemberScreen(
 
     val locked = state.isSubmitting || state.atSupervisorLimit
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(24.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
-        if (state.atSupervisorLimit) {
-            InfoBanner(stringResource(Res.string.invite_member_limit))
+    ResponsiveContent(modifier, maxContentWidth = 480.dp) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(24.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            if (state.atSupervisorLimit) {
+                InfoBanner(stringResource(Res.string.invite_member_limit))
+            }
+            state.formError?.let { ErrorBanner(it.localizedText()) }
+
+            OutlinedTextField(
+                value = state.email,
+                onValueChange = viewModel::onEmailChange,
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text(stringResource(Res.string.invite_member_email_label)) },
+                singleLine = true,
+                isError = state.emailError != null,
+                supportingText = state.emailError?.let { { Text(stringResource(it)) } },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Done),
+                enabled = !locked,
+            )
+
+            Text(
+                text = stringResource(Res.string.invite_member_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+
+            AuthPrimaryButton(
+                text = stringResource(Res.string.invite_member_submit),
+                onClick = viewModel::submit,
+                loading = state.isSubmitting,
+                enabled = !state.atSupervisorLimit,
+            )
         }
-        state.formError?.let { ErrorBanner(it.localizedText()) }
-
-        OutlinedTextField(
-            value = state.email,
-            onValueChange = viewModel::onEmailChange,
-            modifier = Modifier.fillMaxWidth(),
-            label = { Text(stringResource(Res.string.invite_member_email_label)) },
-            singleLine = true,
-            isError = state.emailError != null,
-            supportingText = state.emailError?.let { { Text(stringResource(it)) } },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Done),
-            enabled = !locked,
-        )
-
-        Text(
-            text = stringResource(Res.string.invite_member_hint),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-
-        AuthPrimaryButton(
-            text = stringResource(Res.string.invite_member_submit),
-            onClick = viewModel::submit,
-            loading = state.isSubmitting,
-            enabled = !state.atSupervisorLimit,
-        )
     }
 }

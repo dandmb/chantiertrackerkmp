@@ -20,6 +20,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dmb.chantiertracker.presentation.DateField
+import com.dmb.chantiertracker.presentation.ResponsiveContent
 import com.dmb.chantiertracker.presentation.parseIsoDateOrNull
 import com.dmb.chantiertracker.presentation.todayInSystemZone
 import com.dmb.chantiertracker.presentation.auth.components.AuthPrimaryButton
@@ -52,77 +53,79 @@ fun CreateStageScreen(
         if (state.created) onCreated()
     }
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(24.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
-        state.formError?.let { ErrorBanner(it.localizedText()) }
+    ResponsiveContent(modifier, maxContentWidth = 480.dp) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(24.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            state.formError?.let { ErrorBanner(it.localizedText()) }
 
-        OutlinedTextField(
-            value = state.name,
-            onValueChange = viewModel::onNameChange,
-            modifier = Modifier.fillMaxWidth(),
-            label = { Text(stringResource(Res.string.create_stage_name_label)) },
-            singleLine = true,
-            isError = state.nameError != null,
-            supportingText = state.nameError?.let { { Text(stringResource(it)) } },
-            enabled = !state.isSubmitting,
-        )
-
-        OutlinedTextField(
-            value = state.description,
-            onValueChange = viewModel::onDescriptionChange,
-            modifier = Modifier.fillMaxWidth(),
-            label = { Text(stringResource(Res.string.create_description_label)) },
-            minLines = 3,
-            enabled = !state.isSubmitting,
-        )
-
-        if (state.canSetBudget) {
             OutlinedTextField(
-                value = state.estimatedBudget,
-                onValueChange = viewModel::onBudgetChange,
+                value = state.name,
+                onValueChange = viewModel::onNameChange,
                 modifier = Modifier.fillMaxWidth(),
-                label = { Text(stringResource(Res.string.create_stage_budget_label)) },
+                label = { Text(stringResource(Res.string.create_stage_name_label)) },
                 singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                isError = state.budgetError != null,
-                supportingText = state.budgetError?.let { { Text(stringResource(it)) } },
+                isError = state.nameError != null,
+                supportingText = state.nameError?.let { { Text(stringResource(it)) } },
                 enabled = !state.isSubmitting,
             )
+
+            OutlinedTextField(
+                value = state.description,
+                onValueChange = viewModel::onDescriptionChange,
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text(stringResource(Res.string.create_description_label)) },
+                minLines = 3,
+                enabled = !state.isSubmitting,
+            )
+
+            if (state.canSetBudget) {
+                OutlinedTextField(
+                    value = state.estimatedBudget,
+                    onValueChange = viewModel::onBudgetChange,
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text(stringResource(Res.string.create_stage_budget_label)) },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    isError = state.budgetError != null,
+                    supportingText = state.budgetError?.let { { Text(stringResource(it)) } },
+                    enabled = !state.isSubmitting,
+                )
+            }
+
+            DateField(
+                label = stringResource(Res.string.create_stage_start_date_label),
+                value = state.startDate,
+                onValueChange = viewModel::onStartDateChange,
+                minDate = today,
+                modifier = Modifier.fillMaxWidth(),
+                placeholder = stringResource(Res.string.date_field_placeholder),
+                enabled = !state.isSubmitting,
+                isError = state.startDateError != null,
+                supportingText = state.startDateError?.let { { Text(stringResource(it)) } },
+            )
+
+            DateField(
+                label = stringResource(Res.string.create_stage_end_date_label),
+                value = state.endDate,
+                onValueChange = viewModel::onEndDateChange,
+                minDate = startDate?.let { maxOf(it, today) } ?: today,
+                modifier = Modifier.fillMaxWidth(),
+                placeholder = stringResource(Res.string.date_field_placeholder),
+                enabled = !state.isSubmitting,
+                isError = state.endDateError != null,
+                supportingText = state.endDateError?.let { { Text(stringResource(it)) } },
+            )
+
+            AuthPrimaryButton(
+                text = stringResource(Res.string.create_stage_submit),
+                onClick = viewModel::submit,
+                loading = state.isSubmitting,
+            )
         }
-
-        DateField(
-            label = stringResource(Res.string.create_stage_start_date_label),
-            value = state.startDate,
-            onValueChange = viewModel::onStartDateChange,
-            minDate = today,
-            modifier = Modifier.fillMaxWidth(),
-            placeholder = stringResource(Res.string.date_field_placeholder),
-            enabled = !state.isSubmitting,
-            isError = state.startDateError != null,
-            supportingText = state.startDateError?.let { { Text(stringResource(it)) } },
-        )
-
-        DateField(
-            label = stringResource(Res.string.create_stage_end_date_label),
-            value = state.endDate,
-            onValueChange = viewModel::onEndDateChange,
-            minDate = startDate?.let { maxOf(it, today) } ?: today,
-            modifier = Modifier.fillMaxWidth(),
-            placeholder = stringResource(Res.string.date_field_placeholder),
-            enabled = !state.isSubmitting,
-            isError = state.endDateError != null,
-            supportingText = state.endDateError?.let { { Text(stringResource(it)) } },
-        )
-
-        AuthPrimaryButton(
-            text = stringResource(Res.string.create_stage_submit),
-            onClick = viewModel::submit,
-            loading = state.isSubmitting,
-        )
     }
 }

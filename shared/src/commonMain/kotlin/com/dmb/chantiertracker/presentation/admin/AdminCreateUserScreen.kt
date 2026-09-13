@@ -21,6 +21,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dmb.chantiertracker.domain.model.GlobalRole
+import com.dmb.chantiertracker.presentation.ResponsiveContent
 import com.dmb.chantiertracker.presentation.auth.components.AuthPrimaryButton
 import com.dmb.chantiertracker.presentation.auth.components.EmailField
 import com.dmb.chantiertracker.presentation.auth.components.ErrorBanner
@@ -49,58 +50,60 @@ fun AdminCreateUserScreen(
         if (state.created) onCreated()
     }
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(24.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
-        state.formError?.let { ErrorBanner(it.localizedText()) }
+    ResponsiveContent(modifier, maxContentWidth = 480.dp) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(24.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            state.formError?.let { ErrorBanner(it.localizedText()) }
 
-        NameField(
-            value = state.name,
-            onValueChange = viewModel::onNameChange,
-            error = state.nameError?.let { stringResource(it) },
-            enabled = !state.isSubmitting,
-        )
-        EmailField(
-            value = state.email,
-            onValueChange = viewModel::onEmailChange,
-            error = state.emailError?.let { stringResource(it) },
-            enabled = !state.isSubmitting,
-        )
-        PasswordField(
-            value = state.password,
-            onValueChange = viewModel::onPasswordChange,
-            error = state.passwordError?.let { stringResource(it) },
-            enabled = !state.isSubmitting,
-            imeAction = ImeAction.Done,
-        )
-        Text(
-            text = stringResource(Res.string.admin_create_user_password_help),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(
-                text = stringResource(Res.string.admin_create_user_role_label),
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            RoleChoiceRow(
-                selected = state.globalRole,
-                onSelect = viewModel::onRoleChange,
+            NameField(
+                value = state.name,
+                onValueChange = viewModel::onNameChange,
+                error = state.nameError?.let { stringResource(it) },
                 enabled = !state.isSubmitting,
             )
-        }
+            EmailField(
+                value = state.email,
+                onValueChange = viewModel::onEmailChange,
+                error = state.emailError?.let { stringResource(it) },
+                enabled = !state.isSubmitting,
+            )
+            PasswordField(
+                value = state.password,
+                onValueChange = viewModel::onPasswordChange,
+                error = state.passwordError?.let { stringResource(it) },
+                enabled = !state.isSubmitting,
+                imeAction = ImeAction.Done,
+            )
+            Text(
+                text = stringResource(Res.string.admin_create_user_password_help),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
 
-        AuthPrimaryButton(
-            text = stringResource(Res.string.admin_create_user_submit),
-            onClick = viewModel::submit,
-            loading = state.isSubmitting,
-        )
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    text = stringResource(Res.string.admin_create_user_role_label),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                RoleChoiceRow(
+                    selected = state.globalRole,
+                    onSelect = viewModel::onRoleChange,
+                    enabled = !state.isSubmitting,
+                )
+            }
+
+            AuthPrimaryButton(
+                text = stringResource(Res.string.admin_create_user_submit),
+                onClick = viewModel::submit,
+                loading = state.isSubmitting,
+            )
+        }
     }
 }
 
