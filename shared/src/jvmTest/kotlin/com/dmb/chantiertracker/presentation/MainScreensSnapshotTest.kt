@@ -1,7 +1,9 @@
 package com.dmb.chantiertracker.presentation
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -58,6 +60,7 @@ import com.dmb.chantiertracker.presentation.i18n.customAppLocale
 import com.dmb.chantiertracker.presentation.main.AccountMenuBody
 import com.dmb.chantiertracker.presentation.main.AddIcon
 import com.dmb.chantiertracker.presentation.main.AppBottomBar
+import com.dmb.chantiertracker.presentation.main.AppNavigationRail
 import com.dmb.chantiertracker.presentation.main.AppTopBar
 import com.dmb.chantiertracker.presentation.main.DetailTopBar
 import com.dmb.chantiertracker.presentation.main.MainTab
@@ -159,44 +162,61 @@ class MainScreensSnapshotTest {
             )
         }
 
+    // Mirrors MainScreen: at EXPANDED width (840dp+), AppNavigationRail
+    // replaces AppBottomBar (ADR-56 sous-étape 5/5) — measured here exactly
+    // like the real screen (BoxWithConstraints + widthSizeClassOf), not a
+    // separate flag, so a wide-window test exercises the real branch.
     @Composable
     private fun Chrome(tab: MainTab, screen: @Composable (Modifier) -> Unit) {
-        Scaffold(
-            topBar = {
-                AppTopBar(
-                    userName = "Jean Marchand",
-                    email = "jean@chantier.dev",
-                    plan = Plan.LIBERTE,
-                    onSubscription = {},
-                    onLogout = {},
-                    leadingActions = {
-                        if (tab == MainTab.Projects) {
-                            ProjectSortControl(current = ProjectSort.NEWEST_FIRST, onSelect = {})
-                        }
-                        // ADR-52 sous-étape 4/4 — the Administration tab now
-                        // lands on stats, mirroring MainScreen's real wiring.
-                        if (tab == MainTab.Administration) {
-                            com.dmb.chantiertracker.presentation.admin.AdminStatsGranularityControl(
-                                current = com.dmb.chantiertracker.domain.model.Granularity.MONTH, onSelect = {},
-                            )
-                        }
-                    },
-                )
-            },
-            bottomBar = {
-                val tabs = if (tab == MainTab.Administration) {
-                    listOf(MainTab.Administration, MainTab.Settings)
-                } else {
-                    listOf(MainTab.Projects, MainTab.Settings)
+        val tabs = if (tab == MainTab.Administration) {
+            listOf(MainTab.Administration, MainTab.Settings)
+        } else {
+            listOf(MainTab.Projects, MainTab.Settings)
+        }
+        val topBarContent: @Composable () -> Unit = {
+            AppTopBar(
+                userName = "Jean Marchand",
+                email = "jean@chantier.dev",
+                plan = Plan.LIBERTE,
+                onSubscription = {},
+                onLogout = {},
+                leadingActions = {
+                    if (tab == MainTab.Projects) {
+                        ProjectSortControl(current = ProjectSort.NEWEST_FIRST, onSelect = {})
+                    }
+                    // ADR-52 sous-étape 4/4 — the Administration tab now
+                    // lands on stats, mirroring MainScreen's real wiring.
+                    if (tab == MainTab.Administration) {
+                        com.dmb.chantiertracker.presentation.admin.AdminStatsGranularityControl(
+                            current = com.dmb.chantiertracker.domain.model.Granularity.MONTH, onSelect = {},
+                        )
+                    }
+                },
+            )
+        }
+        val fabContent: @Composable () -> Unit = {
+            if (tab == MainTab.Projects) {
+                FloatingActionButton(onClick = {}) { Icon(AddIcon, contentDescription = null) }
+            }
+        }
+        BoxWithConstraints(Modifier.fillMaxSize()) {
+            if (widthSizeClassOf(maxWidth) == WidthSizeClass.EXPANDED) {
+                Row(Modifier.fillMaxSize()) {
+                    AppNavigationRail(current = tab, tabs = tabs, onSelect = {})
+                    Scaffold(
+                        modifier = Modifier.weight(1f),
+                        topBar = topBarContent,
+                        floatingActionButton = fabContent,
+                    ) { padding -> screen(Modifier.padding(padding)) }
                 }
-                AppBottomBar(current = tab, tabs = tabs, onSelect = {})
-            },
-            floatingActionButton = {
-                if (tab == MainTab.Projects) {
-                    FloatingActionButton(onClick = {}) { Icon(AddIcon, contentDescription = null) }
-                }
-            },
-        ) { padding -> screen(Modifier.padding(padding)) }
+            } else {
+                Scaffold(
+                    topBar = topBarContent,
+                    bottomBar = { AppBottomBar(current = tab, tabs = tabs, onSelect = {}) },
+                    floatingActionButton = fabContent,
+                ) { padding -> screen(Modifier.padding(padding)) }
+            }
+        }
     }
 
     @Composable
@@ -1153,7 +1173,11 @@ class MainScreensSnapshotTest {
     }
 
     // A plain list screen: content capped and centered, not stretched edge to
-    // edge — the more common case than the two 2-column screens above.
+    // edge — the more common case than the two 2-column screens above. Also
+    // the permanent coverage for ADR-56 sous-étape 5/5: `Chrome` measures
+    // its own width exactly like MainScreen, so at 1440dp this renders the
+    // real AppNavigationRail (not AppBottomBar) — confirmed by inspection
+    // (rail full-height at x 0-80dp, dark; top bar starts cleanly at x 81dp).
     @Test
     fun capture_wide_projects_list_capped() = wideScreenSnapshot("projects") {
         Chrome(MainTab.Projects) { m -> ProjectsScreen(onProjectClick = {}, modifier = m, viewModel = projectsVm(sampleProjects)) }

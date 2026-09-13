@@ -1,5 +1,9 @@
 package com.dmb.chantiertracker.presentation.main
 
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
@@ -15,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.koin.compose.koinInject
 import androidx.navigation.NavDestination.Companion.hasRoute
+import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -22,6 +27,8 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import com.dmb.chantiertracker.domain.model.GlobalRole
 import com.dmb.chantiertracker.domain.model.Granularity
+import com.dmb.chantiertracker.presentation.WidthSizeClass
+import com.dmb.chantiertracker.presentation.widthSizeClassOf
 import com.dmb.chantiertracker.presentation.admin.AdminCreateUserScreen
 import com.dmb.chantiertracker.presentation.admin.AdminStatsGranularityControl
 import com.dmb.chantiertracker.presentation.admin.AdminStatsScreen
@@ -204,9 +211,16 @@ fun MainScreen(globalRole: GlobalRole, viewModel: MainViewModel = koinViewModel(
         if (current != MainDestination.Administration) statsGranularity = Granularity.MONTH
     }
 
-    Scaffold(
-        topBar = {
-            when (current) {
+    val onSelectTab: (MainTab) -> Unit = { tab ->
+        navController.navigate(tab.route()) {
+            popUpTo(startDestination) { inclusive = false; saveState = true }
+            launchSingleTop = true
+            restoreState = true
+        }
+    }
+
+    val topBarContent: @Composable () -> Unit = {
+        when (current) {
                 MainDestination.CreateProject -> DetailTopBar(
                     title = stringResource(Res.string.create_project_title),
                     onBack = { navController.popBackStack() },
@@ -283,35 +297,25 @@ fun MainScreen(globalRole: GlobalRole, viewModel: MainViewModel = koinViewModel(
                     },
                 )
             }
-        },
-        bottomBar = {
-            if (currentTab != null) {
-                AppBottomBar(
-                    current = currentTab,
-                    tabs = tabs,
-                    onSelect = { tab ->
-                        navController.navigate(tab.route()) {
-                            popUpTo(startDestination) { inclusive = false; saveState = true }
-                            launchSingleTop = true
-                            restoreState = true
-                        }
-                    },
-                )
+        }
+    val fabContent: @Composable () -> Unit = {
+        if (currentTab == MainTab.Projects) {
+            FloatingActionButton(onClick = { navController.navigate(CreateProjectRoute) }) {
+                Icon(AddIcon, contentDescription = stringResource(Res.string.projects_new))
             }
-        },
-        floatingActionButton = {
-            if (currentTab == MainTab.Projects) {
-                FloatingActionButton(onClick = { navController.navigate(CreateProjectRoute) }) {
-                    Icon(AddIcon, contentDescription = stringResource(Res.string.projects_new))
-                }
+        }
+        if (current == MainDestination.AdminUsers) {
+            FloatingActionButton(onClick = { navController.navigate(AdminCreateUserRoute) }) {
+                Icon(AddIcon, contentDescription = stringResource(Res.string.admin_users_create))
             }
-            if (current == MainDestination.AdminUsers) {
-                FloatingActionButton(onClick = { navController.navigate(AdminCreateUserRoute) }) {
-                    Icon(AddIcon, contentDescription = stringResource(Res.string.admin_users_create))
-                }
-            }
-        },
-    ) { padding ->
+        }
+    }
+
+    // Extracted (rather than left inline in a single Scaffold call) so the
+    // exact same NavHost — same nesting depth, same indentation below —
+    // serves both branches of the width-based layout further down, with no
+    // duplication of the ~25-destination graph.
+    val navHostContent: @Composable (PaddingValues) -> Unit = { padding ->
         NavHost(
             navController = navController,
             startDestination = startDestination,
@@ -453,6 +457,38 @@ fun MainScreen(globalRole: GlobalRole, viewModel: MainViewModel = koinViewModel(
                     onTitleResolved = { formTitle = it },
                 )
             }
+        }
+    }
+
+    // ADR-56 sous-étape 5/5 — at EXPANDED width (840dp+, same Material3
+    // threshold used throughout this chantier), AppBottomBar stretched
+    // across the window leaves its 2 tabs absurdly far apart (confirmed in
+    // the sub-step 3 audit screenshots); AppNavigationRail replaces it, the
+    // standard Material 3 pattern at this width. Below EXPANDED, behavior
+    // is byte-for-byte what it was before this sub-step.
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val widthClass = widthSizeClassOf(maxWidth)
+        if (widthClass == WidthSizeClass.EXPANDED) {
+            Row(Modifier.fillMaxSize()) {
+                if (currentTab != null) {
+                    AppNavigationRail(current = currentTab, tabs = tabs, onSelect = onSelectTab)
+                }
+                Scaffold(
+                    modifier = Modifier.weight(1f),
+                    topBar = topBarContent,
+                    floatingActionButton = fabContent,
+                ) { padding -> navHostContent(padding) }
+            }
+        } else {
+            Scaffold(
+                topBar = topBarContent,
+                bottomBar = {
+                    if (currentTab != null) {
+                        AppBottomBar(current = currentTab, tabs = tabs, onSelect = onSelectTab)
+                    }
+                },
+                floatingActionButton = fabContent,
+            ) { padding -> navHostContent(padding) }
         }
     }
 }
