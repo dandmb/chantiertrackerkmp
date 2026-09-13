@@ -423,4 +423,14 @@
     <string name="admin_create_user_password_help">Cet utilisateur devra changer ce mot de passe lors de sa première connexion.</string>
     <string name="admin_create_user_role_label">Rôle</string>
     <string name="admin_create_user_submit">Créer</string>
+    <string name="admin_users_action_assign_plan">Modifier le plan</string>
+    <string name="admin_plan_dialog_title">Modifier le plan de %1$s</string>
+    <string name="admin_plan_stripe_guard">Cet utilisateur a un abonnement Stripe actif. Annulez-le d'abord via le portail de facturation avant de modifier son plan manuellement.</string>
+    <string name="admin_plan_expires_label">Date d'expiration (optionnel)</string>
+    <string name="admin_plan_expires_help">Laisser vide pour un accès indéfini.</string>
+    <string name="admin_plan_expires_help_free">Non applicable au plan gratuit.</string>
+    <string name="admin_plan_confirm">Confirmer</string>
+    <string name="admin_plan_change_free">Le plan de %1$s passera à Gratuit.</string>
+    <string name="admin_plan_change_with_date">Le plan de %1$s passera à %2$s, jusqu'au %3$s.</string>
+    <string name="admin_plan_change_indefinite">Le plan de %1$s passera à %2$s, sans date d'expiration (accès indéfini jusqu'à révocation manuelle).</string>
 </resources>

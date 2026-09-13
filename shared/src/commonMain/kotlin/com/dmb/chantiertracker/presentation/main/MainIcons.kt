@@ -156,3 +156,9 @@ val SendIcon: ImageVector = icon(
     "Send",
     "M2.01,21L23,12 2.01,3 2,10l15,2 -15,2z",
 )
+
+// ADR-52 sub-step 3/4 — "Modifier le plan" menu item.
+val CreditCardIcon: ImageVector = icon(
+    "CreditCard",
+    "M20,4L4,4c-1.11,0 -1.99,0.89 -1.99,2L2,18c0,1.11 0.89,2 2,2h16c1.11,0 2,-0.89 2,-2L22,6c0,-1.11 -0.89,-2 -2,-2zM20,18L4,18L4,12h16v6zM20,8L4,8L4,6h16v2z",
+)

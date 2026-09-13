@@ -311,7 +311,7 @@
     <string name="attachments_title">Attachments</string>
     <string name="attachment_add">Add a photo</string>
     <string name="attachments_empty">No photo yet.</string>
-    <string name="attachment_upload_error">Couldn\'t add this photo.</string>
+    <string name="attachment_upload_error">Couldn't add this photo.</string>
     <string name="attachment_delete">Delete photo</string>
     <string name="attachment_close">Close</string>
     <string name="attachment_add_video">Add a video</string>
@@ -319,11 +319,11 @@
     <string name="video_upload_in_progress">Uploading video…</string>
     <string name="attachment_finalizing">Finishing up…</string>
     <string name="attachments_loading">Loading attachments…</string>
-    <string name="video_upload_error">Couldn\'t upload this video.</string>
-    <string name="video_too_long_upgrade">The video is %1$s long; your plan\'s limit is %2$s. Shorten it or upgrade to a higher tier.</string>
-    <string name="video_too_long_no_upgrade">The video is %1$s long; your plan\'s limit is %2$s. Please shorten it.</string>
+    <string name="video_upload_error">Couldn't upload this video.</string>
+    <string name="video_too_long_upgrade">The video is %1$s long; your plan's limit is %2$s. Shorten it or upgrade to a higher tier.</string>
+    <string name="video_too_long_no_upgrade">The video is %1$s long; your plan's limit is %2$s. Please shorten it.</string>
     <string name="video_play">Play video</string>
-    <string name="video_desktop_unavailable">Built-in video playback isn\'t available on desktop.</string>
+    <string name="video_desktop_unavailable">Built-in video playback isn't available on desktop.</string>
     <string name="video_desktop_open">Open the video</string>
 
     <string name="material_label">Material</string>
@@ -423,4 +423,14 @@
     <string name="admin_create_user_password_help">This user will be required to change this password on first sign-in.</string>
     <string name="admin_create_user_role_label">Role</string>
     <string name="admin_create_user_submit">Create</string>
+    <string name="admin_users_action_assign_plan">Edit plan</string>
+    <string name="admin_plan_dialog_title">Edit plan for %1$s</string>
+    <string name="admin_plan_stripe_guard">This user has an active Stripe subscription. Cancel it first through the billing portal before changing their plan manually.</string>
+    <string name="admin_plan_expires_label">Expiration date (optional)</string>
+    <string name="admin_plan_expires_help">Leave empty for indefinite access.</string>
+    <string name="admin_plan_expires_help_free">Not applicable to the free plan.</string>
+    <string name="admin_plan_confirm">Confirm</string>
+    <string name="admin_plan_change_free">%1$s's plan will change to Free.</string>
+    <string name="admin_plan_change_with_date">%1$s's plan will change to %2$s, until %3$s.</string>
+    <string name="admin_plan_change_indefinite">%1$s's plan will change to %2$s, with no expiration date (indefinite access until manually revoked).</string>
 </resources>

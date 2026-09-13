@@ -3,6 +3,7 @@ package com.dmb.chantiertracker.domain.repository
 import com.dmb.chantiertracker.domain.model.AdminUser
 import com.dmb.chantiertracker.domain.model.AdminUserPage
 import com.dmb.chantiertracker.domain.model.GlobalRole
+import com.dmb.chantiertracker.domain.model.Plan
 
 /**
  * Platform-wide administration (SUPER_ADMIN only, ADR-52) — online only, no
@@ -17,4 +18,6 @@ interface AdminRepository {
     suspend fun deleteUser(id: Long)
     suspend fun resetPassword(id: Long)
     suspend fun resendActivation(id: Long)
+    // expiresAt: yyyy-MM-ddTHH:mm:ss or null (indefinite grant). Ignored server-side for FREE.
+    suspend fun updateUserPlan(id: Long, plan: Plan, expiresAt: String?): AdminUser
 }

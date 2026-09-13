@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.dmb.chantiertracker.domain.model.AdminUser
 import com.dmb.chantiertracker.domain.model.AuthState
 import com.dmb.chantiertracker.domain.model.DomainException
+import com.dmb.chantiertracker.domain.model.Plan
 import com.dmb.chantiertracker.domain.repository.AdminRepository
 import com.dmb.chantiertracker.domain.repository.AuthRepository
 import kotlinx.coroutines.CancellationException
@@ -127,6 +128,28 @@ class AdminUsersViewModel(
                     it.copy(
                         processingIds = it.processingIds - id,
                         actionMessage = AdminUserActionMessage.ActivationResent(email),
+                    )
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: DomainException) {
+                _state.update { it.copy(processingIds = it.processingIds - id, actionError = e) }
+            } catch (e: Throwable) {
+                _state.update { it.copy(processingIds = it.processingIds - id, actionError = DomainException.Unexpected) }
+            }
+        }
+    }
+
+    fun updatePlan(id: Long, plan: Plan, expiresAt: String?) {
+        if (id in _state.value.processingIds) return
+        _state.update { it.copy(processingIds = it.processingIds + id, actionError = null) }
+        viewModelScope.launch {
+            try {
+                val updated = adminRepository.updateUserPlan(id, plan, expiresAt)
+                _state.update { s ->
+                    s.copy(
+                        processingIds = s.processingIds - id,
+                        items = s.items.map { if (it.id == id) updated else it },
                     )
                 }
             } catch (e: CancellationException) {

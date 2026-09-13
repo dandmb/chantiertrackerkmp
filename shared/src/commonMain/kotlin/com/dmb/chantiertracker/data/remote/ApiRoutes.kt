@@ -53,4 +53,5 @@ object ApiRoutes {
     fun adminUser(id: Long) = "admin/users/$id"
     fun adminUserResetPassword(id: Long) = "admin/users/$id/reset-password"
     fun adminUserResendActivation(id: Long) = "admin/users/$id/resend-activation"
+    fun adminUserPlan(id: Long) = "admin/users/$id/plan"
 }

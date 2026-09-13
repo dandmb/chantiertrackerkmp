@@ -6,10 +6,12 @@ import com.dmb.chantiertracker.data.remote.dto.AdminUserPageDto
 import com.dmb.chantiertracker.data.remote.dto.AdminUserResponseDto
 import com.dmb.chantiertracker.data.remote.dto.CreateAdminUserRequestDto
 import com.dmb.chantiertracker.data.remote.dto.UpdateAdminUserRequestDto
+import com.dmb.chantiertracker.data.remote.dto.UpdateUserPlanRequestDto
 import com.dmb.chantiertracker.domain.model.AdminUser
 import com.dmb.chantiertracker.domain.model.AdminUserPage
 import com.dmb.chantiertracker.domain.model.DomainException
 import com.dmb.chantiertracker.domain.model.GlobalRole
+import com.dmb.chantiertracker.domain.model.Plan
 import com.dmb.chantiertracker.domain.model.PlanSource
 import com.dmb.chantiertracker.domain.repository.AdminRepository
 import kotlinx.coroutines.CancellationException
@@ -50,6 +52,21 @@ class AdminRepositoryImpl(private val api: AdminApi) : AdminRepository {
             throw DomainException.Unexpected
         }
     }
+
+    // Same posture as resendActivation above: the only 409 this endpoint can
+    // return is StripeSubscriptionActiveException (verified in
+    // AdminUserService.updateUserPlan), never a duplicate email — the UI
+    // already disables the form proactively once planSource == STRIPE is
+    // known, so this is reachable only via a race (the subscription started
+    // after the row was loaded). Remapped to the honest generic message.
+    override suspend fun updateUserPlan(id: Long, plan: Plan, expiresAt: String?): AdminUser =
+        try {
+            apiCall { api.updatePlan(id, UpdateUserPlanRequestDto(plan.name, expiresAt)) }.toAdminUser()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: DomainException.EmailAlreadyUsed) {
+            throw DomainException.Unexpected
+        }
 
     companion object {
         // Same full-screen size as History/Reports (ADR-44/47) — well under

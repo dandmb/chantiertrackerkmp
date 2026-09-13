@@ -4,6 +4,7 @@ import com.dmb.chantiertracker.data.remote.dto.AdminUserPageDto
 import com.dmb.chantiertracker.data.remote.dto.AdminUserResponseDto
 import com.dmb.chantiertracker.data.remote.dto.CreateAdminUserRequestDto
 import com.dmb.chantiertracker.data.remote.dto.UpdateAdminUserRequestDto
+import com.dmb.chantiertracker.data.remote.dto.UpdateUserPlanRequestDto
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.delete
@@ -38,6 +39,12 @@ class AdminApi(private val client: HttpClient) {
 
     suspend fun updateUser(id: Long, body: UpdateAdminUserRequestDto): AdminUserResponseDto =
         client.patch(ApiRoutes.adminUser(id)) {
+            contentType(ContentType.Application.Json)
+            setBody(body)
+        }.body()
+
+    suspend fun updatePlan(id: Long, body: UpdateUserPlanRequestDto): AdminUserResponseDto =
+        client.patch(ApiRoutes.adminUserPlan(id)) {
             contentType(ContentType.Application.Json)
             setBody(body)
         }.body()

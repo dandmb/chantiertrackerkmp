@@ -44,6 +44,7 @@ import com.dmb.chantiertracker.domain.model.PlanSource
 import com.dmb.chantiertracker.presentation.auth.components.ErrorBanner
 import com.dmb.chantiertracker.presentation.formatIsoDateTime
 import com.dmb.chantiertracker.presentation.i18n.localizedText
+import com.dmb.chantiertracker.presentation.main.CreditCardIcon
 import com.dmb.chantiertracker.presentation.main.DeleteIcon
 import com.dmb.chantiertracker.presentation.main.EditIcon
 import com.dmb.chantiertracker.presentation.main.KeyIcon
@@ -52,6 +53,7 @@ import com.dmb.chantiertracker.presentation.main.SendIcon
 import com.dmb.chantiertracker.presentation.main.labelRes
 import com.dmb.chantiertracker.resources.Res
 import com.dmb.chantiertracker.resources.action_ok
+import com.dmb.chantiertracker.resources.admin_users_action_assign_plan
 import com.dmb.chantiertracker.resources.admin_users_action_delete
 import com.dmb.chantiertracker.resources.admin_users_action_rename
 import com.dmb.chantiertracker.resources.admin_users_action_resend_activation
@@ -81,6 +83,7 @@ private sealed class PendingAction {
     data class Rename(val user: AdminUser) : PendingAction()
     data class ResetPassword(val user: AdminUser) : PendingAction()
     data class ResendActivation(val user: AdminUser) : PendingAction()
+    data class AssignPlan(val user: AdminUser) : PendingAction()
     data class Delete(val user: AdminUser) : PendingAction()
 }
 
@@ -139,6 +142,7 @@ fun AdminUsersScreen(
                             onRename = { pending = PendingAction.Rename(user) },
                             onResetPassword = { pending = PendingAction.ResetPassword(user) },
                             onResendActivation = { pending = PendingAction.ResendActivation(user) },
+                            onAssignPlan = { pending = PendingAction.AssignPlan(user) },
                             onDelete = { pending = PendingAction.Delete(user) },
                         )
                         HorizontalDivider(
@@ -213,6 +217,14 @@ fun AdminUsersScreen(
                 viewModel.resendActivation(action.user.id, action.user.email)
             },
         )
+        is PendingAction.AssignPlan -> AssignPlanDialog(
+            user = action.user,
+            onDismiss = { pending = null },
+            onConfirm = { plan, expiresAt ->
+                pending = null
+                viewModel.updatePlan(action.user.id, plan, expiresAt)
+            },
+        )
         is PendingAction.Delete -> DeleteAdminUserDialog(
             email = action.user.email,
             onDismiss = { pending = null },
@@ -232,6 +244,7 @@ private fun AdminUserRow(
     onRename: () -> Unit,
     onResetPassword: () -> Unit,
     onResendActivation: () -> Unit,
+    onAssignPlan: () -> Unit,
     onDelete: () -> Unit,
 ) {
     Column(
@@ -247,9 +260,11 @@ private fun AdminUserRow(
                 isSelf = isSelf,
                 isProcessing = isProcessing,
                 showResendActivation = !user.active,
+                showAssignPlan = user.globalRole != GlobalRole.SUPER_ADMIN,
                 onRename = onRename,
                 onResetPassword = onResetPassword,
                 onResendActivation = onResendActivation,
+                onAssignPlan = onAssignPlan,
                 onDelete = onDelete,
             )
         }
@@ -314,9 +329,11 @@ private fun AdminUserActionsMenu(
     isSelf: Boolean,
     isProcessing: Boolean,
     showResendActivation: Boolean,
+    showAssignPlan: Boolean,
     onRename: () -> Unit,
     onResetPassword: () -> Unit,
     onResendActivation: () -> Unit,
+    onAssignPlan: () -> Unit,
     onDelete: () -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
@@ -333,9 +350,11 @@ private fun AdminUserActionsMenu(
             AdminUserActionMenuItems(
                 isSelf = isSelf,
                 showResendActivation = showResendActivation,
+                showAssignPlan = showAssignPlan,
                 onRename = { expanded = false; onRename() },
                 onResetPassword = { expanded = false; onResetPassword() },
                 onResendActivation = { expanded = false; onResendActivation() },
+                onAssignPlan = { expanded = false; onAssignPlan() },
                 onDelete = { expanded = false; onDelete() },
             )
         }
@@ -350,20 +369,17 @@ private fun AdminUserActionsMenu(
 fun AdminUserActionMenuItems(
     isSelf: Boolean,
     showResendActivation: Boolean,
+    showAssignPlan: Boolean,
     onRename: () -> Unit,
     onResetPassword: () -> Unit,
     onResendActivation: () -> Unit,
+    onAssignPlan: () -> Unit,
     onDelete: () -> Unit,
 ) {
     DropdownMenuItem(
         text = { Text(stringResource(Res.string.admin_users_action_rename)) },
         leadingIcon = { Icon(EditIcon, contentDescription = null) },
         onClick = onRename,
-    )
-    DropdownMenuItem(
-        text = { Text(stringResource(Res.string.admin_users_action_reset_password)) },
-        leadingIcon = { Icon(KeyIcon, contentDescription = null) },
-        onClick = onResetPassword,
     )
     if (showResendActivation) {
         DropdownMenuItem(
@@ -372,6 +388,21 @@ fun AdminUserActionMenuItems(
             onClick = onResendActivation,
         )
     }
+    // Hidden entirely for a SUPER_ADMIN target — mirrors the web exactly:
+    // getEffectivePlan() for a SUPER_ADMIN is always LIBERTE server-side
+    // regardless of this field, so changing it would have no real effect.
+    if (showAssignPlan) {
+        DropdownMenuItem(
+            text = { Text(stringResource(Res.string.admin_users_action_assign_plan)) },
+            leadingIcon = { Icon(CreditCardIcon, contentDescription = null) },
+            onClick = onAssignPlan,
+        )
+    }
+    DropdownMenuItem(
+        text = { Text(stringResource(Res.string.admin_users_action_reset_password)) },
+        leadingIcon = { Icon(KeyIcon, contentDescription = null) },
+        onClick = onResetPassword,
+    )
     // A hardcoded error-red color doesn't participate in DropdownMenuItem's
     // automatic disabled-content dimming (that only touches LocalContentColor)
     // — found by snapshot inspection: the disabled self-row still rendered

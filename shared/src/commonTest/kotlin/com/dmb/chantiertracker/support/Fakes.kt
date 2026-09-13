@@ -656,11 +656,13 @@ class FakeAdminRepository(
     val deleteCalls = mutableListOf<Long>()
     val resetPasswordCalls = mutableListOf<Long>()
     val resendActivationCalls = mutableListOf<Long>()
+    val updatePlanCalls = mutableListOf<Triple<Long, com.dmb.chantiertracker.domain.model.Plan, String?>>()
     var createError: com.dmb.chantiertracker.domain.model.DomainException? = null
     var updateNameError: com.dmb.chantiertracker.domain.model.DomainException? = null
     var deleteError: com.dmb.chantiertracker.domain.model.DomainException? = null
     var resetPasswordError: com.dmb.chantiertracker.domain.model.DomainException? = null
     var resendActivationError: com.dmb.chantiertracker.domain.model.DomainException? = null
+    var updatePlanError: com.dmb.chantiertracker.domain.model.DomainException? = null
     private var nextCreatedId = 1000L
 
     data class CreateUserCall(
@@ -720,6 +722,28 @@ class FakeAdminRepository(
     override suspend fun resendActivation(id: Long) {
         resendActivationCalls += id
         resendActivationError?.let { throw it }
+    }
+
+    override suspend fun updateUserPlan(
+        id: Long,
+        plan: com.dmb.chantiertracker.domain.model.Plan,
+        expiresAt: String?,
+    ): com.dmb.chantiertracker.domain.model.AdminUser {
+        updatePlanCalls += Triple(id, plan, expiresAt)
+        updatePlanError?.let { throw it }
+        val planSource = if (plan == com.dmb.chantiertracker.domain.model.Plan.FREE) {
+            null
+        } else {
+            com.dmb.chantiertracker.domain.model.PlanSource.ADMIN_GRANTED
+        }
+        val resolvedExpiresAt = if (plan == com.dmb.chantiertracker.domain.model.Plan.FREE) null else expiresAt
+        val existing = pages.flatMap { it.items }.firstOrNull { it.id == id }
+        return (existing ?: com.dmb.chantiertracker.domain.model.AdminUser(
+            id = id, email = "user$id@chantier.dev", name = "User $id", active = true,
+            globalRole = com.dmb.chantiertracker.domain.model.GlobalRole.USER, projectCount = 0,
+            createdAt = "2026-09-01T00:00:00", plan = com.dmb.chantiertracker.domain.model.Plan.FREE,
+            planSource = null, planExpiresAt = null,
+        )).copy(plan = plan, planSource = planSource, planExpiresAt = resolvedExpiresAt)
     }
 }
 

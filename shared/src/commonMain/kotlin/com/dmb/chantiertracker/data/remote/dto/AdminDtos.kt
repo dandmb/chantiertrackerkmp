@@ -41,3 +41,11 @@ data class CreateAdminUserRequestDto(
 
 @Serializable
 data class UpdateAdminUserRequestDto(val name: String)
+
+@Serializable
+data class UpdateUserPlanRequestDto(
+    val plan: String,
+    // yyyy-MM-ddTHH:mm:ss, end-of-day — null = indefinite grant. Ignored
+    // server-side when plan is FREE (verified in UserService.grantPlanByAdmin).
+    val expiresAt: String? = null,
+)

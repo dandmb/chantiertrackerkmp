@@ -912,18 +912,39 @@ class MainScreensSnapshotTest {
             snapshot("44-admin-user-actions-menu", locale) {
                 MenuSurface {
                     com.dmb.chantiertracker.presentation.admin.AdminUserActionMenuItems(
-                        isSelf = false, showResendActivation = true,
-                        onRename = {}, onResetPassword = {}, onResendActivation = {}, onDelete = {},
+                        isSelf = false, showResendActivation = true, showAssignPlan = true,
+                        onRename = {}, onResetPassword = {}, onResendActivation = {}, onAssignPlan = {}, onDelete = {},
                     )
                 }
             }
             snapshot("45-admin-user-actions-menu-self", locale) {
                 MenuSurface {
                     com.dmb.chantiertracker.presentation.admin.AdminUserActionMenuItems(
-                        isSelf = true, showResendActivation = false,
-                        onRename = {}, onResetPassword = {}, onResendActivation = {}, onDelete = {},
+                        isSelf = true, showResendActivation = false, showAssignPlan = false,
+                        onRename = {}, onResetPassword = {}, onResendActivation = {}, onAssignPlan = {}, onDelete = {},
                     )
                 }
+            }
+            dialogSnapshot("46-admin-assign-plan-dialog", locale) {
+                com.dmb.chantiertracker.presentation.admin.AssignPlanDialog(
+                    user = com.dmb.chantiertracker.domain.model.AdminUser(
+                        id = 2, email = "amelie@chantier.dev", name = "Amélie Roy", active = true,
+                        globalRole = GlobalRole.USER, projectCount = 1, createdAt = "2026-08-15T09:00:00",
+                        plan = Plan.FREE, planSource = null, planExpiresAt = null,
+                    ),
+                    onDismiss = {}, onConfirm = { _, _ -> },
+                )
+            }
+            dialogSnapshot("47-admin-assign-plan-dialog-stripe-guard", locale) {
+                com.dmb.chantiertracker.presentation.admin.AssignPlanDialog(
+                    user = com.dmb.chantiertracker.domain.model.AdminUser(
+                        id = 1, email = "jean@chantier.dev", name = "Jean Marchand", active = true,
+                        globalRole = GlobalRole.USER, projectCount = 2, createdAt = "2026-08-01T09:00:00",
+                        plan = Plan.SEMI_FLEX,
+                        planSource = com.dmb.chantiertracker.domain.model.PlanSource.STRIPE, planExpiresAt = null,
+                    ),
+                    onDismiss = {}, onConfirm = { _, _ -> },
+                )
             }
         }
     }

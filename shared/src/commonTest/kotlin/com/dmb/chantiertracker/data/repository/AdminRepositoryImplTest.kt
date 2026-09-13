@@ -199,4 +199,59 @@ class AdminRepositoryImplTest {
 
         assertFailsWith<DomainException.Unexpected> { repo.resendActivation(5) }
     }
+
+    @Test
+    fun updates_the_plan_with_an_expiration_and_maps_the_response() = runTest {
+        val json = """
+            {"id": 5, "email": "jean@chantier.dev", "name": "Jean Marchand", "active": true,
+             "globalRole": "USER", "projectCount": 2, "createdAt": "2026-09-05T14:32:11",
+             "plan": "LIBERTE", "planSource": "ADMIN_GRANTED", "planExpiresAt": "2026-12-31T23:59:59"}
+        """.trimIndent()
+        val (repo, client) = setup(respond = { respondJson(json) })
+
+        val user = repo.updateUserPlan(5, Plan.LIBERTE, "2026-12-31T23:59:59")
+
+        val request = client.requests.single()
+        assertEquals("/api/v1/admin/users/5/plan", request.url.encodedPath)
+        assertEquals(
+            """{"plan":"LIBERTE","expiresAt":"2026-12-31T23:59:59"}""",
+            request.body.toByteArray().decodeToString(),
+        )
+        assertEquals(Plan.LIBERTE, user.plan)
+        assertEquals(PlanSource.ADMIN_GRANTED, user.planSource)
+        assertEquals("2026-12-31T23:59:59", user.planExpiresAt)
+    }
+
+    @Test
+    fun updates_the_plan_to_free_without_an_expiration() = runTest {
+        val json = """
+            {"id": 5, "email": "jean@chantier.dev", "name": "Jean Marchand", "active": true,
+             "globalRole": "USER", "projectCount": 2, "createdAt": "2026-09-05T14:32:11",
+             "plan": "FREE", "planSource": null, "planExpiresAt": null}
+        """.trimIndent()
+        val (repo, client) = setup(respond = { respondJson(json) })
+
+        repo.updateUserPlan(5, Plan.FREE, null)
+
+        // explicitNulls = false (AppJson) — a null expiresAt is omitted
+        // entirely, not encoded as "expiresAt":null.
+        assertEquals(
+            """{"plan":"FREE"}""",
+            client.requests.single().body.toByteArray().decodeToString(),
+        )
+    }
+
+    @Test
+    fun a_live_stripe_subscription_409_is_remapped_to_unexpected_not_email_already_used() = runTest {
+        // StripeSubscriptionActiveException is also a 409 — the UI already
+        // disables this form proactively once planSource == STRIPE is known
+        // (see AssignPlanDialog), so this is only reachable via a race.
+        val (repo, _) = setup(
+            respond = {
+                respondProblem(HttpStatusCode.Conflict, "Cet utilisateur a un abonnement Stripe actif (sub_123).")
+            },
+        )
+
+        assertFailsWith<DomainException.Unexpected> { repo.updateUserPlan(5, Plan.LIBERTE, null) }
+    }
 }

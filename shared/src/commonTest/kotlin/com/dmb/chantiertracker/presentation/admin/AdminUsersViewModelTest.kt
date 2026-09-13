@@ -6,6 +6,7 @@ import com.dmb.chantiertracker.domain.model.AuthState
 import com.dmb.chantiertracker.domain.model.DomainException
 import com.dmb.chantiertracker.domain.model.GlobalRole
 import com.dmb.chantiertracker.domain.model.Plan
+import com.dmb.chantiertracker.domain.model.PlanSource
 import com.dmb.chantiertracker.domain.model.User
 import com.dmb.chantiertracker.support.FakeAdminRepository
 import com.dmb.chantiertracker.support.FakeAuthRepository
@@ -179,6 +180,40 @@ class AdminUsersViewModelTest {
             AdminUserActionMessage.ActivationResent("user1@chantier.dev"),
             vm.state.value.actionMessage,
         )
+    }
+
+    @Test
+    fun updating_the_plan_updates_the_row_in_place_from_the_server_response() = runTest {
+        val repo = FakeAdminRepository(listOf(page(0, 1, listOf(user(1)))))
+        val vm = AdminUsersViewModel(repo, authAs(99))
+        vm.load()
+        advanceUntilIdle()
+
+        vm.updatePlan(1, Plan.LIBERTE, "2026-12-31T23:59:59")
+        advanceUntilIdle()
+
+        assertEquals(listOf(Triple<Long, Plan, String?>(1L, Plan.LIBERTE, "2026-12-31T23:59:59")), repo.updatePlanCalls)
+        val updated = vm.state.value.items.single { it.id == 1L }
+        assertEquals(Plan.LIBERTE, updated.plan)
+        assertEquals(PlanSource.ADMIN_GRANTED, updated.planSource)
+        assertEquals("2026-12-31T23:59:59", updated.planExpiresAt)
+        assertTrue(vm.state.value.processingIds.isEmpty())
+    }
+
+    @Test
+    fun a_plan_update_failure_surfaces_as_an_action_error_and_leaves_the_row_untouched() = runTest {
+        val repo = FakeAdminRepository(listOf(page(0, 1, listOf(user(1))))).apply {
+            updatePlanError = DomainException.Unexpected
+        }
+        val vm = AdminUsersViewModel(repo, authAs(99))
+        vm.load()
+        advanceUntilIdle()
+
+        vm.updatePlan(1, Plan.LIBERTE, null)
+        advanceUntilIdle()
+
+        assertEquals(DomainException.Unexpected, vm.state.value.actionError)
+        assertEquals(Plan.FREE, vm.state.value.items.single { it.id == 1L }.plan)
     }
 
     @Test
