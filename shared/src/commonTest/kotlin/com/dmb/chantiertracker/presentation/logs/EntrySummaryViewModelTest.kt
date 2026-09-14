@@ -2,8 +2,6 @@ package com.dmb.chantiertracker.presentation.logs
 
 import com.dmb.chantiertracker.domain.model.DailyEntry
 import com.dmb.chantiertracker.domain.model.EntryType
-import com.dmb.chantiertracker.resources.Res
-import com.dmb.chantiertracker.resources.entry_summary_required_work
 import com.dmb.chantiertracker.support.FakeDailyLogRepository
 import com.dmb.chantiertracker.support.installTestMainDispatcher
 import com.dmb.chantiertracker.support.resetTestMainDispatcher
@@ -50,12 +48,15 @@ class EntrySummaryViewModelTest {
         advanceUntilIdle()
 
         v.onSummaryChange("   ")
+        assertFalse(v.state.value.canSave)
+
         v.submit()
         advanceUntilIdle()
-
-        assertEquals(Res.string.entry_summary_required_work, v.state.value.error)
         assertTrue(repo.log.isEmpty())
         assertFalse(v.state.value.saved)
+
+        v.onSummaryChange("Coulage dalle")
+        assertTrue(v.state.value.canSave)
     }
 
     @Test
@@ -65,6 +66,8 @@ class EntrySummaryViewModelTest {
         advanceUntilIdle()
 
         v.onSummaryChange("")
+        assertTrue(v.state.value.canSave)
+
         v.submit()
         advanceUntilIdle()
 

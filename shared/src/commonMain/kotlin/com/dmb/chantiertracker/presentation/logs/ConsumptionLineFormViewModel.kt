@@ -38,6 +38,11 @@ data class ConsumptionLineFormUiState(
 
     val exceedsStock: Boolean
         get() = ceiling?.let { (parseAmountOrNull(quantity) ?: 0.0) > it } ?: false
+
+    // A material is picked and a quantity is entered that stays within stock.
+    // The positive-number check still runs on submit and surfaces inline.
+    val canSave: Boolean
+        get() = selectedMaterialId != null && quantity.isNotBlank() && !exceedsStock
 }
 
 class ConsumptionLineFormViewModel(

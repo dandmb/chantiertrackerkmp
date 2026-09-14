@@ -21,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.dmb.chantiertracker.presentation.ResponsiveContent
 import com.dmb.chantiertracker.presentation.auth.components.AuthPrimaryButton
 import com.dmb.chantiertracker.presentation.auth.components.ErrorBanner
 import com.dmb.chantiertracker.presentation.i18n.localizedText
@@ -51,23 +52,25 @@ fun EditProjectScreen(
     LaunchedEffect(projectLocalId) { viewModel.load(projectLocalId) }
     LaunchedEffect(state.saved) { if (state.saved) onSaved() }
 
-    Box(modifier.fillMaxSize()) {
-        when {
-            state.isMissing -> Column(
-                modifier = Modifier.align(Alignment.Center).fillMaxWidth().padding(horizontal = 32.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-            ) {
-                Text(
-                    text = stringResource(Res.string.error_not_found),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center,
-                )
-                OutlinedButton(onClick = onBack) { Text(stringResource(Res.string.projects_retry)) }
+    ResponsiveContent(modifier, maxContentWidth = 480.dp) {
+        Box(Modifier.fillMaxSize()) {
+            when {
+                state.isMissing -> Column(
+                    modifier = Modifier.align(Alignment.Center).fillMaxWidth().padding(horizontal = 32.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
+                    Text(
+                        text = stringResource(Res.string.error_not_found),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                    )
+                    OutlinedButton(onClick = onBack) { Text(stringResource(Res.string.projects_retry)) }
+                }
+                !state.prefilled -> CircularProgressIndicator(Modifier.align(Alignment.Center))
+                else -> EditForm(state, viewModel)
             }
-            !state.prefilled -> CircularProgressIndicator(Modifier.align(Alignment.Center))
-            else -> EditForm(state, viewModel)
         }
     }
 }

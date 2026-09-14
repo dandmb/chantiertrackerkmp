@@ -1,22 +1,76 @@
 package com.dmb.chantiertracker.presentation.logs
 
+import kotlinx.io.Source
+import kotlinx.io.readByteArray
+
 /**
- * Reads a video's duration (seconds) straight from the bytes, with **no
+ * Reads a video's duration (seconds) straight from the container, with **no
  * platform code and no media library** — it walks the ISO-BMFF box tree
  * (`moov` → `mvhd`) that every phone-camera capture (MP4 / QuickTime `.mov`)
  * uses. Returns `null` for anything it can't parse (exotic container, `moov`
- * at the end and truncated read, WebM/MKV…) — the caller then just proceeds
- * and lets the server's `ffprobe` be the authority, exactly like the web's
- * `readVideoDurationSeconds` courtesy check.
+ * truncated, WebM/MKV…) — the caller then just proceeds and lets the server's
+ * `ffprobe` be the authority, exactly like the web's `readVideoDurationSeconds`
+ * courtesy check.
  *
- * Only the top-level boxes and `moov`'s direct children are scanned — cheap,
- * and `mvhd` is always the first child of `moov`.
+ * Two entry points:
+ * - [probeMp4DurationSeconds] (`ByteArray`) — a small in-memory buffer.
+ * - [probeMp4DurationSeconds] (`Source`) — a **stream**: the media payload
+ *   (`mdat`, often hundreds of MB) is skipped, never buffered, so a full-size
+ *   video is probed without loading it into memory (ADR-38). It reads only up
+ *   to [maxScanBytes] from the front — enough to catch every `faststart` file
+ *   (iOS captures, anything re-encoded or shared) and any clip whose trailing
+ *   `moov` still lands in that budget; past it we give up and let the server's
+ *   `ffprobe` decide, same as any other probe miss.
  */
 fun probeMp4DurationSeconds(bytes: ByteArray): Double? = runCatching {
     val moov = findTopLevelBox(bytes, "moov") ?: return null
-    val mvhd = findChildBox(bytes, moov.contentStart, moov.end, "mvhd") ?: return null
-    parseMvhdDuration(bytes, mvhd.contentStart)
+    durationFromMoovContent(bytes, moov.contentStart, moov.end)
 }.getOrNull()
+
+// moov's sample tables stay small even for a long clip; anything past this is
+// not a `moov` we should try to hold in memory — bail and let the server decide.
+private const val MAX_MOOV_BYTES = 32L * 1024 * 1024
+private const val DEFAULT_MAX_SCAN_BYTES = 16L * 1024 * 1024
+
+fun probeMp4DurationSeconds(source: Source, maxScanBytes: Long = DEFAULT_MAX_SCAN_BYTES): Double? = runCatching {
+    var consumed = 0L
+    while (!source.exhausted()) {
+        val header = readBoxHeader(source) ?: return null
+        consumed += header.headerBytes
+        if (header.type == "moov") {
+            if (header.contentLength !in 0..MAX_MOOV_BYTES) return null
+            val moovContent = source.readByteArray(header.contentLength.toInt())
+            return durationFromMoovContent(moovContent, 0, moovContent.size)
+        }
+        if (header.contentLength <= 0) return null // 0 == "to end of file" for a non-moov box
+        if (consumed + header.contentLength > maxScanBytes) return null
+        source.skip(header.contentLength)
+        consumed += header.contentLength
+    }
+    null
+}.getOrNull()
+
+private data class BoxHeader(val type: String, val contentLength: Long, val headerBytes: Long)
+
+private fun readBoxHeader(source: Source): BoxHeader? {
+    if (!source.request(8)) return null
+    val size32 = source.readInt().toLong() and 0xFFFFFFFFL
+    val type = buildString { repeat(4) { append((source.readByte().toInt() and 0xFF).toChar()) } }
+    return when (size32) {
+        1L -> {
+            if (!source.request(8)) return null
+            val large = source.readLong()
+            BoxHeader(type, large - 16, headerBytes = 16)
+        }
+        0L -> BoxHeader(type, -1, headerBytes = 8) // extends to end of file
+        else -> BoxHeader(type, size32 - 8, headerBytes = 8)
+    }
+}
+
+private fun durationFromMoovContent(bytes: ByteArray, from: Int, to: Int): Double? {
+    val mvhd = findChildBox(bytes, from, to, "mvhd") ?: return null
+    return parseMvhdDuration(bytes, mvhd.contentStart)
+}
 
 private data class Box(val contentStart: Int, val end: Int)
 

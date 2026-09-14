@@ -23,6 +23,23 @@ fun MockRequestHandleScope.respondJson(
     headers = headersOf(HttpHeaders.ContentType, "application/json"),
 )
 
+fun MockRequestHandleScope.respondBytes(
+    bytes: ByteArray,
+    contentType: String = "application/pdf",
+    contentDisposition: String? = null,
+    status: HttpStatusCode = HttpStatusCode.OK,
+): HttpResponseData {
+    val headers = buildList {
+        add(HttpHeaders.ContentType to contentType)
+        if (contentDisposition != null) add(HttpHeaders.ContentDisposition to contentDisposition)
+    }
+    return respond(
+        content = bytes,
+        status = status,
+        headers = io.ktor.http.headers { headers.forEach { (k, v) -> append(k, v) } },
+    )
+}
+
 fun MockRequestHandleScope.respondProblem(
     status: HttpStatusCode,
     detail: String,

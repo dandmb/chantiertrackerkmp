@@ -10,6 +10,7 @@ import com.dmb.chantiertracker.support.FakeDailyEntryDao
 import com.dmb.chantiertracker.support.FakeProjectBackend
 import com.dmb.chantiertracker.support.FakeSyncer
 import com.dmb.chantiertracker.support.MutableClock
+import com.dmb.chantiertracker.support.fakeUploadFile
 import com.dmb.chantiertracker.support.localAttachment
 import com.dmb.chantiertracker.support.localDailyEntry
 import kotlinx.coroutines.flow.first
@@ -121,7 +122,7 @@ class AttachmentRepositoryImplTest {
         val backend = FakeProjectBackend().apply { attachmentUploadDurationSeconds = 45 }
 
         val video = repo(dao = dao, fileStore = fileStore, entryDao = entryDao, backend = backend)
-            .uploadVideo("purchase-1", ByteArray(4_000) { 7 }, "site.mov", "video/quicktime")
+            .uploadVideo("purchase-1", fakeUploadFile(ByteArray(4_000) { 7 }, name = "site.mov", mimeType = "video/quicktime"))
 
         assertTrue(video.isVideo)
         assertEquals("video/mp4", video.mimeType, "the server transcodes it")
@@ -142,7 +143,7 @@ class AttachmentRepositoryImplTest {
         val backend = FakeProjectBackend()
 
         assertFailsWith<DomainException.NotFound> {
-            repo(entryDao = entryDao, backend = backend).uploadVideo("purchase-1", byteArrayOf(1, 2), "v.mp4", "video/mp4")
+            repo(entryDao = entryDao, backend = backend).uploadVideo("purchase-1", fakeUploadFile(byteArrayOf(1, 2)))
         }
         assertTrue(backend.attachments.isEmpty())
     }
@@ -156,7 +157,7 @@ class AttachmentRepositoryImplTest {
         }
 
         assertFailsWith<DomainException.PlanLimitReached> {
-            repo(entryDao = entryDao, backend = backend).uploadVideo("purchase-1", byteArrayOf(1, 2), "v.mp4", "video/mp4")
+            repo(entryDao = entryDao, backend = backend).uploadVideo("purchase-1", fakeUploadFile(byteArrayOf(1, 2)))
         }
     }
 }

@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -29,9 +30,11 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.dmb.chantiertracker.presentation.ResponsiveContent
 import com.dmb.chantiertracker.presentation.auth.components.AuthPrimaryButton
 import com.dmb.chantiertracker.presentation.format.formatMoney
 import com.dmb.chantiertracker.resources.Res
+import com.dmb.chantiertracker.resources.action_back
 import com.dmb.chantiertracker.resources.action_cancel
 import com.dmb.chantiertracker.resources.action_create
 import com.dmb.chantiertracker.resources.action_save
@@ -41,8 +44,6 @@ import com.dmb.chantiertracker.resources.material_new_option
 import com.dmb.chantiertracker.resources.material_query_hint
 import com.dmb.chantiertracker.resources.material_unit_hint
 import com.dmb.chantiertracker.resources.material_unit_label
-import com.dmb.chantiertracker.resources.per_unit_suffix
-import com.dmb.chantiertracker.resources.projects_retry
 import com.dmb.chantiertracker.resources.purchase_line_add_title
 import com.dmb.chantiertracker.resources.purchase_line_edit_title
 import com.dmb.chantiertracker.resources.quantity_label
@@ -71,66 +72,77 @@ fun PurchaseLineFormScreen(
     val title = stringResource(if (lineLocalId != null) Res.string.purchase_line_edit_title else Res.string.purchase_line_add_title)
     LaunchedEffect(title) { onTitleResolved(title) }
 
-    Box(modifier.fillMaxSize()) {
-        when {
-            state.isMissing -> MissingState(onBack)
-            !state.ready -> CircularProgressIndicator(Modifier.align(Alignment.Center))
-            else -> Column(
-                modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-            ) {
-                if (state.isEdit) {
+    ResponsiveContent(modifier, maxContentWidth = 480.dp) {
+        Box(Modifier.fillMaxSize()) {
+            when {
+                state.isMissing -> MissingState(onBack)
+                !state.ready -> CircularProgressIndicator(Modifier.align(Alignment.Center))
+                else -> Column(
+                    modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())
+                        .padding(PaddingValues(start = 24.dp, end = 24.dp, top = 20.dp, bottom = 32.dp)),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
+                    // Once a material is picked, its unit / the project currency are
+                    // shown inline in the field labels so the numbers being typed
+                    // have explicit context (matching the app's "name (unit)" style).
+                    val unit = state.selectedMaterial?.unit
+                    val quantityLabel = stringResource(Res.string.quantity_label) + (unit?.let { " ($it)" } ?: "")
+                    val unitPriceLabel = stringResource(Res.string.unit_price_label) + (currency?.let { " ($it)" } ?: "")
+
+                    if (state.isEdit) {
+                        OutlinedTextField(
+                            value = state.selectedMaterial?.let { "${it.name} (${it.unit})" }.orEmpty(),
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text(stringResource(Res.string.material_label)) },
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    } else {
+                        MaterialPicker(state, viewModel)
+                    }
+
                     OutlinedTextField(
-                        value = state.selectedMaterial?.let { "${it.name} (${it.unit})" }.orEmpty(),
-                        onValueChange = {},
-                        readOnly = true,
-                        label = { Text(stringResource(Res.string.material_label)) },
+                        value = state.quantity,
+                        onValueChange = viewModel::onQuantityChange,
+                        label = { Text(quantityLabel) },
+                        isError = state.quantityError != null,
+                        supportingText = state.quantityError?.let { { Text(stringResource(it)) } },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        enabled = !state.isSubmitting,
                         modifier = Modifier.fillMaxWidth(),
                     )
-                } else {
-                    MaterialPicker(state, viewModel)
+                    OutlinedTextField(
+                        value = state.unitPrice,
+                        onValueChange = viewModel::onUnitPriceChange,
+                        label = { Text(unitPriceLabel) },
+                        isError = state.unitPriceError != null,
+                        supportingText = state.unitPriceError?.let { { Text(stringResource(it)) } },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        enabled = !state.isSubmitting,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    OutlinedTextField(
+                        value = state.supplier,
+                        onValueChange = viewModel::onSupplierChange,
+                        label = { Text(stringResource(Res.string.supplier_label)) },
+                        singleLine = true,
+                        enabled = !state.isSubmitting,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Text(
+                        text = stringResource(Res.string.total_price_label, formatMoney(state.totalPrice, currency)),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    AuthPrimaryButton(
+                        text = stringResource(Res.string.action_save),
+                        onClick = viewModel::submit,
+                        loading = state.isSubmitting,
+                        enabled = state.canSave,
+                    )
                 }
-
-                OutlinedTextField(
-                    value = state.quantity,
-                    onValueChange = viewModel::onQuantityChange,
-                    label = { Text(stringResource(Res.string.quantity_label)) },
-                    isError = state.quantityError != null,
-                    supportingText = state.quantityError?.let { { Text(stringResource(it)) } },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    enabled = !state.isSubmitting,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                OutlinedTextField(
-                    value = state.unitPrice,
-                    onValueChange = viewModel::onUnitPriceChange,
-                    label = { Text(stringResource(Res.string.unit_price_label)) },
-                    isError = state.unitPriceError != null,
-                    supportingText = state.unitPriceError?.let { { Text(stringResource(it)) } },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    enabled = !state.isSubmitting,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                OutlinedTextField(
-                    value = state.supplier,
-                    onValueChange = viewModel::onSupplierChange,
-                    label = { Text(stringResource(Res.string.supplier_label)) },
-                    singleLine = true,
-                    enabled = !state.isSubmitting,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Text(
-                    text = stringResource(Res.string.total_price_label, formatMoney(state.totalPrice, currency)),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                AuthPrimaryButton(
-                    text = stringResource(Res.string.action_save),
-                    onClick = viewModel::submit,
-                    loading = state.isSubmitting,
-                )
             }
         }
     }
@@ -204,6 +216,6 @@ internal fun BoxScope.MissingState(onBack: () -> Unit) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
         )
-        OutlinedButton(onClick = onBack) { Text(stringResource(Res.string.projects_retry)) }
+        OutlinedButton(onClick = onBack) { Text(stringResource(Res.string.action_back)) }
     }
 }

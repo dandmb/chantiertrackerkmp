@@ -45,6 +45,29 @@ class AccountRepositoryImplTest {
     }
 
     @Test
+    fun refresh_stores_the_full_usage_and_billing_fields() = runTest {
+        val r = repo {
+            """{"plan":"SEMI_FLEX","projectsUsed":2,"projectsLimit":3,"photosUsed":40,"photosLimit":300,
+                |"videosUsed":1,"videosLimit":5,"videoDurationLimitSeconds":120,"supervisorsUsed":2,
+                |"supervisorsLimit":3,"planExpiresAt":"2026-10-08T12:00:00","hasStripeCustomer":true}""".trimMargin()
+        }
+
+        r.refreshPlanUsage()
+
+        val usage = r.observePlanUsage().first()!!
+        assertEquals(2, usage.projectsUsed)
+        assertEquals(40, usage.photosUsed)
+        assertEquals(300, usage.photosLimit)
+        assertEquals(1, usage.videosUsed)
+        assertEquals(5, usage.videosLimit)
+        assertEquals(120, usage.videoDurationLimitSeconds)
+        assertEquals(2, usage.supervisorsUsed)
+        assertEquals(3, usage.supervisorsLimit)
+        assertEquals("2026-10-08T12:00:00", usage.planExpiresAt)
+        assertEquals(true, usage.hasStripeCustomer)
+    }
+
+    @Test
     fun a_null_limit_means_unlimited() = runTest {
         val r = repo { """{"plan":"LIBERTE","projectsLimit":null}""" }
         r.refreshPlanUsage()
@@ -57,6 +80,22 @@ class AccountRepositoryImplTest {
         val r = repo { """{"plan":"ENTERPRISE","projectsLimit":99}""" }
         r.refreshPlanUsage()
         assertEquals(Plan.UNKNOWN, r.observePlanUsage().first()!!.plan)
+    }
+
+    @Test
+    fun a_cached_row_predating_the_usage_fields_maps_them_to_defaults() = runTest {
+        val dao = FakePlanUsageDao(PlanUsageEntity(0, "FREE", 1, 1_000L))
+
+        val usage = AccountRepositoryImpl(AccountApi(RecordingMockClient(FakeTokenStorage(AuthTokens("a", "r"))) {
+            respondJson("""{"plan":"FREE","projectsLimit":1}""")
+        }.client), dao, MutableClock(1L)).observePlanUsage().first()!!
+
+        assertEquals(0, usage.projectsUsed)
+        assertEquals(0, usage.photosUsed)
+        assertEquals(null, usage.photosLimit)
+        assertEquals(0, usage.videosLimit)
+        assertEquals(null, usage.planExpiresAt)
+        assertEquals(false, usage.hasStripeCustomer)
     }
 
     @Test

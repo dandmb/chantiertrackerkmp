@@ -14,11 +14,47 @@
         <activity
             android:exported="true"
             android:name=".MainActivity"
+            android:launchMode="singleTask"
             android:theme="@style/Theme.ChantierTracker.Starting">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+            <!-- Stripe checkout/portal return (ADR-51 point 4) — the app
+                 registers this scheme itself, no Universal Links / hosted
+                 verification file needed: the checkout only ever starts from
+                 inside this app. singleTask above is required for this to
+                 land in the existing instance via onNewIntent() instead of
+                 stacking a second one on top of it. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data android:scheme="chantiertracker" />
+            </intent-filter>
+
+            <!-- Real Android App Links (ADR-59) — an invitation email points
+                 here, not a custom scheme: the app may not be installed yet,
+                 so this needs the OS-level fallback to the browser that only
+                 autoVerify="true" + a verified assetlinks.json give. Digital
+                 Asset Links verification (com.dmb.chantiertracker.staging,
+                 the package currently distributed) confirmed via
+                 https://digitalassetlinks.googleapis.com/v1/statements:list
+                 before this was added. -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data
+                    android:scheme="https"
+                    android:host="chantiertracker.com"
+                    android:pathPattern="/invitations/.*" />
             </intent-filter>
         </activity>
     </application>

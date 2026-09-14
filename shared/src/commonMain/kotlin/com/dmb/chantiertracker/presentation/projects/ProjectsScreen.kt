@@ -21,6 +21,9 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.AnnotatedString
@@ -35,6 +38,8 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dmb.chantiertracker.domain.model.IncomingInvitation
 import com.dmb.chantiertracker.domain.model.ProjectRole
+import com.dmb.chantiertracker.presentation.ConfirmActionDialog
+import com.dmb.chantiertracker.presentation.ResponsiveContent
 import com.dmb.chantiertracker.presentation.auth.components.ErrorBanner
 import com.dmb.chantiertracker.presentation.i18n.localizedText
 import com.dmb.chantiertracker.resources.Res
@@ -42,6 +47,8 @@ import com.dmb.chantiertracker.resources.incoming_invitation_accept
 import com.dmb.chantiertracker.resources.incoming_invitation_body
 import com.dmb.chantiertracker.resources.incoming_invitation_body_with_inviter
 import com.dmb.chantiertracker.resources.incoming_invitation_decline
+import com.dmb.chantiertracker.resources.incoming_invitation_decline_confirm_body
+import com.dmb.chantiertracker.resources.incoming_invitation_decline_confirm_title
 import com.dmb.chantiertracker.resources.projects_empty_body
 import com.dmb.chantiertracker.resources.projects_empty_title
 import com.dmb.chantiertracker.resources.role_admin
@@ -65,30 +72,32 @@ fun ProjectsScreen(
         onRefresh = viewModel::refresh,
         modifier = modifier.fillMaxSize(),
     ) {
-        Column(Modifier.fillMaxSize()) {
-            if (state.incomingInvitations.isNotEmpty() || state.invitationError != null) {
-                IncomingInvitations(
-                    invitations = state.incomingInvitations,
-                    busyTokens = state.busyInvitationTokens,
-                    error = state.invitationError?.localizedText(),
-                    onAccept = viewModel::acceptInvitation,
-                    onDecline = viewModel::declineInvitation,
-                )
-            }
-            when {
-                state.isLoading -> Column(
-                    Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.Center,
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) { CircularProgressIndicator() }
-                state.isEmpty -> EmptyState()
-                else -> LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    items(state.projects, key = { it.localId }) { project ->
-                        ProjectCard(project = project, onClick = { onProjectClick(project.localId) })
+        ResponsiveContent {
+            Column(Modifier.fillMaxSize()) {
+                if (state.incomingInvitations.isNotEmpty() || state.invitationError != null) {
+                    IncomingInvitations(
+                        invitations = state.incomingInvitations,
+                        busyTokens = state.busyInvitationTokens,
+                        error = state.invitationError?.localizedText(),
+                        onAccept = viewModel::acceptInvitation,
+                        onDecline = viewModel::declineInvitation,
+                    )
+                }
+                when {
+                    state.isLoading -> Column(
+                        Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.Center,
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) { CircularProgressIndicator() }
+                    state.isEmpty -> EmptyState()
+                    else -> LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        items(state.projects, key = { it.localId }) { project ->
+                            ProjectCard(project = project, onClick = { onProjectClick(project.localId) })
+                        }
                     }
                 }
             }
@@ -104,6 +113,8 @@ private fun IncomingInvitations(
     onAccept: (String) -> Unit,
     onDecline: (String) -> Unit,
 ) {
+    var pendingDecline by remember { mutableStateOf<IncomingInvitation?>(null) }
+
     Column(
         modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -114,9 +125,23 @@ private fun IncomingInvitations(
                 invitation = invitation,
                 busy = invitation.token in busyTokens,
                 onAccept = { onAccept(invitation.token) },
-                onDecline = { onDecline(invitation.token) },
+                onDecline = { pendingDecline = invitation },
             )
         }
+    }
+
+    pendingDecline?.let { invitation ->
+        ConfirmActionDialog(
+            title = stringResource(Res.string.incoming_invitation_decline_confirm_title),
+            body = stringResource(Res.string.incoming_invitation_decline_confirm_body, invitation.projectName),
+            confirmLabel = stringResource(Res.string.incoming_invitation_decline),
+            destructive = false,
+            onDismiss = { pendingDecline = null },
+            onConfirm = {
+                pendingDecline = null
+                onDecline(invitation.token)
+            },
+        )
     }
 }
 

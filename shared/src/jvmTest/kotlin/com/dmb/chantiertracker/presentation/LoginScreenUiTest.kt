@@ -10,6 +10,7 @@ import com.dmb.chantiertracker.presentation.i18n.AppEnvironment
 import com.dmb.chantiertracker.presentation.i18n.customAppLocale
 import com.dmb.chantiertracker.presentation.theme.AppTheme
 import com.dmb.chantiertracker.support.FakeAuthRepository
+import com.dmb.chantiertracker.support.FakeCheckoutLauncher
 import com.dmb.chantiertracker.support.installTestMainDispatcher
 import com.dmb.chantiertracker.support.resetTestMainDispatcher
 import kotlin.test.AfterTest
@@ -39,7 +40,7 @@ class LoginScreenUiTest {
                     LoginScreen(
                         onNavigateToRegister = {},
                         onNavigateToForgotPassword = {},
-                        viewModel = LoginViewModel(FakeAuthRepository()),
+                        viewModel = LoginViewModel(FakeAuthRepository(), FakeCheckoutLauncher()),
                     )
                 }
             }
@@ -60,7 +61,7 @@ class LoginScreenUiTest {
                     LoginScreen(
                         onNavigateToRegister = {},
                         onNavigateToForgotPassword = {},
-                        viewModel = LoginViewModel(FakeAuthRepository()),
+                        viewModel = LoginViewModel(FakeAuthRepository(), FakeCheckoutLauncher()),
                     )
                 }
             }

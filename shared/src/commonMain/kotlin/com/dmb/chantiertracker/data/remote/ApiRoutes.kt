@@ -9,15 +9,22 @@ object ApiRoutes {
     const val AUTH_LOGOUT = "auth/logout"
     const val AUTH_FORGOT_PASSWORD = "auth/forgot-password"
     const val AUTH_RESET_PASSWORD = "auth/reset-password"
+    const val AUTH_CHANGE_PASSWORD = "auth/change-password"
     const val USERS_ME = "users/me"
     const val USERS_ME_PLAN_USAGE = "users/me/plan-usage"
     const val USERS_ME_INVITATIONS = "users/me/invitations"
+    const val BILLING_CHECKOUT = "billing/checkout"
+    const val BILLING_PORTAL = "billing/portal"
+    const val ADMIN_USERS = "admin/users"
+    const val ADMIN_STATS = "admin/stats"
     const val PROJECTS = "projects"
 
     fun project(id: Long) = "projects/$id"
     fun projectMembers(id: Long) = "projects/$id/members"
+    fun projectHistory(id: Long) = "projects/$id/history"
     fun projectInvitations(id: Long) = "projects/$id/invitations"
     fun invitation(id: Long) = "invitations/$id"
+    fun invitationByToken(token: String) = "invitations/$token"
     fun acceptInvitation(token: String) = "invitations/$token/accept"
     fun declineInvitation(token: String) = "invitations/$token/decline"
     fun projectStages(id: Long) = "projects/$id/stages"
@@ -39,4 +46,15 @@ object ApiRoutes {
 
     fun entryAttachments(entryId: Long) = "entries/$entryId/attachments"
     fun attachment(id: Long) = "attachments/$id"
+
+    fun entryReports(entryId: Long) = "entries/$entryId/reports"
+    fun projectReports(id: Long) = "projects/$id/reports"
+    fun reportProcess(id: Long) = "reports/$id/process"
+
+    fun projectExportPdf(id: Long) = "projects/$id/export/pdf"
+
+    fun adminUser(id: Long) = "admin/users/$id"
+    fun adminUserResetPassword(id: Long) = "admin/users/$id/reset-password"
+    fun adminUserResendActivation(id: Long) = "admin/users/$id/resend-activation"
+    fun adminUserPlan(id: Long) = "admin/users/$id/plan"
 }

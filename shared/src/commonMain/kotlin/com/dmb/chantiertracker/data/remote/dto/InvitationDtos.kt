@@ -31,3 +31,20 @@ data class PendingInvitationDto(
     val createdAt: String? = null,
     val expiresAt: String? = null,
 )
+
+/**
+ * `GET /invitations/{token}` — public, unauthenticated (ADR-59: App Links
+ * can deliver a token before the app knows whether the user is logged in).
+ * `email`/`accountExists` exist server-side for the web's logged-out flows
+ * (login/register prompts) but aren't consumed here — the mobile App Links
+ * handler only ever calls this once already authenticated, falling back to
+ * the browser (which does use them) otherwise.
+ */
+@Serializable
+data class InvitationDetailsDto(
+    val projectId: Long,
+    val projectName: String,
+    val email: String,
+    val status: String,
+    val accountExists: Boolean,
+)

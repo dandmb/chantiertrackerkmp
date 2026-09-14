@@ -19,8 +19,6 @@ import com.dmb.chantiertracker.domain.model.StageDetail
 import com.dmb.chantiertracker.domain.model.StageStatus
 import com.dmb.chantiertracker.domain.model.User
 import com.dmb.chantiertracker.presentation.todayIn
-import com.dmb.chantiertracker.resources.Res
-import com.dmb.chantiertracker.resources.entry_summary_required_work
 import com.dmb.chantiertracker.support.FakeAttachmentRepository
 import com.dmb.chantiertracker.support.FakeAuthRepository
 import com.dmb.chantiertracker.support.FakeConsumptionLineRepository
@@ -33,6 +31,7 @@ import com.dmb.chantiertracker.support.installTestMainDispatcher
 import com.dmb.chantiertracker.support.resetTestMainDispatcher
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
@@ -150,6 +149,74 @@ class DailyLogViewModelTest {
         advanceUntilIdle()
 
         assertFalse(v.state.value.canEdit)
+    }
+
+    // ─── canReport : signaler un problème (ADR-47, mirror web) ──────────────
+
+    @Test
+    fun a_supervisor_can_report_a_past_day_on_an_active_project() = runTest {
+        val members = listOf(ProjectMember(userId = 9, name = "Sam", email = "s@x.dev", role = ProjectRole.SUPERVISOR))
+        val logs = FakeDailyLogRepository(detail = logDetail(date = "2020-01-01"))
+        val v = vm(logs, projects = projectRepo(ownerId = 1L, members = members), authRepo = auth(userId = 9L))
+        v.load("log-1")
+        advanceUntilIdle()
+
+        assertFalse(v.state.value.canEdit)
+        assertTrue(v.state.value.canReport, "can't fix it, but can flag it")
+    }
+
+    @Test
+    fun a_supervisor_who_can_edit_today_does_not_see_report() = runTest {
+        val members = listOf(ProjectMember(userId = 9, name = "Sam", email = "s@x.dev", role = ProjectRole.SUPERVISOR))
+        val logs = FakeDailyLogRepository(detail = logDetail(date = today))
+        val v = vm(logs, projects = projectRepo(ownerId = 1L, members = members), authRepo = auth(userId = 9L))
+        v.load("log-1")
+        advanceUntilIdle()
+
+        assertTrue(v.state.value.canEdit)
+        assertFalse(v.state.value.canReport, "they'd just correct it directly")
+    }
+
+    @Test
+    fun an_admin_never_sees_report() = runTest {
+        val logs = FakeDailyLogRepository(detail = logDetail(date = "2020-01-01"))
+        val v = vm(logs, projects = projectRepo(ownerId = 1L))
+        v.load("log-1")
+        advanceUntilIdle()
+
+        assertTrue(v.state.value.isAdmin)
+        assertFalse(v.state.value.canReport)
+    }
+
+    @Test
+    fun a_supervisor_cannot_report_once_the_stage_is_completed() = runTest {
+        val members = listOf(ProjectMember(userId = 9, name = "Sam", email = "s@x.dev", role = ProjectRole.SUPERVISOR))
+        val logs = FakeDailyLogRepository(detail = logDetail(date = "2020-01-01"))
+        val v = vm(
+            logs,
+            stages = stageRepo(status = StageStatus.COMPLETED),
+            projects = projectRepo(ownerId = 1L, members = members),
+            authRepo = auth(userId = 9L),
+        )
+        v.load("log-1")
+        advanceUntilIdle()
+
+        assertFalse(v.state.value.canReport, "the project/stage being inactive blocks a report too")
+    }
+
+    @Test
+    fun a_supervisor_cannot_report_on_a_suspended_project() = runTest {
+        val members = listOf(ProjectMember(userId = 9, name = "Sam", email = "s@x.dev", role = ProjectRole.SUPERVISOR))
+        val logs = FakeDailyLogRepository(detail = logDetail(date = "2020-01-01"))
+        val v = vm(
+            logs,
+            projects = projectRepo(ownerId = 1L, status = ProjectStatus.SUSPENDED, members = members),
+            authRepo = auth(userId = 9L),
+        )
+        v.load("log-1")
+        advanceUntilIdle()
+
+        assertFalse(v.state.value.canReport)
     }
 
     @Test
@@ -301,7 +368,8 @@ class DailyLogViewModelTest {
         v.load("log-1")
         advanceUntilIdle()
 
-        v.addAttachment("e1", byteArrayOf(1, 2, 3), "facture.jpg", "image/jpeg")
+        v.onPhotoSelected("e1", byteArrayOf(1, 2, 3), "facture.jpg", "image/jpeg")
+        advanceUntilIdle()
 
         assertEquals("addAttachment:e1:facture.jpg:image/jpeg:3", attachments.log.single())
     }
@@ -343,13 +411,13 @@ class DailyLogViewModelTest {
         v.load("log-1"); advanceUntilIdle()
 
         // SEMI_FLEX cap = 120 s; feed a 3-minute clip.
-        v.onVideoSelected("e1", com.dmb.chantiertracker.support.mp4Bytes(180.0), "video/mp4", "long.mp4")
+        v.onVideoSelected("e1", com.dmb.chantiertracker.support.fakeUploadFile(com.dmb.chantiertracker.support.mp4Bytes(180.0), name = "long.mp4"))
         advanceUntilIdle()
 
         assertNotNull(v.state.value.videoTooLong)
         assertEquals("3 min 00 s", v.state.value.videoTooLong!!.actual)
         assertTrue(attachments.log.isEmpty(), "the repository is never called for a too-long clip")
-        assertNull(v.state.value.videoUploadProgress)
+        assertNull(v.state.value.attachmentUpload)
     }
 
     @Test
@@ -360,13 +428,78 @@ class DailyLogViewModelTest {
         val v = vm(logs, projects = projectRepo(ownerId = 1L, ownerPlan = Plan.SEMI_FLEX), attachments = attachments)
         v.load("log-1"); advanceUntilIdle()
 
-        v.onVideoSelected("e1", com.dmb.chantiertracker.support.mp4Bytes(30.0), "video/mp4", "clip.mp4")
+        v.onVideoSelected("e1", com.dmb.chantiertracker.support.fakeUploadFile(com.dmb.chantiertracker.support.mp4Bytes(30.0), name = "clip.mp4"))
         advanceUntilIdle()
 
         assertEquals("uploadVideo:e1:clip.mp4:video/mp4:${com.dmb.chantiertracker.support.mp4Bytes(30.0).size}", attachments.log.single())
-        assertNull(v.state.value.videoUploadProgress, "progress cleared once done")
+        assertNull(v.state.value.attachmentUpload, "indicator cleared once done")
         assertNull(v.state.value.videoTooLong)
         assertEquals(listOf("video/mp4"), v.state.value.attachments.map { it.mimeType })
+    }
+
+    @Test
+    fun the_upload_indicator_stays_until_the_new_row_is_actually_visible() = runTest {
+        val purchaseEntry = DailyEntry("e1", "log-1", EntryType.PURCHASE, summary = null)
+        val logs = FakeDailyLogRepository(detail = logDetail(entries = listOf(purchaseEntry)))
+        // observeAttachments emits the new row only on emitDeferredRows() — like
+        // Room, whose Flow re-emits asynchronously after dao.upsert() returns.
+        // Without ADR-39, the indicator cleared on uploadVideo() return, leaving a
+        // visible window of "done" + empty list.
+        val attachments = FakeAttachmentRepository().apply { deferListEmission = true }
+        val v = vm(logs, projects = projectRepo(ownerId = 1L, ownerPlan = Plan.SEMI_FLEX), attachments = attachments)
+        v.load("log-1"); advanceUntilIdle()
+
+        v.onVideoSelected("e1", com.dmb.chantiertracker.support.fakeUploadFile(com.dmb.chantiertracker.support.mp4Bytes(30.0)))
+        runCurrent() // upload finished; the row has NOT propagated to the list yet
+
+        assertTrue(v.state.value.attachments.isEmpty(), "the row is not in the list yet")
+        assertEquals(
+            AttachmentUploadUi.Stage.Finalizing,
+            v.state.value.attachmentUpload?.stage,
+            "the indicator must stay until the row is actually visible",
+        )
+
+        attachments.emitDeferredRows()
+        advanceUntilIdle()
+
+        assertNull(v.state.value.attachmentUpload, "indicator clears once the row is visible")
+        assertEquals(listOf("video/mp4"), v.state.value.attachments.map { it.mimeType })
+    }
+
+    @Test
+    fun the_finalize_indicator_gives_up_after_a_timeout_so_the_user_is_never_stuck() = runTest {
+        val purchaseEntry = DailyEntry("e1", "log-1", EntryType.PURCHASE, summary = null)
+        val logs = FakeDailyLogRepository(detail = logDetail(entries = listOf(purchaseEntry)))
+        val attachments = FakeAttachmentRepository().apply { deferListEmission = true } // never released
+        val v = vm(logs, projects = projectRepo(ownerId = 1L, ownerPlan = Plan.SEMI_FLEX), attachments = attachments)
+        v.load("log-1"); advanceUntilIdle()
+
+        v.onVideoSelected("e1", com.dmb.chantiertracker.support.fakeUploadFile(com.dmb.chantiertracker.support.mp4Bytes(30.0)))
+        advanceUntilIdle() // past the finalize timeout
+
+        assertNull(v.state.value.attachmentUpload)
+    }
+
+    @Test
+    fun a_photo_shows_a_finalizing_indicator_until_it_is_in_the_list() = runTest {
+        val purchaseEntry = DailyEntry("e1", "log-1", EntryType.PURCHASE, summary = null)
+        val logs = FakeDailyLogRepository(detail = logDetail(entries = listOf(purchaseEntry)))
+        val attachments = FakeAttachmentRepository().apply { deferListEmission = true }
+        val v = vm(logs, attachments = attachments)
+        v.load("log-1"); advanceUntilIdle()
+
+        v.onPhotoSelected("e1", byteArrayOf(1, 2, 3), "facture.jpg", "image/jpeg")
+        runCurrent()
+
+        assertEquals("addAttachment:e1:facture.jpg:image/jpeg:3", attachments.log.single())
+        assertEquals(AttachmentUploadUi.Stage.Finalizing, v.state.value.attachmentUpload?.stage)
+        assertTrue(v.state.value.attachments.isEmpty())
+
+        attachments.emitDeferredRows()
+        advanceUntilIdle()
+
+        assertNull(v.state.value.attachmentUpload)
+        assertEquals(listOf("facture.jpg"), v.state.value.attachments.map { it.originalName })
     }
 
     @Test
@@ -378,10 +511,10 @@ class DailyLogViewModelTest {
         val v = vm(logs, projects = projectRepo(ownerId = 1L, ownerPlan = Plan.LIBERTE), attachments = attachments)
         v.load("log-1"); advanceUntilIdle()
 
-        v.onVideoSelected("e1", com.dmb.chantiertracker.support.mp4Bytes(10.0), "video/mp4", "clip.mp4")
+        v.onVideoSelected("e1", com.dmb.chantiertracker.support.fakeUploadFile(com.dmb.chantiertracker.support.mp4Bytes(10.0), name = "clip.mp4"))
         advanceUntilIdle()
 
         assertEquals(com.dmb.chantiertracker.domain.model.DomainException.Network, v.state.value.attachmentError)
-        assertNull(v.state.value.videoUploadProgress)
+        assertNull(v.state.value.attachmentUpload)
     }
 }

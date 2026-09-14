@@ -33,6 +33,11 @@ data class PurchaseLineFormUiState(
     val selectedMaterial: Material? get() = materials.firstOrNull { it.localId == selectedMaterialId }
     val totalPrice: Double get() = (parseAmountOrNull(quantity) ?: 0.0) * (parseAmountOrNull(unitPrice) ?: 0.0)
 
+    // Required fields are filled in — the Save button stays disabled until then.
+    // Format / range checks (> 0, >= 0) still run on submit and surface inline.
+    val canSave: Boolean
+        get() = (isEdit || selectedMaterialId != null) && quantity.isNotBlank() && unitPrice.isNotBlank()
+
     /** Materials matching the query, unless one is already picked and the query still equals its name. */
     val suggestions: List<Material>
         get() = if (selectedMaterialId != null && selectedMaterial?.name == materialQuery.trim()) {

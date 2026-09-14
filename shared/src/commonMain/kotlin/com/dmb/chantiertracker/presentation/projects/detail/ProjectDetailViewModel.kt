@@ -8,7 +8,9 @@ import com.dmb.chantiertracker.domain.model.Invitation
 import com.dmb.chantiertracker.domain.model.InvitationStatus
 import com.dmb.chantiertracker.domain.model.ProjectDetail
 import com.dmb.chantiertracker.domain.model.ProjectMember
+import com.dmb.chantiertracker.domain.model.ProjectStatus
 import com.dmb.chantiertracker.domain.model.Stage
+import com.dmb.chantiertracker.domain.model.UpdateProjectInput
 import com.dmb.chantiertracker.domain.model.projectAdmin
 import com.dmb.chantiertracker.domain.repository.AuthRepository
 import com.dmb.chantiertracker.domain.repository.InvitationRepository
@@ -116,6 +118,29 @@ class ProjectDetailViewModel(
 
     fun clearInvitationActionError() {
         _state.update { it.copy(invitationActionError = null) }
+    }
+
+    // ADMIN-only, mirrors the web's inline Select — every other field is
+    // resubmitted unchanged (updateProject overwrites the whole row, same as
+    // EditProjectViewModel does in reverse for its own fields while carrying
+    // the current status through untouched).
+    fun changeStatus(newStatus: ProjectStatus) {
+        val id = localId ?: return
+        val detail = _state.value.detail ?: return
+        if (newStatus == detail.status) return
+        viewModelScope.launch {
+            projectRepository.updateProject(
+                id,
+                UpdateProjectInput(
+                    name = detail.name,
+                    description = detail.description,
+                    location = detail.location,
+                    currency = detail.currency,
+                    timezone = detail.timezone,
+                    status = newStatus,
+                ),
+            )
+        }
     }
 
     private fun canEdit(detail: ProjectDetail, members: List<ProjectMember>): Boolean {

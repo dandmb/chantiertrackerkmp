@@ -41,6 +41,8 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.io.Buffer
+import kotlinx.io.write
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
 import kotlin.uuid.ExperimentalUuidApi
@@ -605,7 +607,15 @@ class SyncEngine(
             return
         }
         val dto = try {
-            apiCall { attachmentApi.upload(entryServerId, bytes, attachment.originalName, attachment.mimeType) }
+            apiCall {
+                attachmentApi.upload(
+                    entryId = entryServerId,
+                    contentLength = bytes.size.toLong(),
+                    fileName = attachment.originalName,
+                    mimeType = attachment.mimeType,
+                    openSource = { Buffer().apply { write(bytes) } },
+                )
+            }
         } catch (e: DomainException) {
             if (e.isServerRejection() || e is DomainException.Unexpected) {
                 attachmentDao.upsert(attachment.copy(syncStatus = SyncStatus.CONFLICTED, lastSyncError = SyncError.REJECTED))

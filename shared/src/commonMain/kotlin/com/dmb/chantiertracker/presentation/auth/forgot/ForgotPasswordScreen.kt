@@ -33,6 +33,7 @@ fun ForgotPasswordScreen(
         title = stringResource(Res.string.forgot_title),
         subtitle = stringResource(Res.string.forgot_subtitle),
         onBack = onBack,
+        centerContentVertically = true,
     ) {
         state.formError?.let { ErrorBanner(it.localizedText()) }
 

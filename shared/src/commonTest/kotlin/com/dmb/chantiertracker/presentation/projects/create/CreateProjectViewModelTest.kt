@@ -31,14 +31,37 @@ class CreateProjectViewModelTest {
     @BeforeTest fun setUp() { installTestMainDispatcher() }
     @AfterTest fun tearDown() { resetTestMainDispatcher() }
 
-    private fun auth() = FakeAuthRepository().apply {
-        emitState(AuthState.Authenticated(User(1, "u@x.dev", "U", true, GlobalRole.USER)))
+    private fun auth(role: GlobalRole = GlobalRole.USER) = FakeAuthRepository().apply {
+        emitState(AuthState.Authenticated(User(1, "u@x.dev", "U", true, role)))
     }
 
     private fun vm(
         projects: FakeProjectRepository = FakeProjectRepository(),
         account: FakeAccountRepository = FakeAccountRepository(),
-    ) = CreateProjectViewModel(projects, account, auth())
+        auth: FakeAuthRepository = auth(),
+    ) = CreateProjectViewModel(projects, account, auth)
+
+    // Reproduces the reported bug: a SUPER_ADMIN could submit and have the
+    // project written straight to Room (visible in the list immediately,
+    // offline-first) even though the backend/web never let one own or join a
+    // project — the rejection would only surface much later, asynchronously,
+    // when SyncEngine.pushCreate tries to push it and gets a 403 it doesn't
+    // even catch (propagates and aborts that whole sync pass). Fixed the same
+    // way as the project-limit check (ADR-25): block before any Room write,
+    // using data already known client-side (no network call).
+    @Test
+    fun a_super_admin_cannot_submit_and_nothing_is_written_to_room() = runTest {
+        val repo = FakeProjectRepository()
+        val v = vm(projects = repo, auth = auth(GlobalRole.SUPER_ADMIN))
+        v.onNameChange("Chantier")
+
+        v.submit()
+        advanceUntilIdle()
+
+        assertTrue(v.state.value.isSuperAdmin)
+        assertTrue(repo.log.isEmpty(), "a super-admin's submission must never reach Room")
+        assertFalse(v.state.value.created)
+    }
 
     @Test
     fun starts_with_a_timezone_selected_from_the_options() {

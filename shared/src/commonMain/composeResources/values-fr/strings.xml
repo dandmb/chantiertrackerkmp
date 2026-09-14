@@ -6,6 +6,7 @@
     <string name="staging_banner">PRÉPROD · DONNÉES RÉELLES</string>
 
     <string name="action_back">Retour</string>
+    <string name="action_close">Fermer</string>
     <string name="action_ok">OK</string>
     <string name="action_cancel">Annuler</string>
     <string name="action_save">Enregistrer</string>
@@ -15,14 +16,25 @@
     <string name="field_email_label">Email</string>
     <string name="field_name_label">Nom</string>
     <string name="field_password_label">Mot de passe</string>
+    <string name="field_current_password_label">Mot de passe actuel</string>
     <string name="field_new_password_label">Nouveau mot de passe</string>
     <string name="field_code_label">Code de vérification</string>
     <string name="password_show">Afficher le mot de passe</string>
     <string name="password_hide">Masquer le mot de passe</string>
 
     <string name="welcome_title">Bon retour !</string>
+    <string name="welcome_subtitle">Connectez-vous ou créez un compte pour suivre vos chantiers.</string>
     <string name="welcome_create_account">Créer un compte</string>
     <string name="welcome_sign_in">Se connecter</string>
+    <string name="welcome_discover_plans">Découvrir nos formules</string>
+    <string name="welcome_discover_plans_teaser">Passez directement à une formule payante, dès l'inscription.</string>
+    <string name="plan_selection_title">Choisir une formule</string>
+    <string name="plan_selection_subtitle">Passez à un palier payant dès la création de votre compte.</string>
+    <string name="plan_selection_choose">Choisir cette formule</string>
+    <string name="plan_selection_continue_free">Créer un compte gratuit</string>
+    <string name="plan_selection_tab_free">Gratuit</string>
+    <string name="plan_selection_tab_semi_flex">Semi-Flex</string>
+    <string name="plan_selection_tab_liberte">Liberté</string>
 
     <string name="onboarding_skip">Passer</string>
     <string name="onboarding_next">Suivant</string>
@@ -44,6 +56,7 @@
     <string name="login_no_account_action">Créer un compte</string>
     <string name="login_notice_account_activated">Compte activé. Vous pouvez vous connecter.</string>
     <string name="login_notice_password_reset">Mot de passe mis à jour. Vous pouvez vous connecter.</string>
+    <string name="login_notice_checkout_pending">Compte activé ! Connectez-vous pour finaliser votre abonnement %1$s.</string>
 
     <string name="register_title">Créer un compte</string>
     <string name="register_subtitle">Quelques informations pour démarrer.</string>
@@ -68,8 +81,14 @@
     <string name="reset_submit">Réinitialiser</string>
     <string name="reset_back_to_login">Retour à la connexion</string>
 
+    <string name="change_password_title">Changement de mot de passe requis</string>
+    <string name="change_password_subtitle">Pour des raisons de sécurité, vous devez définir un nouveau mot de passe avant de continuer.</string>
+    <string name="change_password_submit">Changer mon mot de passe</string>
+    <string name="change_password_logout">Se déconnecter</string>
+
     <string name="nav_projects">Projets</string>
     <string name="nav_settings">Paramètres</string>
+    <string name="nav_administration">Administration</string>
 
     <string name="menu_open">Menu du compte</string>
     <string name="menu_subscription">Mon abonnement</string>
@@ -102,10 +121,12 @@
     <string name="create_currency_hint">EUR, USD, XAF…</string>
     <string name="create_timezone_label">Fuseau horaire</string>
     <string name="create_timezone_help">Fuseau horaire du chantier. Il détermine comment sont comptées les journées pour la personne sur place.</string>
+    <string name="create_super_admin_blocked">En tant que super-administrateur, vous ne pouvez pas créer ni rejoindre de projet.</string>
     <string name="create_submit">Créer le projet</string>
 
     <string name="detail_title">Projet</string>
     <string name="detail_edit_project">Modifier le projet</string>
+    <string name="detail_section_info">Informations</string>
     <string name="detail_currency">Devise</string>
     <string name="detail_timezone">Fuseau horaire</string>
     <string name="detail_section_stages">Étapes</string>
@@ -117,9 +138,20 @@
     <string name="detail_invitations_empty">Aucune invitation en attente.</string>
     <string name="detail_invitation_sent_on">Envoyée le %1$s</string>
     <string name="detail_invitation_cancel">Annuler</string>
+    <string name="detail_invitation_cancel_confirm_title">Annuler cette invitation ?</string>
+    <string name="detail_invitation_cancel_confirm_body">%1$s ne pourra plus rejoindre le projet avec ce lien. Tu pourras l'inviter à nouveau plus tard.</string>
+    <string name="detail_invitation_cancel_confirm_button">Annuler l'invitation</string>
     <string name="detail_invite_member">Inviter un superviseur</string>
     <string name="role_admin">Admin</string>
     <string name="role_supervisor">Superviseur</string>
+    <string name="invitation_accept_title">Invitation</string>
+    <string name="invitation_accept_welcome">Bienvenue dans %1$s</string>
+    <string name="invitation_accept_go_to_project">Aller au projet</string>
+    <string name="invitation_accept_go_to_projects">Aller à mes projets</string>
+    <string name="invitation_accept_invalid_title">Invitation invalide</string>
+    <string name="invitation_accept_invalid_body">Ce lien d'invitation n'est plus valide. Il a peut-être déjà été utilisé ou a expiré.</string>
+    <string name="invitation_accept_error_title">Impossible de rejoindre le projet</string>
+    <string name="invitation_accept_retry">Réessayer</string>
 
     <string name="invite_member_title">Inviter un superviseur</string>
     <string name="invite_member_email_label">Email</string>
@@ -131,6 +163,84 @@
     <string name="incoming_invitation_body_with_inviter">Tu as une invitation en attente pour rejoindre %1$s en tant que %2$s, envoyée par %3$s.</string>
     <string name="incoming_invitation_accept">Accepter</string>
     <string name="incoming_invitation_decline">Refuser</string>
+    <string name="incoming_invitation_decline_confirm_title">Refuser cette invitation ?</string>
+    <string name="incoming_invitation_decline_confirm_body">Tu ne rejoindras pas %1$s. Il faudra une nouvelle invitation pour rejoindre le projet plus tard.</string>
+
+    <string name="detail_history">Historique des modifications</string>
+    <string name="detail_history_hint">Qui a changé quoi, et quand</string>
+    <string name="history_title">Historique</string>
+    <string name="history_sort_newest">Plus récent</string>
+    <string name="history_sort_oldest">Plus ancien</string>
+    <string name="history_sort_action">Par type d'action (A→Z)</string>
+    <string name="history_sort_label">Trier</string>
+    <string name="history_empty">Aucun historique pour l'instant.</string>
+    <string name="history_error">Impossible de charger l'historique.</string>
+    <string name="history_retry">Réessayer</string>
+    <string name="history_page">Page %1$d / %2$d</string>
+    <string name="history_prev">Précédent</string>
+    <string name="history_next">Suivant</string>
+    <string name="history_limit_free">Historique limité aux 30 derniers jours. Passez à Semi-flex ou Liberté pour un historique plus long.</string>
+    <string name="history_limit_semi_flex">Historique limité aux 6 derniers mois. Passez à Liberté pour un historique illimité.</string>
+    <string name="history_action_creation">Création</string>
+    <string name="history_action_modification">Modification</string>
+    <string name="history_action_deletion">Suppression</string>
+
+    <string name="detail_export_title">Export PDF</string>
+    <string name="detail_export_hint">Génère un PDF complet du projet.</string>
+    <string name="detail_export_action">Exporter en PDF</string>
+    <string name="detail_export_generating">Génération du PDF…</string>
+    <string name="detail_export_ready">PDF généré.</string>
+    <string name="detail_export_open">Ouvrir</string>
+    <string name="detail_export_share">Partager</string>
+    <string name="detail_export_regenerate">Régénérer</string>
+    <string name="detail_export_upgrade">Passez à Semi-flex ou Liberté pour exporter ce projet en PDF.</string>
+
+    <string name="billing_title">Abonnement</string>
+    <string name="billing_plan_section">Plan actuel</string>
+    <string name="billing_next_due">Prochaine échéance : %1$s</string>
+    <string name="billing_usage_section">Usage</string>
+    <string name="billing_usage_projects">%1$d/%2$d projets utilisés</string>
+    <string name="billing_usage_projects_unlimited">Projets : illimité</string>
+    <string name="billing_usage_photos">%1$d/%2$d photos utilisées</string>
+    <string name="billing_usage_photos_unlimited">Photos : illimité</string>
+    <string name="billing_usage_videos">%1$d/%2$d vidéos utilisées</string>
+    <string name="billing_usage_supervisors">%1$d/%2$d superviseurs par projet</string>
+    <string name="billing_usage_supervisors_unlimited">Superviseurs : illimité par projet</string>
+    <string name="billing_manage_subscription">Gérer mon abonnement</string>
+    <string name="billing_no_action">Aucune action de facturation n'est disponible pour ce plan.</string>
+    <string name="billing_notice_checkout_succeeded">Paiement reçu — la mise à jour de votre abonnement peut prendre quelques instants.</string>
+    <string name="billing_upgrade_section">Passer à un palier supérieur</string>
+    <string name="billing_cycle_monthly">Mensuel</string>
+    <string name="billing_cycle_yearly">Annuel</string>
+    <string name="billing_subscribe">S'abonner</string>
+    <string name="billing_subscribe_pending">Redirection…</string>
+    <string name="billing_price_semi_flex_monthly">3,99 € / mois</string>
+    <string name="billing_price_semi_flex_monthly_note">ou 39 € / an</string>
+    <string name="billing_price_semi_flex_yearly">39 € / an</string>
+    <string name="billing_price_semi_flex_yearly_note">soit 3,25 € / mois</string>
+    <string name="billing_price_liberte_monthly">8,99 € / mois</string>
+    <string name="billing_price_liberte_monthly_note">ou 89 € / an</string>
+    <string name="billing_price_liberte_yearly">89 € / an</string>
+    <string name="billing_price_liberte_yearly_note">soit 7,42 € / mois</string>
+    <string name="billing_feature_semi_flex_projects">3 projets</string>
+    <string name="billing_feature_semi_flex_photos">300 photos</string>
+    <string name="billing_feature_semi_flex_videos">5 vidéos, 2 min max</string>
+    <string name="billing_feature_semi_flex_supervisors">3 superviseurs par projet</string>
+    <string name="billing_feature_semi_flex_export">Export PDF</string>
+    <string name="billing_feature_semi_flex_history">Historique 6 mois</string>
+    <string name="billing_feature_liberte_projects">Projets illimités</string>
+    <string name="billing_feature_liberte_photos">Photos illimitées</string>
+    <string name="billing_feature_liberte_videos">20 vidéos, 5 min max</string>
+    <string name="billing_feature_liberte_supervisors">Superviseurs illimités</string>
+    <string name="billing_feature_liberte_export">Export PDF</string>
+    <string name="billing_feature_liberte_history">Historique illimité</string>
+    <string name="billing_price_free">0 €</string>
+    <string name="billing_feature_free_projects">1 projet</string>
+    <string name="billing_feature_free_photos">35 photos</string>
+    <string name="billing_feature_free_videos_excluded">Pas de vidéo</string>
+    <string name="billing_feature_free_supervisors">1 superviseur par projet</string>
+    <string name="billing_feature_free_export_excluded">Pas d'export PDF</string>
+    <string name="billing_feature_free_history">Historique 30 jours</string>
 
     <string name="detail_danger_zone">Zone de danger</string>
     <string name="detail_danger_zone_body">Supprime définitivement ce projet et tout son contenu (étapes, entrées, matériaux, historique).</string>
@@ -185,17 +295,41 @@
     <string name="material_query_hint">Rechercher ou créer un matériau</string>
     <string name="entry_summary_required_work">Le titre est obligatoire.</string>
 
+    <string name="entry_report">Signaler</string>
+    <string name="report_entry_title">Signaler un problème</string>
+    <string name="report_message_label">Message</string>
+    <string name="report_message_placeholder">Ex. : quantité incorrecte, livraison oubliée…</string>
+    <string name="report_submit">Envoyer</string>
+    <string name="report_sent">Signalement envoyé. L'administrateur du projet en sera informé.</string>
+    <string name="detail_reports">Signalements</string>
+    <string name="detail_reports_hint">Problèmes signalés sur les entrées</string>
+    <string name="reports_title">Signalements</string>
+    <string name="reports_empty">Aucun signalement.</string>
+    <string name="reports_error">Impossible de charger les signalements.</string>
+    <string name="report_flagged_by">%1$s du %2$s · signalé par %3$s le %4$s</string>
+    <string name="report_author_unknown">un membre supprimé</string>
+    <string name="report_mark_processed">Marquer comme traité</string>
+    <string name="report_processed_on">Traité le %1$s</string>
+    <string name="report_status_processed">Traité</string>
+    <string name="report_sort_newest">Plus récent</string>
+    <string name="report_sort_oldest">Plus ancien</string>
+    <string name="report_sort_unprocessed">Non traités en premier</string>
+
     <string name="purchase_lines_title">Articles achetés</string>
     <string name="purchase_line_add">Ajouter un article</string>
     <string name="purchase_lines_empty">Aucun article pour l'instant.</string>
     <string name="purchase_line_add_title">Ajouter un article</string>
     <string name="purchase_line_edit_title">Modifier l'article</string>
+    <string name="purchase_line_delete_confirm_title">Supprimer cet article ?</string>
+    <string name="purchase_line_delete_confirm_body">%1$s sera définitivement retiré de cet achat.</string>
 
     <string name="consumption_lines_title">Matériaux consommés</string>
     <string name="consumption_line_add">Ajouter un matériau consommé</string>
     <string name="consumption_lines_empty">Aucun matériau consommé pour l'instant.</string>
     <string name="consumption_line_add_title">Ajouter un matériau consommé</string>
     <string name="consumption_line_edit_title">Modifier le matériau consommé</string>
+    <string name="consumption_line_delete_confirm_title">Supprimer ce matériau ?</string>
+    <string name="consumption_line_delete_confirm_body">%1$s sera définitivement retiré de cette consommation.</string>
 
     <string name="attachments_title">Justificatifs</string>
     <string name="attachment_add">Ajouter une photo</string>
@@ -205,7 +339,11 @@
     <string name="attachment_close">Fermer</string>
     <string name="attachment_add_video">Ajouter une vidéo</string>
     <string name="attachment_video_delete">Supprimer la vidéo</string>
+    <string name="attachment_delete_confirm_title">Supprimer ce justificatif ?</string>
+    <string name="attachment_delete_confirm_body">Ce fichier sera définitivement supprimé.</string>
     <string name="video_upload_in_progress">Envoi de la vidéo…</string>
+    <string name="attachment_finalizing">Finalisation…</string>
+    <string name="attachments_loading">Chargement des justificatifs…</string>
     <string name="video_upload_error">Impossible d'envoyer cette vidéo.</string>
     <string name="video_too_long_upgrade">La vidéo dure %1$s, la limite de votre formule est %2$s. Raccourcissez-la ou passez à un palier supérieur.</string>
     <string name="video_too_long_no_upgrade">La vidéo dure %1$s, la limite de votre formule est %2$s. Merci de la raccourcir.</string>
@@ -242,10 +380,13 @@
 
     <string name="settings_language">Langue</string>
     <string name="settings_theme">Thème</string>
-    <string name="settings_theme_system">Système</string>
+    <string name="settings_about">À propos</string>
+    <string name="settings_option_system">Système</string>
+    <string name="settings_language_french">Français</string>
+    <string name="settings_language_english">English</string>
+    <string name="settings_theme_light">Clair</string>
+    <string name="settings_theme_dark">Sombre</string>
     <string name="settings_version">Version de l'app</string>
-    <string name="language_french">Français</string>
-    <string name="language_english">Anglais</string>
 
     <string name="validation_email_required">L'email est obligatoire.</string>
     <string name="validation_email_invalid">L'email doit être valide.</string>
@@ -263,6 +404,7 @@
     <string name="error_email_already_used">Cette adresse email est déjà utilisée.</string>
     <string name="error_account_not_verified">Votre compte n'est pas encore activé. Vérifiez votre email.</string>
     <string name="error_account_locked">Compte bloqué après trop de tentatives. Réessayez plus tard.</string>
+    <string name="error_invalid_current_password">Le mot de passe actuel est incorrect.</string>
     <string name="error_invalid_code">Ce code est invalide ou a expiré.</string>
     <string name="error_validation">Vérifiez les informations saisies.</string>
     <string name="error_rate_limited">Trop de tentatives. Réessayez dans quelques minutes.</string>
@@ -271,4 +413,66 @@
     <string name="error_not_found">Ce projet n'existe plus, ou vous n'y avez pas accès.</string>
     <string name="error_network">Connexion au serveur impossible. Vérifiez votre connexion.</string>
     <string name="error_unexpected">Une erreur est survenue. Réessayez.</string>
+
+    <string name="admin_users_empty">Aucun utilisateur pour l'instant.</string>
+    <string name="admin_users_retry">Réessayer</string>
+    <string name="admin_users_status_active">Actif</string>
+    <string name="admin_users_status_inactive">Inactif</string>
+    <string name="admin_users_role_super_admin">Super-admin</string>
+    <string name="admin_users_role_user">Utilisateur</string>
+    <string name="admin_users_plan_source_stripe">Payé (Stripe)</string>
+    <string name="admin_users_plan_source_admin_granted">Offert (admin)</string>
+    <string name="admin_users_projects_count">%1$d projets</string>
+    <string name="admin_users_created_at">Créé le %1$s</string>
+    <string name="admin_users_plan_expires">Expire le %1$s</string>
+    <string name="admin_users_page">Page %1$d / %2$d</string>
+    <string name="admin_users_prev">Précédent</string>
+    <string name="admin_users_next">Suivant</string>
+    <string name="admin_users_create">Ajouter un utilisateur</string>
+    <string name="admin_users_actions">Actions</string>
+    <string name="admin_users_action_rename">Modifier le nom</string>
+    <string name="admin_users_action_reset_password">Réinitialiser le mot de passe</string>
+    <string name="admin_users_action_resend_activation">Renvoyer l'activation</string>
+    <string name="admin_users_action_delete">Supprimer</string>
+    <string name="admin_users_rename_title">Modifier le nom</string>
+    <string name="admin_users_reset_password_title">Réinitialiser le mot de passe</string>
+    <string name="admin_users_reset_password_body">Un lien de réinitialisation sera envoyé à %1$s. Continuer ?</string>
+    <string name="admin_users_reset_password_sent">Lien de réinitialisation envoyé à %1$s.</string>
+    <string name="admin_users_resend_activation_title">Renvoyer l'activation</string>
+    <string name="admin_users_resend_activation_body">Un nouvel email d'activation sera envoyé à %1$s. Continuer ?</string>
+    <string name="admin_users_activation_resent">Email d'activation renvoyé à %1$s.</string>
+    <string name="admin_users_delete_title">Supprimer %1$s ?</string>
+    <string name="admin_users_delete_warning">Cette action supprime définitivement le compte et tous les projets qu'il possède. Cette action est irréversible.</string>
+    <string name="admin_users_delete_confirm_prompt">Tapez %1$s pour confirmer.</string>
+    <string name="admin_users_delete_confirm_button">Supprimer définitivement</string>
+    <string name="admin_create_user_title">Créer un utilisateur</string>
+    <string name="admin_create_user_password_help">Cet utilisateur devra changer ce mot de passe lors de sa première connexion.</string>
+    <string name="admin_create_user_role_label">Rôle</string>
+    <string name="admin_create_user_submit">Créer</string>
+    <string name="admin_users_action_assign_plan">Modifier le plan</string>
+    <string name="admin_plan_dialog_title">Modifier le plan de %1$s</string>
+    <string name="admin_plan_stripe_guard">Cet utilisateur a un abonnement Stripe actif. Annulez-le d'abord via le portail de facturation avant de modifier son plan manuellement.</string>
+    <string name="admin_plan_expires_label">Date d'expiration (optionnel)</string>
+    <string name="admin_plan_expires_help">Laisser vide pour un accès indéfini.</string>
+    <string name="admin_plan_expires_help_free">Non applicable au plan gratuit.</string>
+    <string name="admin_plan_confirm">Confirmer</string>
+    <string name="admin_plan_change_free">Le plan de %1$s passera à Gratuit.</string>
+    <string name="admin_plan_change_with_date">Le plan de %1$s passera à %2$s, jusqu'au %3$s.</string>
+    <string name="admin_plan_change_indefinite">Le plan de %1$s passera à %2$s, sans date d'expiration (accès indéfini jusqu'à révocation manuelle).</string>
+    <string name="admin_users_title">Utilisateurs</string>
+    <string name="admin_stats_manage_users">Gérer les utilisateurs</string>
+    <string name="admin_stats_from_label">Du</string>
+    <string name="admin_stats_to_label">Au</string>
+    <string name="admin_stats_date_range_future">La date de fin ne peut pas être postérieure à aujourd'hui.</string>
+    <string name="admin_stats_date_range_order">La date de début ne peut pas être postérieure à la date de fin.</string>
+    <string name="admin_stats_overview">Vue d'ensemble</string>
+    <string name="admin_stats_users">Utilisateurs</string>
+    <string name="admin_stats_projects">Projets</string>
+    <string name="admin_stats_registrations">Nouveaux comptes</string>
+    <string name="admin_stats_projects_created">Nouveaux projets</string>
+    <string name="admin_stats_empty">Aucune donnée pour cette période.</string>
+    <string name="admin_stats_granularity_label">Granularité</string>
+    <string name="admin_stats_granularity_day">Jour</string>
+    <string name="admin_stats_granularity_month">Mois</string>
+    <string name="admin_stats_granularity_year">Année</string>
 </resources>

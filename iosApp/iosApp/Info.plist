@@ -18,6 +18,18 @@
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
+	<!-- Stripe checkout/portal return (ADR-51 point 4) — registered by the
+	     app itself, no Universal Links / hosted verification file needed:
+	     the checkout only ever starts from inside this app. -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>chantiertracker</string>
+			</array>
+		</dict>
+	</array>
 	<key>UILaunchScreen</key>
 	<dict>
 		<key>UIColorName</key>

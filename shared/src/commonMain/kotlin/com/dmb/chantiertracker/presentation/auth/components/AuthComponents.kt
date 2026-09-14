@@ -57,6 +57,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.dmb.chantiertracker.presentation.branding.ConstructionIllustration
+import com.dmb.chantiertracker.presentation.main.ChevronRightIcon
 import com.dmb.chantiertracker.presentation.theme.TerracottaDark
 import com.dmb.chantiertracker.presentation.theme.TerracottaLight
 import com.dmb.chantiertracker.resources.Res
@@ -84,8 +85,18 @@ fun AuthScreenLayout(
     val keyboardVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
 
     BoxWithConstraints(modifier.fillMaxSize()) {
+        // The 228dp floor below reads fine against a normal portrait height
+        // (700dp+) but was applied unconditionally — on a landscape phone
+        // (~400dp tall) it alone ate over half the screen, cropping the
+        // illustration and leaving the card barely enough room for a title.
+        // Confirmed by rendering at 892x412 before and after this change.
+        // Short on height is exactly the situation the keyboard-visible case
+        // already handles (hide the illustration, collapse to a slim band) —
+        // reused rather than inventing a second treatment.
+        val shortOnHeight = maxHeight < 500.dp
+        val showIllustration = !keyboardVisible && !shortOnHeight
         val headerHeight by animateDpAsState(
-            targetValue = if (keyboardVisible) 128.dp else (maxHeight * 0.38f).coerceIn(228.dp, 360.dp),
+            targetValue = if (keyboardVisible || shortOnHeight) 128.dp else (maxHeight * 0.38f).coerceIn(228.dp, 360.dp),
             label = "authHeaderHeight",
         )
 
@@ -103,8 +114,8 @@ fun AuthScreenLayout(
                     .padding(bottom = CardOverlap + 12.dp),
                 contentAlignment = Alignment.Center,
             ) {
-                AnimatedVisibility(!keyboardVisible) {
-                    ConstructionIllustration(Modifier.fillMaxWidth(0.62f).widthIn(max = 260.dp))
+                AnimatedVisibility(showIllustration) {
+                    ConstructionIllustration(Modifier.widthIn(max = 260.dp).fillMaxWidth(0.62f))
                 }
             }
 
@@ -137,24 +148,32 @@ fun AuthScreenLayout(
                     Column(
                         Modifier
                             .fillMaxSize()
+                            .imePadding()
                             .navigationBarsPadding()
                             .padding(horizontal = 24.dp)
                             .padding(top = 32.dp, bottom = 28.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
                         Column(
-                            Modifier.fillMaxWidth().widthIn(max = 440.dp),
+                            Modifier.widthIn(max = 440.dp).fillMaxWidth(),
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.spacedBy(14.dp),
                         ) {
                             AuthTitleBlock(title, subtitle)
                         }
                         Box(
-                            Modifier.fillMaxWidth().widthIn(max = 440.dp).weight(1f),
+                            Modifier.widthIn(max = 440.dp).fillMaxWidth().weight(1f),
                             contentAlignment = Alignment.Center,
                         ) {
+                            // Scrollable as a safety net, not the normal case: this
+                            // content is short enough to just sit centered on any
+                            // height this app actually ships to (confirmed at
+                            // 892x412, the shortest real one) — but centering with
+                            // no way to reach an overflow would strand content
+                            // entirely on anything shorter still, unlike the
+                            // non-centered branch below, which already scrolls.
                             Column(
-                                Modifier.fillMaxWidth(),
+                                Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 verticalArrangement = Arrangement.spacedBy(14.dp),
                             ) {
@@ -174,7 +193,7 @@ fun AuthScreenLayout(
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
                         Column(
-                            Modifier.fillMaxWidth().widthIn(max = 440.dp),
+                            Modifier.widthIn(max = 440.dp).fillMaxWidth(),
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.spacedBy(14.dp),
                         ) {
@@ -425,5 +444,45 @@ fun AuthFooterPrompt(prompt: String, action: String, onClick: () -> Unit, modifi
             fontWeight = FontWeight.SemiBold,
             color = MaterialTheme.colorScheme.primary,
         )
+    }
+}
+
+// A tappable, filled promo block for a secondary action that still deserves
+// real visual weight (e.g. WelcomeScreen's entry into plan selection) —
+// deliberately not just another AuthLink: primaryContainer fill + a chevron
+// give it the same affordance as a button, without competing with the
+// screen's actual primary/secondary buttons for top billing.
+@Composable
+fun AuthHighlightCard(title: String, subtitle: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Surface(
+        onClick = onClick,
+        modifier = modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.primaryContainer,
+        shape = MaterialTheme.shapes.large,
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 18.dp, vertical = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                )
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                )
+            }
+            Icon(
+                imageVector = ChevronRightIcon,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+            )
+        }
     }
 }

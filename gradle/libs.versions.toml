@@ -22,6 +22,8 @@ junit = "4.13.2"
 kotlin = "2.4.10"
 kotlinx-coroutines = "1.11.0"
 kotlinx-datetime = "0.8.0"
+# Streaming file I/O for video uploads (ADR-38) — matches FileKit 0.15's own pin.
+kotlinx-io = "0.9.1"
 kotlinx-serialization = "1.11.0"
 koin = "4.2.2"
 ksp = "2.3.11"
@@ -38,6 +40,12 @@ androidx-media3 = "1.4.1"
 # Pins to our exact Kotlin 2.4.10 / Compose Multiplatform 1.11.1 — FileKit 0.15.0
 # declares those as its own minimums.
 filekit = "0.15.0"
+# Admin stats line charts (ADR-55). 0.12.1's own libs.versions.toml pins the
+# exact same Kotlin 2.4.10 / Compose Multiplatform 1.11.1 / AGP 9.0.1 as this
+# project — verified against the real tagged release before adopting, chosen
+# over Vico (whose latest stable needs Compose 1.12.0/AGP 9.3.2, which would
+# cascade into the androidx-core/connectivity ceilings noted above).
+koalaplot = "0.12.1"
 
 [libraries]
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
@@ -66,6 +74,7 @@ kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-c
 kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "kotlinx-coroutines" }
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinx-serialization" }
 kotlinx-datetime = { module = "org.jetbrains.kotlinx:kotlinx-datetime", version.ref = "kotlinx-datetime" }
+kotlinx-io-core = { module = "org.jetbrains.kotlinx:kotlinx-io-core", version.ref = "kotlinx-io" }
 
 connectivity-core = { module = "dev.jordond.connectivity:connectivity-core", version.ref = "connectivity" }
 connectivity-device = { module = "dev.jordond.connectivity:connectivity-device", version.ref = "connectivity" }
@@ -98,6 +107,8 @@ androidx-media3-ui = { module = "androidx.media3:media3-ui", version.ref = "andr
 
 filekit-core = { module = "io.github.vinceglb:filekit-core", version.ref = "filekit" }
 filekit-dialogs-compose = { module = "io.github.vinceglb:filekit-dialogs-compose", version.ref = "filekit" }
+
+koalaplot-core = { module = "io.github.koalaplot:koalaplot-core", version.ref = "koalaplot" }
 
 [plugins]
 androidApplication = { id = "com.android.application", version.ref = "agp" }

@@ -26,16 +26,34 @@ data object OnboardingRoute
 data object WelcomeRoute
 
 @Serializable
+data object PlanSelectionRoute
+
+/**
+ * checkoutPlan/checkoutCycle : intention d'achat portée depuis
+ * [PlanSelectionRoute] à travers l'inscription (ADR-50) — `Plan.name`/
+ * `BillingCycle.name` bruts, même contrainte `String?` que [notice] ci-dessus
+ * (pas d'enum). `null` = parcours FREE normal, inchangé.
+ */
+@Serializable
 data class LoginRoute(
     val prefilledEmail: String? = null,
     val notice: String? = null,
+    val checkoutPlan: String? = null,
+    val checkoutCycle: String? = null,
 )
 
 @Serializable
-data object RegisterRoute
+data class RegisterRoute(
+    val checkoutPlan: String? = null,
+    val checkoutCycle: String? = null,
+)
 
 @Serializable
-data class VerifyEmailRoute(val email: String)
+data class VerifyEmailRoute(
+    val email: String,
+    val checkoutPlan: String? = null,
+    val checkoutCycle: String? = null,
+)
 
 @Serializable
 data object ForgotPasswordRoute
@@ -48,6 +66,42 @@ data object ProjectsRoute
 
 @Serializable
 data object SettingsRoute
+
+/**
+ * Bannière affichée sur l'écran de facturation après un retour de checkout
+ * Stripe réussi (ADR-51 point 4, deep link `chantiertracker://checkout-success`)
+ * — même idiome que [LoginNotice] : transportée en `String?` (Navigation
+ * Compose type-safe ne génère pas de `NavType` pour un enum sur Kotlin/Native).
+ * Pas d'équivalent pour une annulation ou un retour du portail : rien à
+ * annoncer dans ces deux cas, l'écran se contente de se rafraîchir.
+ */
+enum class BillingNotice {
+    CheckoutSucceeded;
+
+    fun toArg(): String = name
+
+    companion object {
+        fun fromArg(arg: String?): BillingNotice? =
+            arg?.let { name -> entries.firstOrNull { it.name == name } }
+    }
+}
+
+@Serializable
+data class BillingRoute(val notice: String? = null)
+
+// ADR-52 sous-étape 4/4 — the Administration tab's landing destination,
+// revisited from sub-step 1/4's placeholder (AdminUsersRoute) now that
+// statistics give the tab a real dashboard choice — dashboard-first, mirrors
+// the real web's own /admin root. AdminUsersRoute is reached from here,
+// no longer the tab root itself.
+@Serializable
+data object AdminStatsRoute
+
+@Serializable
+data object AdminUsersRoute
+
+@Serializable
+data object AdminCreateUserRoute
 
 @Serializable
 data object CreateProjectRoute
@@ -62,6 +116,12 @@ data class EditProjectRoute(val projectLocalId: String)
 data class InviteMemberRoute(val projectLocalId: String)
 
 @Serializable
+data class ProjectHistoryRoute(val projectLocalId: String)
+
+@Serializable
+data class ProjectReportsRoute(val projectLocalId: String)
+
+@Serializable
 data class CreateStageRoute(val projectLocalId: String)
 
 @Serializable
@@ -72,6 +132,9 @@ data class DailyLogRoute(val dailyLogLocalId: String)
 
 @Serializable
 data class EntrySummaryRoute(val entryLocalId: String)
+
+@Serializable
+data class ReportEntryRoute(val entryLocalId: String)
 
 @Serializable
 data class PurchaseLineFormRoute(
@@ -87,3 +150,8 @@ data class ConsumptionLineFormRoute(
     val projectLocalId: String,
     val lineLocalId: String? = null,
 )
+
+// ADR-59 — reached only from InvitationDeepLinkDispatcher (an already
+// authenticated App Link open), never from a regular in-app action.
+@Serializable
+data class InvitationAcceptRoute(val token: String)

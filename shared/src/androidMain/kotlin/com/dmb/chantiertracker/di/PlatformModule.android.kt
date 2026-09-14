@@ -2,8 +2,10 @@ package com.dmb.chantiertracker.di
 
 import com.dmb.chantiertracker.core.AndroidBuildInfo
 import com.dmb.chantiertracker.core.BuildInfo
+import com.dmb.chantiertracker.data.local.AndroidAppPreferences
 import com.dmb.chantiertracker.data.local.AndroidOnboardingStore
 import com.dmb.chantiertracker.data.local.AndroidTokenStorage
+import com.dmb.chantiertracker.data.local.AppPreferences
 import com.dmb.chantiertracker.data.local.OnboardingStore
 import com.dmb.chantiertracker.data.local.TokenStorage
 import com.dmb.chantiertracker.data.local.db.AppDatabase
@@ -11,6 +13,8 @@ import com.dmb.chantiertracker.data.local.db.projectDatabaseBuilder
 import com.dmb.chantiertracker.data.sync.AppCoroutineScope
 import com.dmb.chantiertracker.data.sync.ConnectivityObserver
 import com.dmb.chantiertracker.data.sync.NativeConnectivityObserver
+import com.dmb.chantiertracker.presentation.billing.AndroidUrlOpener
+import com.dmb.chantiertracker.presentation.billing.UrlOpener
 import androidx.room.RoomDatabase
 import dev.jordond.connectivity.Connectivity
 import org.koin.android.ext.koin.androidContext
@@ -21,7 +25,9 @@ actual fun platformModule(): Module = module {
     single<BuildInfo> { AndroidBuildInfo(androidContext()) }
     single<TokenStorage> { AndroidTokenStorage(androidContext()) }
     single<OnboardingStore> { AndroidOnboardingStore(androidContext()) }
+    single<AppPreferences> { AndroidAppPreferences(androidContext()) }
     single<RoomDatabase.Builder<AppDatabase>> { projectDatabaseBuilder(androidContext()) }
+    single<UrlOpener> { AndroidUrlOpener(androidContext()) }
     single<ConnectivityObserver> {
         val scope = get<AppCoroutineScope>()
         NativeConnectivityObserver(Connectivity(scope) {}, scope)

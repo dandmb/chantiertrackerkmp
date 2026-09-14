@@ -14,6 +14,12 @@ struct iOSApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
+                // ADR-51 point 4 — Stripe checkout/portal redirects back to
+                // chantiertracker://…; the scheme is declared in Info.plist,
+                // this is where iOS actually delivers it once registered.
+                .onOpenURL { url in
+                    CheckoutDeepLinkBridgeKt.dispatchCheckoutDeepLink(url: url.absoluteString)
+                }
         }
     }
 

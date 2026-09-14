@@ -6,11 +6,13 @@ import com.dmb.chantiertracker.data.local.db.ProjectDao
 import com.dmb.chantiertracker.data.remote.InvitationApi
 import com.dmb.chantiertracker.data.remote.apiCall
 import com.dmb.chantiertracker.data.remote.dto.CreateInvitationRequestDto
+import com.dmb.chantiertracker.data.remote.dto.InvitationDetailsDto
 import com.dmb.chantiertracker.data.remote.dto.PendingInvitationDto
 import com.dmb.chantiertracker.data.sync.Syncer
 import com.dmb.chantiertracker.domain.model.DomainException
 import com.dmb.chantiertracker.domain.model.IncomingInvitation
 import com.dmb.chantiertracker.domain.model.Invitation
+import com.dmb.chantiertracker.domain.model.InvitationPreview
 import com.dmb.chantiertracker.domain.model.InvitationStatus
 import com.dmb.chantiertracker.domain.model.ProjectRole
 import com.dmb.chantiertracker.domain.repository.InvitationRepository
@@ -46,6 +48,9 @@ class InvitationRepositoryImpl(
 
     override suspend fun listIncomingInvitations(): List<IncomingInvitation> =
         apiCall { api.listMine() }.map(PendingInvitationDto::toIncomingInvitation)
+
+    override suspend fun getInvitationPreview(token: String): InvitationPreview =
+        apiCall { api.getDetails(token) }.toInvitationPreview()
 
     override suspend fun acceptInvitation(token: String) {
         apiCall { api.accept(token) }
@@ -83,10 +88,18 @@ internal fun InvitationEntity.toInvitation(): Invitation = Invitation(
     invitedById = invitedById,
     createdAt = createdAt,
     expiresAt = expiresAt,
-    status = when (status.uppercase()) {
-        "PENDING" -> InvitationStatus.PENDING
-        "ACCEPTED" -> InvitationStatus.ACCEPTED
-        "EXPIRED" -> InvitationStatus.EXPIRED
-        else -> InvitationStatus.UNKNOWN
-    },
+    status = status.toInvitationStatus(),
 )
+
+private fun InvitationDetailsDto.toInvitationPreview() = InvitationPreview(
+    projectId = projectId,
+    projectName = projectName,
+    status = status.toInvitationStatus(),
+)
+
+private fun String.toInvitationStatus(): InvitationStatus = when (uppercase()) {
+    "PENDING" -> InvitationStatus.PENDING
+    "ACCEPTED" -> InvitationStatus.ACCEPTED
+    "EXPIRED" -> InvitationStatus.EXPIRED
+    else -> InvitationStatus.UNKNOWN
+}

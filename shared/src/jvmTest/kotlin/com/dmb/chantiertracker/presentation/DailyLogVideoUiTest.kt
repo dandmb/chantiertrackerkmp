@@ -3,10 +3,13 @@ package com.dmb.chantiertracker.presentation
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.isRoot
 import androidx.compose.ui.test.onFirst
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.runComposeUiTest
+import kotlin.test.assertTrue
 import com.dmb.chantiertracker.domain.model.Attachment
 import com.dmb.chantiertracker.domain.model.AuthState
 import com.dmb.chantiertracker.domain.model.DailyEntry
@@ -96,5 +99,47 @@ class DailyLogVideoUiTest {
         // On the JVM the player is the Desktop fallback — its "Ouvrir la vidéo"
         // button proves the tap → dialog → VideoPlayer path is wired.
         onNodeWithText("Ouvrir la vidéo").assertIsDisplayed()
+    }
+
+    @Test
+    fun the_zoom_dialog_fills_the_screen() = runComposeUiTest {
+        setContent {
+            customAppLocale = "fr"
+            AppEnvironment { AppTheme { DailyLogScreen(dailyLogLocalId = "log-1", viewModel = vm()) } }
+        }
+        waitForIdle()
+        onAllNodes(hasContentDescription("Lire la vidéo")).onFirst().performClick()
+        waitForIdle()
+
+        // The zoom surface should be (near) full-screen — a comfortable viewer,
+        // not the small centred card the platform-default Dialog wraps around
+        // its content (ADR-39).
+        val viewportH = onAllNodes(isRoot()).fetchSemanticsNodes().maxOf { it.size.height }
+        val zoomH = onNodeWithTag("attachment-zoom").fetchSemanticsNode().size.height
+        assertTrue(
+            zoomH >= viewportH * 0.8,
+            "zoom surface height $zoomH should fill the $viewportH viewport",
+        )
+    }
+
+    @Test
+    fun the_zoom_video_uses_the_available_space() = runComposeUiTest {
+        setContent {
+            customAppLocale = "fr"
+            AppEnvironment { AppTheme { DailyLogScreen(dailyLogLocalId = "log-1", viewModel = vm()) } }
+        }
+        waitForIdle()
+        onAllNodes(hasContentDescription("Lire la vidéo")).onFirst().performClick()
+        waitForIdle()
+
+        // The player region must fill the full-screen dialog, not sit as a small
+        // fixed strip in the middle of the black backdrop (ADR-40). Aspect ratio
+        // is then the platform player's job (fit, no distortion).
+        val dialogH = onNodeWithTag("attachment-zoom", useUnmergedTree = true).fetchSemanticsNode().size.height
+        val mediaH = onNodeWithTag("zoom-media", useUnmergedTree = true).fetchSemanticsNode().size.height
+        assertTrue(
+            mediaH >= dialogH * 0.9,
+            "player region $mediaH should fill the $dialogH dialog, not a fixed strip",
+        )
     }
 }

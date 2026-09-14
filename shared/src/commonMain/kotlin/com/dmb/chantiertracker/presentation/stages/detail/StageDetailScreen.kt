@@ -1,10 +1,8 @@
 package com.dmb.chantiertracker.presentation.stages.detail
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -15,11 +13,9 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -37,13 +33,21 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dmb.chantiertracker.domain.model.DailyLog
 import com.dmb.chantiertracker.domain.model.EntryType
 import com.dmb.chantiertracker.domain.model.StageDetail
+import com.dmb.chantiertracker.domain.model.StageStatus
+import com.dmb.chantiertracker.presentation.ClickableListRow
+import com.dmb.chantiertracker.presentation.DetailEmptyHint
+import com.dmb.chantiertracker.presentation.DetailInfoRow
+import com.dmb.chantiertracker.presentation.DetailSection
+import com.dmb.chantiertracker.presentation.DetailSectionDivider
+import com.dmb.chantiertracker.presentation.ResponsiveContent
 import com.dmb.chantiertracker.presentation.formatIsoDate
 import com.dmb.chantiertracker.presentation.format.formatMoney
 import com.dmb.chantiertracker.presentation.main.AddIcon
 import com.dmb.chantiertracker.presentation.main.ConstructionIcon
 import com.dmb.chantiertracker.presentation.main.ShoppingCartIcon
-import com.dmb.chantiertracker.presentation.stages.StageStatusBadge
+import com.dmb.chantiertracker.presentation.stages.StageStatusMenu
 import com.dmb.chantiertracker.resources.Res
+import com.dmb.chantiertracker.resources.detail_section_info
 import com.dmb.chantiertracker.resources.entry_type_purchase
 import com.dmb.chantiertracker.resources.entry_type_work
 import com.dmb.chantiertracker.resources.error_not_found
@@ -74,33 +78,37 @@ fun StageDetailScreen(
         state.detail?.name?.let(onStageNameResolved)
     }
 
-    Box(modifier.fillMaxSize()) {
-        when {
-            state.isLoading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
-            state.isMissing -> Column(
-                modifier = Modifier.align(Alignment.Center).fillMaxWidth().padding(horizontal = 32.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-            ) {
-                Text(
-                    text = stringResource(Res.string.error_not_found),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center,
-                )
-                OutlinedButton(onClick = viewModel::retry) {
-                    Text(stringResource(Res.string.projects_retry))
+    ResponsiveContent(modifier) {
+        Box(Modifier.fillMaxSize()) {
+            when {
+                state.isLoading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
+                state.isMissing -> Column(
+                    modifier = Modifier.align(Alignment.Center).fillMaxWidth().padding(horizontal = 32.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
+                    Text(
+                        text = stringResource(Res.string.error_not_found),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                    )
+                    OutlinedButton(onClick = viewModel::retry) {
+                        Text(stringResource(Res.string.projects_retry))
+                    }
                 }
+                state.detail != null -> StageDetailContent(
+                    detail = state.detail!!,
+                    currency = state.currency,
+                    logs = state.logs,
+                    todayDate = state.todayDate,
+                    canAddToday = state.canAddToday,
+                    isAdmin = state.isAdmin,
+                    onOpenLog = onOpenLog,
+                    onAddToday = { type -> viewModel.addTodayEntry(type) },
+                    onStatusChange = viewModel::changeStatus,
+                )
             }
-            state.detail != null -> StageDetailContent(
-                detail = state.detail!!,
-                currency = state.currency,
-                logs = state.logs,
-                todayDate = state.todayDate,
-                canAddToday = state.canAddToday,
-                onOpenLog = onOpenLog,
-                onAddToday = { type -> viewModel.addTodayEntry(type) },
-            )
         }
     }
 }
@@ -112,11 +120,16 @@ private fun StageDetailContent(
     logs: List<DailyLog>,
     todayDate: String?,
     canAddToday: Boolean,
+    isAdmin: Boolean,
     onOpenLog: (String) -> Unit,
     onAddToday: suspend (EntryType) -> String?,
+    onStatusChange: (StageStatus) -> Unit,
 ) {
     Column(
-        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(start = 24.dp, end = 24.dp, top = 20.dp, bottom = 32.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -125,25 +138,26 @@ private fun StageDetailContent(
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.SemiBold,
             )
-            StageStatusBadge(detail.status)
+            StageStatusMenu(current = detail.status, editable = isAdmin, onSelect = onStatusChange)
             if (!detail.description.isNullOrBlank()) {
                 Text(
                     text = detail.description,
                     style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.padding(top = 4.dp),
                 )
             }
         }
 
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+        DetailSectionDivider()
 
         val budget = detail.estimatedBudget?.let { formatMoney(it, currency) }
         val dates = formatDateRange(detail.startDate, detail.endDate)
         val notSet = stringResource(Res.string.value_not_set)
-        InfoRow(stringResource(Res.string.stage_detail_budget), budget ?: notSet, muted = budget == null)
-        InfoRow(stringResource(Res.string.stage_detail_dates), dates ?: notSet, muted = dates == null)
+        DetailSection(stringResource(Res.string.detail_section_info)) {
+            DetailInfoRow(stringResource(Res.string.stage_detail_budget), budget ?: notSet, muted = budget == null)
+            DetailInfoRow(stringResource(Res.string.stage_detail_dates), dates ?: notSet, muted = dates == null)
+        }
 
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+        DetailSectionDivider()
 
         DaysSection(
             logs = logs,
@@ -177,12 +191,7 @@ private fun DaysSection(
         }
     }
 
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(
-            stringResource(Res.string.stage_detail_section_days),
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold,
-        )
+    DetailSection(stringResource(Res.string.stage_detail_section_days)) {
         // Full-width primary action on its own row — the label is long and must
         // never be squeezed against the section title (large font / narrow screen).
         Box(Modifier.fillMaxWidth()) {
@@ -213,20 +222,11 @@ private fun DaysSection(
         }
 
         if (logs.isEmpty()) {
-            Surface(
-                color = MaterialTheme.colorScheme.surfaceVariant,
-                shape = MaterialTheme.shapes.medium,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(
-                    text = stringResource(
-                        if (canAddToday) Res.string.stage_detail_days_empty_can_add else Res.string.stage_detail_days_empty,
-                    ),
-                    modifier = Modifier.padding(16.dp),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
+            DetailEmptyHint(
+                stringResource(
+                    if (canAddToday) Res.string.stage_detail_days_empty_can_add else Res.string.stage_detail_days_empty,
+                ),
+            )
         } else {
             logs.forEach { log -> LogRow(log, onClick = { onOpenLog(log.localId) }) }
         }
@@ -235,56 +235,28 @@ private fun DaysSection(
 
 @Composable
 private fun LogRow(log: DailyLog, onClick: () -> Unit) {
-    Surface(
-        onClick = onClick,
-        color = MaterialTheme.colorScheme.surface,
-        shape = MaterialTheme.shapes.medium,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Row(
-            modifier = Modifier.padding(16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(formatIsoDate(log.date), style = MaterialTheme.typography.bodyLarge)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (log.hasPurchase) {
-                    Icon(
-                        ShoppingCartIcon,
-                        contentDescription = stringResource(Res.string.entry_type_purchase),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(20.dp),
-                    )
-                }
-                if (log.hasWork) {
-                    Icon(
-                        ConstructionIcon,
-                        contentDescription = stringResource(Res.string.entry_type_work),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(20.dp),
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun InfoRow(label: String, value: String, muted: Boolean = false) {
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+    ClickableListRow(onClick = onClick) {
         Text(
-            text = label,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Text(
-            text = value,
-            style = MaterialTheme.typography.bodyMedium,
-            color = if (muted) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
-            textAlign = TextAlign.End,
+            formatIsoDate(log.date),
+            style = MaterialTheme.typography.bodyLarge,
             modifier = Modifier.weight(1f),
         )
+        if (log.hasPurchase) {
+            Icon(
+                ShoppingCartIcon,
+                contentDescription = stringResource(Res.string.entry_type_purchase),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp),
+            )
+        }
+        if (log.hasWork) {
+            Icon(
+                ConstructionIcon,
+                contentDescription = stringResource(Res.string.entry_type_work),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp),
+            )
+        }
     }
 }
 

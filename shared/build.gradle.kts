@@ -67,9 +67,11 @@ kotlin {
             implementation(libs.androidx.room.runtime)
             implementation(libs.androidx.sqlite.bundled)
             implementation(libs.kotlinx.datetime)
+            implementation(libs.kotlinx.io.core)
             implementation(libs.connectivity.core)
             implementation(libs.filekit.core)
             implementation(libs.filekit.dialogs.compose)
+            implementation(libs.koalaplot.core)
 
             implementation(libs.compose.runtime)
             implementation(libs.compose.foundation)

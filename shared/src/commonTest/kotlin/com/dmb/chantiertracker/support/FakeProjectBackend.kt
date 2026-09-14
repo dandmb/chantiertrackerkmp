@@ -206,6 +206,7 @@ class FakeProjectBackend {
         val invitationId = Regex("""/invitations/(\d+)$""").find(path)?.groupValues?.get(1)?.toLong()
         val acceptToken = Regex("""/invitations/([^/]+)/accept$""").find(path)?.groupValues?.get(1)
         val declineToken = Regex("""/invitations/([^/]+)/decline$""").find(path)?.groupValues?.get(1)
+        val detailsToken = Regex("""^/invitations/([^/]+)$""").find(path)?.groupValues?.get(1)
         val isMyInvitations = path == "/users/me/invitations"
         val stagesProjectId = Regex("""/projects/(\d+)/stages$""").find(path)?.groupValues?.get(1)?.toLong()
         val stageId = Regex("""/stages/(\d+)$""").find(path)?.groupValues?.get(1)?.toLong()
@@ -469,6 +470,12 @@ class FakeProjectBackend {
                 respondJson("[$items]")
             }
 
+            request.method == HttpMethod.Get && detailsToken != null -> {
+                val invitation = myPendingInvitations.firstOrNull { it.token == detailsToken }
+                    ?: return respondProblem(HttpStatusCode.NotFound, "Invitation introuvable.")
+                respondJson(invitationDetailsJson(invitation))
+            }
+
             request.method == HttpMethod.Post && acceptToken != null -> {
                 acceptStatus?.let { return respondProblem(it, "Cette invitation n'est plus valide.") }
                 if (myPendingInvitations.none { it.token == acceptToken }) {
@@ -605,6 +612,12 @@ class FakeProjectBackend {
     private fun pendingForMeJson(i: ServerPendingInvitation): String =
         """{"token":${i.token.q()},"projectId":${i.projectId},"projectName":${i.projectName.q()},"role":${i.role.q()},
             "invitedByName":${i.invitedByName?.q() ?: "null"},"createdAt":${i.createdAt.q()},"expiresAt":${i.expiresAt.q()}}"""
+
+    // GET /invitations/{token} — still in myPendingInvitations means PENDING;
+    // removed once accepted/declined (see the accept/decline branches above),
+    // which is as far as this fake backend needs to model invitation status.
+    private fun invitationDetailsJson(i: ServerPendingInvitation): String =
+        """{"projectId":${i.projectId},"projectName":${i.projectName.q()},"email":"invitee@x.dev","status":"PENDING","accountExists":true}"""
 
     private fun logSummaryJson(l: ServerLog): String {
         val hasPurchase = entries.any { it.dailyLogId == l.id && it.type == "PURCHASE" }
