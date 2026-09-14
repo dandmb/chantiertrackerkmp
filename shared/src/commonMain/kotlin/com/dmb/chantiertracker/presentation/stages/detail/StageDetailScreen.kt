@@ -33,6 +33,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dmb.chantiertracker.domain.model.DailyLog
 import com.dmb.chantiertracker.domain.model.EntryType
 import com.dmb.chantiertracker.domain.model.StageDetail
+import com.dmb.chantiertracker.domain.model.StageStatus
 import com.dmb.chantiertracker.presentation.ClickableListRow
 import com.dmb.chantiertracker.presentation.DetailEmptyHint
 import com.dmb.chantiertracker.presentation.DetailInfoRow
@@ -44,7 +45,7 @@ import com.dmb.chantiertracker.presentation.format.formatMoney
 import com.dmb.chantiertracker.presentation.main.AddIcon
 import com.dmb.chantiertracker.presentation.main.ConstructionIcon
 import com.dmb.chantiertracker.presentation.main.ShoppingCartIcon
-import com.dmb.chantiertracker.presentation.stages.StageStatusBadge
+import com.dmb.chantiertracker.presentation.stages.StageStatusMenu
 import com.dmb.chantiertracker.resources.Res
 import com.dmb.chantiertracker.resources.detail_section_info
 import com.dmb.chantiertracker.resources.entry_type_purchase
@@ -102,8 +103,10 @@ fun StageDetailScreen(
                     logs = state.logs,
                     todayDate = state.todayDate,
                     canAddToday = state.canAddToday,
+                    isAdmin = state.isAdmin,
                     onOpenLog = onOpenLog,
                     onAddToday = { type -> viewModel.addTodayEntry(type) },
+                    onStatusChange = viewModel::changeStatus,
                 )
             }
         }
@@ -117,8 +120,10 @@ private fun StageDetailContent(
     logs: List<DailyLog>,
     todayDate: String?,
     canAddToday: Boolean,
+    isAdmin: Boolean,
     onOpenLog: (String) -> Unit,
     onAddToday: suspend (EntryType) -> String?,
+    onStatusChange: (StageStatus) -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -133,7 +138,7 @@ private fun StageDetailContent(
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.SemiBold,
             )
-            StageStatusBadge(detail.status)
+            StageStatusMenu(current = detail.status, editable = isAdmin, onSelect = onStatusChange)
             if (!detail.description.isNullOrBlank()) {
                 Text(
                     text = detail.description,

@@ -37,6 +37,7 @@ import com.dmb.chantiertracker.domain.model.Invitation
 import com.dmb.chantiertracker.domain.model.ProjectDetail
 import com.dmb.chantiertracker.domain.model.ProjectMember
 import com.dmb.chantiertracker.domain.model.ProjectRole
+import com.dmb.chantiertracker.domain.model.ProjectStatus
 import com.dmb.chantiertracker.domain.model.Stage
 import com.dmb.chantiertracker.presentation.ClickableListRow
 import com.dmb.chantiertracker.presentation.ConfirmActionDialog
@@ -53,7 +54,7 @@ import com.dmb.chantiertracker.presentation.main.AddIcon
 import com.dmb.chantiertracker.presentation.main.EditIcon
 import com.dmb.chantiertracker.presentation.format.formatMoney
 import com.dmb.chantiertracker.presentation.projects.ProjectLocation
-import com.dmb.chantiertracker.presentation.projects.ProjectStatusBadge
+import com.dmb.chantiertracker.presentation.projects.ProjectStatusMenu
 import com.dmb.chantiertracker.presentation.projects.export.ExportSection
 import com.dmb.chantiertracker.presentation.stages.StageStatusBadge
 import com.dmb.chantiertracker.resources.Res
@@ -151,6 +152,7 @@ fun ProjectDetailScreen(
                     onOpenReports = { onOpenReports(state.detail!!.localId) },
                     onCancelInvitation = viewModel::cancelInvitation,
                     onDeleteConfirmed = viewModel::deleteProject,
+                    onStatusChange = viewModel::changeStatus,
                 )
             }
         }
@@ -183,6 +185,7 @@ private fun DetailContent(
     onOpenReports: () -> Unit,
     onCancelInvitation: (Long) -> Unit,
     onDeleteConfirmed: () -> Unit,
+    onStatusChange: (ProjectStatus) -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -191,42 +194,50 @@ private fun DetailContent(
             .padding(start = 24.dp, end = 24.dp, top = 20.dp, bottom = 32.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
-        ProjectHeader(detail = detail, canEdit = canEdit, onEditProject = onEditProject)
+        ProjectHeader(detail = detail, canEdit = canEdit, onEditProject = onEditProject, onStatusChange = onStatusChange)
 
         DetailSectionDivider()
 
+        // Mirrors the web (ProjectDetailPage.tsx): export lives above the
+        // section grid entirely, a standalone project-level action, never
+        // grouped under "Informations" — same placement regardless of
+        // column count. Owner's plan unknown until the first detail pull
+        // (ADR-33) — same as the web, which renders nothing until
+        // `project.ownerPlan` is set.
+        detail.ownerPlan?.let { ownerPlan ->
+            ExportSection(projectLocalId = detail.localId, ownerPlan = ownerPlan)
+            DetailSectionDivider()
+        }
+
         if (twoColumns) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(32.dp)) {
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(20.dp)) {
-                    InfoSection(detail)
-                    detail.ownerPlan?.let { ownerPlan ->
-                        DetailSectionDivider()
-                        ExportSection(projectLocalId = detail.localId, ownerPlan = ownerPlan)
-                    }
-                    DetailSectionDivider()
-                    StagesSection(stages, detail.currency, onAddStage, onStageClick)
-                }
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(20.dp)) {
-                    MembersSection(members, isAdmin, onInviteMember)
-                    if (isAdmin) {
-                        DetailSectionDivider()
+            // Paired by relatedness (facts / people / admin nav shortcuts)
+            // rather than bucketed into two independent stacks — a 2-vs-4
+            // split there left one column much taller than the other, an
+            // uneven, disordered-looking result at 1440px (found by actually
+            // capturing this screen at that width, not guessed).
+            TwoColumnRow(
+                left = { InfoSection(detail) },
+                right = { StagesSection(stages, detail.currency, onAddStage, onStageClick) },
+            )
+            if (isAdmin) {
+                DetailSectionDivider()
+                TwoColumnRow(
+                    left = { MembersSection(members, isAdmin, onInviteMember) },
+                    right = {
                         InvitationsSection(pendingInvitations, cancellingInvitationIds, invitationActionError, onCancelInvitation)
-                        DetailSectionDivider()
-                        HistorySection(onOpenHistory)
-                        DetailSectionDivider()
-                        ReportsSection(onOpenReports)
-                    }
-                }
+                    },
+                )
+                DetailSectionDivider()
+                TwoColumnRow(
+                    left = { HistorySection(onOpenHistory) },
+                    right = { ReportsSection(onOpenReports) },
+                )
+            } else {
+                DetailSectionDivider()
+                MembersSection(members, isAdmin, onInviteMember)
             }
         } else {
             InfoSection(detail)
-
-            // Owner's plan unknown until the first detail pull (ADR-33) — same as
-            // the web, which renders nothing until `project.ownerPlan` is set.
-            detail.ownerPlan?.let { ownerPlan ->
-                DetailSectionDivider()
-                ExportSection(projectLocalId = detail.localId, ownerPlan = ownerPlan)
-            }
 
             DetailSectionDivider()
             StagesSection(stages, detail.currency, onAddStage, onStageClick)
@@ -250,6 +261,18 @@ private fun DetailContent(
             DetailSectionDivider()
             DangerZone(projectName = detail.name, isDeleting = isDeleting, onDeleteConfirmed = onDeleteConfirmed)
         }
+    }
+}
+
+// EXPANDED only — pairs two related sections side by side instead of
+// stacking every left-column section above every right-column one, which
+// left one column visibly taller/emptier than the other (found by
+// capturing the previous layout at 1440px, not guessed).
+@Composable
+private fun TwoColumnRow(left: @Composable () -> Unit, right: @Composable () -> Unit) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(32.dp)) {
+        Box(Modifier.weight(1f)) { left() }
+        Box(Modifier.weight(1f)) { right() }
     }
 }
 
@@ -363,7 +386,12 @@ private fun ReportsSection(onOpenReports: () -> Unit) {
 }
 
 @Composable
-private fun ProjectHeader(detail: ProjectDetail, canEdit: Boolean, onEditProject: () -> Unit) {
+private fun ProjectHeader(
+    detail: ProjectDetail,
+    canEdit: Boolean,
+    onEditProject: () -> Unit,
+    onStatusChange: (ProjectStatus) -> Unit,
+) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(
             Modifier.fillMaxWidth(),
@@ -386,7 +414,7 @@ private fun ProjectHeader(detail: ProjectDetail, canEdit: Boolean, onEditProject
                 }
             }
         }
-        ProjectStatusBadge(detail.status)
+        ProjectStatusMenu(current = detail.status, editable = canEdit, onSelect = onStatusChange)
         ProjectLocation(
             location = detail.location?.takeIf { it.isNotBlank() }
                 ?: stringResource(Res.string.project_location_unset),

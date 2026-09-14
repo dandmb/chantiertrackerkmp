@@ -223,6 +223,64 @@ class StageDetailViewModelTest {
         assertEquals(listOf("log-1"), v.state.value.logs.map { it.localId })
     }
 
+    // ─── isAdmin exposure ────────────────────────────────────────────────────
+
+    @Test
+    fun is_admin_is_exposed_for_the_owner() = runTest {
+        val repo = FakeStageRepository(detail = detail())
+        val v = vm(repo, projectRepo(ownerId = 7L), authRepo = auth(userId = 7L))
+        v.load("s1")
+        advanceUntilIdle()
+
+        assertTrue(v.state.value.isAdmin)
+    }
+
+    @Test
+    fun is_admin_is_false_for_a_supervisor() = runTest {
+        val repo = FakeStageRepository(detail = detail())
+        val members = listOf(ProjectMember(userId = 9, name = "Sam", email = "s@x.dev", role = ProjectRole.SUPERVISOR))
+        val v = vm(repo, projectRepo(ownerId = 1L, members = members), authRepo = auth(userId = 9L))
+        v.load("s1")
+        advanceUntilIdle()
+
+        assertFalse(v.state.value.isAdmin)
+    }
+
+    // ─── admin: changing the stage status ──────────────────────────────────
+
+    @Test
+    fun changing_status_resubmits_the_stage_unchanged_except_status() = runTest {
+        val repo = FakeStageRepository(detail = detail())
+        val v = vm(repo, projectRepo(ownerId = 1L), authRepo = auth(userId = 1L))
+        v.load("s1")
+        advanceUntilIdle()
+
+        v.changeStatus(StageStatus.COMPLETED)
+        advanceUntilIdle()
+
+        val input = repo.lastUpdateInput
+        assertEquals(StageStatus.COMPLETED, input?.status)
+        assertEquals("Gros œuvre", input?.name)
+        assertEquals("Fondations et murs", input?.description)
+        assertEquals(18000.0, input?.estimatedBudget)
+        assertEquals("2026-02-01", input?.startDate)
+        assertEquals("2026-05-01", input?.endDate)
+        assertEquals(listOf("refreshStage:s1", "updateStage:s1:Gros œuvre"), repo.log)
+    }
+
+    @Test
+    fun changing_status_to_the_current_value_is_a_no_op() = runTest {
+        val repo = FakeStageRepository(detail = detail(status = StageStatus.IN_PROGRESS))
+        val v = vm(repo, projectRepo(ownerId = 1L), authRepo = auth(userId = 1L))
+        v.load("s1")
+        advanceUntilIdle()
+
+        v.changeStatus(StageStatus.IN_PROGRESS)
+        advanceUntilIdle()
+
+        assertNull(repo.lastUpdateInput)
+    }
+
     // ─── adding today's entry ───────────────────────────────────────────────
 
     @Test

@@ -244,6 +244,39 @@ class ProjectDetailViewModelTest {
     }
 
     @Test
+    fun changing_status_resubmits_the_project_unchanged_except_status() = runTest {
+        val repo = FakeProjectRepository(detail = detail(ownerId = 1))
+        val vm = ProjectDetailViewModel(repo, FakeStageRepository(), FakeInvitationRepository(), auth(userId = 1))
+        vm.load("p5")
+        advanceUntilIdle()
+
+        vm.changeStatus(ProjectStatus.SUSPENDED)
+        advanceUntilIdle()
+
+        val input = repo.lastUpdateInput
+        assertEquals(ProjectStatus.SUSPENDED, input?.status)
+        assertEquals("Villa Vidal", input?.name)
+        assertEquals("Grande villa", input?.description)
+        assertEquals("Nîmes", input?.location)
+        assertEquals("EUR", input?.currency)
+        assertEquals("Europe/Paris", input?.timezone)
+        assertEquals(listOf("refreshProject:p5", "updateProject:p5:Villa Vidal"), repo.log)
+    }
+
+    @Test
+    fun changing_status_to_the_current_value_is_a_no_op() = runTest {
+        val repo = FakeProjectRepository(detail = detail(ownerId = 1)) // already IN_PROGRESS
+        val vm = ProjectDetailViewModel(repo, FakeStageRepository(), FakeInvitationRepository(), auth(userId = 1))
+        vm.load("p5")
+        advanceUntilIdle()
+
+        vm.changeStatus(ProjectStatus.IN_PROGRESS)
+        advanceUntilIdle()
+
+        assertEquals(null, repo.lastUpdateInput)
+    }
+
+    @Test
     fun delete_is_ignored_while_already_deleting() = runTest {
         val repo = FakeProjectRepository(detail = detail(ownerId = 1))
         val vm = ProjectDetailViewModel(repo, FakeStageRepository(), FakeInvitationRepository(), auth(userId = 1))

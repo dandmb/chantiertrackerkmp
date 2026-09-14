@@ -65,6 +65,11 @@ val SortIcon: ImageVector = icon(
     "M3,18h6v-2L3,16v2zM3,6v2h18L21,6L3,6zM3,13h12v-2L3,11v2z",
 )
 
+val ArrowDropDownIcon: ImageVector = icon(
+    "ArrowDropDown",
+    "M7,10l5,5 5,-5z",
+)
+
 val CheckIcon: ImageVector = icon(
     "Check",
     "M9,16.17L4.83,12l-1.42,1.41L9,19 21,7l-1.41,-1.41z",

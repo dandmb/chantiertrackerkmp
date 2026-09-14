@@ -361,7 +361,10 @@ class MainScreensSnapshotTest {
                 ownerId = if (canEdit) 1L else 999L,
             ),
             members = listOf(
-                ProjectMember(userId = 1, name = "Jean Marchand", email = "jean@chantier.dev", role = ProjectRole.ADMIN),
+                ProjectMember(
+                    userId = 1, name = "Jean Marchand", email = "jean@chantier.dev",
+                    role = if (canEdit) ProjectRole.ADMIN else ProjectRole.SUPERVISOR,
+                ),
                 ProjectMember(userId = 2, name = "Sam Ferreira", email = "sam@chantier.dev", role = ProjectRole.SUPERVISOR),
             ),
         )
@@ -483,7 +486,7 @@ class MainScreensSnapshotTest {
         return CreateStageViewModel(FakeStageRepository(), projectRepo, auth).also { it.start("1") }
     }
 
-    private fun stageDetailVm(withBudget: Boolean = true): StageDetailViewModel {
+    private fun stageDetailVm(withBudget: Boolean = true, isAdmin: Boolean = true): StageDetailViewModel {
         val repo = FakeStageRepository(
             detail = StageDetail(
                 localId = "s1", projectLocalId = "1", name = "Gros œuvre",
@@ -499,8 +502,15 @@ class MainScreensSnapshotTest {
                 localId = "1", name = "Villa Vidal", description = null, location = "Nîmes",
                 currency = "EUR", timezone = "Europe/Paris", status = ProjectStatus.IN_PROGRESS, ownerId = 1L,
             ),
+            members = if (isAdmin) {
+                emptyList()
+            } else {
+                listOf(ProjectMember(userId = 9, name = "Sam Superviseur", email = "sam@chantier.dev", role = ProjectRole.SUPERVISOR))
+            },
         )
-        val auth = FakeAuthRepository().apply { emitState(AuthState.Authenticated(User(1, "jean@chantier.dev", "Jean Marchand", true, GlobalRole.USER))) }
+        val userId = if (isAdmin) 1L else 9L
+        val userName = if (isAdmin) "Jean Marchand" else "Sam Superviseur"
+        val auth = FakeAuthRepository().apply { emitState(AuthState.Authenticated(User(userId, "u@chantier.dev", userName, true, GlobalRole.USER))) }
         val logs = FakeDailyLogRepository(
             logs = listOf(
                 DailyLog("log-1", "s1", "2026-09-04", hasPurchase = true, hasWork = true),
@@ -752,6 +762,14 @@ class MainScreensSnapshotTest {
                     projectVm = detailVm(canEdit = true),
                 )
             }
+            // A SUPERVISOR gets the plain read-only ProjectStatusBadge (no
+            // dropdown chevron, not clickable) instead of ProjectStatusMenu.
+            snapshot("56-project-detail-supervisor", locale) {
+                ProjectDetailChrome(
+                    fallbackTitle = if (locale == "fr") "Projet" else "Project",
+                    projectVm = detailVm(canEdit = false),
+                )
+            }
             snapshot("24-edit-project", locale) {
                 DetailChrome(
                     title = if (locale == "fr") "Modifier le projet" else "Edit project",
@@ -799,6 +817,13 @@ class MainScreensSnapshotTest {
                 DetailChrome(
                     title = if (locale == "fr") "Étape" else "Stage",
                 ) { m -> StageDetailScreen(stageLocalId = "s1", modifier = m, viewModel = stageDetailVm(withBudget = false)) }
+            }
+            // A SUPERVISOR gets the plain read-only StageStatusBadge (no
+            // dropdown chevron, not clickable) instead of StageStatusMenu.
+            snapshot("58-stage-detail-supervisor", locale) {
+                DetailChrome(
+                    title = if (locale == "fr") "Étape" else "Stage",
+                ) { m -> StageDetailScreen(stageLocalId = "s1", modifier = m, viewModel = stageDetailVm(isAdmin = false)) }
             }
             snapshot(
                 "26-daily-log",
@@ -1198,5 +1223,18 @@ class MainScreensSnapshotTest {
                 onSaved = {}, onBack = {}, modifier = m, viewModel = purchaseLineFormVm(),
             )
         }
+    }
+
+    // Reached before authentication (RootNavHost's own AuthNavHost), never
+    // wrapped by AuthScreenLayout's 440dp cap (ADR-56 sous-étape 1/5) — the
+    // "Suivant" button (AuthPrimaryButton, always fillMaxWidth()) stretched
+    // to the full window width at 1440px, found on real Desktop.
+    @Test
+    fun capture_wide_onboarding_capped() = wideScreenSnapshot("onboarding") {
+        val state = androidx.compose.foundation.pager.rememberPagerState(
+            initialPage = 0,
+            pageCount = { com.dmb.chantiertracker.presentation.onboarding.ONBOARDING_PAGES },
+        )
+        com.dmb.chantiertracker.presentation.onboarding.OnboardingScreenContent(pagerState = state, loop = 0f, onFinish = {})
     }
 }
