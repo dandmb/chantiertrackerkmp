@@ -29,4 +29,12 @@ interface ProjectRepository {
 
     /** Best-effort pull of one project and its members from the server into the local store. Never throws. */
     suspend fun refreshProject(localId: String)
+
+    /**
+     * Resolves a **server** project id to its local one, or `null` if that
+     * project hasn't synced into the local store yet (ADR-59: right after
+     * accepting an invitation by App Link, before the follow-up `refresh()`
+     * has necessarily completed).
+     */
+    suspend fun findLocalIdByServerId(serverId: Long): String?
 }

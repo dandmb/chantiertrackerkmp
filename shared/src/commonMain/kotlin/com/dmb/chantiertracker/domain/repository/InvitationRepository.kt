@@ -2,11 +2,20 @@ package com.dmb.chantiertracker.domain.repository
 
 import com.dmb.chantiertracker.domain.model.IncomingInvitation
 import com.dmb.chantiertracker.domain.model.Invitation
+import com.dmb.chantiertracker.domain.model.InvitationPreview
 import kotlinx.coroutines.flow.Flow
 
 interface InvitationRepository {
 
     fun observeInvitations(projectLocalId: String): Flow<List<Invitation>>
+
+    /**
+     * Public token lookup (ADR-59 App Links) — no auth required server-side,
+     * works before the caller even knows whether the current user is logged
+     * in. Throws a `DomainException` on failure (`NotFound` for an unknown
+     * token).
+     */
+    suspend fun getInvitationPreview(token: String): InvitationPreview
 
     /**
      * Pending invitations addressed to the current user (`GET /users/me/invitations`).

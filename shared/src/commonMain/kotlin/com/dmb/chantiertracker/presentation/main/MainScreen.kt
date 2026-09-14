@@ -36,6 +36,8 @@ import com.dmb.chantiertracker.presentation.admin.AdminUsersScreen
 import com.dmb.chantiertracker.presentation.billing.BillingScreen
 import com.dmb.chantiertracker.presentation.billing.CheckoutDeepLink
 import com.dmb.chantiertracker.presentation.billing.CheckoutDeepLinkDispatcher
+import com.dmb.chantiertracker.presentation.invitations.InvitationAcceptScreen
+import com.dmb.chantiertracker.presentation.invitations.InvitationDeepLinkDispatcher
 import com.dmb.chantiertracker.presentation.navigation.AdminCreateUserRoute
 import com.dmb.chantiertracker.presentation.navigation.AdminStatsRoute
 import com.dmb.chantiertracker.presentation.navigation.AdminUsersRoute
@@ -47,6 +49,7 @@ import com.dmb.chantiertracker.presentation.navigation.CreateStageRoute
 import com.dmb.chantiertracker.presentation.navigation.DailyLogRoute
 import com.dmb.chantiertracker.presentation.navigation.EditProjectRoute
 import com.dmb.chantiertracker.presentation.navigation.EntrySummaryRoute
+import com.dmb.chantiertracker.presentation.navigation.InvitationAcceptRoute
 import com.dmb.chantiertracker.presentation.navigation.InviteMemberRoute
 import com.dmb.chantiertracker.presentation.navigation.ProjectDetailRoute
 import com.dmb.chantiertracker.presentation.navigation.ProjectHistoryRoute
@@ -88,6 +91,7 @@ import com.dmb.chantiertracker.resources.daily_log_title
 import com.dmb.chantiertracker.resources.detail_title
 import com.dmb.chantiertracker.resources.edit_project_title
 import com.dmb.chantiertracker.resources.history_title
+import com.dmb.chantiertracker.resources.invitation_accept_title
 import com.dmb.chantiertracker.resources.invite_member_title
 import com.dmb.chantiertracker.resources.projects_new
 import com.dmb.chantiertracker.resources.report_entry_title
@@ -98,7 +102,7 @@ import org.koin.compose.viewmodel.koinViewModel
 
 private enum class MainDestination {
     Projects, Administration, AdminUsers, AdminCreateUser, Settings, CreateProject, ProjectDetail, EditProject, InviteMember, ProjectHistory, ProjectReports, CreateStage, StageDetail, DailyLog,
-    EntrySummary, PurchaseLineForm, ConsumptionLineForm, ReportEntry, Billing
+    EntrySummary, PurchaseLineForm, ConsumptionLineForm, ReportEntry, Billing, InvitationAccept
 }
 
 // ADR-52 — a SUPER_ADMIN can neither own nor join a project (blocked
@@ -159,6 +163,18 @@ fun MainScreen(globalRole: GlobalRole, viewModel: MainViewModel = koinViewModel(
         deepLinkDispatcher.consume()
     }
 
+    // ADR-59 — a real App Link (chantiertracker.com/invitations/{token})
+    // only ever reaches this dispatcher already authenticated:
+    // InvitationDeepLinkBridge sends anything else straight to the system
+    // browser before MainScreen (this composable) even exists yet.
+    val invitationDeepLinkDispatcher = koinInject<InvitationDeepLinkDispatcher>()
+    val pendingInvitationToken by invitationDeepLinkDispatcher.pending.collectAsStateWithLifecycle()
+    LaunchedEffect(pendingInvitationToken) {
+        val token = pendingInvitationToken ?: return@LaunchedEffect
+        navController.navigate(InvitationAcceptRoute(token)) { launchSingleTop = true }
+        invitationDeepLinkDispatcher.consume()
+    }
+
     val backStackEntry by navController.currentBackStackEntryAsState()
     val destination = backStackEntry?.destination
     val current = when {
@@ -180,6 +196,7 @@ fun MainScreen(globalRole: GlobalRole, viewModel: MainViewModel = koinViewModel(
         destination?.hasRoute(ConsumptionLineFormRoute::class) == true -> MainDestination.ConsumptionLineForm
         destination?.hasRoute(ReportEntryRoute::class) == true -> MainDestination.ReportEntry
         destination?.hasRoute(BillingRoute::class) == true -> MainDestination.Billing
+        destination?.hasRoute(InvitationAcceptRoute::class) == true -> MainDestination.InvitationAccept
         else -> MainDestination.Projects
     }
     val currentTab = when (current) {
@@ -269,6 +286,10 @@ fun MainScreen(globalRole: GlobalRole, viewModel: MainViewModel = koinViewModel(
                 )
                 MainDestination.Billing -> DetailTopBar(
                     title = stringResource(Res.string.billing_title),
+                    onBack = { navController.popBackStack() },
+                )
+                MainDestination.InvitationAccept -> DetailTopBar(
+                    title = stringResource(Res.string.invitation_accept_title),
                     onBack = { navController.popBackStack() },
                 )
                 MainDestination.AdminUsers -> DetailTopBar(
@@ -444,6 +465,17 @@ fun MainScreen(globalRole: GlobalRole, viewModel: MainViewModel = koinViewModel(
                     onSaved = { navController.popBackStack() },
                     onBack = { navController.popBackStack() },
                     onTitleResolved = { formTitle = it },
+                )
+            }
+            composable<InvitationAcceptRoute> { entry ->
+                InvitationAcceptScreen(
+                    token = entry.toRoute<InvitationAcceptRoute>().token,
+                    onAccepted = { projectLocalId ->
+                        val destination = if (projectLocalId != null) ProjectDetailRoute(projectLocalId) else ProjectsRoute
+                        navController.navigate(destination) {
+                            popUpTo(InvitationAcceptRoute::class) { inclusive = true }
+                        }
+                    },
                 )
             }
             composable<ConsumptionLineFormRoute> { entry ->
