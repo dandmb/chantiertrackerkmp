@@ -37,6 +37,7 @@ import com.dmb.chantiertracker.domain.model.Invitation
 import com.dmb.chantiertracker.domain.model.ProjectDetail
 import com.dmb.chantiertracker.domain.model.ProjectMember
 import com.dmb.chantiertracker.domain.model.ProjectRole
+import com.dmb.chantiertracker.domain.model.ProjectStatus
 import com.dmb.chantiertracker.domain.model.Stage
 import com.dmb.chantiertracker.presentation.ClickableListRow
 import com.dmb.chantiertracker.presentation.ConfirmActionDialog
@@ -44,6 +45,8 @@ import com.dmb.chantiertracker.presentation.DetailEmptyHint
 import com.dmb.chantiertracker.presentation.DetailInfoRow
 import com.dmb.chantiertracker.presentation.DetailSection
 import com.dmb.chantiertracker.presentation.DetailSectionDivider
+import com.dmb.chantiertracker.presentation.ResponsiveContent
+import com.dmb.chantiertracker.presentation.WidthSizeClass
 import com.dmb.chantiertracker.presentation.formatIsoDate
 import com.dmb.chantiertracker.presentation.i18n.localizedText
 import com.dmb.chantiertracker.presentation.auth.components.ErrorBanner
@@ -51,7 +54,7 @@ import com.dmb.chantiertracker.presentation.main.AddIcon
 import com.dmb.chantiertracker.presentation.main.EditIcon
 import com.dmb.chantiertracker.presentation.format.formatMoney
 import com.dmb.chantiertracker.presentation.projects.ProjectLocation
-import com.dmb.chantiertracker.presentation.projects.ProjectStatusBadge
+import com.dmb.chantiertracker.presentation.projects.ProjectStatusMenu
 import com.dmb.chantiertracker.presentation.projects.export.ExportSection
 import com.dmb.chantiertracker.presentation.stages.StageStatusBadge
 import com.dmb.chantiertracker.resources.Res
@@ -111,43 +114,47 @@ fun ProjectDetailScreen(
     }
     LaunchedEffect(state.deleted) { if (state.deleted) onProjectDeleted() }
 
-    Box(modifier.fillMaxSize()) {
-        when {
-            state.isLoading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
-            state.isMissing -> Column(
-                modifier = Modifier.align(Alignment.Center).fillMaxWidth().padding(horizontal = 32.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-            ) {
-                Text(
-                    text = stringResource(Res.string.error_not_found),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center,
-                )
-                OutlinedButton(onClick = viewModel::retry) {
-                    Text(stringResource(Res.string.projects_retry))
+    ResponsiveContent(modifier, maxContentWidth = 900.dp) { widthClass ->
+        Box(Modifier.fillMaxSize()) {
+            when {
+                state.isLoading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
+                state.isMissing -> Column(
+                    modifier = Modifier.align(Alignment.Center).fillMaxWidth().padding(horizontal = 32.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
+                    Text(
+                        text = stringResource(Res.string.error_not_found),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                    )
+                    OutlinedButton(onClick = viewModel::retry) {
+                        Text(stringResource(Res.string.projects_retry))
+                    }
                 }
+                state.detail != null -> DetailContent(
+                    detail = state.detail!!,
+                    canEdit = state.canEdit,
+                    isAdmin = state.isAdmin,
+                    isDeleting = state.isDeleting,
+                    stages = state.stages,
+                    members = state.members,
+                    pendingInvitations = state.pendingInvitations,
+                    cancellingInvitationIds = state.cancellingInvitationIds,
+                    invitationActionError = state.invitationActionError?.localizedText(),
+                    twoColumns = widthClass == WidthSizeClass.EXPANDED,
+                    onAddStage = { onAddStage(state.detail!!.localId) },
+                    onStageClick = onStageClick,
+                    onEditProject = { onEditProject(state.detail!!.localId) },
+                    onInviteMember = { onInviteMember(state.detail!!.localId) },
+                    onOpenHistory = { onOpenHistory(state.detail!!.localId) },
+                    onOpenReports = { onOpenReports(state.detail!!.localId) },
+                    onCancelInvitation = viewModel::cancelInvitation,
+                    onDeleteConfirmed = viewModel::deleteProject,
+                    onStatusChange = viewModel::changeStatus,
+                )
             }
-            state.detail != null -> DetailContent(
-                detail = state.detail!!,
-                canEdit = state.canEdit,
-                isAdmin = state.isAdmin,
-                isDeleting = state.isDeleting,
-                stages = state.stages,
-                members = state.members,
-                pendingInvitations = state.pendingInvitations,
-                cancellingInvitationIds = state.cancellingInvitationIds,
-                invitationActionError = state.invitationActionError?.localizedText(),
-                onAddStage = { onAddStage(state.detail!!.localId) },
-                onStageClick = onStageClick,
-                onEditProject = { onEditProject(state.detail!!.localId) },
-                onInviteMember = { onInviteMember(state.detail!!.localId) },
-                onOpenHistory = { onOpenHistory(state.detail!!.localId) },
-                onOpenReports = { onOpenReports(state.detail!!.localId) },
-                onCancelInvitation = viewModel::cancelInvitation,
-                onDeleteConfirmed = viewModel::deleteProject,
-            )
         }
     }
 }
@@ -163,6 +170,13 @@ private fun DetailContent(
     pendingInvitations: List<Invitation>,
     cancellingInvitationIds: Set<Long>,
     invitationActionError: String?,
+    // Two independent, genuinely parallel groups of sections (project info +
+    // stages vs. members + invitations/history/reports) — a real 2-column
+    // layout on a wide window rather than just a width cap, unlike the
+    // single-column forms/lists elsewhere in this same sous-étape (ADR-56
+    // sous-étape 3/5). EXPANDED only (840dp+): MEDIUM stays single-column,
+    // narrow enough that two columns would cramp both.
+    twoColumns: Boolean,
     onAddStage: () -> Unit,
     onStageClick: (String) -> Unit,
     onEditProject: () -> Unit,
@@ -171,6 +185,7 @@ private fun DetailContent(
     onOpenReports: () -> Unit,
     onCancelInvitation: (Long) -> Unit,
     onDeleteConfirmed: () -> Unit,
+    onStatusChange: (ProjectStatus) -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -179,111 +194,66 @@ private fun DetailContent(
             .padding(start = 24.dp, end = 24.dp, top = 20.dp, bottom = 32.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
-        ProjectHeader(detail = detail, canEdit = canEdit, onEditProject = onEditProject)
+        ProjectHeader(detail = detail, canEdit = canEdit, onEditProject = onEditProject, onStatusChange = onStatusChange)
 
         DetailSectionDivider()
 
-        DetailSection(stringResource(Res.string.detail_section_info)) {
-            DetailInfoRow(stringResource(Res.string.detail_currency), detail.currency)
-            DetailInfoRow(stringResource(Res.string.detail_timezone), detail.timezone)
-        }
-
-        // Owner's plan unknown until the first detail pull (ADR-33) — same as
-        // the web, which renders nothing until `project.ownerPlan` is set.
+        // Mirrors the web (ProjectDetailPage.tsx): export lives above the
+        // section grid entirely, a standalone project-level action, never
+        // grouped under "Informations" — same placement regardless of
+        // column count. Owner's plan unknown until the first detail pull
+        // (ADR-33) — same as the web, which renders nothing until
+        // `project.ownerPlan` is set.
         detail.ownerPlan?.let { ownerPlan ->
-            DetailSectionDivider()
             ExportSection(projectLocalId = detail.localId, ownerPlan = ownerPlan)
-        }
-
-        DetailSectionDivider()
-
-        DetailSection(
-            title = stringResource(Res.string.detail_section_stages),
-            action = { SectionTextAction(Res.string.detail_stages_add, onAddStage) },
-        ) {
-            if (stages.isEmpty()) {
-                DetailEmptyHint(stringResource(Res.string.detail_stages_empty))
-            } else {
-                stages.forEach { stage ->
-                    StageRow(stage, currency = detail.currency, onClick = { onStageClick(stage.localId) })
-                }
-            }
-        }
-
-        DetailSectionDivider()
-
-        DetailSection(
-            title = stringResource(Res.string.detail_section_members),
-            action = if (isAdmin) {
-                { SectionTextAction(Res.string.detail_invite_member, onInviteMember) }
-            } else {
-                null
-            },
-        ) {
-            if (members.isEmpty()) {
-                DetailEmptyHint(stringResource(Res.string.detail_members_empty))
-            } else {
-                members.forEach { member -> MemberRow(member) }
-            }
-        }
-
-        if (isAdmin) {
             DetailSectionDivider()
-            var pendingCancelInvitation by remember { mutableStateOf<Invitation?>(null) }
+        }
 
-            DetailSection(stringResource(Res.string.detail_invitations_title)) {
-                invitationActionError?.let { ErrorBanner(it) }
-                if (pendingInvitations.isEmpty()) {
-                    DetailEmptyHint(stringResource(Res.string.detail_invitations_empty))
-                } else {
-                    pendingInvitations.forEach { invitation ->
-                        InvitationRow(
-                            invitation = invitation,
-                            isCancelling = invitation.id in cancellingInvitationIds,
-                            onCancel = { pendingCancelInvitation = invitation },
-                        )
-                    }
-                }
-            }
-
-            pendingCancelInvitation?.let { invitation ->
-                ConfirmActionDialog(
-                    title = stringResource(Res.string.detail_invitation_cancel_confirm_title),
-                    body = stringResource(Res.string.detail_invitation_cancel_confirm_body, invitation.email),
-                    confirmLabel = stringResource(Res.string.detail_invitation_cancel_confirm_button),
-                    destructive = false,
-                    onDismiss = { pendingCancelInvitation = null },
-                    onConfirm = {
-                        pendingCancelInvitation = null
-                        onCancelInvitation(invitation.id)
+        if (twoColumns) {
+            // Paired by relatedness (facts / people / admin nav shortcuts)
+            // rather than bucketed into two independent stacks — a 2-vs-4
+            // split there left one column much taller than the other, an
+            // uneven, disordered-looking result at 1440px (found by actually
+            // capturing this screen at that width, not guessed).
+            TwoColumnRow(
+                left = { InfoSection(detail) },
+                right = { StagesSection(stages, detail.currency, onAddStage, onStageClick) },
+            )
+            if (isAdmin) {
+                DetailSectionDivider()
+                TwoColumnRow(
+                    left = { MembersSection(members, isAdmin, onInviteMember) },
+                    right = {
+                        InvitationsSection(pendingInvitations, cancellingInvitationIds, invitationActionError, onCancelInvitation)
                     },
                 )
+                DetailSectionDivider()
+                TwoColumnRow(
+                    left = { HistorySection(onOpenHistory) },
+                    right = { ReportsSection(onOpenReports) },
+                )
+            } else {
+                DetailSectionDivider()
+                MembersSection(members, isAdmin, onInviteMember)
             }
-        }
-
-        if (isAdmin) {
-            DetailSectionDivider()
-            DetailSection(stringResource(Res.string.detail_history)) {
-                ClickableListRow(onClick = onOpenHistory) {
-                    Text(
-                        text = stringResource(Res.string.detail_history_hint),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.weight(1f),
-                    )
-                }
-            }
+        } else {
+            InfoSection(detail)
 
             DetailSectionDivider()
-            DetailSection(stringResource(Res.string.detail_reports)) {
-                ClickableListRow(onClick = onOpenReports) {
-                    Text(
-                        text = stringResource(Res.string.detail_reports_hint),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.weight(1f),
-                    )
-                }
+            StagesSection(stages, detail.currency, onAddStage, onStageClick)
+
+            DetailSectionDivider()
+            MembersSection(members, isAdmin, onInviteMember)
+
+            if (isAdmin) {
+                DetailSectionDivider()
+                InvitationsSection(pendingInvitations, cancellingInvitationIds, invitationActionError, onCancelInvitation)
+
+                DetailSectionDivider()
+                HistorySection(onOpenHistory)
+
+                DetailSectionDivider()
+                ReportsSection(onOpenReports)
             }
         }
 
@@ -294,8 +264,134 @@ private fun DetailContent(
     }
 }
 
+// EXPANDED only — pairs two related sections side by side instead of
+// stacking every left-column section above every right-column one, which
+// left one column visibly taller/emptier than the other (found by
+// capturing the previous layout at 1440px, not guessed).
 @Composable
-private fun ProjectHeader(detail: ProjectDetail, canEdit: Boolean, onEditProject: () -> Unit) {
+private fun TwoColumnRow(left: @Composable () -> Unit, right: @Composable () -> Unit) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(32.dp)) {
+        Box(Modifier.weight(1f)) { left() }
+        Box(Modifier.weight(1f)) { right() }
+    }
+}
+
+@Composable
+private fun InfoSection(detail: ProjectDetail) {
+    DetailSection(stringResource(Res.string.detail_section_info)) {
+        DetailInfoRow(stringResource(Res.string.detail_currency), detail.currency)
+        DetailInfoRow(stringResource(Res.string.detail_timezone), detail.timezone)
+    }
+}
+
+@Composable
+private fun StagesSection(stages: List<Stage>, currency: String, onAddStage: () -> Unit, onStageClick: (String) -> Unit) {
+    DetailSection(
+        title = stringResource(Res.string.detail_section_stages),
+        action = { SectionTextAction(Res.string.detail_stages_add, onAddStage) },
+    ) {
+        if (stages.isEmpty()) {
+            DetailEmptyHint(stringResource(Res.string.detail_stages_empty))
+        } else {
+            stages.forEach { stage ->
+                StageRow(stage, currency = currency, onClick = { onStageClick(stage.localId) })
+            }
+        }
+    }
+}
+
+@Composable
+private fun MembersSection(members: List<ProjectMember>, isAdmin: Boolean, onInviteMember: () -> Unit) {
+    DetailSection(
+        title = stringResource(Res.string.detail_section_members),
+        action = if (isAdmin) {
+            { SectionTextAction(Res.string.detail_invite_member, onInviteMember) }
+        } else {
+            null
+        },
+    ) {
+        if (members.isEmpty()) {
+            DetailEmptyHint(stringResource(Res.string.detail_members_empty))
+        } else {
+            members.forEach { member -> MemberRow(member) }
+        }
+    }
+}
+
+@Composable
+private fun InvitationsSection(
+    pendingInvitations: List<Invitation>,
+    cancellingInvitationIds: Set<Long>,
+    invitationActionError: String?,
+    onCancelInvitation: (Long) -> Unit,
+) {
+    var pendingCancelInvitation by remember { mutableStateOf<Invitation?>(null) }
+
+    DetailSection(stringResource(Res.string.detail_invitations_title)) {
+        invitationActionError?.let { ErrorBanner(it) }
+        if (pendingInvitations.isEmpty()) {
+            DetailEmptyHint(stringResource(Res.string.detail_invitations_empty))
+        } else {
+            pendingInvitations.forEach { invitation ->
+                InvitationRow(
+                    invitation = invitation,
+                    isCancelling = invitation.id in cancellingInvitationIds,
+                    onCancel = { pendingCancelInvitation = invitation },
+                )
+            }
+        }
+    }
+
+    pendingCancelInvitation?.let { invitation ->
+        ConfirmActionDialog(
+            title = stringResource(Res.string.detail_invitation_cancel_confirm_title),
+            body = stringResource(Res.string.detail_invitation_cancel_confirm_body, invitation.email),
+            confirmLabel = stringResource(Res.string.detail_invitation_cancel_confirm_button),
+            destructive = false,
+            onDismiss = { pendingCancelInvitation = null },
+            onConfirm = {
+                pendingCancelInvitation = null
+                onCancelInvitation(invitation.id)
+            },
+        )
+    }
+}
+
+@Composable
+private fun HistorySection(onOpenHistory: () -> Unit) {
+    DetailSection(stringResource(Res.string.detail_history)) {
+        ClickableListRow(onClick = onOpenHistory) {
+            Text(
+                text = stringResource(Res.string.detail_history_hint),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f),
+            )
+        }
+    }
+}
+
+@Composable
+private fun ReportsSection(onOpenReports: () -> Unit) {
+    DetailSection(stringResource(Res.string.detail_reports)) {
+        ClickableListRow(onClick = onOpenReports) {
+            Text(
+                text = stringResource(Res.string.detail_reports_hint),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f),
+            )
+        }
+    }
+}
+
+@Composable
+private fun ProjectHeader(
+    detail: ProjectDetail,
+    canEdit: Boolean,
+    onEditProject: () -> Unit,
+    onStatusChange: (ProjectStatus) -> Unit,
+) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(
             Modifier.fillMaxWidth(),
@@ -318,7 +414,7 @@ private fun ProjectHeader(detail: ProjectDetail, canEdit: Boolean, onEditProject
                 }
             }
         }
-        ProjectStatusBadge(detail.status)
+        ProjectStatusMenu(current = detail.status, editable = canEdit, onSelect = onStatusChange)
         ProjectLocation(
             location = detail.location?.takeIf { it.isNotBlank() }
                 ?: stringResource(Res.string.project_location_unset),

@@ -42,6 +42,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.dmb.chantiertracker.presentation.ResponsiveContent
 import com.dmb.chantiertracker.presentation.auth.components.AuthPrimaryButton
 import com.dmb.chantiertracker.resources.Res
 import com.dmb.chantiertracker.resources.onboarding_go_to_page
@@ -79,46 +80,53 @@ fun OnboardingScreenContent(pagerState: PagerState, loop: Float, onFinish: () ->
     val lastPage = pagerState.currentPage == ONBOARDING_PAGES - 1
 
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-        Column(
-            Modifier
-                .fillMaxSize()
-                .safeContentPadding()
-                .padding(horizontal = 24.dp, vertical = 8.dp),
-        ) {
-            Box(Modifier.fillMaxWidth().height(48.dp)) {
-                if (!lastPage) {
-                    TextButton(onClick = onFinish, modifier = Modifier.align(Alignment.CenterEnd)) {
-                        Text(stringResource(Res.string.onboarding_skip), color = MaterialTheme.colorScheme.primary)
+        // Same 440dp cap as AuthScreenLayout (ADR-56 sous-étape 1/5) — this
+        // screen sits in the same pre-auth flow but never went through
+        // AuthScreenLayout itself, so it was missed by that fix: on Desktop,
+        // the "Suivant" button (AuthPrimaryButton always fillMaxWidth()) and
+        // the title/body text stretched to the full window width.
+        ResponsiveContent(maxContentWidth = 440.dp) {
+            Column(
+                Modifier
+                    .fillMaxSize()
+                    .safeContentPadding()
+                    .padding(horizontal = 24.dp, vertical = 8.dp),
+            ) {
+                Box(Modifier.fillMaxWidth().height(48.dp)) {
+                    if (!lastPage) {
+                        TextButton(onClick = onFinish, modifier = Modifier.align(Alignment.CenterEnd)) {
+                            Text(stringResource(Res.string.onboarding_skip), color = MaterialTheme.colorScheme.primary)
+                        }
                     }
                 }
-            }
 
-            HorizontalPager(state = pagerState, modifier = Modifier.fillMaxWidth().weight(1f)) { page ->
-                var appeared by remember { mutableStateOf(false) }
-                LaunchedEffect(Unit) { appeared = true }
-                val entrance by animateFloatAsState(
-                    targetValue = if (appeared && pagerState.currentPage == page) 1f else 0f,
-                    animationSpec = tween(600),
-                    label = "entrance",
+                HorizontalPager(state = pagerState, modifier = Modifier.fillMaxWidth().weight(1f)) { page ->
+                    var appeared by remember { mutableStateOf(false) }
+                    LaunchedEffect(Unit) { appeared = true }
+                    val entrance by animateFloatAsState(
+                        targetValue = if (appeared && pagerState.currentPage == page) 1f else 0f,
+                        animationSpec = tween(600),
+                        label = "entrance",
+                    )
+                    OnboardingPage(page = page, entrance = entrance, loop = loop)
+                }
+
+                PageIndicator(
+                    count = ONBOARDING_PAGES,
+                    current = pagerState.currentPage,
+                    onSelect = { target -> scope.launch { pagerState.animateScrollToPage(target) } },
+                    modifier = Modifier.padding(vertical = 20.dp).align(Alignment.CenterHorizontally),
                 )
-                OnboardingPage(page = page, entrance = entrance, loop = loop)
+
+                AuthPrimaryButton(
+                    text = stringResource(if (lastPage) Res.string.onboarding_start else Res.string.onboarding_next),
+                    onClick = {
+                        if (lastPage) onFinish()
+                        else scope.launch { pagerState.animateScrollToPage(pagerState.currentPage + 1) }
+                    },
+                )
+                Spacer(Modifier.height(8.dp))
             }
-
-            PageIndicator(
-                count = ONBOARDING_PAGES,
-                current = pagerState.currentPage,
-                onSelect = { target -> scope.launch { pagerState.animateScrollToPage(target) } },
-                modifier = Modifier.padding(vertical = 20.dp).align(Alignment.CenterHorizontally),
-            )
-
-            AuthPrimaryButton(
-                text = stringResource(if (lastPage) Res.string.onboarding_start else Res.string.onboarding_next),
-                onClick = {
-                    if (lastPage) onFinish()
-                    else scope.launch { pagerState.animateScrollToPage(pagerState.currentPage + 1) }
-                },
-            )
-            Spacer(Modifier.height(8.dp))
         }
     }
 }
@@ -127,7 +135,7 @@ fun OnboardingScreenContent(pagerState: PagerState, loop: Float, onFinish: () ->
 fun OnboardingPage(page: Int, entrance: Float, loop: Float) {
     Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
         Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
-            val illustrationModifier = Modifier.fillMaxWidth(0.72f).widthIn(max = 300.dp)
+            val illustrationModifier = Modifier.widthIn(max = 300.dp).fillMaxWidth(0.72f)
             when (page) {
                 0 -> RemoteSiteIllustration(illustrationModifier, entrance, loop)
                 1 -> PhotoProofIllustration(illustrationModifier, entrance, loop)

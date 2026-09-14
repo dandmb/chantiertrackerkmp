@@ -25,6 +25,7 @@ import com.dmb.chantiertracker.domain.model.Plan
 import com.dmb.chantiertracker.domain.model.PlanUsage
 import com.dmb.chantiertracker.presentation.DetailSection
 import com.dmb.chantiertracker.presentation.DetailSectionDivider
+import com.dmb.chantiertracker.presentation.ResponsiveContent
 import com.dmb.chantiertracker.presentation.auth.components.ErrorBanner
 import com.dmb.chantiertracker.presentation.auth.components.InfoBanner
 import com.dmb.chantiertracker.presentation.formatIsoDateTime
@@ -62,44 +63,46 @@ fun BillingScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val usage = state.planUsage
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(start = 24.dp, end = 24.dp, top = 20.dp, bottom = 32.dp),
-        verticalArrangement = Arrangement.spacedBy(20.dp),
-    ) {
-        // ADR-51 point 4 — set only right after a chantiertracker://
-        // checkout-success deep link; a cancelled checkout or a portal return
-        // lands here with notice == null, nothing to announce. The webhook
-        // that actually activates the new plan is asynchronous, so this is
-        // deliberately non-committal rather than a premature "Done!".
-        if (notice == BillingNotice.CheckoutSucceeded) {
-            InfoBanner(stringResource(Res.string.billing_notice_checkout_succeeded))
-        }
-
-        if (usage == null) {
-            Box(Modifier.fillMaxWidth().padding(vertical = 40.dp), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
+    ResponsiveContent(modifier) {
+        Column(
+            Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(start = 24.dp, end = 24.dp, top = 20.dp, bottom = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp),
+        ) {
+            // ADR-51 point 4 — set only right after a chantiertracker://
+            // checkout-success deep link; a cancelled checkout or a portal return
+            // lands here with notice == null, nothing to announce. The webhook
+            // that actually activates the new plan is asynchronous, so this is
+            // deliberately non-committal rather than a premature "Done!".
+            if (notice == BillingNotice.CheckoutSucceeded) {
+                InfoBanner(stringResource(Res.string.billing_notice_checkout_succeeded))
             }
-            return@Column
+
+            if (usage == null) {
+                Box(Modifier.fillMaxWidth().padding(vertical = 40.dp), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator()
+                }
+                return@Column
+            }
+
+            PlanSection(usage)
+
+            DetailSectionDivider()
+
+            UsageSection(usage)
+
+            DetailSectionDivider()
+
+            ActionsSection(
+                usage = usage,
+                isProcessing = state.isProcessingAction,
+                error = state.actionError,
+                onManageSubscription = viewModel::openManageSubscription,
+                onSubscribe = viewModel::startCheckout,
+            )
         }
-
-        PlanSection(usage)
-
-        DetailSectionDivider()
-
-        UsageSection(usage)
-
-        DetailSectionDivider()
-
-        ActionsSection(
-            usage = usage,
-            isProcessing = state.isProcessingAction,
-            error = state.actionError,
-            onManageSubscription = viewModel::openManageSubscription,
-            onSubscribe = viewModel::startCheckout,
-        )
     }
 }
 

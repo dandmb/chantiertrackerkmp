@@ -41,6 +41,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dmb.chantiertracker.domain.model.AdminUser
 import com.dmb.chantiertracker.domain.model.GlobalRole
 import com.dmb.chantiertracker.domain.model.PlanSource
+import com.dmb.chantiertracker.presentation.ResponsiveContent
+import com.dmb.chantiertracker.presentation.WidthSizeClass
 import com.dmb.chantiertracker.presentation.auth.components.ErrorBanner
 import com.dmb.chantiertracker.presentation.formatIsoDateTime
 import com.dmb.chantiertracker.presentation.i18n.localizedText
@@ -97,88 +99,94 @@ fun AdminUsersScreen(
 
     LaunchedEffect(Unit) { viewModel.load() }
 
-    // This screen always has a floating "create user" FAB (MainScreen.kt) —
-    // Scaffold floats it over the content instead of reserving room for it in
-    // the padding it hands down, so without this the pagination row's
-    // right-aligned "Next" button sat directly under it, permanently
-    // unreachable (found by inspection, not a snapshot: the shared harness
-    // never renders this screen's own FAB alongside it in the same frame).
-    // 56dp default FAB + Scaffold's 16dp margin = 72dp clearance, +16dp so
-    // the row doesn't visually hug the button either.
-    Column(modifier.fillMaxSize().padding(bottom = 88.dp)) {
-        state.actionError?.let {
-            ErrorBanner(
-                message = it.localizedText(),
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-            )
-        }
+    ResponsiveContent(modifier) { widthClass ->
+        // This screen always has a floating "create user" FAB (MainScreen.kt) —
+        // Scaffold floats it over the content instead of reserving room for it
+        // in the padding it hands down, so without this the pagination row's
+        // right-aligned "Next" button sat directly under it, permanently
+        // unreachable (found by inspection, not a snapshot: the shared harness
+        // never renders this screen's own FAB alongside it in the same frame).
+        // 56dp default FAB + Scaffold's 16dp margin = 72dp clearance, +16dp so
+        // the row doesn't visually hug the button either. Only needed at
+        // COMPACT width: past that, ResponsiveContent's own cap already keeps
+        // the pagination row's content away from the FAB's corner, which now
+        // floats outside the capped, centered band rather than right above it.
+        val fabClearance = if (widthClass == WidthSizeClass.COMPACT) 88.dp else 0.dp
+        Column(Modifier.fillMaxSize().padding(bottom = fabClearance)) {
+            state.actionError?.let {
+                ErrorBanner(
+                    message = it.localizedText(),
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                )
+            }
 
-        Box(Modifier.weight(1f).fillMaxWidth()) {
-            when {
-                state.isLoading && state.items.isEmpty() ->
-                    CircularProgressIndicator(Modifier.align(Alignment.Center))
+            Box(Modifier.weight(1f).fillMaxWidth()) {
+                when {
+                    state.isLoading && state.items.isEmpty() ->
+                        CircularProgressIndicator(Modifier.align(Alignment.Center))
 
-                state.error != null -> Column(
-                    modifier = Modifier.align(Alignment.Center).padding(horizontal = 32.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    Text(
-                        text = state.error!!.localizedText(),
+                    state.error != null -> Column(
+                        modifier = Modifier.align(Alignment.Center).padding(horizontal = 32.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        Text(
+                            text = state.error!!.localizedText(),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center,
+                        )
+                        OutlinedButton(onClick = viewModel::retry) {
+                            Text(stringResource(Res.string.admin_users_retry))
+                        }
+                    }
+
+                    state.items.isEmpty() -> Text(
+                        text = stringResource(Res.string.admin_users_empty),
+                        modifier = Modifier.align(Alignment.Center),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center,
                     )
-                    OutlinedButton(onClick = viewModel::retry) {
-                        Text(stringResource(Res.string.admin_users_retry))
-                    }
-                }
 
-                state.items.isEmpty() -> Text(
-                    text = stringResource(Res.string.admin_users_empty),
-                    modifier = Modifier.align(Alignment.Center),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-
-                else -> LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(vertical = 8.dp)) {
-                    items(state.items, key = AdminUser::id) { user ->
-                        AdminUserRow(
-                            user = user,
-                            isSelf = user.id == state.currentUserId,
-                            isProcessing = user.id in state.processingIds,
-                            onRename = { pending = PendingAction.Rename(user) },
-                            onResetPassword = { pending = PendingAction.ResetPassword(user) },
-                            onResendActivation = { pending = PendingAction.ResendActivation(user) },
-                            onAssignPlan = { pending = PendingAction.AssignPlan(user) },
-                            onDelete = { pending = PendingAction.Delete(user) },
-                        )
-                        HorizontalDivider(
-                            color = MaterialTheme.colorScheme.outlineVariant,
-                            modifier = Modifier.padding(horizontal = 16.dp),
-                        )
+                    else -> LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(vertical = 8.dp)) {
+                        items(state.items, key = AdminUser::id) { user ->
+                            AdminUserRow(
+                                user = user,
+                                isSelf = user.id == state.currentUserId,
+                                isProcessing = user.id in state.processingIds,
+                                onRename = { pending = PendingAction.Rename(user) },
+                                onResetPassword = { pending = PendingAction.ResetPassword(user) },
+                                onResendActivation = { pending = PendingAction.ResendActivation(user) },
+                                onAssignPlan = { pending = PendingAction.AssignPlan(user) },
+                                onDelete = { pending = PendingAction.Delete(user) },
+                            )
+                            HorizontalDivider(
+                                color = MaterialTheme.colorScheme.outlineVariant,
+                                modifier = Modifier.padding(horizontal = 16.dp),
+                            )
+                        }
                     }
                 }
             }
-        }
 
-        if (state.showPagination) {
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-            Row(
-                Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                TextButton(onClick = viewModel::previousPage, enabled = !state.isFirst && !state.isLoading) {
-                    Text(stringResource(Res.string.admin_users_prev))
-                }
-                Text(
-                    text = stringResource(Res.string.admin_users_page, state.page + 1, state.totalPages),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                TextButton(onClick = viewModel::nextPage, enabled = !state.isLast && !state.isLoading) {
-                    Text(stringResource(Res.string.admin_users_next))
+            if (state.showPagination) {
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    TextButton(onClick = viewModel::previousPage, enabled = !state.isFirst && !state.isLoading) {
+                        Text(stringResource(Res.string.admin_users_prev))
+                    }
+                    Text(
+                        text = stringResource(Res.string.admin_users_page, state.page + 1, state.totalPages),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    TextButton(onClick = viewModel::nextPage, enabled = !state.isLast && !state.isLoading) {
+                        Text(stringResource(Res.string.admin_users_next))
+                    }
                 }
             }
         }

@@ -22,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.dmb.chantiertracker.presentation.ResponsiveContent
 import com.dmb.chantiertracker.presentation.auth.components.AuthPrimaryButton
 import com.dmb.chantiertracker.presentation.i18n.localizedText
 import com.dmb.chantiertracker.presentation.main.CheckIcon
@@ -45,49 +46,51 @@ fun ReportEntryScreen(
 
     LaunchedEffect(entryLocalId) { viewModel.load(entryLocalId) }
 
-    Box(modifier.fillMaxSize()) {
-        if (state.sent) {
-            Column(
-                modifier = Modifier.align(Alignment.Center).fillMaxWidth().padding(horizontal = 32.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-            ) {
-                Icon(
-                    CheckIcon,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(48.dp),
-                )
-                Text(
-                    text = stringResource(Res.string.report_sent),
-                    style = MaterialTheme.typography.bodyMedium,
-                    textAlign = TextAlign.Center,
-                )
-                AuthPrimaryButton(text = stringResource(Res.string.action_close), onClick = onDone)
-            }
-        } else {
-            Column(
-                modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())
-                    .padding(PaddingValues(start = 24.dp, end = 24.dp, top = 20.dp, bottom = 32.dp)),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-            ) {
-                OutlinedTextField(
-                    value = state.message,
-                    onValueChange = viewModel::onMessageChange,
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text(stringResource(Res.string.report_message_label)) },
-                    placeholder = { Text(stringResource(Res.string.report_message_placeholder)) },
-                    minLines = 4,
-                    isError = state.error != null,
-                    supportingText = state.error?.let { { Text(it.localizedText()) } },
-                    enabled = !state.isSubmitting,
-                )
-                AuthPrimaryButton(
-                    text = stringResource(Res.string.report_submit),
-                    onClick = viewModel::submit,
-                    loading = state.isSubmitting,
-                    enabled = state.canSend,
-                )
+    ResponsiveContent(modifier, maxContentWidth = 480.dp) {
+        Box(Modifier.fillMaxSize()) {
+            if (state.sent) {
+                Column(
+                    modifier = Modifier.align(Alignment.Center).fillMaxWidth().padding(horizontal = 32.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
+                    Icon(
+                        CheckIcon,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(48.dp),
+                    )
+                    Text(
+                        text = stringResource(Res.string.report_sent),
+                        style = MaterialTheme.typography.bodyMedium,
+                        textAlign = TextAlign.Center,
+                    )
+                    AuthPrimaryButton(text = stringResource(Res.string.action_close), onClick = onDone)
+                }
+            } else {
+                Column(
+                    modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())
+                        .padding(PaddingValues(start = 24.dp, end = 24.dp, top = 20.dp, bottom = 32.dp)),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
+                    OutlinedTextField(
+                        value = state.message,
+                        onValueChange = viewModel::onMessageChange,
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text(stringResource(Res.string.report_message_label)) },
+                        placeholder = { Text(stringResource(Res.string.report_message_placeholder)) },
+                        minLines = 4,
+                        isError = state.error != null,
+                        supportingText = state.error?.let { { Text(it.localizedText()) } },
+                        enabled = !state.isSubmitting,
+                    )
+                    AuthPrimaryButton(
+                        text = stringResource(Res.string.report_submit),
+                        onClick = viewModel::submit,
+                        loading = state.isSubmitting,
+                        enabled = state.canSend,
+                    )
+                }
             }
         }
     }

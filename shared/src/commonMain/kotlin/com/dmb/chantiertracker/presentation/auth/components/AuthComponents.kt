@@ -85,8 +85,18 @@ fun AuthScreenLayout(
     val keyboardVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
 
     BoxWithConstraints(modifier.fillMaxSize()) {
+        // The 228dp floor below reads fine against a normal portrait height
+        // (700dp+) but was applied unconditionally — on a landscape phone
+        // (~400dp tall) it alone ate over half the screen, cropping the
+        // illustration and leaving the card barely enough room for a title.
+        // Confirmed by rendering at 892x412 before and after this change.
+        // Short on height is exactly the situation the keyboard-visible case
+        // already handles (hide the illustration, collapse to a slim band) —
+        // reused rather than inventing a second treatment.
+        val shortOnHeight = maxHeight < 500.dp
+        val showIllustration = !keyboardVisible && !shortOnHeight
         val headerHeight by animateDpAsState(
-            targetValue = if (keyboardVisible) 128.dp else (maxHeight * 0.38f).coerceIn(228.dp, 360.dp),
+            targetValue = if (keyboardVisible || shortOnHeight) 128.dp else (maxHeight * 0.38f).coerceIn(228.dp, 360.dp),
             label = "authHeaderHeight",
         )
 
@@ -104,8 +114,8 @@ fun AuthScreenLayout(
                     .padding(bottom = CardOverlap + 12.dp),
                 contentAlignment = Alignment.Center,
             ) {
-                AnimatedVisibility(!keyboardVisible) {
-                    ConstructionIllustration(Modifier.fillMaxWidth(0.62f).widthIn(max = 260.dp))
+                AnimatedVisibility(showIllustration) {
+                    ConstructionIllustration(Modifier.widthIn(max = 260.dp).fillMaxWidth(0.62f))
                 }
             }
 
@@ -145,18 +155,25 @@ fun AuthScreenLayout(
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
                         Column(
-                            Modifier.fillMaxWidth().widthIn(max = 440.dp),
+                            Modifier.widthIn(max = 440.dp).fillMaxWidth(),
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.spacedBy(14.dp),
                         ) {
                             AuthTitleBlock(title, subtitle)
                         }
                         Box(
-                            Modifier.fillMaxWidth().widthIn(max = 440.dp).weight(1f),
+                            Modifier.widthIn(max = 440.dp).fillMaxWidth().weight(1f),
                             contentAlignment = Alignment.Center,
                         ) {
+                            // Scrollable as a safety net, not the normal case: this
+                            // content is short enough to just sit centered on any
+                            // height this app actually ships to (confirmed at
+                            // 892x412, the shortest real one) — but centering with
+                            // no way to reach an overflow would strand content
+                            // entirely on anything shorter still, unlike the
+                            // non-centered branch below, which already scrolls.
                             Column(
-                                Modifier.fillMaxWidth(),
+                                Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 verticalArrangement = Arrangement.spacedBy(14.dp),
                             ) {
@@ -176,7 +193,7 @@ fun AuthScreenLayout(
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
                         Column(
-                            Modifier.fillMaxWidth().widthIn(max = 440.dp),
+                            Modifier.widthIn(max = 440.dp).fillMaxWidth(),
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.spacedBy(14.dp),
                         ) {

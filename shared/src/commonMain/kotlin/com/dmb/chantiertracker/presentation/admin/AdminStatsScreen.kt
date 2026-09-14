@@ -34,6 +34,7 @@ import com.dmb.chantiertracker.presentation.DateField
 import com.dmb.chantiertracker.presentation.DetailEmptyHint
 import com.dmb.chantiertracker.presentation.DetailSection
 import com.dmb.chantiertracker.presentation.DetailSectionDivider
+import com.dmb.chantiertracker.presentation.ResponsiveContent
 import com.dmb.chantiertracker.presentation.i18n.localizedText
 import com.dmb.chantiertracker.presentation.main.AccountIcon
 import com.dmb.chantiertracker.resources.Res
@@ -73,90 +74,92 @@ fun AdminStatsScreen(
     LaunchedEffect(Unit) { viewModel.load() }
     LaunchedEffect(granularity) { viewModel.setGranularity(granularity) }
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(20.dp),
-    ) {
-        ClickableListRow(onClick = onManageUsers) {
-            Icon(AccountIcon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(
-                text = stringResource(Res.string.admin_stats_manage_users),
-                style = MaterialTheme.typography.bodyLarge,
-                modifier = Modifier.weight(1f),
-            )
-        }
-
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            DateField(
-                label = stringResource(Res.string.admin_stats_from_label),
-                value = state.from,
-                onValueChange = viewModel::onFromChange,
-                minDate = EARLIEST_STATS_DATE,
-                modifier = Modifier.weight(1f),
-                placeholder = stringResource(Res.string.date_field_placeholder),
-                isError = state.dateRangeError != null,
-            )
-            DateField(
-                label = stringResource(Res.string.admin_stats_to_label),
-                value = state.to,
-                onValueChange = viewModel::onToChange,
-                minDate = EARLIEST_STATS_DATE,
-                modifier = Modifier.weight(1f),
-                placeholder = stringResource(Res.string.date_field_placeholder),
-                isError = state.dateRangeError != null,
-            )
-        }
-        state.dateRangeError?.let {
-            Text(
-                text = stringResource(it),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.error,
-            )
-        }
-
-        when {
-            state.isLoading && state.stats == null ->
-                Box(Modifier.fillMaxWidth().padding(vertical = 32.dp)) {
-                    CircularProgressIndicator(Modifier.align(Alignment.Center))
-                }
-
-            state.error != null -> Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
-            ) {
+    ResponsiveContent(modifier) {
+        Column(
+            Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp),
+        ) {
+            ClickableListRow(onClick = onManageUsers) {
+                Icon(AccountIcon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(
-                    text = state.error!!.localizedText(),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center,
+                    text = stringResource(Res.string.admin_stats_manage_users),
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.weight(1f),
                 )
-                OutlinedButton(onClick = viewModel::retry) {
-                    Text(stringResource(Res.string.admin_users_retry))
-                }
             }
 
-            state.stats != null -> {
-                val stats = state.stats!!
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                DateField(
+                    label = stringResource(Res.string.admin_stats_from_label),
+                    value = state.from,
+                    onValueChange = viewModel::onFromChange,
+                    minDate = EARLIEST_STATS_DATE,
+                    modifier = Modifier.weight(1f),
+                    placeholder = stringResource(Res.string.date_field_placeholder),
+                    isError = state.dateRangeError != null,
+                )
+                DateField(
+                    label = stringResource(Res.string.admin_stats_to_label),
+                    value = state.to,
+                    onValueChange = viewModel::onToChange,
+                    minDate = EARLIEST_STATS_DATE,
+                    modifier = Modifier.weight(1f),
+                    placeholder = stringResource(Res.string.date_field_placeholder),
+                    isError = state.dateRangeError != null,
+                )
+            }
+            state.dateRangeError?.let {
+                Text(
+                    text = stringResource(it),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
 
-                DetailSection(stringResource(Res.string.admin_stats_overview)) {
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                        StatCounter(stringResource(Res.string.admin_stats_users), stats.totalUsers)
-                        StatCounter(stringResource(Res.string.admin_stats_projects), stats.totalProjects)
+            when {
+                state.isLoading && state.stats == null ->
+                    Box(Modifier.fillMaxWidth().padding(vertical = 32.dp)) {
+                        CircularProgressIndicator(Modifier.align(Alignment.Center))
+                    }
+
+                state.error != null -> Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
+                ) {
+                    Text(
+                        text = state.error!!.localizedText(),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                    )
+                    OutlinedButton(onClick = viewModel::retry) {
+                        Text(stringResource(Res.string.admin_users_retry))
                     }
                 }
-                DetailSectionDivider()
 
-                DetailSection(stringResource(Res.string.admin_stats_registrations)) {
-                    StatsLineChart(stats.registrations, granularity)
-                }
-                DetailSectionDivider()
+                state.stats != null -> {
+                    val stats = state.stats!!
 
-                DetailSection(stringResource(Res.string.admin_stats_projects_created)) {
-                    StatsLineChart(stats.projectsCreated, granularity)
+                    DetailSection(stringResource(Res.string.admin_stats_overview)) {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                            StatCounter(stringResource(Res.string.admin_stats_users), stats.totalUsers)
+                            StatCounter(stringResource(Res.string.admin_stats_projects), stats.totalProjects)
+                        }
+                    }
+                    DetailSectionDivider()
+
+                    DetailSection(stringResource(Res.string.admin_stats_registrations)) {
+                        StatsLineChart(stats.registrations, granularity)
+                    }
+                    DetailSectionDivider()
+
+                    DetailSection(stringResource(Res.string.admin_stats_projects_created)) {
+                        StatsLineChart(stats.projectsCreated, granularity)
+                    }
                 }
             }
         }

@@ -60,6 +60,7 @@ class AuthScreensSnapshotTest {
         name: String,
         locale: String,
         dark: Boolean = false,
+        landscape: Boolean = false,
         interact: ComposeUiTest.() -> Unit = {},
         screen: @Composable () -> Unit,
     ) = runComposeUiTest {
@@ -67,7 +68,8 @@ class AuthScreensSnapshotTest {
             customAppLocale = locale
             AppEnvironment {
                 AppTheme(darkTheme = dark) {
-                    Box(Modifier.size(412.dp, 892.dp)) { screen() }
+                    val size = if (landscape) 892.dp to 412.dp else 412.dp to 892.dp
+                    Box(Modifier.size(size.first, size.second)) { screen() }
                 }
             }
         }
@@ -160,6 +162,19 @@ class AuthScreensSnapshotTest {
                 RegisterScreen(onRegistered = {}, onBackToLogin = {}, viewModel = RegisterViewModel(repo))
             }
             snapshot("08-welcome-dark", locale, dark = true) {
+                WelcomeScreen(onCreateAccount = {}, onSignIn = {}, onDiscoverPlans = {})
+            }
+            // ADR-56 sous-étape 2/5: AuthScreenLayout's illustrated header used
+            // to have a 228dp floor regardless of available height — on a
+            // landscape phone (~412dp tall) that alone ate over half the
+            // screen. 09/10 pin the fix for both branches: the scrollable one
+            // (Login) and the centered-with-no-scroll-by-default one
+            // (Welcome) — the more fragile of the two before this sous-étape
+            // also added a scroll fallback there.
+            snapshot("09-login-landscape", locale, landscape = true) {
+                LoginScreen(onNavigateToRegister = {}, onNavigateToForgotPassword = {}, viewModel = LoginViewModel(repo, FakeCheckoutLauncher()))
+            }
+            snapshot("10-welcome-landscape", locale, landscape = true) {
                 WelcomeScreen(onCreateAccount = {}, onSignIn = {}, onDiscoverPlans = {})
             }
         }

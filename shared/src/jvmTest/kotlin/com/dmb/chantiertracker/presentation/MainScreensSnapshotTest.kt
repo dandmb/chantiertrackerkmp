@@ -1,7 +1,9 @@
 package com.dmb.chantiertracker.presentation
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -58,6 +60,7 @@ import com.dmb.chantiertracker.presentation.i18n.customAppLocale
 import com.dmb.chantiertracker.presentation.main.AccountMenuBody
 import com.dmb.chantiertracker.presentation.main.AddIcon
 import com.dmb.chantiertracker.presentation.main.AppBottomBar
+import com.dmb.chantiertracker.presentation.main.AppNavigationRail
 import com.dmb.chantiertracker.presentation.main.AppTopBar
 import com.dmb.chantiertracker.presentation.main.DetailTopBar
 import com.dmb.chantiertracker.presentation.main.MainTab
@@ -159,44 +162,61 @@ class MainScreensSnapshotTest {
             )
         }
 
+    // Mirrors MainScreen: at EXPANDED width (840dp+), AppNavigationRail
+    // replaces AppBottomBar (ADR-56 sous-étape 5/5) — measured here exactly
+    // like the real screen (BoxWithConstraints + widthSizeClassOf), not a
+    // separate flag, so a wide-window test exercises the real branch.
     @Composable
     private fun Chrome(tab: MainTab, screen: @Composable (Modifier) -> Unit) {
-        Scaffold(
-            topBar = {
-                AppTopBar(
-                    userName = "Jean Marchand",
-                    email = "jean@chantier.dev",
-                    plan = Plan.LIBERTE,
-                    onSubscription = {},
-                    onLogout = {},
-                    leadingActions = {
-                        if (tab == MainTab.Projects) {
-                            ProjectSortControl(current = ProjectSort.NEWEST_FIRST, onSelect = {})
-                        }
-                        // ADR-52 sous-étape 4/4 — the Administration tab now
-                        // lands on stats, mirroring MainScreen's real wiring.
-                        if (tab == MainTab.Administration) {
-                            com.dmb.chantiertracker.presentation.admin.AdminStatsGranularityControl(
-                                current = com.dmb.chantiertracker.domain.model.Granularity.MONTH, onSelect = {},
-                            )
-                        }
-                    },
-                )
-            },
-            bottomBar = {
-                val tabs = if (tab == MainTab.Administration) {
-                    listOf(MainTab.Administration, MainTab.Settings)
-                } else {
-                    listOf(MainTab.Projects, MainTab.Settings)
+        val tabs = if (tab == MainTab.Administration) {
+            listOf(MainTab.Administration, MainTab.Settings)
+        } else {
+            listOf(MainTab.Projects, MainTab.Settings)
+        }
+        val topBarContent: @Composable () -> Unit = {
+            AppTopBar(
+                userName = "Jean Marchand",
+                email = "jean@chantier.dev",
+                plan = Plan.LIBERTE,
+                onSubscription = {},
+                onLogout = {},
+                leadingActions = {
+                    if (tab == MainTab.Projects) {
+                        ProjectSortControl(current = ProjectSort.NEWEST_FIRST, onSelect = {})
+                    }
+                    // ADR-52 sous-étape 4/4 — the Administration tab now
+                    // lands on stats, mirroring MainScreen's real wiring.
+                    if (tab == MainTab.Administration) {
+                        com.dmb.chantiertracker.presentation.admin.AdminStatsGranularityControl(
+                            current = com.dmb.chantiertracker.domain.model.Granularity.MONTH, onSelect = {},
+                        )
+                    }
+                },
+            )
+        }
+        val fabContent: @Composable () -> Unit = {
+            if (tab == MainTab.Projects) {
+                FloatingActionButton(onClick = {}) { Icon(AddIcon, contentDescription = null) }
+            }
+        }
+        BoxWithConstraints(Modifier.fillMaxSize()) {
+            if (widthSizeClassOf(maxWidth) == WidthSizeClass.EXPANDED) {
+                Row(Modifier.fillMaxSize()) {
+                    AppNavigationRail(current = tab, tabs = tabs, onSelect = {})
+                    Scaffold(
+                        modifier = Modifier.weight(1f),
+                        topBar = topBarContent,
+                        floatingActionButton = fabContent,
+                    ) { padding -> screen(Modifier.padding(padding)) }
                 }
-                AppBottomBar(current = tab, tabs = tabs, onSelect = {})
-            },
-            floatingActionButton = {
-                if (tab == MainTab.Projects) {
-                    FloatingActionButton(onClick = {}) { Icon(AddIcon, contentDescription = null) }
-                }
-            },
-        ) { padding -> screen(Modifier.padding(padding)) }
+            } else {
+                Scaffold(
+                    topBar = topBarContent,
+                    bottomBar = { AppBottomBar(current = tab, tabs = tabs, onSelect = {}) },
+                    floatingActionButton = fabContent,
+                ) { padding -> screen(Modifier.padding(padding)) }
+            }
+        }
     }
 
     @Composable
@@ -341,7 +361,10 @@ class MainScreensSnapshotTest {
                 ownerId = if (canEdit) 1L else 999L,
             ),
             members = listOf(
-                ProjectMember(userId = 1, name = "Jean Marchand", email = "jean@chantier.dev", role = ProjectRole.ADMIN),
+                ProjectMember(
+                    userId = 1, name = "Jean Marchand", email = "jean@chantier.dev",
+                    role = if (canEdit) ProjectRole.ADMIN else ProjectRole.SUPERVISOR,
+                ),
                 ProjectMember(userId = 2, name = "Sam Ferreira", email = "sam@chantier.dev", role = ProjectRole.SUPERVISOR),
             ),
         )
@@ -463,7 +486,7 @@ class MainScreensSnapshotTest {
         return CreateStageViewModel(FakeStageRepository(), projectRepo, auth).also { it.start("1") }
     }
 
-    private fun stageDetailVm(withBudget: Boolean = true): StageDetailViewModel {
+    private fun stageDetailVm(withBudget: Boolean = true, isAdmin: Boolean = true): StageDetailViewModel {
         val repo = FakeStageRepository(
             detail = StageDetail(
                 localId = "s1", projectLocalId = "1", name = "Gros œuvre",
@@ -479,8 +502,15 @@ class MainScreensSnapshotTest {
                 localId = "1", name = "Villa Vidal", description = null, location = "Nîmes",
                 currency = "EUR", timezone = "Europe/Paris", status = ProjectStatus.IN_PROGRESS, ownerId = 1L,
             ),
+            members = if (isAdmin) {
+                emptyList()
+            } else {
+                listOf(ProjectMember(userId = 9, name = "Sam Superviseur", email = "sam@chantier.dev", role = ProjectRole.SUPERVISOR))
+            },
         )
-        val auth = FakeAuthRepository().apply { emitState(AuthState.Authenticated(User(1, "jean@chantier.dev", "Jean Marchand", true, GlobalRole.USER))) }
+        val userId = if (isAdmin) 1L else 9L
+        val userName = if (isAdmin) "Jean Marchand" else "Sam Superviseur"
+        val auth = FakeAuthRepository().apply { emitState(AuthState.Authenticated(User(userId, "u@chantier.dev", userName, true, GlobalRole.USER))) }
         val logs = FakeDailyLogRepository(
             logs = listOf(
                 DailyLog("log-1", "s1", "2026-09-04", hasPurchase = true, hasWork = true),
@@ -732,6 +762,14 @@ class MainScreensSnapshotTest {
                     projectVm = detailVm(canEdit = true),
                 )
             }
+            // A SUPERVISOR gets the plain read-only ProjectStatusBadge (no
+            // dropdown chevron, not clickable) instead of ProjectStatusMenu.
+            snapshot("56-project-detail-supervisor", locale) {
+                ProjectDetailChrome(
+                    fallbackTitle = if (locale == "fr") "Projet" else "Project",
+                    projectVm = detailVm(canEdit = false),
+                )
+            }
             snapshot("24-edit-project", locale) {
                 DetailChrome(
                     title = if (locale == "fr") "Modifier le projet" else "Edit project",
@@ -779,6 +817,13 @@ class MainScreensSnapshotTest {
                 DetailChrome(
                     title = if (locale == "fr") "Étape" else "Stage",
                 ) { m -> StageDetailScreen(stageLocalId = "s1", modifier = m, viewModel = stageDetailVm(withBudget = false)) }
+            }
+            // A SUPERVISOR gets the plain read-only StageStatusBadge (no
+            // dropdown chevron, not clickable) instead of StageStatusMenu.
+            snapshot("58-stage-detail-supervisor", locale) {
+                DetailChrome(
+                    title = if (locale == "fr") "Étape" else "Stage",
+                ) { m -> StageDetailScreen(stageLocalId = "s1", modifier = m, viewModel = stageDetailVm(isAdmin = false)) }
             }
             snapshot(
                 "26-daily-log",
@@ -1116,5 +1161,80 @@ class MainScreensSnapshotTest {
             },
         )
         DatePicker(state = state, showModeToggle = false)
+    }
+
+    // ADR-56 sous-étape 3/5: every screen's own content is now width-capped
+    // and centered via ResponsiveContent (found, while building it in
+    // sous-étape 1/5, that a naive `fillMaxWidth().widthIn(max = X)` silently
+    // never caps at all — the harness above renders everything at 412dp,
+    // where that bug and this fix look identical). Desktop-width captures
+    // are the only way to actually see either — same discipline as
+    // AssignPlanDialogPhoneWidthSnapshotTest (ADR-54 point 4/5) and
+    // ResponsiveContentSnapshotTest (this ADR, sous-étape 1/5), just at the
+    // opposite end of the width range.
+    @OptIn(androidx.compose.ui.test.ExperimentalTestApi::class)
+    private fun wideScreenSnapshot(name: String, content: @Composable (Modifier) -> Unit) =
+        androidx.compose.ui.test.runDesktopComposeUiTest(width = 1440, height = 900) {
+            setContent {
+                customAppLocale = "fr"
+                AppEnvironment { AppTheme { Box(Modifier.size(1440.dp, 900.dp)) { content(Modifier) } } }
+            }
+            waitForIdle()
+            ImageIO.write(onRoot().captureToImage().toAwtImage(), "png", File(outDir, "57-$name-wide-fr.png"))
+        }
+
+    // Two genuinely independent, parallel groups of sections — laid out in
+    // 2 real columns at this width, not just capped (see ProjectDetailScreen's
+    // own `twoColumns` branch).
+    @Test
+    fun capture_wide_project_detail_two_columns() = wideScreenSnapshot("project-detail") {
+        ProjectDetailChrome(fallbackTitle = "Projet", projectVm = detailVm(canEdit = true))
+    }
+
+    // Achats | Travaux side by side — same reasoning as project detail above.
+    @Test
+    fun capture_wide_daily_log_two_columns() = wideScreenSnapshot("daily-log") {
+        DailyLogChrome(fallbackTitle = "Journée")
+    }
+
+    // A plain list screen: content capped and centered, not stretched edge to
+    // edge — the more common case than the two 2-column screens above. Also
+    // the permanent coverage for ADR-56 sous-étape 5/5: `Chrome` measures
+    // its own width exactly like MainScreen, so at 1440dp this renders the
+    // real AppNavigationRail (not AppBottomBar) — confirmed by inspection
+    // (rail full-height at x 0-80dp, dark; top bar starts cleanly at x 81dp).
+    @Test
+    fun capture_wide_projects_list_capped() = wideScreenSnapshot("projects") {
+        Chrome(MainTab.Projects) { m -> ProjectsScreen(onProjectClick = {}, modifier = m, viewModel = projectsVm(sampleProjects)) }
+    }
+
+    // Forms get a simple centered cap (no 2-column layout attempt) — one
+    // short form and one longer, field-heavy one, both confirmed capped.
+    @Test
+    fun capture_wide_create_project_capped() = wideScreenSnapshot("create-project") {
+        DetailChrome(title = "Nouveau projet") { m -> CreateProjectScreen(onCreated = {}, modifier = m, viewModel = createProjectVm()) }
+    }
+
+    @Test
+    fun capture_wide_purchase_line_form_capped() = wideScreenSnapshot("purchase-line-form") {
+        DetailChrome(title = "Ajouter un article") { m ->
+            com.dmb.chantiertracker.presentation.logs.PurchaseLineFormScreen(
+                entryLocalId = "e1", projectLocalId = "1", lineLocalId = null, currency = "EUR",
+                onSaved = {}, onBack = {}, modifier = m, viewModel = purchaseLineFormVm(),
+            )
+        }
+    }
+
+    // Reached before authentication (RootNavHost's own AuthNavHost), never
+    // wrapped by AuthScreenLayout's 440dp cap (ADR-56 sous-étape 1/5) — the
+    // "Suivant" button (AuthPrimaryButton, always fillMaxWidth()) stretched
+    // to the full window width at 1440px, found on real Desktop.
+    @Test
+    fun capture_wide_onboarding_capped() = wideScreenSnapshot("onboarding") {
+        val state = androidx.compose.foundation.pager.rememberPagerState(
+            initialPage = 0,
+            pageCount = { com.dmb.chantiertracker.presentation.onboarding.ONBOARDING_PAGES },
+        )
+        com.dmb.chantiertracker.presentation.onboarding.OnboardingScreenContent(pagerState = state, loop = 0f, onFinish = {})
     }
 }

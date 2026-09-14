@@ -8,6 +8,7 @@ import com.dmb.chantiertracker.domain.model.EntryType
 import com.dmb.chantiertracker.domain.model.ProjectStatus
 import com.dmb.chantiertracker.domain.model.StageDetail
 import com.dmb.chantiertracker.domain.model.StageStatus
+import com.dmb.chantiertracker.domain.model.UpdateStageInput
 import com.dmb.chantiertracker.domain.model.projectAdmin
 import com.dmb.chantiertracker.domain.repository.AuthRepository
 import com.dmb.chantiertracker.domain.repository.DailyLogRepository
@@ -29,6 +30,7 @@ data class StageDetailUiState(
     val currency: String? = null,
     val logs: List<DailyLog> = emptyList(),
     val canAddToday: Boolean = false,
+    val isAdmin: Boolean = false,
     val todayDate: String? = null,
 ) {
     val isMissing: Boolean get() = !isLoading && detail == null
@@ -39,6 +41,7 @@ private data class StageContext(
     val detail: StageDetail?,
     val currency: String?,
     val canAddToday: Boolean,
+    val isAdmin: Boolean,
     val todayDate: String?,
 )
 
@@ -70,6 +73,7 @@ class StageDetailViewModel(
                     currency = context.currency,
                     logs = logs,
                     canAddToday = context.canAddToday,
+                    isAdmin = context.isAdmin,
                     todayDate = context.todayDate,
                 )
             }.collect { _state.value = it }
@@ -83,7 +87,7 @@ class StageDetailViewModel(
     // is IN_PROGRESS and the stage isn't COMPLETED. "Today" itself is
     // resolved in the PROJECT's timezone (see DailyLogViewModel).
     private fun contextFor(detail: StageDetail?): Flow<StageContext> {
-        if (detail == null) return flowOf(StageContext(null, null, canAddToday = false, todayDate = null))
+        if (detail == null) return flowOf(StageContext(null, null, canAddToday = false, isAdmin = false, todayDate = null))
         return combine(
             projectRepository.observeProject(detail.projectLocalId),
             projectRepository.observeMembers(detail.projectLocalId),
@@ -95,6 +99,7 @@ class StageDetailViewModel(
                 detail = detail,
                 currency = project?.currency,
                 canAddToday = isAdmin || projectAndStageActive,
+                isAdmin = isAdmin,
                 todayDate = project?.let { todayIn(it.timezone).toString() },
             )
         }
@@ -104,6 +109,28 @@ class StageDetailViewModel(
         val id = localId ?: return
         viewModelScope.launch { stageRepository.refreshStage(id) }
         viewModelScope.launch { dailyLogRepository.refreshLogs(id) }
+    }
+
+    // ADMIN-only, mirrors the web's inline Select — every other field is
+    // resubmitted unchanged (updateStage overwrites the whole row, unlike
+    // updateProject which falls back to the existing currency on blank).
+    fun changeStatus(newStatus: StageStatus) {
+        val id = localId ?: return
+        val detail = _state.value.detail ?: return
+        if (newStatus == detail.status) return
+        viewModelScope.launch {
+            stageRepository.updateStage(
+                id,
+                UpdateStageInput(
+                    name = detail.name,
+                    description = detail.description,
+                    estimatedBudget = detail.estimatedBudget,
+                    startDate = detail.startDate,
+                    endDate = detail.endDate,
+                    status = newStatus,
+                ),
+            )
+        }
     }
 
     /** Creates (or reuses) today's entry of [type] and returns the day's local id to navigate to, or null if not ready yet. */

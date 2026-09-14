@@ -33,17 +33,19 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dmb.chantiertracker.domain.model.DailyLog
 import com.dmb.chantiertracker.domain.model.EntryType
 import com.dmb.chantiertracker.domain.model.StageDetail
+import com.dmb.chantiertracker.domain.model.StageStatus
 import com.dmb.chantiertracker.presentation.ClickableListRow
 import com.dmb.chantiertracker.presentation.DetailEmptyHint
 import com.dmb.chantiertracker.presentation.DetailInfoRow
 import com.dmb.chantiertracker.presentation.DetailSection
 import com.dmb.chantiertracker.presentation.DetailSectionDivider
+import com.dmb.chantiertracker.presentation.ResponsiveContent
 import com.dmb.chantiertracker.presentation.formatIsoDate
 import com.dmb.chantiertracker.presentation.format.formatMoney
 import com.dmb.chantiertracker.presentation.main.AddIcon
 import com.dmb.chantiertracker.presentation.main.ConstructionIcon
 import com.dmb.chantiertracker.presentation.main.ShoppingCartIcon
-import com.dmb.chantiertracker.presentation.stages.StageStatusBadge
+import com.dmb.chantiertracker.presentation.stages.StageStatusMenu
 import com.dmb.chantiertracker.resources.Res
 import com.dmb.chantiertracker.resources.detail_section_info
 import com.dmb.chantiertracker.resources.entry_type_purchase
@@ -76,33 +78,37 @@ fun StageDetailScreen(
         state.detail?.name?.let(onStageNameResolved)
     }
 
-    Box(modifier.fillMaxSize()) {
-        when {
-            state.isLoading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
-            state.isMissing -> Column(
-                modifier = Modifier.align(Alignment.Center).fillMaxWidth().padding(horizontal = 32.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-            ) {
-                Text(
-                    text = stringResource(Res.string.error_not_found),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center,
-                )
-                OutlinedButton(onClick = viewModel::retry) {
-                    Text(stringResource(Res.string.projects_retry))
+    ResponsiveContent(modifier) {
+        Box(Modifier.fillMaxSize()) {
+            when {
+                state.isLoading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
+                state.isMissing -> Column(
+                    modifier = Modifier.align(Alignment.Center).fillMaxWidth().padding(horizontal = 32.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
+                    Text(
+                        text = stringResource(Res.string.error_not_found),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                    )
+                    OutlinedButton(onClick = viewModel::retry) {
+                        Text(stringResource(Res.string.projects_retry))
+                    }
                 }
+                state.detail != null -> StageDetailContent(
+                    detail = state.detail!!,
+                    currency = state.currency,
+                    logs = state.logs,
+                    todayDate = state.todayDate,
+                    canAddToday = state.canAddToday,
+                    isAdmin = state.isAdmin,
+                    onOpenLog = onOpenLog,
+                    onAddToday = { type -> viewModel.addTodayEntry(type) },
+                    onStatusChange = viewModel::changeStatus,
+                )
             }
-            state.detail != null -> StageDetailContent(
-                detail = state.detail!!,
-                currency = state.currency,
-                logs = state.logs,
-                todayDate = state.todayDate,
-                canAddToday = state.canAddToday,
-                onOpenLog = onOpenLog,
-                onAddToday = { type -> viewModel.addTodayEntry(type) },
-            )
         }
     }
 }
@@ -114,8 +120,10 @@ private fun StageDetailContent(
     logs: List<DailyLog>,
     todayDate: String?,
     canAddToday: Boolean,
+    isAdmin: Boolean,
     onOpenLog: (String) -> Unit,
     onAddToday: suspend (EntryType) -> String?,
+    onStatusChange: (StageStatus) -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -130,7 +138,7 @@ private fun StageDetailContent(
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.SemiBold,
             )
-            StageStatusBadge(detail.status)
+            StageStatusMenu(current = detail.status, editable = isAdmin, onSelect = onStatusChange)
             if (!detail.description.isNullOrBlank()) {
                 Text(
                     text = detail.description,
