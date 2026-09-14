@@ -1,6 +1,7 @@
 package com.dmb.chantiertracker.data.remote
 
 import com.dmb.chantiertracker.data.remote.dto.CreateInvitationRequestDto
+import com.dmb.chantiertracker.data.remote.dto.InvitationDetailsDto
 import com.dmb.chantiertracker.data.remote.dto.InvitationDto
 import com.dmb.chantiertracker.data.remote.dto.PageDto
 import com.dmb.chantiertracker.data.remote.dto.PendingInvitationDto
@@ -32,6 +33,10 @@ class InvitationApi(private val client: HttpClient) {
     /** Invitations addressed to the authenticated user (`GET /users/me/invitations`). */
     suspend fun listMine(): List<PendingInvitationDto> =
         client.get(ApiRoutes.USERS_ME_INVITATIONS).body()
+
+    /** Public token lookup (ADR-59 App Links) — no auth required server-side. */
+    suspend fun getDetails(token: String): InvitationDetailsDto =
+        client.get(ApiRoutes.invitationByToken(token)).body()
 
     /** Accept as the authenticated user — no body (the new-account fields are web-only). */
     suspend fun accept(token: String) {

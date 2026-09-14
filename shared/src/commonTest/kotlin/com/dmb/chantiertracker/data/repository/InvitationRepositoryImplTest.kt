@@ -117,6 +117,28 @@ class InvitationRepositoryImplTest {
     }
 
     @Test
+    fun get_invitation_preview_maps_the_public_token_lookup() = runTest {
+        val backend = FakeProjectBackend().apply {
+            seedPendingForMe(com.dmb.chantiertracker.support.ServerPendingInvitation("tok", 9, "Villa Vidal", "SUPERVISOR", "Jean"))
+        }
+
+        val preview = repo(backend = backend).getInvitationPreview("tok")
+
+        assertEquals(9L, preview.projectId)
+        assertEquals("Villa Vidal", preview.projectName)
+        assertEquals(InvitationStatus.PENDING, preview.status)
+    }
+
+    @Test
+    fun get_invitation_preview_maps_an_unknown_token_to_not_found() = runTest {
+        val backend = FakeProjectBackend()
+
+        assertFailsWith<DomainException.NotFound> {
+            repo(backend = backend).getInvitationPreview("gone")
+        }
+    }
+
+    @Test
     fun accept_posts_to_the_token_endpoint() = runTest {
         val backend = FakeProjectBackend().apply {
             seedPendingForMe(com.dmb.chantiertracker.support.ServerPendingInvitation("tok", 9, "Villa"))

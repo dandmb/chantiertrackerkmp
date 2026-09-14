@@ -81,6 +81,8 @@ import com.dmb.chantiertracker.presentation.billing.AppScopeCheckoutLauncher
 import com.dmb.chantiertracker.presentation.billing.CheckoutDeepLinkDispatcher
 import com.dmb.chantiertracker.presentation.billing.CheckoutLauncher
 import com.dmb.chantiertracker.presentation.billing.UrlOpener
+import com.dmb.chantiertracker.presentation.invitations.InvitationAcceptViewModel
+import com.dmb.chantiertracker.presentation.invitations.InvitationDeepLinkDispatcher
 import com.dmb.chantiertracker.presentation.auth.forgot.ForgotPasswordViewModel
 import com.dmb.chantiertracker.presentation.auth.login.LoginViewModel
 import com.dmb.chantiertracker.presentation.auth.register.RegisterViewModel
@@ -215,6 +217,7 @@ val presentationModule: Module = module {
     single { ProjectSortHolder() }
     single<CheckoutLauncher> { AppScopeCheckoutLauncher(get<BillingRepository>(), get<UrlOpener>(), get<AppCoroutineScope>()) }
     single { CheckoutDeepLinkDispatcher() }
+    single { InvitationDeepLinkDispatcher() }
     single { AppSettings(get(), get<AppCoroutineScope>()) }
     viewModelOf(::RootViewModel)
     viewModelOf(::LoginViewModel)
@@ -246,6 +249,7 @@ val presentationModule: Module = module {
     viewModelOf(::AdminUsersViewModel)
     viewModelOf(::AdminCreateUserViewModel)
     viewModelOf(::AdminStatsViewModel)
+    viewModelOf(::InvitationAcceptViewModel)
 }
 
 fun appModules(): List<Module> = listOf(

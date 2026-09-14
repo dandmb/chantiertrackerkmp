@@ -150,3 +150,8 @@ data class ConsumptionLineFormRoute(
     val projectLocalId: String,
     val lineLocalId: String? = null,
 )
+
+// ADR-59 — reached only from InvitationDeepLinkDispatcher (an already
+// authenticated App Link open), never from a regular in-app action.
+@Serializable
+data class InvitationAcceptRoute(val token: String)

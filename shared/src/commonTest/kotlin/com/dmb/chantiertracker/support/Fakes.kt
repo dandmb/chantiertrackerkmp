@@ -192,6 +192,10 @@ class FakeProjectRepository(
         refreshProjectCount++
         log += "refreshProject:$localId"
     }
+
+    var localIdByServerId: Map<Long, String> = emptyMap()
+
+    override suspend fun findLocalIdByServerId(serverId: Long): String? = localIdByServerId[serverId]
 }
 
 class FakeStageRepository(
@@ -482,6 +486,14 @@ class FakeInvitationRepository(
         declineError?.let { throw it }
         declined += token
         incoming = incoming.filterNot { it.token == token }
+    }
+
+    var preview: com.dmb.chantiertracker.domain.model.InvitationPreview? = null
+    var previewError: com.dmb.chantiertracker.domain.model.DomainException? = null
+
+    override suspend fun getInvitationPreview(token: String): com.dmb.chantiertracker.domain.model.InvitationPreview {
+        previewError?.let { throw it }
+        return preview ?: throw com.dmb.chantiertracker.domain.model.DomainException.NotFound
     }
 }
 

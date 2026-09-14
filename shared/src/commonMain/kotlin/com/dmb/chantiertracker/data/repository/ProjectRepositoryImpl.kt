@@ -116,6 +116,9 @@ class ProjectRepositoryImpl(
     override suspend fun refreshProject(localId: String) {
         syncer.syncProject(localId)
     }
+
+    override suspend fun findLocalIdByServerId(serverId: Long): String? =
+        dao.findByServerId(serverId)?.localId
 }
 
 internal fun String.toProjectStatus(): ProjectStatus = when (uppercase()) {

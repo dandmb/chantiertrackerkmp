@@ -144,6 +144,14 @@
     <string name="detail_invite_member">Inviter un superviseur</string>
     <string name="role_admin">Admin</string>
     <string name="role_supervisor">Superviseur</string>
+    <string name="invitation_accept_title">Invitation</string>
+    <string name="invitation_accept_welcome">Bienvenue dans %1$s</string>
+    <string name="invitation_accept_go_to_project">Aller au projet</string>
+    <string name="invitation_accept_go_to_projects">Aller à mes projets</string>
+    <string name="invitation_accept_invalid_title">Invitation invalide</string>
+    <string name="invitation_accept_invalid_body">Ce lien d'invitation n'est plus valide. Il a peut-être déjà été utilisé ou a expiré.</string>
+    <string name="invitation_accept_error_title">Impossible de rejoindre le projet</string>
+    <string name="invitation_accept_retry">Réessayer</string>
 
     <string name="invite_member_title">Inviter un superviseur</string>
     <string name="invite_member_email_label">Email</string>

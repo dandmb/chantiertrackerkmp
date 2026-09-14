@@ -24,6 +24,7 @@ object ApiRoutes {
     fun projectHistory(id: Long) = "projects/$id/history"
     fun projectInvitations(id: Long) = "projects/$id/invitations"
     fun invitation(id: Long) = "invitations/$id"
+    fun invitationByToken(token: String) = "invitations/$token"
     fun acceptInvitation(token: String) = "invitations/$token/accept"
     fun declineInvitation(token: String) = "invitations/$token/decline"
     fun projectStages(id: Long) = "projects/$id/stages"

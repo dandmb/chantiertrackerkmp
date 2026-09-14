@@ -36,6 +36,26 @@
 
                 <data android:scheme="chantiertracker" />
             </intent-filter>
+
+            <!-- Real Android App Links (ADR-59) — an invitation email points
+                 here, not a custom scheme: the app may not be installed yet,
+                 so this needs the OS-level fallback to the browser that only
+                 autoVerify="true" + a verified assetlinks.json give. Digital
+                 Asset Links verification (com.dmb.chantiertracker.staging,
+                 the package currently distributed) confirmed via
+                 https://digitalassetlinks.googleapis.com/v1/statements:list
+                 before this was added. -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data
+                    android:scheme="https"
+                    android:host="chantiertracker.com"
+                    android:pathPattern="/invitations/.*" />
+            </intent-filter>
         </activity>
     </application>
 

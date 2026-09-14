@@ -17,3 +17,18 @@ data class Invitation(
     val expiresAt: String?,
     val status: InvitationStatus,
 )
+
+/**
+ * Public preview of an invitation by its token (ADR-59 App Links) — just
+ * enough to gate and label the accept attempt (`status`, so an already-used
+ * link isn't re-submitted; `projectName`, to greet the user by name before
+ * the project itself has synced locally; `projectId`, the **server** id, to
+ * resolve the local one afterwards via `ProjectRepository.
+ * findLocalIdByServerId`). Never used for the logged-out cases (missing
+ * account, needs login) — those fall back to the browser instead.
+ */
+data class InvitationPreview(
+    val projectId: Long,
+    val projectName: String,
+    val status: InvitationStatus,
+)

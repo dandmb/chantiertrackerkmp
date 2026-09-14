@@ -199,4 +199,18 @@ class ProjectRepositoryImplTest {
         assertNotNull(r.observeProject("p1").first())
         assertEquals("New", r.observeProject("p1").first()!!.name)
     }
+
+    @Test
+    fun find_local_id_by_server_id_resolves_a_synced_project() = runTest {
+        val dao = FakeProjectDao(listOf(localProject("p1", serverId = 9)))
+
+        assertEquals("p1", repo(dao).findLocalIdByServerId(9))
+    }
+
+    @Test
+    fun find_local_id_by_server_id_is_null_when_not_synced_yet() = runTest {
+        val dao = FakeProjectDao(listOf(localProject("p1", serverId = 9)))
+
+        assertNull(repo(dao).findLocalIdByServerId(404))
+    }
 }
