@@ -798,7 +798,7 @@ class SyncEngineTest {
     @Test
     fun a_consumption_line_delete_refused_by_the_server_restores_the_line_instead_of_retrying_forever() = runTest {
         val f = Fixture()
-        f.backend.entryChildDeleteStatus = io.ktor.http.HttpStatusCode.Forbidden
+        f.backend.deleteStatus = io.ktor.http.HttpStatusCode.Forbidden
         f.consumptionLineDao.upsert(
             com.dmb.chantiertracker.support.localConsumptionLine("cl1", serverId = 555, pendingOp = PendingOp.DELETE, syncStatus = SyncStatus.PENDING),
         )
@@ -817,7 +817,7 @@ class SyncEngineTest {
     @Test
     fun a_purchase_line_delete_refused_by_the_server_restores_the_line() = runTest {
         val f = Fixture()
-        f.backend.entryChildDeleteStatus = io.ktor.http.HttpStatusCode.Forbidden
+        f.backend.deleteStatus = io.ktor.http.HttpStatusCode.Forbidden
         f.purchaseLineDao.upsert(
             com.dmb.chantiertracker.support.localPurchaseLine("pl1", serverId = 300, pendingOp = PendingOp.DELETE, syncStatus = SyncStatus.PENDING),
         )
@@ -834,7 +834,7 @@ class SyncEngineTest {
     @Test
     fun an_attachment_delete_refused_by_the_server_brings_the_file_back() = runTest {
         val f = Fixture()
-        f.backend.entryChildDeleteStatus = io.ktor.http.HttpStatusCode.Forbidden
+        f.backend.deleteStatus = io.ktor.http.HttpStatusCode.Forbidden
         f.backend.seedAttachment(com.dmb.chantiertracker.support.ServerAttachment(id = 1100, entryId = 40, bytes = byteArrayOf(7, 7)))
         f.attachmentDao.upsert(
             com.dmb.chantiertracker.support.localAttachment(
@@ -856,7 +856,7 @@ class SyncEngineTest {
     @Test
     fun a_refused_delete_no_longer_blocks_the_pushes_queued_behind_it() = runTest {
         val f = Fixture()
-        f.backend.entryChildDeleteStatus = io.ktor.http.HttpStatusCode.Forbidden
+        f.backend.deleteStatus = io.ktor.http.HttpStatusCode.Forbidden
         f.consumptionLineDao.upsert(
             com.dmb.chantiertracker.support.localConsumptionLine("cl1", serverId = 555, pendingOp = PendingOp.DELETE, syncStatus = SyncStatus.PENDING),
         )
@@ -876,7 +876,7 @@ class SyncEngineTest {
     @Test
     fun a_transient_server_error_on_a_delete_is_still_retried_not_treated_as_a_refusal() = runTest {
         val f = Fixture()
-        f.backend.entryChildDeleteStatus = io.ktor.http.HttpStatusCode.InternalServerError
+        f.backend.deleteStatus = io.ktor.http.HttpStatusCode.InternalServerError
         f.consumptionLineDao.upsert(
             com.dmb.chantiertracker.support.localConsumptionLine("cl1", serverId = 555, pendingOp = PendingOp.DELETE, syncStatus = SyncStatus.PENDING),
         )
@@ -887,10 +887,219 @@ class SyncEngineTest {
         val stillPending = f.consumptionLineDao.findByLocalId("cl1")!!
         assertEquals(PendingOp.DELETE, stillPending.pendingOp, "kept for the next pass")
 
-        f.backend.entryChildDeleteStatus = null
+        f.backend.deleteStatus = null
         assertIs<SyncOutcome.Synced>(engine.syncNow())
         assertNull(f.consumptionLineDao.findByLocalId("cl1"))
         assertTrue(f.backend.consumptionLines.isEmpty())
+    }
+
+    // ─── ADR-63 : projet / étape / entrée ────────────────────────────────────
+
+    @Test
+    fun a_project_delete_refused_by_the_server_restores_the_project_and_leaves_its_stages_untouched() = runTest {
+        val f = Fixture()
+        f.backend.deleteStatus = io.ktor.http.HttpStatusCode.Forbidden
+        f.backend.seed(ServerProject(id = 3, name = "Nom serveur"))
+        f.dao.upsert(
+            localProject("p3", name = "Nom local", serverId = 3, pendingOp = PendingOp.DELETE, syncStatus = SyncStatus.PENDING),
+        )
+        f.stageDao.upsert(localStage("st1", projectLocalId = "p3", serverId = 90, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+        val engine = f.engine(backgroundScope)
+
+        assertIs<SyncOutcome.Synced>(engine.syncNow())
+
+        val row = f.dao.findByLocalId("p3")!!
+        assertEquals(PendingOp.NONE, row.pendingOp)
+        assertEquals(SyncStatus.SYNCED, row.syncStatus)
+        assertEquals("Nom serveur", row.name, "the pull that follows in the same pass reconciles the restored row with the server")
+        assertNotNull(f.stageDao.findByLocalId("st1"), "the children were never tombstoned, so nothing cascades")
+        assertEquals(1, f.backend.projects.size, "the server kept the project")
+    }
+
+    @Test
+    fun a_refused_project_delete_by_a_user_who_lost_access_ends_with_the_project_dropped_by_the_pull() = runTest {
+        val f = Fixture()
+        f.backend.deleteStatus = io.ktor.http.HttpStatusCode.Forbidden
+        f.dao.upsert(
+            localProject("p3", serverId = 3, pendingOp = PendingOp.DELETE, syncStatus = SyncStatus.PENDING),
+        )
+        val engine = f.engine(backgroundScope)
+
+        assertIs<SyncOutcome.Synced>(engine.syncNow())
+
+        assertNull(f.dao.findByLocalId("p3"), "no longer listed by the server: the restored row is dropped, not left as a ghost")
+    }
+
+    @Test
+    fun a_project_already_gone_on_the_server_is_removed_locally_not_restored() = runTest {
+        val f = Fixture()
+        f.backend.deleteStatus = io.ktor.http.HttpStatusCode.NotFound
+        f.backend.seed(ServerProject(id = 3, name = "Villa"))
+        f.dao.upsert(
+            localProject("p3", serverId = 3, pendingOp = PendingOp.DELETE, syncStatus = SyncStatus.PENDING),
+        )
+        val engine = f.engine(backgroundScope)
+
+        engine.syncNow()
+        f.backend.deleteStatus = null
+
+        assertNull(f.dao.findByLocalId("p3"))
+    }
+
+    @Test
+    fun a_transient_server_error_on_a_project_delete_keeps_it_pending_for_the_next_pass() = runTest {
+        val f = Fixture()
+        f.backend.deleteStatus = io.ktor.http.HttpStatusCode.InternalServerError
+        f.backend.seed(ServerProject(id = 3, name = "Villa"))
+        f.dao.upsert(
+            localProject("p3", serverId = 3, pendingOp = PendingOp.DELETE, syncStatus = SyncStatus.PENDING),
+        )
+        val engine = f.engine(backgroundScope)
+
+        assertIs<SyncOutcome.Failed>(engine.syncNow())
+        assertEquals(PendingOp.DELETE, f.dao.findByLocalId("p3")!!.pendingOp)
+
+        f.backend.deleteStatus = null
+        assertIs<SyncOutcome.Synced>(engine.syncNow())
+        assertNull(f.dao.findByLocalId("p3"))
+        assertTrue(f.backend.projects.isEmpty())
+    }
+
+    @Test
+    fun a_stage_delete_refused_by_the_server_restores_the_stage_and_keeps_its_day_logs() = runTest {
+        val f = Fixture()
+        f.backend.deleteStatus = io.ktor.http.HttpStatusCode.Forbidden
+        f.backend.seed(ServerProject(id = 5, name = "Villa"))
+        f.backend.seedStage(ServerStage(id = 90, projectId = 5, name = "Gros œuvre"))
+        f.dao.upsert(localProject("p5", serverId = 5, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+        f.stageDao.upsert(
+            localStage("st1", projectLocalId = "p5", serverId = 90, pendingOp = PendingOp.DELETE, syncStatus = SyncStatus.PENDING),
+        )
+        f.dailyLogDao.upsert(com.dmb.chantiertracker.support.localDailyLog("l1", stageLocalId = "st1"))
+        val engine = f.engine(backgroundScope)
+
+        assertIs<SyncOutcome.Synced>(engine.syncNow())
+
+        val row = f.stageDao.findByLocalId("st1")!!
+        assertEquals(SyncStatus.SYNCED, row.syncStatus)
+        assertEquals(PendingOp.NONE, row.pendingOp)
+        assertEquals(SyncError.REJECTED, row.lastSyncError)
+        assertNotNull(f.dailyLogDao.findByLocalId("l1"), "the stage's day logs were never tombstoned")
+        assertEquals(1, f.backend.stages.size)
+    }
+
+    @Test
+    fun a_stage_already_gone_on_the_server_is_removed_locally_not_restored() = runTest {
+        val f = Fixture()
+        f.backend.deleteStatus = io.ktor.http.HttpStatusCode.NotFound
+        f.dao.upsert(localProject("p5", serverId = 5, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+        f.stageDao.upsert(
+            localStage("st1", projectLocalId = "p5", serverId = 90, pendingOp = PendingOp.DELETE, syncStatus = SyncStatus.PENDING),
+        )
+        val engine = f.engine(backgroundScope)
+
+        engine.syncNow()
+
+        assertNull(f.stageDao.findByLocalId("st1"))
+    }
+
+    @Test
+    fun a_transient_server_error_on_a_stage_delete_keeps_it_pending_for_the_next_pass() = runTest {
+        val f = Fixture()
+        f.backend.deleteStatus = io.ktor.http.HttpStatusCode.InternalServerError
+        f.backend.seed(ServerProject(id = 5, name = "Villa"))
+        f.backend.seedStage(ServerStage(id = 90, projectId = 5, name = "Gros œuvre"))
+        f.dao.upsert(localProject("p5", serverId = 5, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+        f.stageDao.upsert(
+            localStage("st1", projectLocalId = "p5", serverId = 90, pendingOp = PendingOp.DELETE, syncStatus = SyncStatus.PENDING),
+        )
+        val engine = f.engine(backgroundScope)
+
+        assertIs<SyncOutcome.Failed>(engine.syncNow())
+        assertEquals(PendingOp.DELETE, f.stageDao.findByLocalId("st1")!!.pendingOp)
+
+        f.backend.deleteStatus = null
+        assertIs<SyncOutcome.Synced>(engine.syncNow())
+        assertNull(f.stageDao.findByLocalId("st1"))
+        assertTrue(f.backend.stages.isEmpty())
+    }
+
+    @Test
+    fun an_entry_delete_refused_by_the_server_restores_the_entry_and_keeps_its_lines() = runTest {
+        val f = Fixture()
+        f.backend.deleteStatus = io.ktor.http.HttpStatusCode.Forbidden
+        f.backend.seedEntry(com.dmb.chantiertracker.support.ServerEntry(id = 40, dailyLogId = 800, type = "PURCHASE"))
+        f.dailyEntryDao.upsert(
+            com.dmb.chantiertracker.support.localDailyEntry("e1", serverId = 40, pendingOp = PendingOp.DELETE, syncStatus = SyncStatus.PENDING),
+        )
+        f.consumptionLineDao.upsert(
+            com.dmb.chantiertracker.support.localConsumptionLine("cl1", entryLocalId = "e1", serverId = 555, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED),
+        )
+        val engine = f.engine(backgroundScope)
+
+        assertIs<SyncOutcome.Synced>(engine.syncNow())
+
+        val row = f.dailyEntryDao.findByLocalId("e1")!!
+        assertEquals(SyncStatus.SYNCED, row.syncStatus)
+        assertEquals(PendingOp.NONE, row.pendingOp)
+        assertEquals(SyncError.REJECTED, row.lastSyncError)
+        assertNotNull(f.consumptionLineDao.findByLocalId("cl1"), "the entry's lines were never tombstoned")
+        assertEquals(1, f.backend.entries.size)
+    }
+
+    @Test
+    fun an_entry_already_gone_on_the_server_is_removed_locally_not_restored() = runTest {
+        val f = Fixture()
+        f.backend.deleteStatus = io.ktor.http.HttpStatusCode.NotFound
+        f.dailyEntryDao.upsert(
+            com.dmb.chantiertracker.support.localDailyEntry("e1", serverId = 40, pendingOp = PendingOp.DELETE, syncStatus = SyncStatus.PENDING),
+        )
+        val engine = f.engine(backgroundScope)
+
+        engine.syncNow()
+
+        assertNull(f.dailyEntryDao.findByLocalId("e1"))
+    }
+
+    @Test
+    fun a_transient_server_error_on_an_entry_delete_keeps_it_pending_for_the_next_pass() = runTest {
+        val f = Fixture()
+        f.backend.deleteStatus = io.ktor.http.HttpStatusCode.InternalServerError
+        f.backend.seedEntry(com.dmb.chantiertracker.support.ServerEntry(id = 40, dailyLogId = 800, type = "PURCHASE"))
+        f.dailyEntryDao.upsert(
+            com.dmb.chantiertracker.support.localDailyEntry("e1", serverId = 40, pendingOp = PendingOp.DELETE, syncStatus = SyncStatus.PENDING),
+        )
+        val engine = f.engine(backgroundScope)
+
+        assertIs<SyncOutcome.Failed>(engine.syncNow())
+        assertEquals(PendingOp.DELETE, f.dailyEntryDao.findByLocalId("e1")!!.pendingOp)
+
+        f.backend.deleteStatus = null
+        assertIs<SyncOutcome.Synced>(engine.syncNow())
+        assertNull(f.dailyEntryDao.findByLocalId("e1"))
+    }
+
+    @Test
+    fun a_refused_project_delete_no_longer_blocks_the_stage_and_entry_deletes_queued_behind_it() = runTest {
+        val f = Fixture()
+        f.backend.deleteStatus = io.ktor.http.HttpStatusCode.Forbidden
+        f.backend.seed(ServerProject(id = 3, name = "Villa"))
+        f.dao.upsert(localProject("p3", serverId = 3, pendingOp = PendingOp.DELETE, syncStatus = SyncStatus.PENDING))
+        f.dao.upsert(localProject("p5", serverId = 5, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+        f.backend.seed(ServerProject(id = 5, name = "Autre"))
+        f.stageDao.upsert(
+            localStage("st1", projectLocalId = "p5", serverId = 90, pendingOp = PendingOp.DELETE, syncStatus = SyncStatus.PENDING),
+        )
+        f.dailyEntryDao.upsert(
+            com.dmb.chantiertracker.support.localDailyEntry("e1", serverId = 40, pendingOp = PendingOp.DELETE, syncStatus = SyncStatus.PENDING),
+        )
+        val engine = f.engine(backgroundScope)
+
+        assertIs<SyncOutcome.Synced>(engine.syncNow(), "before the fix the first 403 aborted the whole pass")
+
+        assertEquals(PendingOp.NONE, f.dao.findByLocalId("p3")!!.pendingOp)
+        assertEquals(PendingOp.NONE, f.stageDao.findByLocalId("st1")!!.pendingOp)
+        assertEquals(PendingOp.NONE, f.dailyEntryDao.findByLocalId("e1")!!.pendingOp)
     }
 
     @Test

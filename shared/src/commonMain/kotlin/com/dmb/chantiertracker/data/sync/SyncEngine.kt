@@ -415,9 +415,14 @@ class SyncEngine(
 
     private enum class RemoteDelete { GONE, REJECTED }
 
-    // A refused delete (403 after a demotion, 409 when removing the line would
+    // A refused delete (403 after a demotion, 409 when removing a line would
     // break stock…) must not stay PENDING/DELETE: it would be retried forever and,
     // rethrown, abort every push queued behind it. NotFound = already gone.
+    // Restoring the row is enough for entries, stages and projects too: the local
+    // delete only ever tombstones the parent row (its children are never touched —
+    // Room's ON DELETE CASCADE fires only when the tombstone is finally removed),
+    // so a refusal leaves the whole subtree intact and the pull that follows in the
+    // same pass reconciles it with the server (or drops it if access was lost).
     private suspend fun deleteOnServer(call: suspend () -> Unit): RemoteDelete =
         try {
             apiCall { call() }
@@ -508,12 +513,9 @@ class SyncEngine(
 
     private suspend fun pushEntryDelete(entry: DailyEntryEntity) {
         val serverId = entry.serverId
-        if (serverId != null) {
-            try {
-                apiCall { dailyLogApi.deleteEntry(serverId) }
-            } catch (e: DomainException.NotFound) {
-                // Already gone — nothing more to do.
-            }
+        if (serverId != null && deleteOnServer { dailyLogApi.deleteEntry(serverId) } == RemoteDelete.REJECTED) {
+            dailyEntryDao.upsert(entry.copy(syncStatus = SyncStatus.SYNCED, pendingOp = PendingOp.NONE, lastSyncError = SyncError.REJECTED))
+            return
         }
         dailyEntryDao.deleteByLocalId(entry.localId)
     }
@@ -876,12 +878,9 @@ class SyncEngine(
 
     private suspend fun pushStageDelete(stage: StageEntity) {
         val serverId = stage.serverId
-        if (serverId != null) {
-            try {
-                apiCall { stageApi.delete(serverId) }
-            } catch (e: DomainException.NotFound) {
-                // Already gone on the server — nothing more to do.
-            }
+        if (serverId != null && deleteOnServer { stageApi.delete(serverId) } == RemoteDelete.REJECTED) {
+            stageDao.upsert(stage.copy(syncStatus = SyncStatus.SYNCED, pendingOp = PendingOp.NONE, lastSyncError = SyncError.REJECTED))
+            return
         }
         stageDao.deleteByLocalId(stage.localId)
     }
@@ -931,12 +930,9 @@ class SyncEngine(
 
     private suspend fun pushDelete(entity: ProjectEntity) {
         val serverId = entity.serverId
-        if (serverId != null) {
-            try {
-                apiCall { api.delete(serverId) }
-            } catch (e: DomainException.NotFound) {
-                // Already gone on the server — nothing more to do.
-            }
+        if (serverId != null && deleteOnServer { api.delete(serverId) } == RemoteDelete.REJECTED) {
+            dao.upsert(entity.copy(syncStatus = SyncStatus.SYNCED, pendingOp = PendingOp.NONE, lastSyncError = SyncError.REJECTED))
+            return
         }
         dao.deleteByLocalId(entity.localId)
     }
