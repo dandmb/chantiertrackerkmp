@@ -98,6 +98,7 @@
     <string name="legal_ph_semi_flex_price_cgv">[À COMPLÉTER : reprendre le prix exact affiché sur le Site au moment de la publication]</string>
     <string name="legal_ph_support_contact_email">[À COMPLÉTER : adresse e-mail de contact dédiée au support]</string>
     <string name="legal_last_updated">Dernière mise à jour : %1$s</string>
+    <string name="legal_language_notice">En cas de divergence d'interprétation entre la version française et la version anglaise de ce document, seule la version française fait foi juridiquement.</string>
     <string name="legal_doc_notice">Mentions légales</string>
     <string name="legal_doc_terms_of_use">Conditions générales d'utilisation</string>
     <string name="legal_doc_terms_of_sale">Conditions générales de vente</string>

@@ -13,11 +13,20 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import org.jetbrains.compose.resources.getString
+import java.util.Locale
+import kotlin.test.AfterTest
+import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class LegalContentMatchesWebTest {
+
+    private val initialLocale: Locale = Locale.getDefault()
+
+    @BeforeTest fun useTheFrenchResources() = Locale.setDefault(Locale.FRENCH)
+
+    @AfterTest fun restoreLocale() = Locale.setDefault(initialLocale)
 
     private val webKeyByDocument = mapOf(
         LegalDocument.LegalNotice to "mentions",

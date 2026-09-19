@@ -110,12 +110,33 @@ class LegalScreensUiTest {
     }
 
     @Test
-    fun an_english_user_gets_english_chrome_around_the_french_legal_text() = runComposeUiTest {
+    fun an_english_user_reads_the_english_legal_text_with_english_placeholders() = runComposeUiTest {
         mount(locale = "en") { StandaloneLegalDocumentScreen(LegalDocument.PrivacyPolicy, onBack = {}) }
 
         onNodeWithText("Privacy policy").assertIsDisplayed()
-        onNodeWithText("Last updated: [À COMPLÉTER : date]").assertIsDisplayed()
-        onNodeWithText("1. Responsable du traitement").assertExists()
+        onNodeWithText("Last updated: [TO BE COMPLETED: date]").assertIsDisplayed()
+        onNodeWithText("1. Data controller").assertExists()
+        onNodeWithText("1. Responsable du traitement").assertDoesNotExist()
+        onAllNodes(hasText("À COMPLÉTER", substring = true)).assertCountEquals(0)
+    }
+
+    @Test
+    fun every_document_states_in_both_languages_that_only_the_french_version_is_binding() = runComposeUiTest {
+        val current = androidx.compose.runtime.mutableStateOf(LegalDocument.LegalNotice)
+        mount(locale = "en") { StandaloneLegalDocumentScreen(current.value, onBack = {}) }
+
+        LegalDocument.entries.forEach { document ->
+            current.value = document
+            waitForIdle()
+            onNodeWithText("only the French version is legally binding", substring = true).assertIsDisplayed()
+        }
+    }
+
+    @Test
+    fun the_french_reader_sees_the_precedence_reminder_too() = runComposeUiTest {
+        mount { StandaloneLegalDocumentScreen(LegalDocument.TermsOfSale, onBack = {}) }
+
+        onNodeWithText("seule la version française fait foi juridiquement", substring = true).assertIsDisplayed()
     }
 
     @Test
