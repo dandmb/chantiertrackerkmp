@@ -326,7 +326,6 @@ class MainScreensSnapshotTest {
             com.dmb.chantiertracker.support.FakeAppPreferences(),
             kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Unconfined),
         ),
-        com.dmb.chantiertracker.support.FakeUrlOpener(),
     )
 
     private fun authedRepo(globalRole: GlobalRole = GlobalRole.USER) = FakeAuthRepository().apply {
@@ -724,7 +723,7 @@ class MainScreensSnapshotTest {
                 }
             }
             snapshot("12-settings", locale) {
-                Chrome(MainTab.Settings) { m -> SettingsScreen(modifier = m, viewModel = settingsVm()) }
+                Chrome(MainTab.Settings) { m -> SettingsScreen(onOpenLegalDocument = {}, modifier = m, viewModel = settingsVm()) }
             }
         }
         snapshot("13-projects-list-dark", "fr", dark = true) {

@@ -61,6 +61,7 @@
     <string name="register_title">Create an account</string>
     <string name="register_subtitle">A few details to get started.</string>
     <string name="register_submit">Sign up</string>
+    <string name="register_legal_consent">By creating an account, you agree to our %1$s and our %2$s.</string>
     <string name="register_have_account_prompt">Already have an account?</string>
     <string name="register_have_account_action">Sign in</string>
 
@@ -387,11 +388,6 @@
     <string name="settings_theme_light">Light</string>
     <string name="settings_theme_dark">Dark</string>
     <string name="settings_version">App version</string>
-    <string name="settings_legal_notice">Legal notice</string>
-    <string name="settings_legal_terms_of_use">Terms of use</string>
-    <string name="settings_legal_terms_of_sale">Terms of sale</string>
-    <string name="settings_legal_privacy">Privacy policy</string>
-    <string name="settings_legal_cookies">Cookie policy</string>
 
     <string name="validation_email_required">Email is required.</string>
     <string name="validation_email_invalid">Enter a valid email address.</string>

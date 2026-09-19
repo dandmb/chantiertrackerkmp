@@ -24,10 +24,8 @@ import com.dmb.chantiertracker.presentation.DetailInfoRow
 import com.dmb.chantiertracker.presentation.DetailSection
 import com.dmb.chantiertracker.presentation.DetailSectionDivider
 import com.dmb.chantiertracker.presentation.ResponsiveContent
-import com.dmb.chantiertracker.presentation.auth.components.ErrorBanner
 import com.dmb.chantiertracker.presentation.i18n.AppLanguage
-import com.dmb.chantiertracker.presentation.i18n.localizedText
-import com.dmb.chantiertracker.presentation.main.OpenInNewIcon
+import com.dmb.chantiertracker.presentation.legal.LegalDocument
 import com.dmb.chantiertracker.presentation.theme.ThemeMode
 import com.dmb.chantiertracker.resources.Res
 import com.dmb.chantiertracker.resources.settings_about
@@ -45,12 +43,12 @@ import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
 fun SettingsScreen(
+    onOpenLegalDocument: (LegalDocument) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: SettingsViewModel = koinViewModel(),
 ) {
     val language by viewModel.language.collectAsStateWithLifecycle()
     val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
-    val linkError by viewModel.linkError.collectAsStateWithLifecycle()
 
     ResponsiveContent(modifier) {
         Column(
@@ -84,11 +82,10 @@ fun SettingsScreen(
 
             DetailSection(stringResource(Res.string.settings_about)) {
                 DetailInfoRow(stringResource(Res.string.settings_version), viewModel.appVersion)
-                linkError?.let { ErrorBanner(it.localizedText()) }
-                LegalPage.entries.forEach { page ->
-                    ClickableListRow(onClick = { viewModel.onLegalPageClick(page) }, trailingIcon = OpenInNewIcon) {
+                LegalDocument.entries.forEach { document ->
+                    ClickableListRow(onClick = { onOpenLegalDocument(document) }) {
                         Text(
-                            stringResource(page.label),
+                            stringResource(document.label),
                             style = MaterialTheme.typography.bodyLarge,
                             modifier = Modifier.weight(1f),
                         )

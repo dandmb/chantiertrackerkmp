@@ -6,9 +6,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.dmb.chantiertracker.presentation.auth.components.AuthHighlightCard
+import com.dmb.chantiertracker.presentation.auth.components.AuthLegalFooter
 import com.dmb.chantiertracker.presentation.auth.components.AuthPrimaryButton
 import com.dmb.chantiertracker.presentation.auth.components.AuthScreenLayout
 import com.dmb.chantiertracker.presentation.auth.components.AuthSecondaryButton
+import com.dmb.chantiertracker.presentation.legal.LegalDocument
 import com.dmb.chantiertracker.resources.Res
 import com.dmb.chantiertracker.resources.welcome_create_account
 import com.dmb.chantiertracker.resources.welcome_discover_plans
@@ -28,6 +30,7 @@ fun WelcomeScreen(
     onCreateAccount: () -> Unit,
     onSignIn: () -> Unit,
     onDiscoverPlans: () -> Unit,
+    onOpenLegalDocument: (LegalDocument) -> Unit,
 ) {
     AuthScreenLayout(
         title = stringResource(Res.string.welcome_title),
@@ -43,5 +46,8 @@ fun WelcomeScreen(
             subtitle = stringResource(Res.string.welcome_discover_plans_teaser),
             onClick = onDiscoverPlans,
         )
+
+        Spacer(Modifier.height(4.dp))
+        AuthLegalFooter(onOpenDocument = onOpenLegalDocument)
     }
 }

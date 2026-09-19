@@ -13,7 +13,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import com.dmb.chantiertracker.presentation.main.ChevronRightIcon
 
@@ -32,7 +31,6 @@ import com.dmb.chantiertracker.presentation.main.ChevronRightIcon
 fun ClickableListRow(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    trailingIcon: ImageVector = ChevronRightIcon,
     content: @Composable RowScope.() -> Unit,
 ) {
     Surface(
@@ -49,7 +47,7 @@ fun ClickableListRow(
         ) {
             content()
             Icon(
-                imageVector = trailingIcon,
+                imageVector = ChevronRightIcon,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(20.dp),

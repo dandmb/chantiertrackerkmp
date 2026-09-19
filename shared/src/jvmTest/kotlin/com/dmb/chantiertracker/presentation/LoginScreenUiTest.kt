@@ -40,6 +40,7 @@ class LoginScreenUiTest {
                     LoginScreen(
                         onNavigateToRegister = {},
                         onNavigateToForgotPassword = {},
+                        onOpenLegalDocument = {},
                         viewModel = LoginViewModel(FakeAuthRepository(), FakeCheckoutLauncher()),
                     )
                 }
@@ -61,6 +62,7 @@ class LoginScreenUiTest {
                     LoginScreen(
                         onNavigateToRegister = {},
                         onNavigateToForgotPassword = {},
+                        onOpenLegalDocument = {},
                         viewModel = LoginViewModel(FakeAuthRepository(), FakeCheckoutLauncher()),
                     )
                 }

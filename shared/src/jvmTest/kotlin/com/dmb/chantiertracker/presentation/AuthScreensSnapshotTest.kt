@@ -30,6 +30,8 @@ import com.dmb.chantiertracker.presentation.auth.welcome.WelcomeScreen
 import androidx.compose.foundation.pager.rememberPagerState
 import com.dmb.chantiertracker.presentation.i18n.AppEnvironment
 import com.dmb.chantiertracker.presentation.i18n.customAppLocale
+import com.dmb.chantiertracker.presentation.legal.LegalDocument
+import com.dmb.chantiertracker.presentation.legal.StandaloneLegalDocumentScreen
 import com.dmb.chantiertracker.presentation.navigation.LoginNotice
 import com.dmb.chantiertracker.presentation.onboarding.ONBOARDING_PAGES
 import com.dmb.chantiertracker.presentation.onboarding.OnboardingScreenContent
@@ -95,7 +97,7 @@ class AuthScreensSnapshotTest {
                 OnboardingScreenContent(pagerState = pagerState, loop = 0.3f, onFinish = {})
             }
             snapshot("00-welcome", locale) {
-                WelcomeScreen(onCreateAccount = {}, onSignIn = {}, onDiscoverPlans = {})
+                WelcomeScreen(onCreateAccount = {}, onSignIn = {}, onDiscoverPlans = {}, onOpenLegalDocument = {})
             }
             snapshot("00b-plan-selection", locale) {
                 PlanSelectionScreen(onSelectPlan = { _, _ -> }, onContinueFree = {}, onBack = {})
@@ -112,6 +114,7 @@ class AuthScreensSnapshotTest {
                 LoginScreen(
                     onNavigateToRegister = {},
                     onNavigateToForgotPassword = {},
+                    onOpenLegalDocument = {},
                     onBack = {},
                     notice = LoginNotice.AccountActivated,
                     viewModel = LoginViewModel(repo, FakeCheckoutLauncher()),
@@ -121,6 +124,7 @@ class AuthScreensSnapshotTest {
                 LoginScreen(
                     onNavigateToRegister = {},
                     onNavigateToForgotPassword = {},
+                    onOpenLegalDocument = {},
                     onBack = {},
                     notice = LoginNotice.AccountActivated,
                     checkoutPlan = "SEMI_FLEX",
@@ -129,7 +133,7 @@ class AuthScreensSnapshotTest {
                 )
             }
             snapshot("02-register", locale) {
-                RegisterScreen(onRegistered = {}, onBackToLogin = {}, onBack = {}, viewModel = RegisterViewModel(repo))
+                RegisterScreen(onRegistered = {}, onBackToLogin = {}, onOpenLegalDocument = {}, onBack = {}, viewModel = RegisterViewModel(repo))
             }
             snapshot("03-verify", locale) {
                 VerifyEmailScreen(
@@ -156,13 +160,13 @@ class AuthScreensSnapshotTest {
                 ChangePasswordScreen(email = "dan@chantier.dev", viewModel = ChangePasswordViewModel(repo))
             }
             snapshot("06-login-dark", locale, dark = true) {
-                LoginScreen(onNavigateToRegister = {}, onNavigateToForgotPassword = {}, viewModel = LoginViewModel(repo, FakeCheckoutLauncher()))
+                LoginScreen(onNavigateToRegister = {}, onNavigateToForgotPassword = {}, onOpenLegalDocument = {}, viewModel = LoginViewModel(repo, FakeCheckoutLauncher()))
             }
             snapshot("07-register-dark", locale, dark = true) {
-                RegisterScreen(onRegistered = {}, onBackToLogin = {}, viewModel = RegisterViewModel(repo))
+                RegisterScreen(onRegistered = {}, onBackToLogin = {}, onOpenLegalDocument = {}, viewModel = RegisterViewModel(repo))
             }
             snapshot("08-welcome-dark", locale, dark = true) {
-                WelcomeScreen(onCreateAccount = {}, onSignIn = {}, onDiscoverPlans = {})
+                WelcomeScreen(onCreateAccount = {}, onSignIn = {}, onDiscoverPlans = {}, onOpenLegalDocument = {})
             }
             // ADR-56 sous-étape 2/5: AuthScreenLayout's illustrated header used
             // to have a 228dp floor regardless of available height — on a
@@ -172,10 +176,19 @@ class AuthScreensSnapshotTest {
             // (Welcome) — the more fragile of the two before this sous-étape
             // also added a scroll fallback there.
             snapshot("09-login-landscape", locale, landscape = true) {
-                LoginScreen(onNavigateToRegister = {}, onNavigateToForgotPassword = {}, viewModel = LoginViewModel(repo, FakeCheckoutLauncher()))
+                LoginScreen(onNavigateToRegister = {}, onNavigateToForgotPassword = {}, onOpenLegalDocument = {}, viewModel = LoginViewModel(repo, FakeCheckoutLauncher()))
             }
             snapshot("10-welcome-landscape", locale, landscape = true) {
-                WelcomeScreen(onCreateAccount = {}, onSignIn = {}, onDiscoverPlans = {})
+                WelcomeScreen(onCreateAccount = {}, onSignIn = {}, onDiscoverPlans = {}, onOpenLegalDocument = {})
+            }
+            snapshot("11-legal-terms-of-use", locale) {
+                StandaloneLegalDocumentScreen(LegalDocument.TermsOfUse, onBack = {})
+            }
+            snapshot("12-legal-notice-dark", locale, dark = true) {
+                StandaloneLegalDocumentScreen(LegalDocument.LegalNotice, onBack = {})
+            }
+            snapshot("13-legal-privacy-landscape", locale, landscape = true) {
+                StandaloneLegalDocumentScreen(LegalDocument.PrivacyPolicy, onBack = {})
             }
         }
     }

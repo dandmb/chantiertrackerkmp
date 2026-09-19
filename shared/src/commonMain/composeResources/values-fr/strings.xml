@@ -61,6 +61,7 @@
     <string name="register_title">Créer un compte</string>
     <string name="register_subtitle">Quelques informations pour démarrer.</string>
     <string name="register_submit">S'inscrire</string>
+    <string name="register_legal_consent">En créant un compte, vous acceptez nos %1$s et notre %2$s.</string>
     <string name="register_have_account_prompt">Déjà un compte ?</string>
     <string name="register_have_account_action">Se connecter</string>
 
@@ -387,11 +388,6 @@
     <string name="settings_theme_light">Clair</string>
     <string name="settings_theme_dark">Sombre</string>
     <string name="settings_version">Version de l'app</string>
-    <string name="settings_legal_notice">Mentions légales</string>
-    <string name="settings_legal_terms_of_use">Conditions générales d'utilisation</string>
-    <string name="settings_legal_terms_of_sale">Conditions générales de vente</string>
-    <string name="settings_legal_privacy">Politique de confidentialité</string>
-    <string name="settings_legal_cookies">Politique de cookies</string>
 
     <string name="validation_email_required">L'email est obligatoire.</string>
     <string name="validation_email_invalid">L'email doit être valide.</string>

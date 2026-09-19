@@ -15,13 +15,13 @@ import androidx.compose.ui.unit.dp
 import com.dmb.chantiertracker.core.AppConfig
 import com.dmb.chantiertracker.presentation.i18n.AppEnvironment
 import com.dmb.chantiertracker.presentation.i18n.customAppLocale
+import com.dmb.chantiertracker.presentation.legal.LegalDocument
 import com.dmb.chantiertracker.presentation.settings.AppSettings
 import com.dmb.chantiertracker.presentation.settings.SettingsScreen
 import com.dmb.chantiertracker.presentation.settings.SettingsViewModel
 import com.dmb.chantiertracker.presentation.theme.AppTheme
 import com.dmb.chantiertracker.support.FakeAppPreferences
 import com.dmb.chantiertracker.support.FakeBuildInfo
-import com.dmb.chantiertracker.support.FakeUrlOpener
 import com.dmb.chantiertracker.support.installTestMainDispatcher
 import com.dmb.chantiertracker.support.resetTestMainDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -41,21 +41,20 @@ class SettingsScreenUiTest {
         resetTestMainDispatcher()
     }
 
-    private fun vm(
-        prefs: FakeAppPreferences,
-        opener: FakeUrlOpener = FakeUrlOpener(),
-    ): SettingsViewModel = SettingsViewModel(
+    private fun vm(prefs: FakeAppPreferences): SettingsViewModel = SettingsViewModel(
         AppConfig(FakeBuildInfo(isDebug = false, appVersion = "2.1.0")),
         AppSettings(prefs, CoroutineScope(Dispatchers.Unconfined)),
-        opener,
     )
 
-    private fun ComposeUiTest.mount(viewModel: SettingsViewModel) {
+    private fun ComposeUiTest.mount(
+        viewModel: SettingsViewModel,
+        onOpenLegalDocument: (LegalDocument) -> Unit = {},
+    ) {
         setContent {
             customAppLocale = "fr"
             AppEnvironment {
                 AppTheme {
-                    Box(Modifier.size(412.dp, 892.dp)) { SettingsScreen(viewModel = viewModel) }
+                    Box(Modifier.size(412.dp, 892.dp)) { SettingsScreen(onOpenLegalDocument = onOpenLegalDocument, viewModel = viewModel) }
                 }
             }
         }
@@ -104,7 +103,7 @@ class SettingsScreenUiTest {
     }
 
     @Test
-    fun the_about_section_lists_the_five_legal_pages_as_clickable_rows() = runComposeUiTest {
+    fun the_about_section_lists_the_five_legal_documents_as_clickable_rows() = runComposeUiTest {
         mount(vm(FakeAppPreferences()))
 
         listOf(
@@ -117,24 +116,14 @@ class SettingsScreenUiTest {
     }
 
     @Test
-    fun tapping_a_legal_row_opens_the_matching_web_page() = runComposeUiTest {
-        val opener = FakeUrlOpener()
-        mount(vm(FakeAppPreferences(), opener))
+    fun tapping_a_legal_row_opens_the_matching_native_document() = runComposeUiTest {
+        val opened = mutableListOf<LegalDocument>()
+        mount(vm(FakeAppPreferences()), onOpenLegalDocument = { opened += it })
 
         onNodeWithText("Conditions générales de vente").performClick()
+        onNodeWithText("Politique de cookies").performClick()
         waitForIdle()
 
-        assertEquals(listOf("https://chantiertracker.com/cgv"), opener.opened)
-    }
-
-    @Test
-    fun a_browser_failure_shows_an_error_banner_in_the_about_section() = runComposeUiTest {
-        val opener = FakeUrlOpener().apply { error = IllegalStateException("no browser") }
-        mount(vm(FakeAppPreferences(), opener))
-
-        onNodeWithText("Mentions légales").performClick()
-        waitForIdle()
-
-        onNodeWithText("Une erreur est survenue. Réessayez.").assertExists()
+        assertEquals(listOf(LegalDocument.TermsOfSale, LegalDocument.CookiePolicy), opened)
     }
 }
