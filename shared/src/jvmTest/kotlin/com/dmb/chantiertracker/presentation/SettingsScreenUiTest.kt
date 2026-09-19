@@ -7,6 +7,7 @@ import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.runComposeUiTest
@@ -20,6 +21,7 @@ import com.dmb.chantiertracker.presentation.settings.SettingsViewModel
 import com.dmb.chantiertracker.presentation.theme.AppTheme
 import com.dmb.chantiertracker.support.FakeAppPreferences
 import com.dmb.chantiertracker.support.FakeBuildInfo
+import com.dmb.chantiertracker.support.FakeUrlOpener
 import com.dmb.chantiertracker.support.installTestMainDispatcher
 import com.dmb.chantiertracker.support.resetTestMainDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -39,9 +41,13 @@ class SettingsScreenUiTest {
         resetTestMainDispatcher()
     }
 
-    private fun vm(prefs: FakeAppPreferences): SettingsViewModel = SettingsViewModel(
+    private fun vm(
+        prefs: FakeAppPreferences,
+        opener: FakeUrlOpener = FakeUrlOpener(),
+    ): SettingsViewModel = SettingsViewModel(
         AppConfig(FakeBuildInfo(isDebug = false, appVersion = "2.1.0")),
         AppSettings(prefs, CoroutineScope(Dispatchers.Unconfined)),
+        opener,
     )
 
     private fun ComposeUiTest.mount(viewModel: SettingsViewModel) {
@@ -95,5 +101,40 @@ class SettingsScreenUiTest {
 
         assertEquals("Dark", prefs.store["app_theme_mode"])
         onNodeWithText("Sombre").assertIsSelected()
+    }
+
+    @Test
+    fun the_about_section_lists_the_five_legal_pages_as_clickable_rows() = runComposeUiTest {
+        mount(vm(FakeAppPreferences()))
+
+        listOf(
+            "Mentions légales",
+            "Conditions générales d'utilisation",
+            "Conditions générales de vente",
+            "Politique de confidentialité",
+            "Politique de cookies",
+        ).forEach { onNodeWithText(it).assertExists().assertHasClickAction() }
+    }
+
+    @Test
+    fun tapping_a_legal_row_opens_the_matching_web_page() = runComposeUiTest {
+        val opener = FakeUrlOpener()
+        mount(vm(FakeAppPreferences(), opener))
+
+        onNodeWithText("Conditions générales de vente").performClick()
+        waitForIdle()
+
+        assertEquals(listOf("https://chantiertracker.com/cgv"), opener.opened)
+    }
+
+    @Test
+    fun a_browser_failure_shows_an_error_banner_in_the_about_section() = runComposeUiTest {
+        val opener = FakeUrlOpener().apply { error = IllegalStateException("no browser") }
+        mount(vm(FakeAppPreferences(), opener))
+
+        onNodeWithText("Mentions légales").performClick()
+        waitForIdle()
+
+        onNodeWithText("Une erreur est survenue. Réessayez.").assertExists()
     }
 }

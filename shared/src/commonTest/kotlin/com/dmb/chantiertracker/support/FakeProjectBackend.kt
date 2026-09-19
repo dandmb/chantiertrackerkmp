@@ -153,6 +153,9 @@ class FakeProjectBackend {
     /** When true, POST purchase/consumption line answers 409 (mirrors InsufficientStockException). */
     var lineWriteConflict = false
 
+    /** When set, DELETE on a purchase/consumption line or an attachment answers this status (403 = a demoted ADMIN, 500 = transient). */
+    var entryChildDeleteStatus: HttpStatusCode? = null
+
     /** When true, GET/POST/DELETE on invitations answers 403 (mirrors a non-ADMIN caller). */
     var invitationsForbidden = false
 
@@ -360,6 +363,7 @@ class FakeProjectBackend {
             }
 
             request.method == HttpMethod.Delete && purchaseLineId != null -> {
+                entryChildDeleteStatus?.let { return respondProblem(it, "Suppression refusée.") }
                 purchaseLines.removeAll { it.id == purchaseLineId }
                 respondJson("", HttpStatusCode.NoContent)
             }
@@ -389,6 +393,7 @@ class FakeProjectBackend {
             }
 
             request.method == HttpMethod.Delete && consumptionLineId != null -> {
+                entryChildDeleteStatus?.let { return respondProblem(it, "Suppression refusée.") }
                 consumptionLines.removeAll { it.id == consumptionLineId }
                 respondJson("", HttpStatusCode.NoContent)
             }
@@ -421,6 +426,7 @@ class FakeProjectBackend {
             }
 
             request.method == HttpMethod.Delete && attachmentId != null -> {
+                entryChildDeleteStatus?.let { return respondProblem(it, "Suppression refusée.") }
                 attachments.removeAll { it.id == attachmentId }
                 respondJson("", HttpStatusCode.NoContent)
             }

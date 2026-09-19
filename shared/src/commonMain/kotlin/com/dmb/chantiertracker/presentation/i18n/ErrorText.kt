@@ -14,9 +14,12 @@ import com.dmb.chantiertracker.resources.error_network
 import com.dmb.chantiertracker.resources.error_not_found
 import com.dmb.chantiertracker.resources.error_plan_limit
 import com.dmb.chantiertracker.resources.error_rate_limited
+import com.dmb.chantiertracker.resources.error_rate_limited_minutes
+import com.dmb.chantiertracker.resources.error_rate_limited_seconds
 import com.dmb.chantiertracker.resources.error_unexpected
 import com.dmb.chantiertracker.resources.error_validation
 import org.jetbrains.compose.resources.StringResource
+import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 
 fun DomainException.textRes(): StringResource = when (this) {
@@ -30,7 +33,7 @@ fun DomainException.textRes(): StringResource = when (this) {
     DomainException.InvalidCurrentPassword -> Res.string.error_invalid_current_password
     DomainException.InvalidCode -> Res.string.error_invalid_code
     DomainException.Validation -> Res.string.error_validation
-    DomainException.RateLimited -> Res.string.error_rate_limited
+    is DomainException.RateLimited -> Res.string.error_rate_limited
     DomainException.PlanLimitReached -> Res.string.error_plan_limit
     DomainException.Forbidden -> Res.string.error_forbidden
     DomainException.NotFound -> Res.string.error_not_found
@@ -38,5 +41,16 @@ fun DomainException.textRes(): StringResource = when (this) {
     DomainException.Unexpected -> Res.string.error_unexpected
 }
 
+private const val SECONDS_PER_MINUTE = 60
+
 @Composable
-fun DomainException.localizedText(): String = stringResource(textRes())
+fun DomainException.localizedText(): String {
+    val retryAfterSeconds = (this as? DomainException.RateLimited)?.retryAfterSeconds
+        ?: return stringResource(textRes())
+    return if (retryAfterSeconds < SECONDS_PER_MINUTE) {
+        pluralStringResource(Res.plurals.error_rate_limited_seconds, retryAfterSeconds, retryAfterSeconds)
+    } else {
+        val minutes = (retryAfterSeconds + SECONDS_PER_MINUTE - 1) / SECONDS_PER_MINUTE
+        pluralStringResource(Res.plurals.error_rate_limited_minutes, minutes, minutes)
+    }
+}

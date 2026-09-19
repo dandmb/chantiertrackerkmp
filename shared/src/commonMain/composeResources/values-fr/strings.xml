@@ -387,6 +387,11 @@
     <string name="settings_theme_light">Clair</string>
     <string name="settings_theme_dark">Sombre</string>
     <string name="settings_version">Version de l'app</string>
+    <string name="settings_legal_notice">Mentions légales</string>
+    <string name="settings_legal_terms_of_use">Conditions générales d'utilisation</string>
+    <string name="settings_legal_terms_of_sale">Conditions générales de vente</string>
+    <string name="settings_legal_privacy">Politique de confidentialité</string>
+    <string name="settings_legal_cookies">Politique de cookies</string>
 
     <string name="validation_email_required">L'email est obligatoire.</string>
     <string name="validation_email_invalid">L'email doit être valide.</string>
@@ -407,7 +412,7 @@
     <string name="error_invalid_current_password">Le mot de passe actuel est incorrect.</string>
     <string name="error_invalid_code">Ce code est invalide ou a expiré.</string>
     <string name="error_validation">Vérifiez les informations saisies.</string>
-    <string name="error_rate_limited">Trop de tentatives. Réessayez dans quelques minutes.</string>
+    <string name="error_rate_limited">Trop de requêtes. Réessayez dans un instant.</string>
     <string name="error_plan_limit">Vous avez atteint la limite de projets de votre formule. Passez à un palier supérieur pour en créer davantage.</string>
     <string name="error_forbidden">Vous n'êtes pas autorisé à effectuer cette action.</string>
     <string name="error_not_found">Ce projet n'existe plus, ou vous n'y avez pas accès.</string>
@@ -475,4 +480,12 @@
     <string name="admin_stats_granularity_day">Jour</string>
     <string name="admin_stats_granularity_month">Mois</string>
     <string name="admin_stats_granularity_year">Année</string>
+    <plurals name="error_rate_limited_seconds">
+        <item quantity="one">Trop de tentatives. Réessayez dans %1$d seconde.</item>
+        <item quantity="other">Trop de tentatives. Réessayez dans %1$d secondes.</item>
+    </plurals>
+    <plurals name="error_rate_limited_minutes">
+        <item quantity="one">Trop de tentatives. Réessayez dans %1$d minute.</item>
+        <item quantity="other">Trop de tentatives. Réessayez dans %1$d minutes.</item>
+    </plurals>
 </resources>

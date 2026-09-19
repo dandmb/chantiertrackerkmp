@@ -413,6 +413,21 @@ class SyncEngine(
             this is DomainException.EmailAlreadyUsed ||
             this is DomainException.PlanLimitReached
 
+    private enum class RemoteDelete { GONE, REJECTED }
+
+    // A refused delete (403 after a demotion, 409 when removing the line would
+    // break stock…) must not stay PENDING/DELETE: it would be retried forever and,
+    // rethrown, abort every push queued behind it. NotFound = already gone.
+    private suspend fun deleteOnServer(call: suspend () -> Unit): RemoteDelete =
+        try {
+            apiCall { call() }
+            RemoteDelete.GONE
+        } catch (e: DomainException.NotFound) {
+            RemoteDelete.GONE
+        } catch (e: DomainException) {
+            if (e.isServerRejection()) RemoteDelete.REJECTED else throw e
+        }
+
     // ─── materials ──────────────────────────────────────────────────────────
 
     private suspend fun pushMaterialCreate(material: MaterialEntity) {
@@ -539,11 +554,9 @@ class SyncEngine(
 
     private suspend fun pushPurchaseLineDelete(line: PurchaseLineEntity) {
         val serverId = line.serverId
-        if (serverId != null) {
-            try {
-                apiCall { purchaseLineApi.delete(serverId) }
-            } catch (e: DomainException.NotFound) {
-            }
+        if (serverId != null && deleteOnServer { purchaseLineApi.delete(serverId) } == RemoteDelete.REJECTED) {
+            purchaseLineDao.upsert(line.copy(syncStatus = SyncStatus.SYNCED, pendingOp = PendingOp.NONE, lastSyncError = SyncError.REJECTED))
+            return
         }
         purchaseLineDao.deleteByLocalId(line.localId)
     }
@@ -584,11 +597,9 @@ class SyncEngine(
 
     private suspend fun pushConsumptionLineDelete(line: ConsumptionLineEntity) {
         val serverId = line.serverId
-        if (serverId != null) {
-            try {
-                apiCall { consumptionLineApi.delete(serverId) }
-            } catch (e: DomainException.NotFound) {
-            }
+        if (serverId != null && deleteOnServer { consumptionLineApi.delete(serverId) } == RemoteDelete.REJECTED) {
+            consumptionLineDao.upsert(line.copy(syncStatus = SyncStatus.SYNCED, pendingOp = PendingOp.NONE, lastSyncError = SyncError.REJECTED))
+            return
         }
         consumptionLineDao.deleteByLocalId(line.localId)
     }
@@ -628,14 +639,33 @@ class SyncEngine(
 
     private suspend fun pushAttachmentDelete(attachment: AttachmentEntity) {
         val serverId = attachment.serverId
-        if (serverId != null) {
-            try {
-                apiCall { attachmentApi.delete(serverId) }
-            } catch (e: DomainException.NotFound) {
-            }
+        if (serverId != null && deleteOnServer { attachmentApi.delete(serverId) } == RemoteDelete.REJECTED) {
+            restoreAttachmentRefusedByServer(attachment, serverId)
+            return
         }
         // The local file was already freed by AttachmentRepositoryImpl at delete time (ADR-29).
         attachmentDao.deleteByLocalId(attachment.localId)
+    }
+
+    // The local file was freed at delete time (ADR-29), so bringing the row back
+    // means re-downloading its bytes — the same call the pull uses for a file that
+    // first appeared on the server.
+    private suspend fun restoreAttachmentRefusedByServer(attachment: AttachmentEntity, serverId: Long) {
+        val bytes = try {
+            apiCall { attachmentApi.download(serverId) }
+        } catch (e: DomainException.NotFound) {
+            attachmentDao.deleteByLocalId(attachment.localId)
+            return
+        }
+        val path = attachmentFileStore.save(bytes, attachment.originalName)
+        attachmentDao.upsert(
+            attachment.copy(
+                localPath = path,
+                syncStatus = SyncStatus.SYNCED,
+                pendingOp = PendingOp.NONE,
+                lastSyncError = SyncError.REJECTED,
+            ),
+        )
     }
 
     // ─── pull: materials ────────────────────────────────────────────────────

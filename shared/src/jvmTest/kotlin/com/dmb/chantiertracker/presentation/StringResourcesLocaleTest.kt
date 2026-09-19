@@ -8,6 +8,7 @@ import androidx.compose.ui.test.runComposeUiTest
 import com.dmb.chantiertracker.domain.model.DomainException
 import com.dmb.chantiertracker.presentation.i18n.AppEnvironment
 import com.dmb.chantiertracker.presentation.i18n.customAppLocale
+import com.dmb.chantiertracker.presentation.i18n.localizedText
 import com.dmb.chantiertracker.presentation.i18n.textRes
 import com.dmb.chantiertracker.resources.Res
 import com.dmb.chantiertracker.resources.error_invalid_credentials
@@ -69,5 +70,40 @@ class StringResourcesLocaleTest {
         assertEquals(Res.string.error_invalid_credentials, res)
         assertEquals("Email ou mot de passe incorrect.", resolve("fr", res))
         assertEquals("Incorrect email or password.", resolve("en", res))
+    }
+
+    private fun resolveError(languageTag: String, error: DomainException): String {
+        var resolved by mutableStateOf("")
+        runComposeUiTest {
+            setContent {
+                customAppLocale = languageTag
+                AppEnvironment {
+                    resolved = error.localizedText()
+                }
+            }
+            waitForIdle()
+        }
+        return resolved
+    }
+
+    @Test
+    fun rate_limited_message_states_the_wait_in_seconds_with_singular_and_plural() {
+        assertEquals("Trop de tentatives. Réessayez dans 1 seconde.", resolveError("fr", DomainException.RateLimited(1)))
+        assertEquals("Trop de tentatives. Réessayez dans 42 secondes.", resolveError("fr", DomainException.RateLimited(42)))
+        assertEquals("Too many attempts. Try again in 1 second.", resolveError("en", DomainException.RateLimited(1)))
+        assertEquals("Too many attempts. Try again in 42 seconds.", resolveError("en", DomainException.RateLimited(42)))
+    }
+
+    @Test
+    fun rate_limited_message_switches_to_minutes_rounded_up_from_sixty_seconds() {
+        assertEquals("Too many attempts. Try again in 1 minute.", resolveError("en", DomainException.RateLimited(60)))
+        assertEquals("Too many attempts. Try again in 2 minutes.", resolveError("en", DomainException.RateLimited(61)))
+        assertEquals("Trop de tentatives. Réessayez dans 3 minutes.", resolveError("fr", DomainException.RateLimited(180)))
+    }
+
+    @Test
+    fun rate_limited_without_delay_falls_back_to_the_generic_message() {
+        assertEquals("Trop de requêtes. Réessayez dans un instant.", resolveError("fr", DomainException.RateLimited()))
+        assertEquals("Too many requests. Please try again shortly.", resolveError("en", DomainException.RateLimited()))
     }
 }

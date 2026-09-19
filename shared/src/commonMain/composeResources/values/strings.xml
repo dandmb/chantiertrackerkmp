@@ -387,6 +387,11 @@
     <string name="settings_theme_light">Light</string>
     <string name="settings_theme_dark">Dark</string>
     <string name="settings_version">App version</string>
+    <string name="settings_legal_notice">Legal notice</string>
+    <string name="settings_legal_terms_of_use">Terms of use</string>
+    <string name="settings_legal_terms_of_sale">Terms of sale</string>
+    <string name="settings_legal_privacy">Privacy policy</string>
+    <string name="settings_legal_cookies">Cookie policy</string>
 
     <string name="validation_email_required">Email is required.</string>
     <string name="validation_email_invalid">Enter a valid email address.</string>
@@ -407,7 +412,7 @@
     <string name="error_invalid_current_password">Your current password is incorrect.</string>
     <string name="error_invalid_code">That code is invalid or has expired.</string>
     <string name="error_validation">Please check the information you entered.</string>
-    <string name="error_rate_limited">Too many attempts. Try again in a few minutes.</string>
+    <string name="error_rate_limited">Too many requests. Please try again shortly.</string>
     <string name="error_plan_limit">You've reached your plan's project limit. Upgrade to a higher tier to create more.</string>
     <string name="error_forbidden">You're not allowed to do that.</string>
     <string name="error_not_found">This project no longer exists, or you don't have access to it.</string>
@@ -475,4 +480,12 @@
     <string name="admin_stats_granularity_day">Day</string>
     <string name="admin_stats_granularity_month">Month</string>
     <string name="admin_stats_granularity_year">Year</string>
+    <plurals name="error_rate_limited_seconds">
+        <item quantity="one">Too many attempts. Try again in %1$d second.</item>
+        <item quantity="other">Too many attempts. Try again in %1$d seconds.</item>
+    </plurals>
+    <plurals name="error_rate_limited_minutes">
+        <item quantity="one">Too many attempts. Try again in %1$d minute.</item>
+        <item quantity="other">Too many attempts. Try again in %1$d minutes.</item>
+    </plurals>
 </resources>

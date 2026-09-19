@@ -796,6 +796,104 @@ class SyncEngineTest {
     }
 
     @Test
+    fun a_consumption_line_delete_refused_by_the_server_restores_the_line_instead_of_retrying_forever() = runTest {
+        val f = Fixture()
+        f.backend.entryChildDeleteStatus = io.ktor.http.HttpStatusCode.Forbidden
+        f.consumptionLineDao.upsert(
+            com.dmb.chantiertracker.support.localConsumptionLine("cl1", serverId = 555, pendingOp = PendingOp.DELETE, syncStatus = SyncStatus.PENDING),
+        )
+        f.backend.seedConsumptionLine(com.dmb.chantiertracker.support.ServerConsumptionLine(id = 555, entryId = 40, materialId = 7, quantity = 4.0))
+        val engine = f.engine(backgroundScope)
+
+        assertIs<SyncOutcome.Synced>(engine.syncNow())
+
+        val row = f.consumptionLineDao.findByLocalId("cl1")!!
+        assertEquals(SyncStatus.SYNCED, row.syncStatus)
+        assertEquals(PendingOp.NONE, row.pendingOp)
+        assertEquals(SyncError.REJECTED, row.lastSyncError)
+        assertEquals(1, f.backend.consumptionLines.size, "the server kept the line")
+    }
+
+    @Test
+    fun a_purchase_line_delete_refused_by_the_server_restores_the_line() = runTest {
+        val f = Fixture()
+        f.backend.entryChildDeleteStatus = io.ktor.http.HttpStatusCode.Forbidden
+        f.purchaseLineDao.upsert(
+            com.dmb.chantiertracker.support.localPurchaseLine("pl1", serverId = 300, pendingOp = PendingOp.DELETE, syncStatus = SyncStatus.PENDING),
+        )
+        val engine = f.engine(backgroundScope)
+
+        assertIs<SyncOutcome.Synced>(engine.syncNow())
+
+        val row = f.purchaseLineDao.findByLocalId("pl1")!!
+        assertEquals(SyncStatus.SYNCED, row.syncStatus)
+        assertEquals(PendingOp.NONE, row.pendingOp)
+        assertEquals(SyncError.REJECTED, row.lastSyncError)
+    }
+
+    @Test
+    fun an_attachment_delete_refused_by_the_server_brings_the_file_back() = runTest {
+        val f = Fixture()
+        f.backend.entryChildDeleteStatus = io.ktor.http.HttpStatusCode.Forbidden
+        f.backend.seedAttachment(com.dmb.chantiertracker.support.ServerAttachment(id = 1100, entryId = 40, bytes = byteArrayOf(7, 7)))
+        f.attachmentDao.upsert(
+            com.dmb.chantiertracker.support.localAttachment(
+                "a1", serverId = 1100, localPath = "freed/a1.jpg", pendingOp = PendingOp.DELETE, syncStatus = SyncStatus.PENDING,
+            ),
+        )
+        val engine = f.engine(backgroundScope)
+
+        assertIs<SyncOutcome.Synced>(engine.syncNow())
+
+        val row = f.attachmentDao.findByLocalId("a1")!!
+        assertEquals(SyncStatus.SYNCED, row.syncStatus)
+        assertEquals(PendingOp.NONE, row.pendingOp)
+        assertEquals(SyncError.REJECTED, row.lastSyncError)
+        assertTrue(row.localPath in f.fileStore.storedPaths, "the bytes were re-downloaded — the local file had been freed at delete time")
+        assertEquals(1, f.backend.attachments.size)
+    }
+
+    @Test
+    fun a_refused_delete_no_longer_blocks_the_pushes_queued_behind_it() = runTest {
+        val f = Fixture()
+        f.backend.entryChildDeleteStatus = io.ktor.http.HttpStatusCode.Forbidden
+        f.consumptionLineDao.upsert(
+            com.dmb.chantiertracker.support.localConsumptionLine("cl1", serverId = 555, pendingOp = PendingOp.DELETE, syncStatus = SyncStatus.PENDING),
+        )
+        f.attachmentDao.upsert(
+            com.dmb.chantiertracker.support.localAttachment("a1", serverId = 1100, pendingOp = PendingOp.DELETE, syncStatus = SyncStatus.PENDING),
+        )
+        f.backend.seedAttachment(com.dmb.chantiertracker.support.ServerAttachment(id = 1100, entryId = 40))
+        f.backend.seedConsumptionLine(com.dmb.chantiertracker.support.ServerConsumptionLine(id = 555, entryId = 40, materialId = 7, quantity = 4.0))
+        val engine = f.engine(backgroundScope)
+
+        assertIs<SyncOutcome.Synced>(engine.syncNow(), "before the fix the 403 aborted the whole pass")
+
+        assertEquals(PendingOp.NONE, f.consumptionLineDao.findByLocalId("cl1")!!.pendingOp)
+        assertEquals(PendingOp.NONE, f.attachmentDao.findByLocalId("a1")!!.pendingOp)
+    }
+
+    @Test
+    fun a_transient_server_error_on_a_delete_is_still_retried_not_treated_as_a_refusal() = runTest {
+        val f = Fixture()
+        f.backend.entryChildDeleteStatus = io.ktor.http.HttpStatusCode.InternalServerError
+        f.consumptionLineDao.upsert(
+            com.dmb.chantiertracker.support.localConsumptionLine("cl1", serverId = 555, pendingOp = PendingOp.DELETE, syncStatus = SyncStatus.PENDING),
+        )
+        f.backend.seedConsumptionLine(com.dmb.chantiertracker.support.ServerConsumptionLine(id = 555, entryId = 40, materialId = 7, quantity = 4.0))
+        val engine = f.engine(backgroundScope)
+
+        assertIs<SyncOutcome.Failed>(engine.syncNow())
+        val stillPending = f.consumptionLineDao.findByLocalId("cl1")!!
+        assertEquals(PendingOp.DELETE, stillPending.pendingOp, "kept for the next pass")
+
+        f.backend.entryChildDeleteStatus = null
+        assertIs<SyncOutcome.Synced>(engine.syncNow())
+        assertNull(f.consumptionLineDao.findByLocalId("cl1"))
+        assertTrue(f.backend.consumptionLines.isEmpty())
+    }
+
+    @Test
     fun start_is_idempotent() = runTest {
         val f = Fixture()
         f.connectivity.setOnline(false)

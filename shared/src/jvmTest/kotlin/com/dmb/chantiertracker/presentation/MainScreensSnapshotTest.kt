@@ -326,6 +326,7 @@ class MainScreensSnapshotTest {
             com.dmb.chantiertracker.support.FakeAppPreferences(),
             kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Unconfined),
         ),
+        com.dmb.chantiertracker.support.FakeUrlOpener(),
     )
 
     private fun authedRepo(globalRole: GlobalRole = GlobalRole.USER) = FakeAuthRepository().apply {
