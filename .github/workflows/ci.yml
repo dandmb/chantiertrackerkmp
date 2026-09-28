@@ -1,0 +1,26 @@
+# Runs the shared module's automated test suite on every push to `dev`
+# (i.e. every merge) and on every pull request targeting `dev`.
+# The suite itself lives in the reusable shared-tests.yml.
+
+name: CI
+
+on:
+  push:
+    branches: [dev]
+  pull_request:
+    branches: [dev]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    uses: ./.github/workflows/shared-tests.yml
+    with:
+      run-ios: true
+      # Populate the shared cache from pushes to dev; keep PR runs read-only.
+      cache-read-only: ${{ github.event_name == 'pull_request' }}

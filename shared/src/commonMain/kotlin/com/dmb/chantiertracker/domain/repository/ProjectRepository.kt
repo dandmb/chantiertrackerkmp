@@ -1,0 +1,40 @@
+package com.dmb.chantiertracker.domain.repository
+
+import com.dmb.chantiertracker.domain.model.CreateProjectInput
+import com.dmb.chantiertracker.domain.model.Project
+import com.dmb.chantiertracker.domain.model.ProjectDetail
+import com.dmb.chantiertracker.domain.model.ProjectMember
+import com.dmb.chantiertracker.domain.model.UpdateProjectInput
+import kotlinx.coroutines.flow.Flow
+
+interface ProjectRepository {
+    fun observeProjects(): Flow<List<Project>>
+    fun observeProject(localId: String): Flow<ProjectDetail?>
+    fun observeMembers(localId: String): Flow<List<ProjectMember>>
+
+    /** Count of the current user's own active (IN_PROGRESS) projects, from the local store — the plan-limit numerator (ADR-25). */
+    fun observeActiveProjectCount(ownerId: Long): Flow<Int>
+
+    /** Writes the project to the local store immediately and returns its stable local id. Sync happens in the background. */
+    suspend fun createProject(input: CreateProjectInput): String
+
+    /** Applies the edit to the local store immediately, flagged pending. Sync happens in the background. */
+    suspend fun updateProject(localId: String, input: UpdateProjectInput)
+
+    /** Marks the project for deletion locally (or drops it outright if it never reached the server). Sync happens in the background. */
+    suspend fun deleteProject(localId: String)
+
+    /** Best-effort pull of the whole list from the server into the local store. Never throws. */
+    suspend fun refresh()
+
+    /** Best-effort pull of one project and its members from the server into the local store. Never throws. */
+    suspend fun refreshProject(localId: String)
+
+    /**
+     * Resolves a **server** project id to its local one, or `null` if that
+     * project hasn't synced into the local store yet (ADR-59: right after
+     * accepting an invitation by App Link, before the follow-up `refresh()`
+     * has necessarily completed).
+     */
+    suspend fun findLocalIdByServerId(serverId: Long): String?
+}

@@ -1,0 +1,195 @@
+package com.dmb.chantiertracker.presentation
+
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.toAwtImage
+import androidx.compose.ui.test.ComposeUiTest
+import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.captureToImage
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.runComposeUiTest
+import androidx.compose.ui.unit.dp
+import com.dmb.chantiertracker.presentation.auth.changepassword.ChangePasswordScreen
+import com.dmb.chantiertracker.presentation.auth.changepassword.ChangePasswordViewModel
+import com.dmb.chantiertracker.presentation.auth.forgot.ForgotPasswordScreen
+import com.dmb.chantiertracker.presentation.auth.forgot.ForgotPasswordViewModel
+import com.dmb.chantiertracker.presentation.auth.login.LoginScreen
+import com.dmb.chantiertracker.presentation.auth.login.LoginViewModel
+import com.dmb.chantiertracker.presentation.auth.plans.PlanSelectionScreen
+import com.dmb.chantiertracker.presentation.auth.register.RegisterScreen
+import com.dmb.chantiertracker.presentation.auth.register.RegisterViewModel
+import com.dmb.chantiertracker.presentation.auth.reset.ResetPasswordScreen
+import com.dmb.chantiertracker.presentation.auth.reset.ResetPasswordViewModel
+import com.dmb.chantiertracker.presentation.auth.verify.VerifyEmailScreen
+import com.dmb.chantiertracker.presentation.auth.verify.VerifyEmailViewModel
+import com.dmb.chantiertracker.presentation.auth.welcome.WelcomeScreen
+import androidx.compose.foundation.pager.rememberPagerState
+import com.dmb.chantiertracker.presentation.i18n.AppEnvironment
+import com.dmb.chantiertracker.presentation.i18n.customAppLocale
+import com.dmb.chantiertracker.presentation.legal.LegalDocument
+import com.dmb.chantiertracker.presentation.legal.StandaloneLegalDocumentScreen
+import com.dmb.chantiertracker.presentation.navigation.LoginNotice
+import com.dmb.chantiertracker.presentation.onboarding.ONBOARDING_PAGES
+import com.dmb.chantiertracker.presentation.onboarding.OnboardingScreenContent
+import com.dmb.chantiertracker.presentation.theme.AppTheme
+import com.dmb.chantiertracker.support.FakeAuthRepository
+import com.dmb.chantiertracker.support.FakeCheckoutLauncher
+import com.dmb.chantiertracker.support.installTestMainDispatcher
+import com.dmb.chantiertracker.support.resetTestMainDispatcher
+import java.io.File
+import javax.imageio.ImageIO
+import kotlin.test.AfterTest
+import kotlin.test.BeforeTest
+import kotlin.test.Test
+
+@OptIn(ExperimentalTestApi::class)
+class AuthScreensSnapshotTest {
+
+    private val outDir = File("build/auth-snapshots").apply { mkdirs() }
+
+    @BeforeTest fun setUp() { installTestMainDispatcher() }
+
+    @AfterTest fun tearDown() {
+        customAppLocale = null
+        resetTestMainDispatcher()
+    }
+
+    private fun snapshot(
+        name: String,
+        locale: String,
+        dark: Boolean = false,
+        landscape: Boolean = false,
+        interact: ComposeUiTest.() -> Unit = {},
+        screen: @Composable () -> Unit,
+    ) = runComposeUiTest {
+        setContent {
+            customAppLocale = locale
+            AppEnvironment {
+                AppTheme(darkTheme = dark) {
+                    val size = if (landscape) 892.dp to 412.dp else 412.dp to 892.dp
+                    Box(Modifier.size(size.first, size.second)) { screen() }
+                }
+            }
+        }
+        waitForIdle()
+        interact()
+        waitForIdle()
+        ImageIO.write(onRoot().captureToImage().toAwtImage(), "png", File(outDir, "$name-$locale.png"))
+    }
+
+    @Test
+    fun capture_all_auth_screens_in_french_and_english() {
+        val repo = FakeAuthRepository()
+
+        for (locale in listOf("fr", "en")) {
+            for (page in 0 until ONBOARDING_PAGES) {
+                snapshot("00-onboarding-${page + 1}", locale) {
+                    val pagerState = rememberPagerState(initialPage = page, pageCount = { ONBOARDING_PAGES })
+                    OnboardingScreenContent(pagerState = pagerState, loop = 0.3f, onFinish = {})
+                }
+            }
+            snapshot("00-onboarding-1-dark", locale, dark = true) {
+                val pagerState = rememberPagerState(initialPage = 0, pageCount = { ONBOARDING_PAGES })
+                OnboardingScreenContent(pagerState = pagerState, loop = 0.3f, onFinish = {})
+            }
+            snapshot("00-welcome", locale) {
+                WelcomeScreen(onCreateAccount = {}, onSignIn = {}, onDiscoverPlans = {}, onOpenLegalDocument = {})
+            }
+            snapshot("00b-plan-selection", locale) {
+                PlanSelectionScreen(onSelectPlan = { _, _ -> }, onContinueFree = {}, onBack = {})
+            }
+            val freeTabLabel = if (locale == "fr") "Gratuit" else "Free"
+            snapshot(
+                "00c-plan-selection-free",
+                locale,
+                interact = { onNodeWithText(freeTabLabel).performClick() },
+            ) {
+                PlanSelectionScreen(onSelectPlan = { _, _ -> }, onContinueFree = {}, onBack = {})
+            }
+            snapshot("01-login", locale) {
+                LoginScreen(
+                    onNavigateToRegister = {},
+                    onNavigateToForgotPassword = {},
+                    onOpenLegalDocument = {},
+                    onBack = {},
+                    notice = LoginNotice.AccountActivated,
+                    viewModel = LoginViewModel(repo, FakeCheckoutLauncher()),
+                )
+            }
+            snapshot("01b-login-checkout-pending", locale) {
+                LoginScreen(
+                    onNavigateToRegister = {},
+                    onNavigateToForgotPassword = {},
+                    onOpenLegalDocument = {},
+                    onBack = {},
+                    notice = LoginNotice.AccountActivated,
+                    checkoutPlan = "SEMI_FLEX",
+                    checkoutCycle = "MONTHLY",
+                    viewModel = LoginViewModel(repo, FakeCheckoutLauncher()),
+                )
+            }
+            snapshot("02-register", locale) {
+                RegisterScreen(onRegistered = {}, onBackToLogin = {}, onOpenLegalDocument = {}, onBack = {}, viewModel = RegisterViewModel(repo))
+            }
+            snapshot("03-verify", locale) {
+                VerifyEmailScreen(
+                    email = "jean@chantier.dev",
+                    onVerified = {},
+                    onCancelVerification = {},
+                    onBack = {},
+                    viewModel = VerifyEmailViewModel(repo),
+                )
+            }
+            snapshot("04-forgot", locale) {
+                ForgotPasswordScreen(onCodeSent = {}, onBack = {}, viewModel = ForgotPasswordViewModel(repo))
+            }
+            snapshot("05-reset", locale) {
+                ResetPasswordScreen(
+                    email = "jean@chantier.dev",
+                    onReset = {},
+                    onBackToLogin = {},
+                    onBack = {},
+                    viewModel = ResetPasswordViewModel(repo),
+                )
+            }
+            snapshot("05b-change-password", locale) {
+                ChangePasswordScreen(email = "dan@chantier.dev", viewModel = ChangePasswordViewModel(repo))
+            }
+            snapshot("06-login-dark", locale, dark = true) {
+                LoginScreen(onNavigateToRegister = {}, onNavigateToForgotPassword = {}, onOpenLegalDocument = {}, viewModel = LoginViewModel(repo, FakeCheckoutLauncher()))
+            }
+            snapshot("07-register-dark", locale, dark = true) {
+                RegisterScreen(onRegistered = {}, onBackToLogin = {}, onOpenLegalDocument = {}, viewModel = RegisterViewModel(repo))
+            }
+            snapshot("08-welcome-dark", locale, dark = true) {
+                WelcomeScreen(onCreateAccount = {}, onSignIn = {}, onDiscoverPlans = {}, onOpenLegalDocument = {})
+            }
+            // ADR-56 sous-étape 2/5: AuthScreenLayout's illustrated header used
+            // to have a 228dp floor regardless of available height — on a
+            // landscape phone (~412dp tall) that alone ate over half the
+            // screen. 09/10 pin the fix for both branches: the scrollable one
+            // (Login) and the centered-with-no-scroll-by-default one
+            // (Welcome) — the more fragile of the two before this sous-étape
+            // also added a scroll fallback there.
+            snapshot("09-login-landscape", locale, landscape = true) {
+                LoginScreen(onNavigateToRegister = {}, onNavigateToForgotPassword = {}, onOpenLegalDocument = {}, viewModel = LoginViewModel(repo, FakeCheckoutLauncher()))
+            }
+            snapshot("10-welcome-landscape", locale, landscape = true) {
+                WelcomeScreen(onCreateAccount = {}, onSignIn = {}, onDiscoverPlans = {}, onOpenLegalDocument = {})
+            }
+            snapshot("11-legal-terms-of-use", locale) {
+                StandaloneLegalDocumentScreen(LegalDocument.TermsOfUse, onBack = {})
+            }
+            snapshot("12-legal-notice-dark", locale, dark = true) {
+                StandaloneLegalDocumentScreen(LegalDocument.LegalNotice, onBack = {})
+            }
+            snapshot("13-legal-privacy-landscape", locale, landscape = true) {
+                StandaloneLegalDocumentScreen(LegalDocument.PrivacyPolicy, onBack = {})
+            }
+        }
+    }
+}

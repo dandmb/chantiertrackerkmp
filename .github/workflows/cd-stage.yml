@@ -1,0 +1,148 @@
+# Continuous delivery for the `stage` branch: on every merge, run the test
+# suite, build the signed staging APK and hand it to the testers via Firebase
+# App Distribution. See MOBILE_CONTEXT §14 / ADR-24.
+#
+# Required secrets (repo or `stage` environment):
+#   FIREBASE_APP_ID            Firebase Android App ID, e.g. 1:123...:android:abc...
+#                              (registered for the package com.dmb.chantiertracker.staging)
+#   FIREBASE_SERVICE_ACCOUNT   the RAW (not base64) JSON key file of a service
+#                              account with the "Firebase App Distribution Admin"
+#                              role — paste the file's contents verbatim, one line
+#                              per line, without reformatting the `private_key`.
+#   FIREBASE_TESTER_GROUP      tester group alias to distribute to
+#   ANDROID_KEYSTORE_BASE64    base64 of the distribution keystore (.jks)
+#   ANDROID_KEYSTORE_PASSWORD  / ANDROID_KEY_ALIAS / ANDROID_KEY_PASSWORD
+#
+# firebase-tools authenticates from GOOGLE_APPLICATION_CREDENTIALS (a service
+# account key file) — no `firebase login` / FIREBASE_TOKEN needed. It does NOT
+# use google-services.json (that's a build-time SDK config; the app has no
+# Firebase SDK, so the file is genuinely not needed anywhere).
+
+name: CD — stage
+
+on:
+  push:
+    branches: [stage]
+
+concurrency:
+  group: cd-stage
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    # iOS is already covered on `dev` before code reaches `stage`.
+    uses: ./.github/workflows/shared-tests.yml
+    with:
+      run-ios: false
+
+  distribute:
+    name: Build & distribute (Firebase App Distribution)
+    needs: tests
+    runs-on: ubuntu-latest
+    environment: stage
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: "platforms;android-36 build-tools;36.0.0"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: true
+
+      - name: Decode distribution keystore
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/distribution.jks"
+
+      - name: Build staging APK
+        env:
+          ANDROID_KEYSTORE_FILE: ${{ runner.temp }}/distribution.jks
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          version_name="1.0-stage.${{ github.run_number }}+${GITHUB_SHA::7}"
+          ./gradlew :androidApp:assembleStaging \
+            -PversionCode="${{ github.run_number }}" \
+            -PversionName="$version_name" \
+            --stacktrace
+
+      - name: Locate APK
+        id: apk
+        run: |
+          apk=$(find androidApp/build/outputs/apk/staging -name '*.apk' ! -name '*-unsigned.apk' | head -n 1)
+          test -n "$apk" || { echo "::error::no signed staging APK produced"; exit 1; }
+          echo "path=$apk" >> "$GITHUB_OUTPUT"
+
+      - name: Write & check Firebase service account
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          sa="$RUNNER_TEMP/firebase-service-account.json"
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$sa"
+
+          if [ ! -s "$sa" ]; then
+            echo "::error::FIREBASE_SERVICE_ACCOUNT is empty — the secret is missing, misnamed, or not visible to the 'stage' environment."
+            exit 1
+          fi
+          echo "service account file: $(wc -c < "$sa") bytes"
+
+          if ! jq -e 'type == "object"' "$sa" >/dev/null 2>&1; then
+            if base64 -d < "$sa" 2>/dev/null | jq -e 'type == "object"' >/dev/null 2>&1; then
+              base64 -d < "$sa" > "$sa.decoded" && mv "$sa.decoded" "$sa"
+              echo "::warning::FIREBASE_SERVICE_ACCOUNT was base64-encoded; decoded it. Store the RAW JSON instead (see workflow header)."
+            else
+              echo "::error::FIREBASE_SERVICE_ACCOUNT is not valid JSON — truncated on paste, or the private_key was reformatted with real line breaks. Re-copy the key file's exact contents."
+              exit 1
+            fi
+          fi
+
+          type=$(jq -r '.type // empty' "$sa")
+          project_id=$(jq -r '.project_id // empty' "$sa")
+          has_key=$(jq -r 'if .private_key then "yes" else "no" end' "$sa")
+          echo "type=$type project_id=$project_id private_key=$has_key"
+          if [ "$type" != "service_account" ] || [ -z "$project_id" ] || [ "$has_key" != "yes" ]; then
+            echo "::error::not a complete service-account key (need type=service_account + project_id + private_key). Wrong file? (an OAuth client or an API key JSON won't work.)"
+            exit 1
+          fi
+
+      - name: Distribute to Firebase App Distribution
+        env:
+          FIREBASE_APP_ID: ${{ secrets.FIREBASE_APP_ID }}
+          FIREBASE_TESTER_GROUP: ${{ secrets.FIREBASE_TESTER_GROUP }}
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-service-account.json
+        run: |
+          test -n "$FIREBASE_APP_ID" || { echo "::error::FIREBASE_APP_ID secret is missing"; exit 1; }
+          test -n "$FIREBASE_TESTER_GROUP" || { echo "::error::FIREBASE_TESTER_GROUP secret is missing"; exit 1; }
+          test -s "$GOOGLE_APPLICATION_CREDENTIALS" || { echo "::error::service account file missing"; exit 1; }
+          notes="$(git log -1 --pretty=%s) (${GITHUB_SHA::7})"
+          npx --yes firebase-tools@latest appdistribution:distribute "${{ steps.apk.outputs.path }}" \
+            --app "$FIREBASE_APP_ID" \
+            --groups "$FIREBASE_TESTER_GROUP" \
+            --release-notes "$notes"
+
+      - name: Clean up credentials
+        if: ${{ always() }}
+        run: rm -f "$RUNNER_TEMP/distribution.jks" "$RUNNER_TEMP/firebase-service-account.json"
+
+      - name: Archive APK
+        if: ${{ !cancelled() && steps.apk.outputs.path != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: chantiertracker-staging-${{ github.run_number }}
+          path: ${{ steps.apk.outputs.path }}
+          if-no-files-found: warn
