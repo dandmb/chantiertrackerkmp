@@ -24,7 +24,7 @@ sealed class DomainException : Exception() {
     data object InvalidCurrentPassword : DomainException()
     data object InvalidCode : DomainException()
     data object Validation : DomainException()
-    data object RateLimited : DomainException()
+    data class RateLimited(val retryAfterSeconds: Int? = null) : DomainException()
     data object PlanLimitReached : DomainException()
     data object Forbidden : DomainException()
     data object NotFound : DomainException()

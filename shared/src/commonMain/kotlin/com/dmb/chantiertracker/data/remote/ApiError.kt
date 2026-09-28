@@ -4,6 +4,7 @@ import com.dmb.chantiertracker.data.remote.dto.ProblemDetailDto
 import com.dmb.chantiertracker.domain.model.DomainException
 import io.ktor.client.call.body
 import io.ktor.client.plugins.ResponseException
+import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.CancellationException
 
@@ -42,7 +43,9 @@ private suspend fun ResponseException.toDomainException(): DomainException {
                 DomainException.MustChangePassword
             else -> DomainException.Forbidden
         }
-        HttpStatusCode.TooManyRequests -> DomainException.RateLimited
+        HttpStatusCode.TooManyRequests -> DomainException.RateLimited(
+            retryAfterSeconds = response.headers[HttpHeaders.RetryAfter]?.trim()?.toIntOrNull()?.takeIf { it > 0 },
+        )
         HttpStatusCode.BadRequest ->
             if (hasFieldErrors) DomainException.Validation else DomainException.InvalidCode
         else -> DomainException.Unexpected

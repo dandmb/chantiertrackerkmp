@@ -19,11 +19,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.dmb.chantiertracker.presentation.ClickableListRow
 import com.dmb.chantiertracker.presentation.DetailInfoRow
 import com.dmb.chantiertracker.presentation.DetailSection
 import com.dmb.chantiertracker.presentation.DetailSectionDivider
 import com.dmb.chantiertracker.presentation.ResponsiveContent
 import com.dmb.chantiertracker.presentation.i18n.AppLanguage
+import com.dmb.chantiertracker.presentation.legal.LegalDocument
 import com.dmb.chantiertracker.presentation.theme.ThemeMode
 import com.dmb.chantiertracker.resources.Res
 import com.dmb.chantiertracker.resources.settings_about
@@ -41,6 +43,7 @@ import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
 fun SettingsScreen(
+    onOpenLegalDocument: (LegalDocument) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: SettingsViewModel = koinViewModel(),
 ) {
@@ -79,6 +82,15 @@ fun SettingsScreen(
 
             DetailSection(stringResource(Res.string.settings_about)) {
                 DetailInfoRow(stringResource(Res.string.settings_version), viewModel.appVersion)
+                LegalDocument.entries.forEach { document ->
+                    ClickableListRow(onClick = { onOpenLegalDocument(document) }) {
+                        Text(
+                            stringResource(document.label),
+                            style = MaterialTheme.typography.bodyLarge,
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                }
             }
         }
     }

@@ -413,6 +413,26 @@ class SyncEngine(
             this is DomainException.EmailAlreadyUsed ||
             this is DomainException.PlanLimitReached
 
+    private enum class RemoteDelete { GONE, REJECTED }
+
+    // A refused delete (403 after a demotion, 409 when removing a line would
+    // break stock…) must not stay PENDING/DELETE: it would be retried forever and,
+    // rethrown, abort every push queued behind it. NotFound = already gone.
+    // Restoring the row is enough for entries, stages and projects too: the local
+    // delete only ever tombstones the parent row (its children are never touched —
+    // Room's ON DELETE CASCADE fires only when the tombstone is finally removed),
+    // so a refusal leaves the whole subtree intact and the pull that follows in the
+    // same pass reconciles it with the server (or drops it if access was lost).
+    private suspend fun deleteOnServer(call: suspend () -> Unit): RemoteDelete =
+        try {
+            apiCall { call() }
+            RemoteDelete.GONE
+        } catch (e: DomainException.NotFound) {
+            RemoteDelete.GONE
+        } catch (e: DomainException) {
+            if (e.isServerRejection()) RemoteDelete.REJECTED else throw e
+        }
+
     // ─── materials ──────────────────────────────────────────────────────────
 
     private suspend fun pushMaterialCreate(material: MaterialEntity) {
@@ -493,12 +513,9 @@ class SyncEngine(
 
     private suspend fun pushEntryDelete(entry: DailyEntryEntity) {
         val serverId = entry.serverId
-        if (serverId != null) {
-            try {
-                apiCall { dailyLogApi.deleteEntry(serverId) }
-            } catch (e: DomainException.NotFound) {
-                // Already gone — nothing more to do.
-            }
+        if (serverId != null && deleteOnServer { dailyLogApi.deleteEntry(serverId) } == RemoteDelete.REJECTED) {
+            dailyEntryDao.upsert(entry.copy(syncStatus = SyncStatus.SYNCED, pendingOp = PendingOp.NONE, lastSyncError = SyncError.REJECTED))
+            return
         }
         dailyEntryDao.deleteByLocalId(entry.localId)
     }
@@ -539,11 +556,9 @@ class SyncEngine(
 
     private suspend fun pushPurchaseLineDelete(line: PurchaseLineEntity) {
         val serverId = line.serverId
-        if (serverId != null) {
-            try {
-                apiCall { purchaseLineApi.delete(serverId) }
-            } catch (e: DomainException.NotFound) {
-            }
+        if (serverId != null && deleteOnServer { purchaseLineApi.delete(serverId) } == RemoteDelete.REJECTED) {
+            purchaseLineDao.upsert(line.copy(syncStatus = SyncStatus.SYNCED, pendingOp = PendingOp.NONE, lastSyncError = SyncError.REJECTED))
+            return
         }
         purchaseLineDao.deleteByLocalId(line.localId)
     }
@@ -584,11 +599,9 @@ class SyncEngine(
 
     private suspend fun pushConsumptionLineDelete(line: ConsumptionLineEntity) {
         val serverId = line.serverId
-        if (serverId != null) {
-            try {
-                apiCall { consumptionLineApi.delete(serverId) }
-            } catch (e: DomainException.NotFound) {
-            }
+        if (serverId != null && deleteOnServer { consumptionLineApi.delete(serverId) } == RemoteDelete.REJECTED) {
+            consumptionLineDao.upsert(line.copy(syncStatus = SyncStatus.SYNCED, pendingOp = PendingOp.NONE, lastSyncError = SyncError.REJECTED))
+            return
         }
         consumptionLineDao.deleteByLocalId(line.localId)
     }
@@ -628,14 +641,33 @@ class SyncEngine(
 
     private suspend fun pushAttachmentDelete(attachment: AttachmentEntity) {
         val serverId = attachment.serverId
-        if (serverId != null) {
-            try {
-                apiCall { attachmentApi.delete(serverId) }
-            } catch (e: DomainException.NotFound) {
-            }
+        if (serverId != null && deleteOnServer { attachmentApi.delete(serverId) } == RemoteDelete.REJECTED) {
+            restoreAttachmentRefusedByServer(attachment, serverId)
+            return
         }
         // The local file was already freed by AttachmentRepositoryImpl at delete time (ADR-29).
         attachmentDao.deleteByLocalId(attachment.localId)
+    }
+
+    // The local file was freed at delete time (ADR-29), so bringing the row back
+    // means re-downloading its bytes — the same call the pull uses for a file that
+    // first appeared on the server.
+    private suspend fun restoreAttachmentRefusedByServer(attachment: AttachmentEntity, serverId: Long) {
+        val bytes = try {
+            apiCall { attachmentApi.download(serverId) }
+        } catch (e: DomainException.NotFound) {
+            attachmentDao.deleteByLocalId(attachment.localId)
+            return
+        }
+        val path = attachmentFileStore.save(bytes, attachment.originalName)
+        attachmentDao.upsert(
+            attachment.copy(
+                localPath = path,
+                syncStatus = SyncStatus.SYNCED,
+                pendingOp = PendingOp.NONE,
+                lastSyncError = SyncError.REJECTED,
+            ),
+        )
     }
 
     // ─── pull: materials ────────────────────────────────────────────────────
@@ -846,12 +878,9 @@ class SyncEngine(
 
     private suspend fun pushStageDelete(stage: StageEntity) {
         val serverId = stage.serverId
-        if (serverId != null) {
-            try {
-                apiCall { stageApi.delete(serverId) }
-            } catch (e: DomainException.NotFound) {
-                // Already gone on the server — nothing more to do.
-            }
+        if (serverId != null && deleteOnServer { stageApi.delete(serverId) } == RemoteDelete.REJECTED) {
+            stageDao.upsert(stage.copy(syncStatus = SyncStatus.SYNCED, pendingOp = PendingOp.NONE, lastSyncError = SyncError.REJECTED))
+            return
         }
         stageDao.deleteByLocalId(stage.localId)
     }
@@ -901,12 +930,9 @@ class SyncEngine(
 
     private suspend fun pushDelete(entity: ProjectEntity) {
         val serverId = entity.serverId
-        if (serverId != null) {
-            try {
-                apiCall { api.delete(serverId) }
-            } catch (e: DomainException.NotFound) {
-                // Already gone on the server — nothing more to do.
-            }
+        if (serverId != null && deleteOnServer { api.delete(serverId) } == RemoteDelete.REJECTED) {
+            dao.upsert(entity.copy(syncStatus = SyncStatus.SYNCED, pendingOp = PendingOp.NONE, lastSyncError = SyncError.REJECTED))
+            return
         }
         dao.deleteByLocalId(entity.localId)
     }

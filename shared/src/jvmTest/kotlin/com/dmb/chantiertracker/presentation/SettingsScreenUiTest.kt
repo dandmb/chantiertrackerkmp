@@ -7,6 +7,7 @@ import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.runComposeUiTest
@@ -14,6 +15,7 @@ import androidx.compose.ui.unit.dp
 import com.dmb.chantiertracker.core.AppConfig
 import com.dmb.chantiertracker.presentation.i18n.AppEnvironment
 import com.dmb.chantiertracker.presentation.i18n.customAppLocale
+import com.dmb.chantiertracker.presentation.legal.LegalDocument
 import com.dmb.chantiertracker.presentation.settings.AppSettings
 import com.dmb.chantiertracker.presentation.settings.SettingsScreen
 import com.dmb.chantiertracker.presentation.settings.SettingsViewModel
@@ -44,12 +46,15 @@ class SettingsScreenUiTest {
         AppSettings(prefs, CoroutineScope(Dispatchers.Unconfined)),
     )
 
-    private fun ComposeUiTest.mount(viewModel: SettingsViewModel) {
+    private fun ComposeUiTest.mount(
+        viewModel: SettingsViewModel,
+        onOpenLegalDocument: (LegalDocument) -> Unit = {},
+    ) {
         setContent {
             customAppLocale = "fr"
             AppEnvironment {
                 AppTheme {
-                    Box(Modifier.size(412.dp, 892.dp)) { SettingsScreen(viewModel = viewModel) }
+                    Box(Modifier.size(412.dp, 892.dp)) { SettingsScreen(onOpenLegalDocument = onOpenLegalDocument, viewModel = viewModel) }
                 }
             }
         }
@@ -95,5 +100,30 @@ class SettingsScreenUiTest {
 
         assertEquals("Dark", prefs.store["app_theme_mode"])
         onNodeWithText("Sombre").assertIsSelected()
+    }
+
+    @Test
+    fun the_about_section_lists_the_five_legal_documents_as_clickable_rows() = runComposeUiTest {
+        mount(vm(FakeAppPreferences()))
+
+        listOf(
+            "Mentions légales",
+            "Conditions générales d'utilisation",
+            "Conditions générales de vente",
+            "Politique de confidentialité",
+            "Politique de cookies",
+        ).forEach { onNodeWithText(it).assertExists().assertHasClickAction() }
+    }
+
+    @Test
+    fun tapping_a_legal_row_opens_the_matching_native_document() = runComposeUiTest {
+        val opened = mutableListOf<LegalDocument>()
+        mount(vm(FakeAppPreferences()), onOpenLegalDocument = { opened += it })
+
+        onNodeWithText("Conditions générales de vente").performClick()
+        onNodeWithText("Politique de cookies").performClick()
+        waitForIdle()
+
+        assertEquals(listOf(LegalDocument.TermsOfSale, LegalDocument.CookiePolicy), opened)
     }
 }

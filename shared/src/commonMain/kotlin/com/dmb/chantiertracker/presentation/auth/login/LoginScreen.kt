@@ -17,6 +17,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dmb.chantiertracker.presentation.auth.components.AuthFooterPrompt
 import com.dmb.chantiertracker.presentation.auth.components.AuthInlineLink
 import com.dmb.chantiertracker.presentation.auth.components.AuthLink
+import com.dmb.chantiertracker.presentation.auth.components.AuthLegalFooter
 import com.dmb.chantiertracker.presentation.auth.components.AuthPrimaryButton
 import com.dmb.chantiertracker.presentation.auth.components.AuthScreenLayout
 import com.dmb.chantiertracker.presentation.auth.components.EmailField
@@ -26,6 +27,7 @@ import com.dmb.chantiertracker.presentation.auth.components.PasswordField
 import com.dmb.chantiertracker.presentation.i18n.localizedText
 import com.dmb.chantiertracker.presentation.main.labelRes
 import com.dmb.chantiertracker.presentation.navigation.LoginNotice
+import com.dmb.chantiertracker.presentation.legal.LegalDocument
 import com.dmb.chantiertracker.resources.Res
 import com.dmb.chantiertracker.resources.login_forgot_password
 import com.dmb.chantiertracker.resources.login_no_account_action
@@ -44,6 +46,7 @@ import org.koin.compose.viewmodel.koinViewModel
 fun LoginScreen(
     onNavigateToRegister: () -> Unit,
     onNavigateToForgotPassword: () -> Unit,
+    onOpenLegalDocument: (LegalDocument) -> Unit,
     onBack: (() -> Unit)? = null,
     prefilledEmail: String? = null,
     notice: LoginNotice? = null,
@@ -129,5 +132,6 @@ fun LoginScreen(
             action = stringResource(Res.string.login_no_account_action),
             onClick = onNavigateToRegister,
         )
+        AuthLegalFooter(onOpenDocument = onOpenLegalDocument)
     }
 }

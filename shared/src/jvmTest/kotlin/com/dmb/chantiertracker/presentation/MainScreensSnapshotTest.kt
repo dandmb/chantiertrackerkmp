@@ -723,7 +723,7 @@ class MainScreensSnapshotTest {
                 }
             }
             snapshot("12-settings", locale) {
-                Chrome(MainTab.Settings) { m -> SettingsScreen(modifier = m, viewModel = settingsVm()) }
+                Chrome(MainTab.Settings) { m -> SettingsScreen(onOpenLegalDocument = {}, modifier = m, viewModel = settingsVm()) }
             }
         }
         snapshot("13-projects-list-dark", "fr", dark = true) {

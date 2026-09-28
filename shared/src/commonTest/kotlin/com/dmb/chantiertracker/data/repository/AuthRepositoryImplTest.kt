@@ -135,6 +135,19 @@ class AuthRepositoryImplTest {
     }
 
     @Test
+    fun login_maps_429_to_rate_limited_with_the_retry_after_delay() = runTest {
+        val f = Fixture {
+            respondProblem(
+                status = HttpStatusCode.TooManyRequests,
+                detail = "Trop de requêtes.",
+                extraHeaders = mapOf(HttpHeaders.RetryAfter to "30"),
+            )
+        }
+        val failure = assertFailsWith<DomainException.RateLimited> { f.repo.login("a@b.dev", "x") }
+        assertEquals(30, failure.retryAfterSeconds)
+    }
+
+    @Test
     fun login_maps_403_locked_to_account_locked() = runTest {
         val f = Fixture {
             respondProblem(HttpStatusCode.Forbidden, "Ce compte est temporairement verrouillé suite à plusieurs tentatives.")

@@ -17,6 +17,9 @@ import com.dmb.chantiertracker.presentation.auth.register.RegisterScreen
 import com.dmb.chantiertracker.presentation.auth.reset.ResetPasswordScreen
 import com.dmb.chantiertracker.presentation.auth.verify.VerifyEmailScreen
 import com.dmb.chantiertracker.presentation.auth.welcome.WelcomeScreen
+import com.dmb.chantiertracker.presentation.legal.StandaloneLegalDocumentScreen
+import com.dmb.chantiertracker.presentation.legal.legalDocumentFromArg
+import com.dmb.chantiertracker.presentation.legal.toArg
 import com.dmb.chantiertracker.presentation.main.MainScreen
 import com.dmb.chantiertracker.presentation.onboarding.OnboardingScreen
 import com.dmb.chantiertracker.presentation.splash.SplashScreen
@@ -57,6 +60,8 @@ fun RootNavHost(viewModel: RootViewModel = koinViewModel()) {
 private fun AuthNavHost(startPoint: AuthStartPoint, onOnboardingFinished: () -> Unit) {
     val navController = rememberNavController()
     val neverLoggedIn = startPoint != AuthStartPoint.Login
+    val openLegalDocument: (com.dmb.chantiertracker.presentation.legal.LegalDocument) -> Unit =
+        { navController.navigate(LegalDocumentRoute(it.toArg())) }
 
     NavHost(
         navController = navController,
@@ -82,6 +87,7 @@ private fun AuthNavHost(startPoint: AuthStartPoint, onOnboardingFinished: () -> 
                 onCreateAccount = { navController.navigate(RegisterRoute()) },
                 onSignIn = { navController.navigate(LoginRoute()) },
                 onDiscoverPlans = { navController.navigate(PlanSelectionRoute) },
+                onOpenLegalDocument = openLegalDocument,
             )
         }
         composable<PlanSelectionRoute> {
@@ -98,6 +104,7 @@ private fun AuthNavHost(startPoint: AuthStartPoint, onOnboardingFinished: () -> 
             LoginScreen(
                 onNavigateToRegister = { navController.navigate(RegisterRoute()) },
                 onNavigateToForgotPassword = { navController.navigate(ForgotPasswordRoute) },
+                onOpenLegalDocument = openLegalDocument,
                 onBack = if (navController.previousBackStackEntry != null) {
                     { navController.popBackStack() }
                 } else {
@@ -116,6 +123,7 @@ private fun AuthNavHost(startPoint: AuthStartPoint, onOnboardingFinished: () -> 
                     navController.navigate(VerifyEmailRoute(email, route.checkoutPlan, route.checkoutCycle))
                 },
                 onBackToLogin = { navController.backToLogin(neverLoggedIn) },
+                onOpenLegalDocument = openLegalDocument,
                 onBack = { navController.popBackStack() },
             )
         }
@@ -135,6 +143,11 @@ private fun AuthNavHost(startPoint: AuthStartPoint, onOnboardingFinished: () -> 
                 onCancelVerification = { navController.backToLogin(neverLoggedIn) },
                 onBack = { navController.popBackStack() },
             )
+        }
+        composable<LegalDocumentRoute> { entry ->
+            legalDocumentFromArg(entry.toRoute<LegalDocumentRoute>().document)?.let { document ->
+                StandaloneLegalDocumentScreen(document, onBack = { navController.popBackStack() })
+            }
         }
         composable<ForgotPasswordRoute> {
             ForgotPasswordScreen(

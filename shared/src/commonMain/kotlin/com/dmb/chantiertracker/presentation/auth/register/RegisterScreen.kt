@@ -11,12 +11,14 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dmb.chantiertracker.presentation.auth.components.AuthFooterPrompt
 import com.dmb.chantiertracker.presentation.auth.components.AuthPrimaryButton
+import com.dmb.chantiertracker.presentation.auth.components.RegisterLegalConsent
 import com.dmb.chantiertracker.presentation.auth.components.AuthScreenLayout
 import com.dmb.chantiertracker.presentation.auth.components.EmailField
 import com.dmb.chantiertracker.presentation.auth.components.ErrorBanner
 import com.dmb.chantiertracker.presentation.auth.components.NameField
 import com.dmb.chantiertracker.presentation.auth.components.PasswordField
 import com.dmb.chantiertracker.presentation.i18n.localizedText
+import com.dmb.chantiertracker.presentation.legal.LegalDocument
 import com.dmb.chantiertracker.resources.Res
 import com.dmb.chantiertracker.resources.register_have_account_action
 import com.dmb.chantiertracker.resources.register_have_account_prompt
@@ -30,6 +32,7 @@ import org.koin.compose.viewmodel.koinViewModel
 fun RegisterScreen(
     onRegistered: (email: String) -> Unit,
     onBackToLogin: () -> Unit,
+    onOpenLegalDocument: (LegalDocument) -> Unit,
     onBack: (() -> Unit)? = null,
     viewModel: RegisterViewModel = koinViewModel(),
 ) {
@@ -71,6 +74,7 @@ fun RegisterScreen(
             onClick = viewModel::submit,
             loading = state.isSubmitting,
         )
+        RegisterLegalConsent(onOpenDocument = onOpenLegalDocument)
 
         Spacer(Modifier.height(4.dp))
         AuthFooterPrompt(
