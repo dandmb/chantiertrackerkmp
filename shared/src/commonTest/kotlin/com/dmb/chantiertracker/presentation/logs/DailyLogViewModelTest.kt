@@ -65,11 +65,12 @@ class DailyLogViewModelTest {
         status: ProjectStatus = ProjectStatus.IN_PROGRESS,
         members: List<ProjectMember> = emptyList(),
         ownerPlan: com.dmb.chantiertracker.domain.model.Plan? = null,
+        ownerEntitlements: com.dmb.chantiertracker.domain.model.ProjectOwnerEntitlements? = null,
     ) = FakeProjectRepository(
         detail = ProjectDetail(
             localId = "p1", name = "Villa", description = null, location = null,
             currency = "EUR", timezone = "Europe/Paris", status = status, ownerId = ownerId,
-            ownerPlan = ownerPlan,
+            ownerPlan = ownerPlan, ownerEntitlements = ownerEntitlements,
         ),
         members = members,
     )
@@ -401,6 +402,37 @@ class DailyLogViewModelTest {
         val flexVm = vm(logs2, projects = projectRepo(ownerId = 1L, ownerPlan = Plan.SEMI_FLEX))
         flexVm.load("log-1"); advanceUntilIdle()
         assertTrue(flexVm.state.value.canAddVideo)
+    }
+
+    // ADR-66 lot 2 — a founder owner still on FREE: videos are on, capped at 2 minutes.
+    @Test
+    fun a_founder_owner_on_the_free_plan_gets_the_add_video_affordance() = runTest {
+        val founderProject = projectRepo(
+            ownerId = 1L, ownerPlan = Plan.FREE,
+            ownerEntitlements = com.dmb.chantiertracker.support.founderOnFreeEntitlements,
+        )
+        val v = vm(FakeDailyLogRepository(detail = logDetail()), projects = founderProject)
+        v.load("log-1"); advanceUntilIdle()
+
+        assertTrue(v.state.value.canAddVideo)
+    }
+
+    @Test
+    fun a_founder_owner_on_the_free_plan_is_pre_checked_against_the_two_minute_limit() = runTest {
+        val attachments = FakeAttachmentRepository()
+        val founderProject = projectRepo(
+            ownerId = 1L, ownerPlan = Plan.FREE,
+            ownerEntitlements = com.dmb.chantiertracker.support.founderOnFreeEntitlements,
+        )
+        val v = vm(FakeDailyLogRepository(detail = logDetail()), projects = founderProject, attachments = attachments)
+        v.load("log-1"); advanceUntilIdle()
+
+        v.onVideoSelected("e1", com.dmb.chantiertracker.support.fakeUploadFile(com.dmb.chantiertracker.support.mp4Bytes(180.0), name = "long.mp4"))
+        advanceUntilIdle()
+
+        assertNotNull(v.state.value.videoTooLong)
+        assertEquals("2 min 00 s", v.state.value.videoTooLong!!.limit)
+        assertTrue(attachments.log.isEmpty(), "the repository is never called for a too-long clip")
     }
 
     @Test

@@ -23,11 +23,13 @@ import com.dmb.chantiertracker.presentation.ResponsiveContent
 import com.dmb.chantiertracker.presentation.auth.components.AuthPrimaryButton
 import com.dmb.chantiertracker.presentation.auth.components.ErrorBanner
 import com.dmb.chantiertracker.presentation.auth.components.InfoBanner
+import com.dmb.chantiertracker.presentation.billing.paidPlansAreOffered
 import com.dmb.chantiertracker.presentation.i18n.localizedText
 import com.dmb.chantiertracker.resources.Res
 import com.dmb.chantiertracker.resources.invite_member_email_label
 import com.dmb.chantiertracker.resources.invite_member_hint
 import com.dmb.chantiertracker.resources.invite_member_limit
+import com.dmb.chantiertracker.resources.invite_member_limit_no_upgrade
 import com.dmb.chantiertracker.resources.invite_member_submit
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
@@ -55,7 +57,8 @@ fun InviteMemberScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             if (state.atSupervisorLimit) {
-                InfoBanner(stringResource(Res.string.invite_member_limit))
+                val limitMessage = if (paidPlansAreOffered()) Res.string.invite_member_limit else Res.string.invite_member_limit_no_upgrade
+                InfoBanner(stringResource(limitMessage))
             }
             state.formError?.let { ErrorBanner(it.localizedText()) }
 

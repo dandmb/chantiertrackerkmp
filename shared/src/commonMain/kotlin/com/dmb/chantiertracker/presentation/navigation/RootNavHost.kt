@@ -1,6 +1,7 @@
 package com.dmb.chantiertracker.presentation.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
@@ -17,6 +18,7 @@ import com.dmb.chantiertracker.presentation.auth.register.RegisterScreen
 import com.dmb.chantiertracker.presentation.auth.reset.ResetPasswordScreen
 import com.dmb.chantiertracker.presentation.auth.verify.VerifyEmailScreen
 import com.dmb.chantiertracker.presentation.auth.welcome.WelcomeScreen
+import com.dmb.chantiertracker.presentation.billing.paidPlansAreOffered
 import com.dmb.chantiertracker.presentation.legal.StandaloneLegalDocumentScreen
 import com.dmb.chantiertracker.presentation.legal.legalDocumentFromArg
 import com.dmb.chantiertracker.presentation.legal.toArg
@@ -60,6 +62,7 @@ fun RootNavHost(viewModel: RootViewModel = koinViewModel()) {
 private fun AuthNavHost(startPoint: AuthStartPoint, onOnboardingFinished: () -> Unit) {
     val navController = rememberNavController()
     val neverLoggedIn = startPoint != AuthStartPoint.Login
+    val paidPlansOffered = paidPlansAreOffered()
     val openLegalDocument: (com.dmb.chantiertracker.presentation.legal.LegalDocument) -> Unit =
         { navController.navigate(LegalDocumentRoute(it.toArg())) }
 
@@ -86,18 +89,28 @@ private fun AuthNavHost(startPoint: AuthStartPoint, onOnboardingFinished: () -> 
             WelcomeScreen(
                 onCreateAccount = { navController.navigate(RegisterRoute()) },
                 onSignIn = { navController.navigate(LoginRoute()) },
-                onDiscoverPlans = { navController.navigate(PlanSelectionRoute) },
+                onDiscoverPlans = if (paidPlansOffered) {
+                    { navController.navigate(PlanSelectionRoute) }
+                } else {
+                    null
+                },
                 onOpenLegalDocument = openLegalDocument,
             )
         }
         composable<PlanSelectionRoute> {
-            PlanSelectionScreen(
-                onSelectPlan = { plan, cycle ->
-                    navController.navigate(RegisterRoute(checkoutPlan = plan.name, checkoutCycle = cycle.name))
-                },
-                onContinueFree = { navController.navigate(RegisterRoute()) },
-                onBack = { navController.popBackStack() },
-            )
+            // The switch can close (or a refresh can fail) while this screen is
+            // on the back stack — it then leaves rather than keep showing prices.
+            if (paidPlansOffered) {
+                PlanSelectionScreen(
+                    onSelectPlan = { plan, cycle ->
+                        navController.navigate(RegisterRoute(checkoutPlan = plan.name, checkoutCycle = cycle.name))
+                    },
+                    onContinueFree = { navController.navigate(RegisterRoute()) },
+                    onBack = { navController.popBackStack() },
+                )
+            } else {
+                LaunchedEffect(Unit) { navController.popBackStack(PlanSelectionRoute, inclusive = true) }
+            }
         }
         composable<LoginRoute> { entry ->
             val route = entry.toRoute<LoginRoute>()

@@ -30,6 +30,7 @@ import com.dmb.chantiertracker.presentation.legal.LegalDocument
 import com.dmb.chantiertracker.presentation.legal.StandaloneLegalDocumentScreen
 import com.dmb.chantiertracker.presentation.theme.AppTheme
 import com.dmb.chantiertracker.support.FakeAuthRepository
+import com.dmb.chantiertracker.support.FakeBillingRepository
 import com.dmb.chantiertracker.support.FakeCheckoutLauncher
 import com.dmb.chantiertracker.support.installTestMainDispatcher
 import com.dmb.chantiertracker.support.resetTestMainDispatcher
@@ -161,7 +162,7 @@ class LegalScreensUiTest {
                 onNavigateToRegister = {},
                 onNavigateToForgotPassword = {},
                 onOpenLegalDocument = { opened += it },
-                viewModel = LoginViewModel(FakeAuthRepository(), FakeCheckoutLauncher()),
+                viewModel = LoginViewModel(FakeAuthRepository(), FakeCheckoutLauncher(), FakeBillingRepository()),
             )
         }
 

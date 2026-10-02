@@ -68,6 +68,7 @@ import com.dmb.chantiertracker.presentation.WidthSizeClass
 import com.dmb.chantiertracker.presentation.format.formatAmount
 import com.dmb.chantiertracker.presentation.format.formatMoney
 import com.dmb.chantiertracker.presentation.formatIsoDate
+import com.dmb.chantiertracker.presentation.billing.paidPlansAreOffered
 import com.dmb.chantiertracker.presentation.i18n.localizedText
 import com.dmb.chantiertracker.presentation.main.AddIcon
 import com.dmb.chantiertracker.presentation.main.FlagIcon
@@ -650,7 +651,8 @@ private fun AttachmentsSection(
             Text(stringResource(Res.string.attachment_upload_error), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
         }
         state.videoTooLong?.let { tooLong ->
-            val res = if (tooLong.hasUpgrade) Res.string.video_too_long_upgrade else Res.string.video_too_long_no_upgrade
+            val suggestUpgrade = tooLong.hasUpgrade && paidPlansAreOffered()
+            val res = if (suggestUpgrade) Res.string.video_too_long_upgrade else Res.string.video_too_long_no_upgrade
             Text(
                 stringResource(res, tooLong.actual, tooLong.limit),
                 style = MaterialTheme.typography.bodySmall,

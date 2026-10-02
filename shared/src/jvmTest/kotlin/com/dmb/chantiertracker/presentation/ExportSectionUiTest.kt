@@ -2,6 +2,7 @@ package com.dmb.chantiertracker.presentation
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
@@ -10,8 +11,9 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.runComposeUiTest
 import androidx.compose.ui.unit.dp
+import com.dmb.chantiertracker.domain.model.BillingAvailability
 import com.dmb.chantiertracker.domain.model.DomainException
-import com.dmb.chantiertracker.domain.model.Plan
+import com.dmb.chantiertracker.presentation.billing.LocalBillingAvailability
 import com.dmb.chantiertracker.presentation.i18n.AppEnvironment
 import com.dmb.chantiertracker.presentation.i18n.customAppLocale
 import com.dmb.chantiertracker.presentation.projects.export.ExportSection
@@ -38,21 +40,24 @@ class ExportSectionUiTest {
     }
 
     private fun ComposeUiTest.mount(
-        ownerPlan: Plan,
+        canExport: Boolean,
         repo: FakeExportRepository = FakeExportRepository(),
         opener: FakePdfOpener = FakePdfOpener(),
         sharer: FakePdfSharer = FakePdfSharer(),
+        billing: BillingAvailability = BillingAvailability.OPEN,
     ) {
         setContent {
             customAppLocale = "fr"
             AppEnvironment {
                 AppTheme {
-                    Box(Modifier.size(412.dp, 892.dp)) {
-                        ExportSection(
-                            projectLocalId = "p1",
-                            ownerPlan = ownerPlan,
-                            viewModel = ProjectExportViewModel(repo, opener, sharer),
-                        )
+                    CompositionLocalProvider(LocalBillingAvailability provides billing) {
+                        Box(Modifier.size(412.dp, 892.dp)) {
+                            ExportSection(
+                                projectLocalId = "p1",
+                                canExport = canExport,
+                                viewModel = ProjectExportViewModel(repo, opener, sharer),
+                            )
+                        }
                     }
                 }
             }
@@ -61,8 +66,8 @@ class ExportSectionUiTest {
     }
 
     @Test
-    fun a_semi_flex_owner_sees_the_export_button() = runComposeUiTest {
-        mount(Plan.SEMI_FLEX)
+    fun an_owner_allowed_to_export_sees_the_export_button() = runComposeUiTest {
+        mount(canExport = true)
 
         onNodeWithText("Export PDF").assertExists()
         onNodeWithText("Exporter en PDF").assertExists()
@@ -70,11 +75,35 @@ class ExportSectionUiTest {
     }
 
     @Test
-    fun a_free_owner_sees_the_upgrade_hint_and_no_button() = runComposeUiTest {
-        mount(Plan.FREE)
+    fun an_owner_not_allowed_to_export_sees_the_upgrade_hint_and_no_button() = runComposeUiTest {
+        mount(canExport = false)
 
         onNodeWithText("Passez à Semi-flex ou Liberté pour exporter ce projet en PDF.").assertExists()
         onNodeWithText("Exporter en PDF").assertDoesNotExist()
+    }
+
+    @Test
+    fun while_billing_is_closed_the_hint_never_suggests_upgrading() = runComposeUiTest {
+        mount(canExport = false, billing = BillingAvailability.CLOSED)
+
+        onNodeWithText("L'export PDF n'est pas disponible pour ce projet.").assertExists()
+        onNodeWithText("Passez à", substring = true).assertDoesNotExist()
+        onNodeWithText("Exporter en PDF").assertDoesNotExist()
+    }
+
+    @Test
+    fun an_unknown_billing_status_is_treated_like_closed() = runComposeUiTest {
+        mount(canExport = false, billing = BillingAvailability.UNKNOWN)
+
+        onNodeWithText("L'export PDF n'est pas disponible pour ce projet.").assertExists()
+        onNodeWithText("Passez à", substring = true).assertDoesNotExist()
+    }
+
+    @Test
+    fun the_export_button_does_not_depend_on_billing_being_open() = runComposeUiTest {
+        mount(canExport = true, billing = BillingAvailability.CLOSED)
+
+        onNodeWithText("Exporter en PDF").assertExists()
     }
 
     @Test
@@ -82,7 +111,7 @@ class ExportSectionUiTest {
         val repo = FakeExportRepository()
         val opener = FakePdfOpener()
         val sharer = FakePdfSharer()
-        mount(Plan.LIBERTE, repo, opener, sharer)
+        mount(canExport = true, repo = repo, opener = opener, sharer = sharer)
 
         onNodeWithText("Exporter en PDF").performClick()
         waitForIdle()
@@ -99,7 +128,7 @@ class ExportSectionUiTest {
     fun clicking_open_after_export_hands_the_file_to_the_platform_opener() = runComposeUiTest {
         val opener = FakePdfOpener()
         val sharer = FakePdfSharer()
-        mount(Plan.LIBERTE, opener = opener, sharer = sharer)
+        mount(canExport = true, opener = opener, sharer = sharer)
 
         onNodeWithText("Exporter en PDF").performClick()
         waitForIdle()
@@ -114,7 +143,7 @@ class ExportSectionUiTest {
     fun clicking_share_after_export_hands_the_file_to_the_platform_sharer() = runComposeUiTest {
         val opener = FakePdfOpener()
         val sharer = FakePdfSharer()
-        mount(Plan.LIBERTE, opener = opener, sharer = sharer)
+        mount(canExport = true, opener = opener, sharer = sharer)
 
         onNodeWithText("Exporter en PDF").performClick()
         waitForIdle()
@@ -128,7 +157,7 @@ class ExportSectionUiTest {
     @Test
     fun a_failure_shows_an_error_banner_and_keeps_the_export_button() = runComposeUiTest {
         val repo = FakeExportRepository().apply { error = DomainException.Network }
-        mount(Plan.SEMI_FLEX, repo)
+        mount(canExport = true, repo = repo)
 
         onNodeWithText("Exporter en PDF").performClick()
         waitUntil(timeoutMillis = 5_000L) {

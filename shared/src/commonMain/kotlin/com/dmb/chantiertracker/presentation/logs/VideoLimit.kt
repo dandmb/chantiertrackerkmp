@@ -1,18 +1,17 @@
 package com.dmb.chantiertracker.presentation.logs
 
-import com.dmb.chantiertracker.domain.model.Plan
+import com.dmb.chantiertracker.domain.model.ProjectDetail
 import com.dmb.chantiertracker.domain.model.hasUpgrade
-import com.dmb.chantiertracker.domain.model.maxVideoDurationSeconds
-import com.dmb.chantiertracker.domain.model.maxVideos
+import com.dmb.chantiertracker.domain.model.ownerMaxVideoDurationSeconds
+import com.dmb.chantiertracker.domain.model.ownerMaxVideos
 import kotlin.math.ceil
 import kotlin.math.roundToLong
 
 /**
- * Client-side mirror of the backend video-upload plan rules
- * (`PlanLimitService.maxVideos` / `maxVideoDurationSeconds` /
- * `VideoTooLongException`). Everything hangs off the **project owner's** plan
- * (`ProjectDetail.ownerPlan`, ADR-33), never the uploader's — a supervisor
- * inherits the owner's video limits.
+ * Client-side mirror of the backend video-upload rules (`PlanLimitService.maxVideos` /
+ * `maxVideoDurationSeconds` / `VideoTooLongException`). Everything hangs off the
+ * **project owner's** account, never the uploader's — a supervisor inherits the
+ * owner's video limits.
  *
  * Used as a courtesy pre-check so a too-long video is rejected **before** a
  * slow upload the server would refuse anyway (same stance as the web, and as
@@ -25,23 +24,37 @@ sealed interface VideoDurationCheck {
     data class TooLong(val actual: String, val limit: String, val hasUpgrade: Boolean) : VideoDurationCheck
 }
 
+/**
+ * The owner's video allowance for one project, as the backend combined it
+ * (plan + founder status, ADR-66) — or, against a backend that doesn't send
+ * it, as the owner's plan alone implies. `maxDurationSeconds = null`: not known
+ * yet. `hasUpgrade` stays a property of the plan: founder status is a floor,
+ * not a tier to sell.
+ */
+data class OwnerVideoLimits(val maxVideos: Int, val maxDurationSeconds: Int?, val hasUpgrade: Boolean)
+
+fun ProjectDetail.ownerVideoLimits() = OwnerVideoLimits(
+    maxVideos = ownerMaxVideos(),
+    maxDurationSeconds = ownerMaxVideoDurationSeconds(),
+    hasUpgrade = ownerPlan?.hasUpgrade() ?: true,
+)
+
 object VideoLimit {
 
-    /** Whether the "Add a video" affordance shows at all (SEMI_FLEX / LIBERTE). */
-    fun canAdd(ownerPlan: Plan?): Boolean = (ownerPlan ?: Plan.UNKNOWN).maxVideos() > 0
+    /** Whether the "Add a video" affordance shows at all. */
+    fun canAdd(limits: OwnerVideoLimits?): Boolean = (limits?.maxVideos ?: 0) > 0
 
     /**
      * @param durationSeconds the client-probed duration; `null` when probing
      *   failed (unusual container/codec) — treated as OK, the server decides.
      */
-    fun check(ownerPlan: Plan?, durationSeconds: Double?): VideoDurationCheck {
-        val plan = ownerPlan ?: return VideoDurationCheck.Ok
-        val limit = plan.maxVideoDurationSeconds()
+    fun check(limits: OwnerVideoLimits?, durationSeconds: Double?): VideoDurationCheck {
+        val limit = limits?.maxDurationSeconds ?: return VideoDurationCheck.Ok
         if (limit <= 0 || durationSeconds == null) return VideoDurationCheck.Ok
         // ffprobe rounds up (Math.ceil) — a 119.4s clip counts as 120s. Match that.
         val actual = ceil(durationSeconds).roundToLong()
         return if (actual > limit) {
-            VideoDurationCheck.TooLong(formatDuration(actual), formatDuration(limit.toLong()), plan.hasUpgrade())
+            VideoDurationCheck.TooLong(formatDuration(actual), formatDuration(limit.toLong()), limits.hasUpgrade)
         } else {
             VideoDurationCheck.Ok
         }

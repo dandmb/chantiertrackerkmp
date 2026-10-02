@@ -5,7 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.dmb.chantiertracker.domain.model.DomainException
 import com.dmb.chantiertracker.domain.model.HistorySort
 import com.dmb.chantiertracker.domain.model.ModificationHistoryItem
-import com.dmb.chantiertracker.domain.model.Plan
+import com.dmb.chantiertracker.domain.model.ownerMaxHistoryDays
 import com.dmb.chantiertracker.domain.repository.HistoryRepository
 import com.dmb.chantiertracker.domain.repository.ProjectRepository
 import kotlinx.coroutines.CancellationException
@@ -25,9 +25,9 @@ data class ProjectHistoryUiState(
     val isFirst: Boolean = true,
     val isLast: Boolean = true,
     val sort: HistorySort = HistorySort.NEWEST_FIRST,
-    // The project OWNER's plan — drives the retention notice (30 j / 6 mois /
-    // rien). Null until the local project row is observed.
-    val ownerPlan: Plan? = null,
+    // The project OWNER's retention window — drives the notice (30 j / 6 mois /
+    // rien). Null = unlimited, or the local project row isn't observed yet.
+    val ownerMaxHistoryDays: Int? = null,
 ) {
     val showPagination: Boolean get() = totalPages > 1
 }
@@ -53,7 +53,7 @@ class ProjectHistoryViewModel(
 
         viewModelScope.launch {
             projectRepository.observeProject(projectLocalId).collect { detail ->
-                _state.update { it.copy(ownerPlan = detail?.ownerPlan) }
+                _state.update { it.copy(ownerMaxHistoryDays = detail?.ownerMaxHistoryDays()) }
             }
         }
         fetch(page = 0)

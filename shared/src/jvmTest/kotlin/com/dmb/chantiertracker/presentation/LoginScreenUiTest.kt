@@ -10,6 +10,7 @@ import com.dmb.chantiertracker.presentation.i18n.AppEnvironment
 import com.dmb.chantiertracker.presentation.i18n.customAppLocale
 import com.dmb.chantiertracker.presentation.theme.AppTheme
 import com.dmb.chantiertracker.support.FakeAuthRepository
+import com.dmb.chantiertracker.support.FakeBillingRepository
 import com.dmb.chantiertracker.support.FakeCheckoutLauncher
 import com.dmb.chantiertracker.support.installTestMainDispatcher
 import com.dmb.chantiertracker.support.resetTestMainDispatcher
@@ -41,7 +42,7 @@ class LoginScreenUiTest {
                         onNavigateToRegister = {},
                         onNavigateToForgotPassword = {},
                         onOpenLegalDocument = {},
-                        viewModel = LoginViewModel(FakeAuthRepository(), FakeCheckoutLauncher()),
+                        viewModel = LoginViewModel(FakeAuthRepository(), FakeCheckoutLauncher(), FakeBillingRepository()),
                     )
                 }
             }
@@ -63,7 +64,7 @@ class LoginScreenUiTest {
                         onNavigateToRegister = {},
                         onNavigateToForgotPassword = {},
                         onOpenLegalDocument = {},
-                        viewModel = LoginViewModel(FakeAuthRepository(), FakeCheckoutLauncher()),
+                        viewModel = LoginViewModel(FakeAuthRepository(), FakeCheckoutLauncher(), FakeBillingRepository()),
                     )
                 }
             }

@@ -362,6 +362,32 @@ class SyncEngineTest {
         assertEquals("SEMI_FLEX", f.dao.findByLocalId("p5")?.ownerPlan)
     }
 
+    // ADR-66 — the owner's combined entitlements travel with the same detail pull.
+    @Test
+    fun sync_project_stores_the_owner_entitlements_of_a_founder_on_the_free_plan() = runTest {
+        val f = Fixture()
+        f.backend.seed(
+            ServerProject(
+                id = 5, name = "Villa Vidal", ownerPlan = "FREE",
+                ownerEntitlementsJson = """"ownerIsFounder":true,"ownerCanExportPdf":true,"ownerMaxHistoryDays":180,
+                    |"ownerMaxVideos":5,"ownerMaxVideoDurationSeconds":120,"ownerMaxSupervisorsPerProject":3,""".trimMargin(),
+            ),
+        )
+        f.dao.upsert(localProject("p5", serverId = 5, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+        val engine = f.engine(backgroundScope)
+
+        engine.syncProject("p5")
+
+        val stored = f.dao.findByLocalId("p5")
+        assertEquals("FREE", stored?.ownerPlan)
+        assertEquals(true, stored?.ownerIsFounder)
+        assertEquals(true, stored?.ownerCanExportPdf)
+        assertEquals(180, stored?.ownerMaxHistoryDays)
+        assertEquals(5, stored?.ownerMaxVideos)
+        assertEquals(120, stored?.ownerMaxVideoDurationSeconds)
+        assertEquals(3, stored?.ownerMaxSupervisorsPerProject)
+    }
+
     @Test
     fun sync_project_clears_the_invitation_cache_when_the_server_answers_403() = runTest {
         val f = Fixture()

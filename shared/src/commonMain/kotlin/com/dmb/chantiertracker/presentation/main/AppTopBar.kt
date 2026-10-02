@@ -32,6 +32,7 @@ import com.dmb.chantiertracker.resources.plan_free
 import com.dmb.chantiertracker.resources.plan_liberte
 import com.dmb.chantiertracker.resources.plan_semi_flex
 import com.dmb.chantiertracker.resources.plan_unknown
+import com.dmb.chantiertracker.resources.plan_with_founder
 import org.jetbrains.compose.resources.stringResource
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -42,6 +43,7 @@ fun AppTopBar(
     plan: Plan?,
     onSubscription: () -> Unit,
     onLogout: () -> Unit,
+    isFounder: Boolean = false,
     leadingActions: @Composable RowScope.() -> Unit = {},
 ) {
     var menuOpen by remember { mutableStateOf(false) }
@@ -60,6 +62,7 @@ fun AppTopBar(
                     userName = userName,
                     email = email,
                     plan = plan,
+                    isFounder = isFounder,
                     onSubscription = {
                         menuOpen = false
                         onSubscription()
@@ -87,6 +90,7 @@ fun AccountMenuBody(
     plan: Plan?,
     onSubscription: () -> Unit,
     onLogout: () -> Unit,
+    isFounder: Boolean = false,
 ) {
     Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
         Text(
@@ -108,7 +112,11 @@ fun AccountMenuBody(
             Column {
                 Text(stringResource(Res.string.menu_subscription))
                 Text(
-                    text = stringResource(plan.labelRes()),
+                    text = if (isFounder) {
+                        stringResource(Res.string.plan_with_founder, stringResource(plan.labelRes()))
+                    } else {
+                        stringResource(plan.labelRes())
+                    },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

@@ -24,6 +24,8 @@ class ServerProject(
     var timezone: String = "UTC",
     var ownerId: Long = 1L,
     var ownerPlan: String = "FREE",
+    /** Raw `"ownerIsFounder":…,` JSON members, as a founder-aware backend adds them to the detail. */
+    var ownerEntitlementsJson: String = "",
     var status: String = "IN_PROGRESS",
     var createdAt: String = "2026-01-01T09:00:00",
     var updatedAt: String = "2026-01-01T09:00:00",
@@ -573,7 +575,7 @@ class FakeProjectBackend {
     private fun detailJson(p: ServerProject): String = """
         {"id":${p.id},"name":${p.name.q()},"description":${p.description.q()},"location":${p.location.q()},
          "currency":${p.currency.q()},"timezone":${p.timezone.q()},"ownerId":${p.ownerId},"ownerPlan":${p.ownerPlan.q()},
-         "status":${p.status.q()},"createdAt":${p.createdAt.q()},"updatedAt":${p.updatedAt.q()},
+         ${p.ownerEntitlementsJson}"status":${p.status.q()},"createdAt":${p.createdAt.q()},"updatedAt":${p.updatedAt.q()},
          "totalEstimatedBudget":null,"totalSpent":null}
     """.trimIndent()
 

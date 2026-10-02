@@ -126,6 +126,8 @@ class MainScreensSnapshotTest {
         locale: String,
         dark: Boolean = false,
         awaitReady: (ComposeUiTest.() -> Boolean)? = null,
+        billing: com.dmb.chantiertracker.domain.model.BillingAvailability =
+            com.dmb.chantiertracker.domain.model.BillingAvailability.OPEN,
         content: @Composable () -> Unit,
     ) =
         runComposeUiTest {
@@ -133,7 +135,11 @@ class MainScreensSnapshotTest {
                 customAppLocale = locale
                 AppEnvironment {
                     AppTheme(darkTheme = dark) {
-                        Box(Modifier.size(412.dp, 892.dp)) { content() }
+                        androidx.compose.runtime.CompositionLocalProvider(
+                            com.dmb.chantiertracker.presentation.billing.LocalBillingAvailability provides billing,
+                        ) {
+                            Box(Modifier.size(412.dp, 892.dp)) { content() }
+                        }
                     }
                 }
             }
@@ -902,10 +908,40 @@ class MainScreensSnapshotTest {
                     Box(m.padding(horizontal = 24.dp, vertical = 20.dp)) {
                         com.dmb.chantiertracker.presentation.projects.export.ExportSection(
                             projectLocalId = "1",
-                            ownerPlan = Plan.SEMI_FLEX,
+                            canExport = true,
                             viewModel = projectExportVm(),
                         )
                     }
+                }
+            }
+            // ADR-66 — a founder on the FREE plan while billing is closed: badge +
+            // explanation, Semi-Flex-level limits, and no price anywhere.
+            snapshot(
+                "39b-billing-founder-billing-closed",
+                locale,
+                billing = com.dmb.chantiertracker.domain.model.BillingAvailability.CLOSED,
+            ) {
+                DetailChrome(title = if (locale == "fr") "Abonnement" else "Subscription") { m ->
+                    com.dmb.chantiertracker.presentation.billing.BillingScreen(
+                        modifier = m,
+                        viewModel = billingVm(
+                            com.dmb.chantiertracker.domain.model.PlanUsage(
+                                plan = Plan.FREE,
+                                projectsLimit = 3,
+                                projectsUsed = 2,
+                                photosUsed = 40,
+                                photosLimit = 150,
+                                videosUsed = 1,
+                                videosLimit = 5,
+                                videoDurationLimitSeconds = 120,
+                                supervisorsUsed = 1,
+                                supervisorsLimit = 3,
+                                isFounder = true,
+                                historyDaysLimit = 180,
+                                historyDaysLimitKnown = true,
+                            ),
+                        ),
+                    )
                 }
             }
             snapshot("39-billing", locale) {
@@ -1022,6 +1058,18 @@ class MainScreensSnapshotTest {
             }
         }
         for (locale in listOf("fr", "en")) {
+            snapshot("15b-account-menu-founder", locale) {
+                MenuSurface {
+                    AccountMenuBody(
+                        userName = "Jean Marchand",
+                        email = "jean@chantier.dev",
+                        plan = Plan.FREE,
+                        onSubscription = {},
+                        onLogout = {},
+                        isFounder = true,
+                    )
+                }
+            }
             snapshot("15-account-menu", locale) {
                 MenuSurface {
                     AccountMenuBody(

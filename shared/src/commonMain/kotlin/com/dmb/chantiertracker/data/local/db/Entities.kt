@@ -33,6 +33,16 @@ data class ProjectEntity(
     // Null until the first detail pull — the supervisor-limit pre-check
     // fails open in that window (ADR-33). Not set by the project-list pull.
     val ownerPlan: String? = null,
+    // The owner's entitlements as already combined by the backend (plan +
+    // founder status), stored as one block. ownerIsFounder null = never
+    // received; ownerMaxHistoryDays / ownerMaxSupervisorsPerProject null only
+    // mean "unlimited" once the block is there.
+    val ownerIsFounder: Boolean? = null,
+    val ownerCanExportPdf: Boolean? = null,
+    val ownerMaxHistoryDays: Int? = null,
+    val ownerMaxVideos: Int? = null,
+    val ownerMaxVideoDurationSeconds: Int? = null,
+    val ownerMaxSupervisorsPerProject: Int? = null,
 )
 
 @Entity(tableName = "project_members", primaryKeys = ["projectLocalId", "userId"])
@@ -91,6 +101,10 @@ data class PlanUsageEntity(
     val supervisorsLimit: Int? = null,
     val planExpiresAt: String? = null,
     val hasStripeCustomer: Boolean? = null,
+    val isFounder: Boolean? = null,
+    // historyDaysLimit null means "unlimited" only when historyDaysLimitKnown is true.
+    val historyDaysLimit: Int? = null,
+    val historyDaysLimitKnown: Boolean? = null,
 )
 
 @Entity(

@@ -99,6 +99,7 @@
     <string name="plan_semi_flex">Semi-Flex plan</string>
     <string name="plan_liberte">Liberté plan</string>
     <string name="plan_unknown">—</string>
+    <string name="plan_with_founder">%1$s · Founder</string>
 
     <string name="projects_empty_title">No projects yet</string>
     <string name="projects_empty_body">Create your first project, then invite whoever follows the site — or do it all yourself if you prefer.</string>
@@ -159,6 +160,7 @@
     <string name="invite_member_hint">The invitee will join this project as a Supervisor.</string>
     <string name="invite_member_submit">Send invitation</string>
     <string name="invite_member_limit">You have reached your plan's supervisors-per-project limit. Upgrade to a higher tier to invite more.</string>
+    <string name="invite_member_limit_no_upgrade">You have reached your plan's supervisors-per-project limit.</string>
 
     <string name="incoming_invitation_body">You have a pending invitation to join %1$s as %2$s.</string>
     <string name="incoming_invitation_body_with_inviter">You have a pending invitation to join %1$s as %2$s, sent by %3$s.</string>
@@ -182,6 +184,9 @@
     <string name="history_next">Next</string>
     <string name="history_limit_free">History is limited to the last 30 days. Upgrade to Semi-flex or Liberté for a longer history.</string>
     <string name="history_limit_semi_flex">History is limited to the last 6 months. Upgrade to Liberté for unlimited history.</string>
+    <string name="history_limit_30_days">History is limited to the last 30 days.</string>
+    <string name="history_limit_6_months">History is limited to the last 6 months.</string>
+    <string name="history_limit_days">History is limited to the last %1$d days.</string>
     <string name="history_action_creation">Creation</string>
     <string name="history_action_modification">Modification</string>
     <string name="history_action_deletion">Deletion</string>
@@ -195,9 +200,12 @@
     <string name="detail_export_share">Share</string>
     <string name="detail_export_regenerate">Regenerate</string>
     <string name="detail_export_upgrade">Upgrade to Semi-flex or Liberté to export this project to PDF.</string>
+    <string name="detail_export_unavailable">PDF export is not available for this project.</string>
 
     <string name="billing_title">Subscription</string>
     <string name="billing_plan_section">Current plan</string>
+    <string name="billing_founder_badge">Founder</string>
+    <string name="billing_founder_explanation">You are one of our first users. This permanent status guarantees you at least the benefits of the Semi-Flex plan, whatever your plan: your actual limits are the ones shown below.</string>
     <string name="billing_next_due">Next due date: %1$s</string>
     <string name="billing_usage_section">Usage</string>
     <string name="billing_usage_projects">%1$d/%2$d projects used</string>
@@ -410,6 +418,8 @@
     <string name="error_validation">Please check the information you entered.</string>
     <string name="error_rate_limited">Too many requests. Please try again shortly.</string>
     <string name="error_plan_limit">You've reached your plan's project limit. Upgrade to a higher tier to create more.</string>
+    <string name="error_plan_limit_no_upgrade">You've reached your plan's project limit.</string>
+    <string name="error_billing_not_open">Paid plans are not open yet.</string>
     <string name="error_forbidden">You're not allowed to do that.</string>
     <string name="error_not_found">This project no longer exists, or you don't have access to it.</string>
     <string name="error_network">Can't reach the server. Check your connection.</string>

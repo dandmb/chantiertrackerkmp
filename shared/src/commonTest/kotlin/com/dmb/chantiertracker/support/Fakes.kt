@@ -585,7 +585,22 @@ class FakeExportRepository : com.dmb.chantiertracker.domain.repository.ExportRep
     }
 }
 
-class FakeBillingRepository : com.dmb.chantiertracker.domain.repository.BillingRepository {
+class FakeBillingRepository(
+    initialAvailability: com.dmb.chantiertracker.domain.model.BillingAvailability =
+        com.dmb.chantiertracker.domain.model.BillingAvailability.OPEN,
+) : com.dmb.chantiertracker.domain.repository.BillingRepository {
+    val availabilityFlow = MutableStateFlow(initialAvailability)
+    override val availability: StateFlow<com.dmb.chantiertracker.domain.model.BillingAvailability> = availabilityFlow
+    var refreshAvailabilityCount = 0
+        private set
+    /** Set to have refreshAvailability() also move the flow (mimics the server answer). */
+    var refreshedAvailability: com.dmb.chantiertracker.domain.model.BillingAvailability? = null
+
+    override suspend fun refreshAvailability() {
+        refreshAvailabilityCount++
+        refreshedAvailability?.let { availabilityFlow.value = it }
+    }
+
     val checkoutCalls = mutableListOf<Pair<com.dmb.chantiertracker.domain.model.Plan, com.dmb.chantiertracker.domain.model.BillingCycle>>()
     var portalCalls = 0
         private set
