@@ -494,4 +494,8 @@
         <item quantity="one">Too many attempts. Try again in %1$d minute.</item>
         <item quantity="other">Too many attempts. Try again in %1$d minutes.</item>
     </plurals>
+    <string name="legal_terms_of_sale_provisional_s1_title">No paid plan for the time being</string>
+    <string name="legal_terms_of_sale_provisional_s1_body">The Service is currently offered in its free plan only. No paid plan is available at this time.</string>
+    <string name="legal_terms_of_sale_provisional_s2_title">Publication of the terms of sale</string>
+    <string name="legal_terms_of_sale_provisional_s2_body">The General Terms of Sale will be published on this page when paid plans open, before any subscription is possible.\nUse of the Service remains governed by the General Terms of Use.</string>
 </resources>

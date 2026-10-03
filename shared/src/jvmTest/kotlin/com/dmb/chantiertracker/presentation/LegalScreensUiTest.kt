@@ -2,6 +2,7 @@ package com.dmb.chantiertracker.presentation
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.ComposeUiTest
@@ -24,6 +25,8 @@ import com.dmb.chantiertracker.presentation.auth.login.LoginViewModel
 import com.dmb.chantiertracker.presentation.auth.register.RegisterScreen
 import com.dmb.chantiertracker.presentation.auth.register.RegisterViewModel
 import com.dmb.chantiertracker.presentation.auth.welcome.WelcomeScreen
+import com.dmb.chantiertracker.domain.model.BillingAvailability
+import com.dmb.chantiertracker.presentation.billing.LocalBillingAvailability
 import com.dmb.chantiertracker.presentation.i18n.AppEnvironment
 import com.dmb.chantiertracker.presentation.i18n.customAppLocale
 import com.dmb.chantiertracker.presentation.legal.LegalDocument
@@ -50,12 +53,18 @@ class LegalScreensUiTest {
         resetTestMainDispatcher()
     }
 
-    private fun ComposeUiTest.mount(locale: String = "fr", screen: @androidx.compose.runtime.Composable () -> Unit) {
+    private fun ComposeUiTest.mount(
+        locale: String = "fr",
+        billing: BillingAvailability = BillingAvailability.UNKNOWN,
+        screen: @androidx.compose.runtime.Composable () -> Unit,
+    ) {
         setContent {
             customAppLocale = locale
             AppEnvironment {
                 AppTheme {
-                    Box(Modifier.size(412.dp, 892.dp)) { screen() }
+                    CompositionLocalProvider(LocalBillingAvailability provides billing) {
+                        Box(Modifier.size(412.dp, 892.dp)) { screen() }
+                    }
                 }
             }
         }
@@ -91,12 +100,134 @@ class LegalScreensUiTest {
     @Test
     fun no_document_ever_shows_a_raw_placeholder_token() = runComposeUiTest {
         val current = androidx.compose.runtime.mutableStateOf(LegalDocument.LegalNotice)
-        mount { StandaloneLegalDocumentScreen(current.value, onBack = {}) }
+        val billing = androidx.compose.runtime.mutableStateOf(BillingAvailability.OPEN)
+        setContent {
+            customAppLocale = "fr"
+            AppEnvironment {
+                AppTheme {
+                    CompositionLocalProvider(LocalBillingAvailability provides billing.value) {
+                        Box(Modifier.size(412.dp, 892.dp)) { StandaloneLegalDocumentScreen(current.value, onBack = {}) }
+                    }
+                }
+            }
+        }
 
-        LegalDocument.entries.forEach { document ->
-            current.value = document
+        // Both versions of the CGV included: the real one (open) and the provisional one (closed).
+        listOf(BillingAvailability.OPEN, BillingAvailability.CLOSED).forEach { availability ->
+            billing.value = availability
+            LegalDocument.entries.forEach { document ->
+                current.value = document
+                waitForIdle()
+                onAllNodes(hasText("{", substring = true)).assertCountEquals(0)
+            }
+        }
+    }
+
+    // ---- ADR-67 — the CGV change content with billing, the other documents never do
+
+    private fun ComposeUiTest.assertProvisionalTermsOfSale() {
+        onNodeWithText("Conditions générales de vente").assertIsDisplayed()
+        onNodeWithText("Aucune offre payante pour le moment").assertIsDisplayed()
+        onNodeWithText("Publication des conditions de vente").assertExists()
+        onNodeWithText("Les Conditions Générales de Vente seront publiées sur cette page", substring = true).assertExists()
+        onNodeWithText("1. Objet").assertDoesNotExist()
+        onNodeWithText("Semi-Flex", substring = true).assertDoesNotExist()
+        onNodeWithText("Stripe", substring = true).assertDoesNotExist()
+        onNodeWithText("prix", substring = true).assertDoesNotExist()
+    }
+
+    @Test
+    fun while_billing_is_closed_the_terms_of_sale_screen_shows_only_the_provisional_notice() = runComposeUiTest {
+        mount(billing = BillingAvailability.CLOSED) { StandaloneLegalDocumentScreen(LegalDocument.TermsOfSale, onBack = {}) }
+
+        assertProvisionalTermsOfSale()
+    }
+
+    @Test
+    fun an_unknown_billing_status_shows_the_provisional_notice_by_prudence() = runComposeUiTest {
+        mount(billing = BillingAvailability.UNKNOWN) { StandaloneLegalDocumentScreen(LegalDocument.TermsOfSale, onBack = {}) }
+
+        assertProvisionalTermsOfSale()
+    }
+
+    @Test
+    fun once_billing_is_open_the_real_terms_of_sale_are_shown_unchanged() = runComposeUiTest {
+        mount(billing = BillingAvailability.OPEN) { StandaloneLegalDocumentScreen(LegalDocument.TermsOfSale, onBack = {}) }
+
+        onNodeWithText("1. Objet").assertIsDisplayed()
+        onNodeWithText("Les présentes Conditions Générales de Vente (CGV)", substring = true).assertExists()
+        onNodeWithText("10.", substring = true).assertExists()
+        onNodeWithText("Aucune offre payante pour le moment").assertDoesNotExist()
+    }
+
+    @Test
+    fun the_terms_of_sale_screen_switches_content_when_billing_opens_while_it_is_displayed() = runComposeUiTest {
+        val billing = androidx.compose.runtime.mutableStateOf(BillingAvailability.CLOSED)
+        setContent {
+            customAppLocale = "fr"
+            AppEnvironment {
+                AppTheme {
+                    CompositionLocalProvider(LocalBillingAvailability provides billing.value) {
+                        Box(Modifier.size(412.dp, 892.dp)) { StandaloneLegalDocumentScreen(LegalDocument.TermsOfSale, onBack = {}) }
+                    }
+                }
+            }
+        }
+        waitForIdle()
+        onNodeWithText("Aucune offre payante pour le moment").assertIsDisplayed()
+
+        billing.value = BillingAvailability.OPEN
+        waitForIdle()
+
+        onNodeWithText("1. Objet").assertIsDisplayed()
+        onNodeWithText("Aucune offre payante pour le moment").assertDoesNotExist()
+    }
+
+    @Test
+    fun the_provisional_notice_still_carries_the_language_precedence_reminder_and_the_update_date() = runComposeUiTest {
+        mount(billing = BillingAvailability.CLOSED) { StandaloneLegalDocumentScreen(LegalDocument.TermsOfSale, onBack = {}) }
+
+        onNodeWithText("seule la version française fait foi", substring = true).assertExists()
+        onNodeWithText("Dernière mise à jour : [À COMPLÉTER : date]").assertExists()
+    }
+
+    @Test
+    fun an_english_user_reads_the_provisional_notice_in_english() = runComposeUiTest {
+        mount(locale = "en", billing = BillingAvailability.CLOSED) {
+            StandaloneLegalDocumentScreen(LegalDocument.TermsOfSale, onBack = {})
+        }
+
+        onNodeWithText("No paid plan for the time being").assertIsDisplayed()
+        onNodeWithText("The General Terms of Sale will be published on this page", substring = true).assertExists()
+        onNodeWithText("Aucune offre payante", substring = true).assertDoesNotExist()
+    }
+
+    @Test
+    fun legal_notice_and_privacy_policy_are_shown_in_full_whatever_the_billing_status() = runComposeUiTest {
+        val billing = androidx.compose.runtime.mutableStateOf(BillingAvailability.CLOSED)
+        val document = androidx.compose.runtime.mutableStateOf(LegalDocument.LegalNotice)
+        setContent {
+            customAppLocale = "fr"
+            AppEnvironment {
+                AppTheme {
+                    CompositionLocalProvider(LocalBillingAvailability provides billing.value) {
+                        Box(Modifier.size(412.dp, 892.dp)) { StandaloneLegalDocumentScreen(document.value, onBack = {}) }
+                    }
+                }
+            }
+        }
+
+        listOf(BillingAvailability.CLOSED, BillingAvailability.UNKNOWN, BillingAvailability.OPEN).forEach { availability ->
+            billing.value = availability
+            document.value = LegalDocument.LegalNotice
             waitForIdle()
-            onAllNodes(hasText("{", substring = true)).assertCountEquals(0)
+            onNodeWithText("Numéro SIRET : [À COMPLÉTER : numéro SIRET].").assertExists()
+            onNodeWithText("Aucune offre payante pour le moment").assertDoesNotExist()
+
+            document.value = LegalDocument.PrivacyPolicy
+            waitForIdle()
+            onNodeWithText("1.", substring = true).assertExists()
+            onNodeWithText("Aucune offre payante pour le moment").assertDoesNotExist()
         }
     }
 

@@ -494,4 +494,8 @@
         <item quantity="one">Trop de tentatives. Réessayez dans %1$d minute.</item>
         <item quantity="other">Trop de tentatives. Réessayez dans %1$d minutes.</item>
     </plurals>
+    <string name="legal_terms_of_sale_provisional_s1_title">Aucune offre payante pour le moment</string>
+    <string name="legal_terms_of_sale_provisional_s1_body">Le Service est actuellement proposé uniquement dans sa formule gratuite. Aucune offre payante n'est disponible à ce jour.</string>
+    <string name="legal_terms_of_sale_provisional_s2_title">Publication des conditions de vente</string>
+    <string name="legal_terms_of_sale_provisional_s2_body">Les Conditions Générales de Vente seront publiées sur cette page à l'ouverture des offres payantes, avant toute possibilité de souscription.\nL'utilisation du Service reste régie par les Conditions Générales d'Utilisation.</string>
 </resources>

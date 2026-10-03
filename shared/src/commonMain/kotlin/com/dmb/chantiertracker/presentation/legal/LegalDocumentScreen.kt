@@ -20,6 +20,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.dmb.chantiertracker.presentation.ResponsiveContent
+import com.dmb.chantiertracker.presentation.billing.paidPlansAreOffered
 import com.dmb.chantiertracker.presentation.main.DetailTopBar
 import com.dmb.chantiertracker.resources.Res
 import com.dmb.chantiertracker.resources.legal_language_notice
@@ -66,7 +67,7 @@ fun LegalDocumentScreen(document: LegalDocument, modifier: Modifier = Modifier) 
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            document.sections.forEach { section ->
+            document.sectionsToShow(paidPlansAreOffered()).forEach { section ->
                 LegalSectionBlock(
                     title = stringResource(section.title),
                     body = stringResource(section.body).withLegalPlaceholders(valuesByToken),

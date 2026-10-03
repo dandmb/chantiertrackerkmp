@@ -188,6 +188,10 @@ class AuthScreensSnapshotTest {
             snapshot("11-legal-terms-of-use", locale) {
                 StandaloneLegalDocumentScreen(LegalDocument.TermsOfUse, onBack = {})
             }
+            // ADR-67 — no provider here, so billing reads UNKNOWN: the provisional CGV.
+            snapshot("11b-legal-terms-of-sale-billing-closed", locale) {
+                StandaloneLegalDocumentScreen(LegalDocument.TermsOfSale, onBack = {})
+            }
             snapshot("12-legal-notice-dark", locale, dark = true) {
                 StandaloneLegalDocumentScreen(LegalDocument.LegalNotice, onBack = {})
             }
