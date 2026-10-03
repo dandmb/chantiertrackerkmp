@@ -205,7 +205,7 @@
     <string name="billing_title">Abonnement</string>
     <string name="billing_plan_section">Plan actuel</string>
     <string name="billing_founder_badge">Fondateur</string>
-    <string name="billing_founder_explanation">Vous faites partie des premiers inscrits. Ce statut permanent vous garantit au minimum les avantages de la formule Semi-Flex, quelle que soit votre formule : vos limites réelles sont celles affichées ci-dessous.</string>
+    <string name="billing_founder_explanation">Vous faites partie des premiers inscrits. Ce statut permanent vous donne au minimum les avantages de la formule Semi-Flex (avec moitié moins de photos), quelle que soit votre formule : vos limites réelles sont celles affichées ci-dessous.</string>
     <string name="billing_next_due">Prochaine échéance : %1$s</string>
     <string name="billing_usage_section">Usage</string>
     <string name="billing_usage_projects">%1$d/%2$d projets utilisés</string>

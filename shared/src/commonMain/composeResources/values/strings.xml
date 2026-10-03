@@ -205,7 +205,7 @@
     <string name="billing_title">Subscription</string>
     <string name="billing_plan_section">Current plan</string>
     <string name="billing_founder_badge">Founder</string>
-    <string name="billing_founder_explanation">You are one of our first users. This permanent status guarantees you at least the benefits of the Semi-Flex plan, whatever your plan: your actual limits are the ones shown below.</string>
+    <string name="billing_founder_explanation">You are one of our first users. This permanent status gives you at least the benefits of the Semi-Flex plan (with half the photos), whatever your plan: your actual limits are the ones shown below.</string>
     <string name="billing_next_due">Next due date: %1$s</string>
     <string name="billing_usage_section">Usage</string>
     <string name="billing_usage_projects">%1$d/%2$d projects used</string>

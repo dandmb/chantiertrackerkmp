@@ -68,7 +68,7 @@ class AccountRepositoryImplTest {
     }
 
     // ADR-66 — a founder on FREE: the limits are the server's combined values
-    // (Semi-Flex floor, 150 photos), stored as received, never recomputed.
+    // (Semi-Flex floor with half the photos: 150, not 300), stored as received, never recomputed.
     @Test
     fun refresh_stores_the_founder_status_alongside_the_combined_limits() = runTest {
         val r = repo {

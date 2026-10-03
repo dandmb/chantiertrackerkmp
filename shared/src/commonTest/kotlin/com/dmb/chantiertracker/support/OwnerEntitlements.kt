@@ -19,7 +19,7 @@ fun ownerEntitlements(
     maxSupervisorsPerProject = maxSupervisorsPerProject,
 )
 
-/** A founder still on the FREE plan: the Semi-Flex floor, as `PlanLimitService` combines it. */
+/** A founder still on the FREE plan: the Semi-Flex floor (half the photos, not part of this block), as `PlanLimitService` combines it. */
 val founderOnFreeEntitlements = ownerEntitlements(
     isFounder = true,
     canExportPdf = true,

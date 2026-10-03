@@ -124,7 +124,7 @@ private fun PlanSection(usage: PlanUsage) {
             )
         }
         // Explains why the usage below exceeds what the plan named above
-        // normally allows (a founder on FREE keeps Semi-Flex-level limits).
+        // normally allows (a founder on FREE keeps the Semi-Flex limits, with half the photos).
         if (usage.isFounder) {
             Text(
                 text = stringResource(Res.string.billing_founder_explanation),

@@ -237,6 +237,9 @@ class BillingScreenUiTest {
         onNodeWithText("Formule Gratuite").assertExists()
         onNodeWithText("Fondateur").assertExists()
         onNodeWithText("Vous faites partie des premiers inscrits.", substring = true).assertExists()
+        // The photo quota is the one exception to "Semi-Flex benefits" (150, not 300):
+        // the sentence must say so, like the web's, never promise the full Semi-Flex tier.
+        onNodeWithText("avec moitié moins de photos", substring = true).assertExists()
         onNodeWithText("2/3 projets utilisés").assertExists()
         onNodeWithText("40/150 photos utilisées").assertExists()
         onNodeWithText("1/5 vidéos utilisées").assertExists()

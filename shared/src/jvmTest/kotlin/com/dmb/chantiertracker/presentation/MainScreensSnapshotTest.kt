@@ -915,7 +915,7 @@ class MainScreensSnapshotTest {
                 }
             }
             // ADR-66 — a founder on the FREE plan while billing is closed: badge +
-            // explanation, Semi-Flex-level limits, and no price anywhere.
+            // explanation, Semi-Flex limits with half the photos, and no price anywhere.
             snapshot(
                 "39b-billing-founder-billing-closed",
                 locale,
