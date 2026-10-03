@@ -5,11 +5,14 @@ import com.dmb.chantiertracker.domain.model.Invitation
 import com.dmb.chantiertracker.domain.model.InvitationStatus
 import com.dmb.chantiertracker.domain.model.Plan
 import com.dmb.chantiertracker.domain.model.ProjectDetail
+import com.dmb.chantiertracker.domain.model.ProjectOwnerEntitlements
 import com.dmb.chantiertracker.domain.model.ProjectMember
 import com.dmb.chantiertracker.domain.model.ProjectRole
 import com.dmb.chantiertracker.domain.model.ProjectStatus
 import com.dmb.chantiertracker.support.FakeInvitationRepository
 import com.dmb.chantiertracker.support.FakeProjectRepository
+import com.dmb.chantiertracker.support.founderOnFreeEntitlements
+import com.dmb.chantiertracker.support.ownerEntitlements
 import com.dmb.chantiertracker.support.installTestMainDispatcher
 import com.dmb.chantiertracker.support.resetTestMainDispatcher
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -28,7 +31,7 @@ class InviteMemberViewModelTest {
     @BeforeTest fun setUp() { installTestMainDispatcher() }
     @AfterTest fun tearDown() { resetTestMainDispatcher() }
 
-    private fun detail(ownerPlan: Plan?) = ProjectDetail(
+    private fun detail(ownerPlan: Plan?, ownerEntitlements: ProjectOwnerEntitlements? = null) = ProjectDetail(
         localId = "p1",
         name = "Villa",
         description = null,
@@ -38,6 +41,7 @@ class InviteMemberViewModelTest {
         status = ProjectStatus.IN_PROGRESS,
         ownerId = 1L,
         ownerPlan = ownerPlan,
+        ownerEntitlements = ownerEntitlements,
     )
 
     private fun supervisor(id: Long) = ProjectMember(id, "S$id", "s$id@x.dev", ProjectRole.SUPERVISOR)
@@ -135,6 +139,58 @@ class InviteMemberViewModelTest {
 
         assertEquals(DomainException.PlanLimitReached, model.state.value.formError)
         assertFalse(model.state.value.invited)
+    }
+
+    // ADR-66 lot 2 — the owner is a founder still on FREE: three supervisors, not one.
+    @Test
+    fun a_founder_owner_on_the_free_plan_can_invite_a_second_and_a_third_supervisor() = runTest {
+        val projects = FakeProjectRepository(
+            detail = detail(Plan.FREE, founderOnFreeEntitlements),
+            members = listOf(supervisor(1), supervisor(2)),
+        )
+        val invitations = FakeInvitationRepository()
+        val model = vm(projects, invitations)
+        model.load("p1")
+        advanceUntilIdle()
+        assertFalse(model.state.value.atSupervisorLimit, "2 of 3 slots used")
+
+        model.onEmailChange("sam@x.dev")
+        model.submit()
+        advanceUntilIdle()
+
+        assertEquals(listOf("p1" to "sam@x.dev"), invitations.invited)
+    }
+
+    @Test
+    fun a_founder_owner_on_the_free_plan_is_blocked_at_three_supervisors() = runTest {
+        val projects = FakeProjectRepository(
+            detail = detail(Plan.FREE, founderOnFreeEntitlements),
+            members = listOf(supervisor(1), supervisor(2), supervisor(3)),
+        )
+        val invitations = FakeInvitationRepository()
+        val model = vm(projects, invitations)
+        model.load("p1")
+        advanceUntilIdle()
+        assertTrue(model.state.value.atSupervisorLimit)
+
+        model.onEmailChange("sam@x.dev")
+        model.submit()
+        advanceUntilIdle()
+
+        assertTrue(invitations.invited.isEmpty())
+    }
+
+    @Test
+    fun an_unlimited_cap_sent_by_the_server_never_blocks_even_on_a_free_plan() = runTest {
+        val projects = FakeProjectRepository(
+            detail = detail(Plan.FREE, ownerEntitlements(maxSupervisorsPerProject = null)),
+            members = List(5) { supervisor(it.toLong()) },
+        )
+        val model = vm(projects)
+        model.load("p1")
+        advanceUntilIdle()
+
+        assertFalse(model.state.value.atSupervisorLimit)
     }
 
     @Test

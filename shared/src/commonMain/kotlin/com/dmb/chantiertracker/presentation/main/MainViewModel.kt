@@ -15,6 +15,7 @@ data class MainUiState(
     val userName: String = "",
     val email: String = "",
     val plan: Plan? = null,
+    val isFounder: Boolean = false,
     val isLoggingOut: Boolean = false,
 )
 
@@ -36,7 +37,7 @@ class MainViewModel(
         }
         viewModelScope.launch {
             accountRepository.observePlanUsage().collect { usage ->
-                _state.update { it.copy(plan = usage?.plan) }
+                _state.update { it.copy(plan = usage?.plan, isFounder = usage?.isFounder == true) }
             }
         }
         viewModelScope.launch { accountRepository.refreshPlanUsage() }

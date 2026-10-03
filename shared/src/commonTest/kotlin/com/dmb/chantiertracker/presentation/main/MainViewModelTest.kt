@@ -43,6 +43,25 @@ class MainViewModelTest {
     }
 
     @Test
+    fun exposes_the_founder_status_for_the_account_menu() = runTest {
+        val auth = FakeAuthRepository()
+        val account = FakeAccountRepository(planUsage = PlanUsage(Plan.FREE, projectsLimit = 3, isFounder = true))
+        val vm = MainViewModel(auth, account)
+        advanceUntilIdle()
+
+        assertEquals(Plan.FREE, vm.state.value.plan)
+        assertTrue(vm.state.value.isFounder)
+    }
+
+    @Test
+    fun nobody_is_a_founder_until_the_plan_usage_is_known() = runTest {
+        val vm = MainViewModel(FakeAuthRepository(), FakeAccountRepository(planUsage = null))
+        advanceUntilIdle()
+
+        assertEquals(false, vm.state.value.isFounder)
+    }
+
+    @Test
     fun plan_stays_null_until_it_is_known() = runTest {
         val auth = FakeAuthRepository()
         val vm = MainViewModel(auth, FakeAccountRepository(planUsage = null))

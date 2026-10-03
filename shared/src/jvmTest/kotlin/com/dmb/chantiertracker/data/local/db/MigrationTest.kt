@@ -802,6 +802,94 @@ class MigrationTest {
             fresh.close()
         }
     }
+
+    /**
+     * Seeds a v11 database by hand, then opens [AppDatabase] (v12) and lets
+     * MIGRATION_11_12 add the founders-program columns (ADR-66): the owner's
+     * combined entitlements on `projects`, `isFounder` on `plan_usage` — all
+     * nullable, so pre-existing rows read "never received", not a fabricated
+     * false/0 that would hide the export or shorten the history.
+     */
+    @Test
+    fun migrating_from_v11_adds_founder_columns_and_keeps_existing_data() = runTest {
+        val v11Path = dir.resolve("migration-v11.db").absolutePathString()
+        BundledSQLiteDriver().open(v11Path).use { c ->
+            seedV7Schema(c)
+            c.execSQL("ALTER TABLE `projects` ADD COLUMN `ownerPlan` TEXT")
+            c.execSQL("ALTER TABLE `attachments` ADD COLUMN `durationSeconds` INTEGER")
+            listOf(
+                "projectsUsed INTEGER", "photosUsed INTEGER", "photosLimit INTEGER", "videosUsed INTEGER",
+                "videosLimit INTEGER", "videoDurationLimitSeconds INTEGER", "supervisorsUsed INTEGER",
+                "supervisorsLimit INTEGER", "planExpiresAt TEXT", "hasStripeCustomer INTEGER",
+            ).forEach { column -> c.execSQL("ALTER TABLE `plan_usage` ADD COLUMN $column") }
+            c.execSQL("CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)")
+            c.execSQL(
+                "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '14a77b9aa14615c8b69e2ad9f15c7642')",
+            )
+            c.execSQL("PRAGMA user_version = 11")
+            c.execSQL(
+                "INSERT INTO projects (localId, serverId, name, description, location, currency, timezone, status, " +
+                    "ownerId, createdAt, syncStatus, pendingOp, locallyModifiedAt, lastSyncedAt, remoteUpdatedAt, " +
+                    "lastSyncError, ownerPlan) VALUES ('p-v11', 42, 'Chantier v11', NULL, NULL, 'EUR', 'Europe/Paris', " +
+                    "'IN_PROGRESS', 1, NULL, 'SYNCED', 'NONE', 1000, NULL, NULL, NULL, 'SEMI_FLEX')",
+            )
+            c.execSQL(
+                "INSERT INTO plan_usage (id, plan, projectsLimit, refreshedAt, photosLimit, hasStripeCustomer) " +
+                    "VALUES (0, 'SEMI_FLEX', 3, 5000, 300, 1)",
+            )
+        }
+
+        val db = Room.databaseBuilder<AppDatabase>(name = v11Path).buildChantierDatabase()
+        try {
+            val project = db.projectDao().findByLocalId("p-v11")
+            assertEquals("Chantier v11", project?.name, "v11 data survives the migration")
+            assertEquals("SEMI_FLEX", project?.ownerPlan, "the plan-based fallback is still there")
+            assertEquals(null, project?.ownerIsFounder, "never received yet — not a fabricated false")
+            assertEquals(null, project?.ownerCanExportPdf)
+            assertEquals(null, project?.ownerMaxHistoryDays)
+            assertEquals(null, project?.ownerMaxVideos)
+            assertEquals(null, project?.ownerMaxVideoDurationSeconds)
+            assertEquals(null, project?.ownerMaxSupervisorsPerProject)
+
+            val usage = db.planUsageDao().observe().first()
+            assertEquals("SEMI_FLEX", usage?.plan)
+            assertEquals(300, usage?.photosLimit)
+            assertEquals(true, usage?.hasStripeCustomer)
+            assertEquals(null, usage?.isFounder)
+            assertEquals(null, usage?.historyDaysLimitKnown, "not received yet — a NULL limit must not read as 'unlimited'")
+
+            db.projectDao().upsert(
+                project!!.copy(
+                    ownerIsFounder = true, ownerCanExportPdf = true, ownerMaxHistoryDays = 180,
+                    ownerMaxVideos = 5, ownerMaxVideoDurationSeconds = 120, ownerMaxSupervisorsPerProject = 3,
+                ),
+            )
+            val updated = db.projectDao().findByLocalId("p-v11")
+            assertEquals(true, updated?.ownerIsFounder, "the new columns are writable on a migrated database")
+            assertEquals(true, updated?.ownerCanExportPdf)
+            assertEquals(180, updated?.ownerMaxHistoryDays)
+            assertEquals(5, updated?.ownerMaxVideos)
+            assertEquals(120, updated?.ownerMaxVideoDurationSeconds)
+            assertEquals(3, updated?.ownerMaxSupervisorsPerProject)
+
+            db.planUsageDao().upsert(usage!!.copy(isFounder = true, historyDaysLimit = 180, historyDaysLimitKnown = true))
+            val updatedUsage = db.planUsageDao().observe().first()
+            assertEquals(true, updatedUsage?.isFounder)
+            assertEquals(180, updatedUsage?.historyDaysLimit)
+            assertEquals(true, updatedUsage?.historyDaysLimitKnown)
+        } finally {
+            db.close()
+        }
+
+        // The migrated schema behaves exactly like a freshly built v12 one.
+        val fresh = Room.inMemoryDatabaseBuilder<AppDatabase>().buildChantierDatabase()
+        try {
+            verifyProjectDaoContract(fresh)
+            verifyPlanUsageDaoContract(fresh)
+        } finally {
+            fresh.close()
+        }
+    }
 }
 
 /** The full v7 table set — shared by the v7→v8 and v8→v9 migration tests. */

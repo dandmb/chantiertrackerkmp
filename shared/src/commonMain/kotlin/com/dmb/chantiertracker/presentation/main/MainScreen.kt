@@ -316,6 +316,7 @@ fun MainScreen(globalRole: GlobalRole, viewModel: MainViewModel = koinViewModel(
                     userName = account.userName,
                     email = account.email,
                     plan = account.plan,
+                    isFounder = account.isFounder,
                     onSubscription = { navController.navigate(BillingRoute()) },
                     onLogout = viewModel::logout,
                     leadingActions = {

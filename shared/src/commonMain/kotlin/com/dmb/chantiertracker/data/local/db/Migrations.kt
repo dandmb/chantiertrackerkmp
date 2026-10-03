@@ -331,3 +331,27 @@ val MIGRATION_10_11 = object : Migration(10, 11) {
         connection.execSQL("ALTER TABLE `plan_usage` ADD COLUMN `hasStripeCustomer` INTEGER")
     }
 }
+
+/**
+ * v11 → v12 : mode « lancement fondateurs » (ADR-66). `projects` gagne les droits
+ * du propriétaire déjà combinés par le backend (`ownerIsFounder`,
+ * `ownerCanExportPdf`, `ownerMaxHistoryDays`, `ownerMaxVideos`,
+ * `ownerMaxVideoDurationSeconds`, `ownerMaxSupervisorsPerProject`) et `plan_usage`
+ * gagne `isFounder`, `historyDaysLimit` et `historyDaysLimitKnown` (`NULL` y
+ * signifie « illimité » : il faut un marqueur à part pour « jamais reçu »).
+ * Toutes nullables, aucun défaut — une ligne antérieure se lit « jamais reçu »
+ * jusqu'au prochain pull du détail / `refreshPlanUsage()`.
+ */
+val MIGRATION_11_12 = object : Migration(11, 12) {
+    override fun migrate(connection: SQLiteConnection) {
+        connection.execSQL("ALTER TABLE `projects` ADD COLUMN `ownerIsFounder` INTEGER")
+        connection.execSQL("ALTER TABLE `projects` ADD COLUMN `ownerCanExportPdf` INTEGER")
+        connection.execSQL("ALTER TABLE `projects` ADD COLUMN `ownerMaxHistoryDays` INTEGER")
+        connection.execSQL("ALTER TABLE `projects` ADD COLUMN `ownerMaxVideos` INTEGER")
+        connection.execSQL("ALTER TABLE `projects` ADD COLUMN `ownerMaxVideoDurationSeconds` INTEGER")
+        connection.execSQL("ALTER TABLE `projects` ADD COLUMN `ownerMaxSupervisorsPerProject` INTEGER")
+        connection.execSQL("ALTER TABLE `plan_usage` ADD COLUMN `isFounder` INTEGER")
+        connection.execSQL("ALTER TABLE `plan_usage` ADD COLUMN `historyDaysLimit` INTEGER")
+        connection.execSQL("ALTER TABLE `plan_usage` ADD COLUMN `historyDaysLimitKnown` INTEGER")
+    }
+}

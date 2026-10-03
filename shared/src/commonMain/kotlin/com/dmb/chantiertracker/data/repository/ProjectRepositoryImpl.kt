@@ -15,6 +15,7 @@ import com.dmb.chantiertracker.domain.model.CreateProjectInput
 import com.dmb.chantiertracker.domain.model.Project
 import com.dmb.chantiertracker.domain.model.ProjectDetail
 import com.dmb.chantiertracker.domain.model.ProjectMember
+import com.dmb.chantiertracker.domain.model.ProjectOwnerEntitlements
 import com.dmb.chantiertracker.domain.model.ProjectRole
 import com.dmb.chantiertracker.domain.model.ProjectStatus
 import com.dmb.chantiertracker.domain.model.UpdateProjectInput
@@ -147,7 +148,19 @@ internal fun ProjectEntity.toProjectDetail(): ProjectDetail = ProjectDetail(
     status = status.toProjectStatus(),
     ownerId = ownerId,
     ownerPlan = ownerPlan?.toPlan(),
+    ownerEntitlements = ownerEntitlements(),
 )
+
+private fun ProjectEntity.ownerEntitlements(): ProjectOwnerEntitlements? {
+    return ProjectOwnerEntitlements(
+        isFounder = ownerIsFounder ?: return null,
+        canExportPdf = ownerCanExportPdf ?: return null,
+        maxHistoryDays = ownerMaxHistoryDays,
+        maxVideos = ownerMaxVideos ?: return null,
+        maxVideoDurationSeconds = ownerMaxVideoDurationSeconds ?: return null,
+        maxSupervisorsPerProject = ownerMaxSupervisorsPerProject,
+    )
+}
 
 internal fun ProjectMemberEntity.toMember(): ProjectMember = ProjectMember(
     userId = userId,

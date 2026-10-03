@@ -37,13 +37,24 @@ fun ProjectDto.toSyncedEntity(localId: String, syncedAt: Long, previous: Project
         lastSyncedAt = syncedAt,
         remoteUpdatedAt = remoteMillis,
         lastSyncError = null,
-        // The list DTO carries no ownerPlan — keep what the detail pull stored.
+        // The list DTO carries no owner field — keep what the detail pull stored.
         ownerPlan = previous?.ownerPlan,
+        ownerIsFounder = previous?.ownerIsFounder,
+        ownerCanExportPdf = previous?.ownerCanExportPdf,
+        ownerMaxHistoryDays = previous?.ownerMaxHistoryDays,
+        ownerMaxVideos = previous?.ownerMaxVideos,
+        ownerMaxVideoDurationSeconds = previous?.ownerMaxVideoDurationSeconds,
+        ownerMaxSupervisorsPerProject = previous?.ownerMaxSupervisorsPerProject,
     )
 }
 
 fun ProjectDetailDto.toSyncedEntity(localId: String, syncedAt: Long, previous: ProjectEntity? = null): ProjectEntity {
     val remoteMillis = parseServerTimestampMillis(updatedAt)
+    // The block is taken whole or not at all: a null ownerMaxHistoryDays /
+    // ownerMaxSupervisorsPerProject is "unlimited" only when the server actually
+    // sent the block — recognised by its four never-null fields.
+    val serverSentOwnerEntitlements = ownerIsFounder != null && ownerCanExportPdf != null &&
+        ownerMaxVideos != null && ownerMaxVideoDurationSeconds != null
     return ProjectEntity(
         localId = localId,
         serverId = id,
@@ -62,6 +73,14 @@ fun ProjectDetailDto.toSyncedEntity(localId: String, syncedAt: Long, previous: P
         remoteUpdatedAt = remoteMillis,
         lastSyncError = null,
         ownerPlan = ownerPlan ?: previous?.ownerPlan,
+        ownerIsFounder = if (serverSentOwnerEntitlements) ownerIsFounder else previous?.ownerIsFounder,
+        ownerCanExportPdf = if (serverSentOwnerEntitlements) ownerCanExportPdf else previous?.ownerCanExportPdf,
+        ownerMaxHistoryDays = if (serverSentOwnerEntitlements) ownerMaxHistoryDays else previous?.ownerMaxHistoryDays,
+        ownerMaxVideos = if (serverSentOwnerEntitlements) ownerMaxVideos else previous?.ownerMaxVideos,
+        ownerMaxVideoDurationSeconds =
+            if (serverSentOwnerEntitlements) ownerMaxVideoDurationSeconds else previous?.ownerMaxVideoDurationSeconds,
+        ownerMaxSupervisorsPerProject =
+            if (serverSentOwnerEntitlements) ownerMaxSupervisorsPerProject else previous?.ownerMaxSupervisorsPerProject,
     )
 }
 

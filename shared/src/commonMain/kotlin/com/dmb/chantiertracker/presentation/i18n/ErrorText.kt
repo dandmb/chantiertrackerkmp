@@ -2,8 +2,10 @@ package com.dmb.chantiertracker.presentation.i18n
 
 import androidx.compose.runtime.Composable
 import com.dmb.chantiertracker.domain.model.DomainException
+import com.dmb.chantiertracker.presentation.billing.paidPlansAreOffered
 import com.dmb.chantiertracker.resources.Res
 import com.dmb.chantiertracker.resources.error_account_locked
+import com.dmb.chantiertracker.resources.error_billing_not_open
 import com.dmb.chantiertracker.resources.error_account_not_verified
 import com.dmb.chantiertracker.resources.error_email_already_used
 import com.dmb.chantiertracker.resources.error_forbidden
@@ -13,6 +15,7 @@ import com.dmb.chantiertracker.resources.error_invalid_credentials
 import com.dmb.chantiertracker.resources.error_network
 import com.dmb.chantiertracker.resources.error_not_found
 import com.dmb.chantiertracker.resources.error_plan_limit
+import com.dmb.chantiertracker.resources.error_plan_limit_no_upgrade
 import com.dmb.chantiertracker.resources.error_rate_limited
 import com.dmb.chantiertracker.resources.error_rate_limited_minutes
 import com.dmb.chantiertracker.resources.error_rate_limited_seconds
@@ -35,6 +38,7 @@ fun DomainException.textRes(): StringResource = when (this) {
     DomainException.Validation -> Res.string.error_validation
     is DomainException.RateLimited -> Res.string.error_rate_limited
     DomainException.PlanLimitReached -> Res.string.error_plan_limit
+    DomainException.BillingNotOpen -> Res.string.error_billing_not_open
     DomainException.Forbidden -> Res.string.error_forbidden
     DomainException.NotFound -> Res.string.error_not_found
     DomainException.Network -> Res.string.error_network
@@ -45,6 +49,9 @@ private const val SECONDS_PER_MINUTE = 60
 
 @Composable
 fun DomainException.localizedText(): String {
+    if (this is DomainException.PlanLimitReached && !paidPlansAreOffered()) {
+        return stringResource(Res.string.error_plan_limit_no_upgrade)
+    }
     val retryAfterSeconds = (this as? DomainException.RateLimited)?.retryAfterSeconds
         ?: return stringResource(textRes())
     return if (retryAfterSeconds < SECONDS_PER_MINUTE) {

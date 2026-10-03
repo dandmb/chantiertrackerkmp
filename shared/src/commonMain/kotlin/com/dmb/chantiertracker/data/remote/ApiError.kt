@@ -8,6 +8,8 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.CancellationException
 
+private const val BILLING_NOT_OPEN_CODE = "BILLING_NOT_OPEN"
+
 suspend fun <T> apiCall(block: suspend () -> T): T =
     try {
         block()
@@ -25,6 +27,10 @@ private suspend fun ResponseException.toDomainException(): DomainException {
     val problem = runCatching { response.body<ProblemDetailDto>() }.getOrNull()
     val detail = problem?.detail.orEmpty()
     val hasFieldErrors = !problem?.errors.isNullOrEmpty()
+
+    // The backend's machine-readable discriminant (SCREAMING_SNAKE_CASE, derived
+    // from the exception name) — tested as is, never the translatable `detail`.
+    if (problem?.code == BILLING_NOT_OPEN_CODE) return DomainException.BillingNotOpen
 
     return when (response.status) {
         HttpStatusCode.Unauthorized -> DomainException.InvalidCredentials

@@ -29,6 +29,15 @@ data class ProjectDetailDto(
     val timezone: String,
     val ownerId: Long,
     val ownerPlan: String? = null,
+    // Nullable: a backend that predates the founders program omits the whole block.
+    // ownerMaxHistoryDays / ownerMaxSupervisorsPerProject = null also means "unlimited"
+    // once the block is there; the two video fields are never null on the backend.
+    val ownerIsFounder: Boolean? = null,
+    val ownerCanExportPdf: Boolean? = null,
+    val ownerMaxHistoryDays: Int? = null,
+    val ownerMaxVideos: Int? = null,
+    val ownerMaxVideoDurationSeconds: Int? = null,
+    val ownerMaxSupervisorsPerProject: Int? = null,
     val status: String,
     val createdAt: String? = null,
     val updatedAt: String? = null,

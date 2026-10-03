@@ -13,6 +13,7 @@ object ApiRoutes {
     const val USERS_ME = "users/me"
     const val USERS_ME_PLAN_USAGE = "users/me/plan-usage"
     const val USERS_ME_INVITATIONS = "users/me/invitations"
+    const val BILLING_STATUS = "billing/status"
     const val BILLING_CHECKOUT = "billing/checkout"
     const val BILLING_PORTAL = "billing/portal"
     const val ADMIN_USERS = "admin/users"

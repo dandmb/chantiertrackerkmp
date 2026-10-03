@@ -2,10 +2,8 @@ package com.dmb.chantiertracker.presentation.projects
 
 import com.dmb.chantiertracker.domain.model.Invitation
 import com.dmb.chantiertracker.domain.model.InvitationStatus
-import com.dmb.chantiertracker.domain.model.Plan
 import com.dmb.chantiertracker.domain.model.ProjectMember
 import com.dmb.chantiertracker.domain.model.ProjectRole
-import com.dmb.chantiertracker.domain.model.maxSupervisorsPerProject
 
 /**
  * Client-side mirror of the backend `InvitationService.countSupervisorsForProject`
@@ -21,8 +19,9 @@ object SupervisorLimit {
         members.count { it.role == ProjectRole.SUPERVISOR } +
             invitations.count { it.role == ProjectRole.SUPERVISOR && it.status == InvitationStatus.PENDING }
 
-    fun isReached(ownerPlan: Plan?, members: List<ProjectMember>, invitations: List<Invitation>): Boolean {
-        val limit = ownerPlan?.maxSupervisorsPerProject() ?: return false
+    /** @param maxSupervisors the owner's per-project cap; `null` = no cap, or not known yet (fail open). */
+    fun isReached(maxSupervisors: Int?, members: List<ProjectMember>, invitations: List<Invitation>): Boolean {
+        val limit = maxSupervisors ?: return false
         return slotsUsed(members, invitations) >= limit
     }
 }

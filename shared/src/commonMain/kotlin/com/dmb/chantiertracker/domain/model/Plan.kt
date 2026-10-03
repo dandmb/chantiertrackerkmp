@@ -55,6 +55,13 @@ fun Plan.maxHistoryDays(): Int? = when (this) {
 }
 
 /**
+ * PDF export is a paid-tier capability — mirrors `PlanLimitService.canExportPdf`
+ * for the plan alone. Only a fallback: the project detail carries the
+ * backend's own combined answer (`ProjectOwnerEntitlements.canExportPdf`).
+ */
+fun Plan.canExportPdf(): Boolean = this == Plan.SEMI_FLEX || this == Plan.LIBERTE
+
+/**
  * Last-known plan + usage counters from `GET /users/me/plan-usage` (ADR-25,
  * extended ADR-49 for the billing screen). Persisted locally (`plan_usage`,
  * one row) so both the project-creation gate and the billing screen work
@@ -77,7 +84,15 @@ data class PlanUsage(
     val supervisorsLimit: Int? = null,
     val planExpiresAt: String? = null,
     val hasStripeCustomer: Boolean = false,
+    // Informational (badge): every *Limit above is already the combined value.
+    val isFounder: Boolean = false,
+    // The combined retention window (null = unlimited), meaningful only when
+    // historyDaysLimitKnown — otherwise maxHistoryDays() falls back on the plan.
+    val historyDaysLimit: Int? = null,
+    val historyDaysLimitKnown: Boolean = false,
 ) {
     fun isAtProjectLimit(activeProjectCount: Int): Boolean =
         projectsLimit != null && activeProjectCount >= projectsLimit
+
+    fun maxHistoryDays(): Int? = if (historyDaysLimitKnown) historyDaysLimit else plan.maxHistoryDays()
 }

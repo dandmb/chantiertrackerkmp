@@ -2,6 +2,7 @@ package com.dmb.chantiertracker.presentation
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
@@ -13,6 +14,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.runComposeUiTest
 import androidx.compose.ui.unit.dp
+import com.dmb.chantiertracker.domain.model.BillingAvailability
 import com.dmb.chantiertracker.domain.model.DomainException
 import com.dmb.chantiertracker.domain.model.HistoryActionType
 import com.dmb.chantiertracker.domain.model.HistoryPage
@@ -20,7 +22,9 @@ import com.dmb.chantiertracker.domain.model.HistorySort
 import com.dmb.chantiertracker.domain.model.ModificationHistoryItem
 import com.dmb.chantiertracker.domain.model.Plan
 import com.dmb.chantiertracker.domain.model.ProjectDetail
+import com.dmb.chantiertracker.domain.model.ProjectOwnerEntitlements
 import com.dmb.chantiertracker.domain.model.ProjectStatus
+import com.dmb.chantiertracker.presentation.billing.LocalBillingAvailability
 import com.dmb.chantiertracker.presentation.i18n.AppEnvironment
 import com.dmb.chantiertracker.presentation.i18n.customAppLocale
 import com.dmb.chantiertracker.presentation.projects.history.HistorySortControl
@@ -28,6 +32,7 @@ import com.dmb.chantiertracker.presentation.projects.history.ProjectHistoryScree
 import com.dmb.chantiertracker.presentation.projects.history.ProjectHistoryViewModel
 import com.dmb.chantiertracker.presentation.theme.AppTheme
 import com.dmb.chantiertracker.support.FakeHistoryRepository
+import com.dmb.chantiertracker.support.ownerEntitlements
 import com.dmb.chantiertracker.support.FakeProjectRepository
 import com.dmb.chantiertracker.support.installTestMainDispatcher
 import com.dmb.chantiertracker.support.resetTestMainDispatcher
@@ -55,13 +60,17 @@ class ProjectHistoryUiTest {
         isFirst = index == 0, isLast = index == total - 1, totalElements = total * 20,
     )
 
-    private fun vm(history: FakeHistoryRepository, ownerPlan: Plan? = Plan.LIBERTE) = ProjectHistoryViewModel(
+    private fun vm(
+        history: FakeHistoryRepository,
+        ownerPlan: Plan? = Plan.LIBERTE,
+        ownerEntitlements: ProjectOwnerEntitlements? = null,
+    ) = ProjectHistoryViewModel(
         history,
         FakeProjectRepository(
             detail = ProjectDetail(
                 localId = "p1", name = "Villa", description = null, location = null,
                 currency = "EUR", timezone = "Europe/Paris", status = ProjectStatus.IN_PROGRESS,
-                ownerId = 1L, ownerPlan = ownerPlan,
+                ownerId = 1L, ownerPlan = ownerPlan, ownerEntitlements = ownerEntitlements,
             ),
         ),
     )
@@ -70,18 +79,24 @@ class ProjectHistoryUiTest {
         history: FakeHistoryRepository,
         ownerPlan: Plan? = Plan.LIBERTE,
         sort: HistorySort = HistorySort.NEWEST_FIRST,
+        ownerEntitlements: ProjectOwnerEntitlements? = null,
+        billing: BillingAvailability = BillingAvailability.OPEN,
     ) {
         setContent {
             customAppLocale = "fr"
             AppEnvironment {
                 AppTheme {
-                    Box(Modifier.size(412.dp, 892.dp)) {
-                        ProjectHistoryScreen("p1", sort = sort, viewModel = vm(history, ownerPlan))
+                    CompositionLocalProvider(LocalBillingAvailability provides billing) {
+                        Box(Modifier.size(412.dp, 892.dp)) {
+                            ProjectHistoryScreen("p1", sort = sort, viewModel = vm(history, ownerPlan, ownerEntitlements))
+                        }
                     }
                 }
             }
         }
     }
+
+    private fun oneEntry() = FakeHistoryRepository(listOf(page(0, 1, listOf(item(1, "Dan a créé le projet")))))
 
     private fun ComposeUiTest.awaitText(text: String) =
         waitUntil(timeoutMillis = 5_000L) {
@@ -105,7 +120,64 @@ class ProjectHistoryUiTest {
     fun a_free_project_shows_the_30_day_retention_notice() = runComposeUiTest {
         content(FakeHistoryRepository(listOf(page(0, 1, listOf(item(1, "Dan a créé le projet"))))), ownerPlan = Plan.FREE)
 
-        awaitText("Historique limité aux 30 derniers jours")
+        awaitText("Historique limité aux 30 derniers jours. Passez à Semi-flex ou Liberté pour un historique plus long.")
+    }
+
+    // ADR-66 — the owner is a founder still on FREE: 180 days, as combined by the server.
+    @Test
+    fun a_founder_owner_on_the_free_plan_shows_the_six_month_notice_not_the_30_day_one() = runComposeUiTest {
+        content(
+            oneEntry(),
+            ownerPlan = Plan.FREE,
+            ownerEntitlements = ownerEntitlements(isFounder = true, canExportPdf = true, maxHistoryDays = 180),
+        )
+
+        awaitText("Historique limité aux 6 derniers mois")
+        onNodeWithText("30 derniers jours", substring = true).assertDoesNotExist()
+    }
+
+    @Test
+    fun while_billing_is_closed_the_retention_notice_never_suggests_upgrading() = runComposeUiTest {
+        content(oneEntry(), ownerPlan = Plan.FREE, billing = BillingAvailability.CLOSED)
+
+        awaitText("Historique limité aux 30 derniers jours.")
+        onNodeWithText("Passez à", substring = true).assertDoesNotExist()
+    }
+
+    @Test
+    fun an_unknown_billing_status_words_the_notice_like_closed() = runComposeUiTest {
+        content(
+            oneEntry(),
+            ownerPlan = Plan.FREE,
+            ownerEntitlements = ownerEntitlements(isFounder = true, canExportPdf = true, maxHistoryDays = 180),
+            billing = BillingAvailability.UNKNOWN,
+        )
+
+        awaitText("Historique limité aux 6 derniers mois.")
+        onNodeWithText("Passez à", substring = true).assertDoesNotExist()
+    }
+
+    @Test
+    fun a_window_the_app_has_no_dedicated_sentence_for_is_still_announced() = runComposeUiTest {
+        content(
+            oneEntry(),
+            ownerPlan = Plan.FREE,
+            ownerEntitlements = ownerEntitlements(isFounder = false, canExportPdf = false, maxHistoryDays = 90),
+        )
+
+        awaitText("Historique limité aux 90 derniers jours.")
+    }
+
+    @Test
+    fun an_unlimited_window_sent_by_the_server_shows_no_notice_even_on_a_free_plan() = runComposeUiTest {
+        content(
+            oneEntry(),
+            ownerPlan = Plan.FREE,
+            ownerEntitlements = ownerEntitlements(isFounder = false, canExportPdf = true, maxHistoryDays = null),
+        )
+
+        awaitText("Dan a créé le projet")
+        onNodeWithText("Historique limité", substring = true).assertDoesNotExist()
     }
 
     @Test

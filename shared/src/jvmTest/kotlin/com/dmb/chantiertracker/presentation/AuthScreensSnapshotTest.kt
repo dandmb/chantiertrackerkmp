@@ -37,6 +37,7 @@ import com.dmb.chantiertracker.presentation.onboarding.ONBOARDING_PAGES
 import com.dmb.chantiertracker.presentation.onboarding.OnboardingScreenContent
 import com.dmb.chantiertracker.presentation.theme.AppTheme
 import com.dmb.chantiertracker.support.FakeAuthRepository
+import com.dmb.chantiertracker.support.FakeBillingRepository
 import com.dmb.chantiertracker.support.FakeCheckoutLauncher
 import com.dmb.chantiertracker.support.installTestMainDispatcher
 import com.dmb.chantiertracker.support.resetTestMainDispatcher
@@ -99,6 +100,9 @@ class AuthScreensSnapshotTest {
             snapshot("00-welcome", locale) {
                 WelcomeScreen(onCreateAccount = {}, onSignIn = {}, onDiscoverPlans = {}, onOpenLegalDocument = {})
             }
+            snapshot("00a2-welcome-billing-closed", locale) {
+                WelcomeScreen(onCreateAccount = {}, onSignIn = {}, onDiscoverPlans = null, onOpenLegalDocument = {})
+            }
             snapshot("00b-plan-selection", locale) {
                 PlanSelectionScreen(onSelectPlan = { _, _ -> }, onContinueFree = {}, onBack = {})
             }
@@ -117,7 +121,7 @@ class AuthScreensSnapshotTest {
                     onOpenLegalDocument = {},
                     onBack = {},
                     notice = LoginNotice.AccountActivated,
-                    viewModel = LoginViewModel(repo, FakeCheckoutLauncher()),
+                    viewModel = LoginViewModel(repo, FakeCheckoutLauncher(), FakeBillingRepository()),
                 )
             }
             snapshot("01b-login-checkout-pending", locale) {
@@ -129,7 +133,7 @@ class AuthScreensSnapshotTest {
                     notice = LoginNotice.AccountActivated,
                     checkoutPlan = "SEMI_FLEX",
                     checkoutCycle = "MONTHLY",
-                    viewModel = LoginViewModel(repo, FakeCheckoutLauncher()),
+                    viewModel = LoginViewModel(repo, FakeCheckoutLauncher(), FakeBillingRepository()),
                 )
             }
             snapshot("02-register", locale) {
@@ -160,7 +164,7 @@ class AuthScreensSnapshotTest {
                 ChangePasswordScreen(email = "dan@chantier.dev", viewModel = ChangePasswordViewModel(repo))
             }
             snapshot("06-login-dark", locale, dark = true) {
-                LoginScreen(onNavigateToRegister = {}, onNavigateToForgotPassword = {}, onOpenLegalDocument = {}, viewModel = LoginViewModel(repo, FakeCheckoutLauncher()))
+                LoginScreen(onNavigateToRegister = {}, onNavigateToForgotPassword = {}, onOpenLegalDocument = {}, viewModel = LoginViewModel(repo, FakeCheckoutLauncher(), FakeBillingRepository()))
             }
             snapshot("07-register-dark", locale, dark = true) {
                 RegisterScreen(onRegistered = {}, onBackToLogin = {}, onOpenLegalDocument = {}, viewModel = RegisterViewModel(repo))
@@ -176,7 +180,7 @@ class AuthScreensSnapshotTest {
             // (Welcome) — the more fragile of the two before this sous-étape
             // also added a scroll fallback there.
             snapshot("09-login-landscape", locale, landscape = true) {
-                LoginScreen(onNavigateToRegister = {}, onNavigateToForgotPassword = {}, onOpenLegalDocument = {}, viewModel = LoginViewModel(repo, FakeCheckoutLauncher()))
+                LoginScreen(onNavigateToRegister = {}, onNavigateToForgotPassword = {}, onOpenLegalDocument = {}, viewModel = LoginViewModel(repo, FakeCheckoutLauncher(), FakeBillingRepository()))
             }
             snapshot("10-welcome-landscape", locale, landscape = true) {
                 WelcomeScreen(onCreateAccount = {}, onSignIn = {}, onDiscoverPlans = {}, onOpenLegalDocument = {})

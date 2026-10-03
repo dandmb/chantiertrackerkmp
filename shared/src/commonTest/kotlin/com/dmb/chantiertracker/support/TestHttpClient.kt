@@ -45,14 +45,16 @@ fun MockRequestHandleScope.respondProblem(
     detail: String,
     errors: Map<String, String>? = null,
     extraHeaders: Map<String, String> = emptyMap(),
+    code: String? = null,
 ): HttpResponseData {
     val errorsJson = errors?.entries?.joinToString(
         separator = ",",
         prefix = ""","errors":{""",
         postfix = "}",
     ) { """"${it.key}":"${it.value}"""" } ?: ""
+    val codeJson = code?.let { ""","code":"$it"""" } ?: ""
     return respond(
-        content = """{"status":${status.value},"detail":"$detail"$errorsJson}""",
+        content = """{"status":${status.value},"detail":"$detail"$codeJson$errorsJson}""",
         status = status,
         headers = io.ktor.http.headers {
             append(HttpHeaders.ContentType, "application/problem+json")

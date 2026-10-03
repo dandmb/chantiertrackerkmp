@@ -10,7 +10,6 @@ import com.dmb.chantiertracker.domain.model.DomainException
 import com.dmb.chantiertracker.domain.model.EntryType
 import com.dmb.chantiertracker.domain.model.Material
 import com.dmb.chantiertracker.domain.model.MaterialStock
-import com.dmb.chantiertracker.domain.model.Plan
 import com.dmb.chantiertracker.domain.model.ProjectStatus
 import com.dmb.chantiertracker.domain.model.PurchaseLine
 import com.dmb.chantiertracker.domain.model.StageStatus
@@ -67,14 +66,14 @@ data class DailyLogUiState(
     val attachmentUpload: AttachmentUploadUi? = null,
     val attachmentError: DomainException? = null,
     val videoTooLong: VideoDurationCheck.TooLong? = null,
-    // The project OWNER's plan — gates the "Add a video" affordance and the duration pre-check.
-    val ownerPlan: Plan? = null,
+    // The project OWNER's allowance — gates the "Add a video" affordance and the duration pre-check.
+    val ownerVideoLimits: OwnerVideoLimits? = null,
     // Project IN_PROGRESS and stage not COMPLETED — the only server-side gate on
     // creating a report (no date restriction, unlike a line).
     val projectAndStageActive: Boolean = false,
 ) {
     val isMissing: Boolean get() = !isLoading && detail == null
-    val canAddVideo: Boolean get() = VideoLimit.canAdd(ownerPlan)
+    val canAddVideo: Boolean get() = VideoLimit.canAdd(ownerVideoLimits)
 
     // "Flag an issue" is for a member who can see the entry but can't fix it
     // themselves — mirrors the web's `!isAdmin && !canEdit && projectAndStageActive`.
@@ -88,7 +87,7 @@ private data class LogAccess(
     val isAdmin: Boolean,
     val currency: String?,
     val projectLocalId: String?,
-    val ownerPlan: Plan? = null,
+    val ownerVideoLimits: OwnerVideoLimits? = null,
     val projectAndStageActive: Boolean = false,
 )
 
@@ -150,7 +149,7 @@ class DailyLogViewModel(
                             purchaseLines = lines.first,
                             consumptionLines = lines.second,
                             attachments = lines.third,
-                            ownerPlan = access.ownerPlan,
+                            ownerVideoLimits = access.ownerVideoLimits,
                             projectAndStageActive = access.projectAndStageActive,
                         )
                     }
@@ -188,7 +187,7 @@ class DailyLogViewModel(
                         isAdmin = isAdmin,
                         currency = project?.currency,
                         projectLocalId = projectId,
-                        ownerPlan = project?.ownerPlan,
+                        ownerVideoLimits = project?.ownerVideoLimits(),
                         projectAndStageActive = projectAndStageActive,
                     )
                 }
@@ -240,14 +239,14 @@ class DailyLogViewModel(
      */
     fun onVideoSelected(entryLocalId: String, video: UploadFile) {
         _state.update { it.copy(attachmentError = null, videoTooLong = null) }
-        val plan = _state.value.ownerPlan
+        val limits = _state.value.ownerVideoLimits
         viewModelScope.launch {
             // Reads only a bounded prefix of the file (Mp4Duration), so it's
             // cheap enough to run inline — no full read, no ByteArray.
             val duration = runCatching {
                 video.openSource().buffered().use { probeMp4DurationSeconds(it) }
             }.getOrNull()
-            when (val check = VideoLimit.check(plan, duration)) {
+            when (val check = VideoLimit.check(limits, duration)) {
                 is VideoDurationCheck.TooLong -> _state.update { it.copy(videoTooLong = check) }
                 VideoDurationCheck.Ok -> addAttachment(
                     AttachmentUploadUi(AttachmentUploadUi.Stage.Uploading, fraction = 0f),

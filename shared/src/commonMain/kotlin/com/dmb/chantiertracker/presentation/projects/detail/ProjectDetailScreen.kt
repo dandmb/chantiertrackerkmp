@@ -39,6 +39,7 @@ import com.dmb.chantiertracker.domain.model.ProjectMember
 import com.dmb.chantiertracker.domain.model.ProjectRole
 import com.dmb.chantiertracker.domain.model.ProjectStatus
 import com.dmb.chantiertracker.domain.model.Stage
+import com.dmb.chantiertracker.domain.model.ownerCanExportPdf
 import com.dmb.chantiertracker.presentation.ClickableListRow
 import com.dmb.chantiertracker.presentation.ConfirmActionDialog
 import com.dmb.chantiertracker.presentation.DetailEmptyHint
@@ -201,11 +202,10 @@ private fun DetailContent(
         // Mirrors the web (ProjectDetailPage.tsx): export lives above the
         // section grid entirely, a standalone project-level action, never
         // grouped under "Informations" — same placement regardless of
-        // column count. Owner's plan unknown until the first detail pull
-        // (ADR-33) — same as the web, which renders nothing until
-        // `project.ownerPlan` is set.
-        detail.ownerPlan?.let { ownerPlan ->
-            ExportSection(projectLocalId = detail.localId, ownerPlan = ownerPlan)
+        // column count. Unknown until the first detail pull (ADR-33) — same
+        // as the web, which renders nothing until `project.ownerPlan` is set.
+        detail.ownerCanExportPdf()?.let { canExport ->
+            ExportSection(projectLocalId = detail.localId, canExport = canExport)
             DetailSectionDivider()
         }
 

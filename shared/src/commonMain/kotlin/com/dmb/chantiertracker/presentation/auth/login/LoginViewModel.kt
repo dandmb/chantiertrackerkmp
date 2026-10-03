@@ -2,10 +2,12 @@ package com.dmb.chantiertracker.presentation.auth.login
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.dmb.chantiertracker.domain.model.BillingAvailability
 import com.dmb.chantiertracker.domain.model.BillingCycle
 import com.dmb.chantiertracker.domain.model.DomainException
 import com.dmb.chantiertracker.domain.model.Plan
 import com.dmb.chantiertracker.domain.repository.AuthRepository
+import com.dmb.chantiertracker.domain.repository.BillingRepository
 import com.dmb.chantiertracker.presentation.auth.validateEmail
 import com.dmb.chantiertracker.presentation.auth.validateRequiredPassword
 import com.dmb.chantiertracker.presentation.billing.CheckoutLauncher
@@ -31,10 +33,19 @@ data class LoginUiState(
 class LoginViewModel(
     private val authRepository: AuthRepository,
     private val checkoutLauncher: CheckoutLauncher,
+    private val billingRepository: BillingRepository,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(LoginUiState())
     val state = _state.asStateFlow()
+
+    private var requestedCheckout: Pair<Plan, BillingCycle>? = null
+
+    init {
+        viewModelScope.launch {
+            billingRepository.availability.collect(::exposeCheckoutIntentIfBillingOpen)
+        }
+    }
 
     fun prefillEmail(email: String) {
         if (_state.value.email.isEmpty()) {
@@ -46,9 +57,21 @@ class LoginViewModel(
     // route parameters (see RootNavHost); resolved here the same tolerant way
     // as everywhere else this value is read (resolveCheckoutIntent, never
     // Plan.valueOf()/BillingCycle.valueOf()).
+    //
+    // ADR-66 — the intent was chosen minutes earlier, before registration and
+    // e-mail verification: it only reaches the state (banner + automatic
+    // checkout) while billing is still confirmed open at this very moment.
     fun setCheckoutIntent(planArg: String?, cycleArg: String?) {
-        val resolved = resolveCheckoutIntent(planArg, cycleArg)
-        _state.update { it.copy(checkoutPlan = resolved?.first, checkoutCycle = resolved?.second) }
+        requestedCheckout = resolveCheckoutIntent(planArg, cycleArg)
+        exposeCheckoutIntentIfBillingOpen(billingRepository.availability.value)
+        if (requestedCheckout != null) {
+            viewModelScope.launch { billingRepository.refreshAvailability() }
+        }
+    }
+
+    private fun exposeCheckoutIntentIfBillingOpen(availability: BillingAvailability) {
+        val honored = requestedCheckout?.takeIf { availability == BillingAvailability.OPEN }
+        _state.update { it.copy(checkoutPlan = honored?.first, checkoutCycle = honored?.second) }
     }
 
     fun onEmailChange(value: String) {

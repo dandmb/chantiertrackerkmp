@@ -17,10 +17,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.dmb.chantiertracker.domain.model.Plan
 import com.dmb.chantiertracker.presentation.DetailEmptyHint
 import com.dmb.chantiertracker.presentation.DetailSection
 import com.dmb.chantiertracker.presentation.auth.components.ErrorBanner
+import com.dmb.chantiertracker.presentation.billing.paidPlansAreOffered
 import com.dmb.chantiertracker.presentation.i18n.localizedText
 import com.dmb.chantiertracker.presentation.main.DownloadIcon
 import com.dmb.chantiertracker.presentation.main.OpenInNewIcon
@@ -34,15 +34,17 @@ import com.dmb.chantiertracker.resources.detail_export_ready
 import com.dmb.chantiertracker.resources.detail_export_regenerate
 import com.dmb.chantiertracker.resources.detail_export_share
 import com.dmb.chantiertracker.resources.detail_export_title
+import com.dmb.chantiertracker.resources.detail_export_unavailable
 import com.dmb.chantiertracker.resources.detail_export_upgrade
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 
 // A "Dossier de chantier" DetailSection on ProjectDetailScreen — visible to any
 // project member (not ADMIN-only: the backend and the web gate on the OWNER's
-// plan, not the caller's role). SEMI_FLEX/LIBERTE → an "Export to PDF" button;
-// FREE/UNKNOWN → a calm upgrade hint (no billing screen, like the history
-// retention notice). The parent only renders this when `ownerPlan` is known.
+// plan, not the caller's role). canExport is the backend's own combined answer
+// (plan + founder status, ADR-66) — an "Export to PDF" button when true, a calm
+// hint otherwise, which only mentions upgrading while paid tiers are on offer.
+// The parent only renders this once that answer is known.
 //
 // On success the file is NOT handed to a single mechanism automatically:
 // "Open" and "Share" are both offered explicitly, since both are legitimate
@@ -51,15 +53,15 @@ import org.koin.compose.viewmodel.koinViewModel
 @Composable
 fun ExportSection(
     projectLocalId: String,
-    ownerPlan: Plan,
+    canExport: Boolean,
     viewModel: ProjectExportViewModel = koinViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    val canExport = ownerPlan == Plan.SEMI_FLEX || ownerPlan == Plan.LIBERTE
 
     DetailSection(stringResource(Res.string.detail_export_title)) {
         if (!canExport) {
-            DetailEmptyHint(stringResource(Res.string.detail_export_upgrade))
+            val hint = if (paidPlansAreOffered()) Res.string.detail_export_upgrade else Res.string.detail_export_unavailable
+            DetailEmptyHint(stringResource(hint))
             return@DetailSection
         }
 
