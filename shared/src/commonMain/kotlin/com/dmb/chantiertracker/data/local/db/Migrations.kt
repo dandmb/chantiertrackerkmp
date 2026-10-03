@@ -355,3 +355,19 @@ val MIGRATION_11_12 = object : Migration(11, 12) {
         connection.execSQL("ALTER TABLE `plan_usage` ADD COLUMN `historyDaysLimitKnown` INTEGER")
     }
 }
+
+/**
+ * v12 → v13 : table `editor_identity` (ADR-68), une seule ligne (`id = 0`) — dernière
+ * identité de l'éditeur connue (`GET /editor-identity`), pour que les pages légales
+ * restent justes hors ligne et avant connexion. Aucune donnée existante touchée.
+ */
+val MIGRATION_12_13 = object : Migration(12, 13) {
+    override fun migrate(connection: SQLiteConnection) {
+        connection.execSQL(
+            "CREATE TABLE IF NOT EXISTS `editor_identity` (`id` INTEGER NOT NULL, `firstName` TEXT, " +
+                "`lastName` TEXT, `companyName` TEXT, `legalStatus` TEXT, `siret` TEXT, `address` TEXT, " +
+                "`contactEmail` TEXT, `vatNumber` TEXT, `hostingProviderName` TEXT, " +
+                "`hostingProviderAddress` TEXT, `refreshedAt` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        )
+    }
+}

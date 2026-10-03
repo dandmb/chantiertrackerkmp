@@ -326,3 +326,22 @@ data class AttachmentEntity(
     val remoteUpdatedAt: Long?,
     val lastSyncError: String?,
 )
+
+// Last-known publisher identity for the legal pages (GET /editor-identity),
+// one row (id = 0) like plan_usage, so the legal notice stays right offline and
+// before sign-in. Each field null = not filled in on the backend yet.
+@Entity(tableName = "editor_identity")
+data class EditorIdentityEntity(
+    @PrimaryKey val id: Int = 0,
+    val firstName: String? = null,
+    val lastName: String? = null,
+    val companyName: String? = null,
+    val legalStatus: String? = null,
+    val siret: String? = null,
+    val address: String? = null,
+    val contactEmail: String? = null,
+    val vatNumber: String? = null,
+    val hostingProviderName: String? = null,
+    val hostingProviderAddress: String? = null,
+    val refreshedAt: Long,
+)

@@ -5,6 +5,7 @@ import androidx.sqlite.driver.bundled.BundledSQLiteDriver
 import androidx.sqlite.execSQL
 import com.dmb.chantiertracker.support.verifyAttachmentDaoContract
 import com.dmb.chantiertracker.support.verifyDailyLogDaoContract
+import com.dmb.chantiertracker.support.verifyEditorIdentityDaoContract
 import com.dmb.chantiertracker.support.verifyInvitationDaoContract
 import com.dmb.chantiertracker.support.verifyMaterialAndLineDaoContract
 import com.dmb.chantiertracker.support.verifyPlanUsageDaoContract
@@ -888,6 +889,45 @@ class MigrationTest {
             verifyPlanUsageDaoContract(fresh)
         } finally {
             fresh.close()
+        }
+    }
+
+    /**
+     * Seeds a v12 database through the real v11 → v12 step, then opens [AppDatabase] (v13) and
+     * lets MIGRATION_12_13 create `editor_identity` (ADR-68) — empty, usable, nothing else touched.
+     */
+    @Test
+    fun migrating_from_v12_adds_the_editor_identity_table_and_keeps_existing_data() = runTest {
+        val v12Path = dir.resolve("migration-v12.db").absolutePathString()
+        BundledSQLiteDriver().open(v12Path).use { c ->
+            seedV7Schema(c)
+            c.execSQL("ALTER TABLE `projects` ADD COLUMN `ownerPlan` TEXT")
+            c.execSQL("ALTER TABLE `attachments` ADD COLUMN `durationSeconds` INTEGER")
+            listOf(
+                "projectsUsed INTEGER", "photosUsed INTEGER", "photosLimit INTEGER", "videosUsed INTEGER",
+                "videosLimit INTEGER", "videoDurationLimitSeconds INTEGER", "supervisorsUsed INTEGER",
+                "supervisorsLimit INTEGER", "planExpiresAt TEXT", "hasStripeCustomer INTEGER",
+            ).forEach { column -> c.execSQL("ALTER TABLE `plan_usage` ADD COLUMN $column") }
+            MIGRATION_11_12.migrate(c)
+            c.execSQL("CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)")
+            c.execSQL("PRAGMA user_version = 12")
+            c.execSQL(
+                "INSERT INTO projects (localId, serverId, name, description, location, currency, timezone, status, " +
+                    "ownerId, createdAt, syncStatus, pendingOp, locallyModifiedAt, lastSyncedAt, remoteUpdatedAt, " +
+                    "lastSyncError, ownerPlan, ownerIsFounder) VALUES ('p-v12', 42, 'Chantier v12', NULL, NULL, 'EUR', " +
+                    "'Europe/Paris', 'IN_PROGRESS', 1, NULL, 'SYNCED', 'NONE', 1000, NULL, NULL, NULL, 'FREE', 1)",
+            )
+        }
+
+        val db = Room.databaseBuilder<AppDatabase>(name = v12Path).buildChantierDatabase()
+        try {
+            val project = db.projectDao().findByLocalId("p-v12")
+            assertEquals("Chantier v12", project?.name, "v12 data survives the migration")
+            assertEquals(true, project?.ownerIsFounder)
+            assertEquals(null, db.editorIdentityDao().observe().first(), "the new table starts empty")
+            verifyEditorIdentityDaoContract(db)
+        } finally {
+            db.close()
         }
     }
 }

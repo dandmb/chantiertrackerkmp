@@ -46,6 +46,7 @@ class KoinModulesTest {
         single<ProjectDao> { FakeProjectDao() }
         single<StageDao> { FakeStageDao() }
         single<PlanUsageDao> { FakePlanUsageDao() }
+        single<com.dmb.chantiertracker.data.local.db.EditorIdentityDao> { com.dmb.chantiertracker.support.FakeEditorIdentityDao() }
         single<Syncer> { FakeSyncer() }
     }
 
@@ -66,6 +67,7 @@ class KoinModulesTest {
         assertNotNull(koin.get<ProjectRepository>())
         assertNotNull(koin.get<StageRepository>())
         assertNotNull(koin.get<AccountRepository>())
+        assertNotNull(koin.get<com.dmb.chantiertracker.domain.repository.EditorIdentityRepository>())
 
         koin.close()
     }

@@ -365,3 +365,25 @@ suspend fun verifyPlanUsageDaoContract(db: AppDatabase) {
     assertEquals("2026-10-08T12:00:00", row.planExpiresAt)
     assertEquals(true, row.hasStripeCustomer)
 }
+
+suspend fun verifyEditorIdentityDaoContract(db: AppDatabase) {
+    val dao = db.editorIdentityDao()
+
+    assertNull(dao.observe().first())
+
+    dao.upsert(com.dmb.chantiertracker.data.local.db.EditorIdentityEntity(refreshedAt = 1_000L))
+    assertNull(dao.observe().first()?.siret, "nothing filled in yet: every field null")
+
+    // Single row, id = 0: a later fetch replaces it, nulls included.
+    dao.upsert(
+        com.dmb.chantiertracker.data.local.db.EditorIdentityEntity(
+            firstName = "Jean", lastName = "Martin", siret = "123 456 789 00012",
+            hostingProviderName = "Hetzner Online GmbH", refreshedAt = 2_000L,
+        ),
+    )
+    dao.upsert(com.dmb.chantiertracker.data.local.db.EditorIdentityEntity(firstName = "Jean", refreshedAt = 3_000L))
+    val row = dao.observe().first()
+    assertEquals("Jean", row?.firstName)
+    assertNull(row?.siret, "a field cleared on the backend is cleared here too")
+    assertEquals(3_000L, row?.refreshedAt)
+}
