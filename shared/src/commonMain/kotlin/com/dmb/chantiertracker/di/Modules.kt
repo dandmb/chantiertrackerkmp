@@ -1,5 +1,10 @@
 package com.dmb.chantiertracker.di
 
+import com.dmb.chantiertracker.data.remote.EditorIdentityApi
+import com.dmb.chantiertracker.data.local.db.EditorIdentityDao
+import com.dmb.chantiertracker.data.repository.EditorIdentityRepositoryImpl
+import com.dmb.chantiertracker.domain.repository.EditorIdentityRepository
+import com.dmb.chantiertracker.presentation.legal.LegalDocumentViewModel
 import com.dmb.chantiertracker.core.AppConfig
 import com.dmb.chantiertracker.data.AuthStateHolder
 import com.dmb.chantiertracker.data.local.AttachmentFileStore
@@ -148,6 +153,7 @@ val networkModule: Module = module {
     singleOf(::ExportApi)
     singleOf(::BillingApi)
     singleOf(::AdminApi)
+    singleOf(::EditorIdentityApi)
 }
 
 val syncModule: Module = module {
@@ -162,6 +168,7 @@ val syncModule: Module = module {
     single<ConsumptionLineDao> { get<AppDatabase>().consumptionLineDao() }
     single<AttachmentDao> { get<AppDatabase>().attachmentDao() }
     single<InvitationDao> { get<AppDatabase>().invitationDao() }
+    single<EditorIdentityDao> { get<AppDatabase>().editorIdentityDao() }
     single<AttachmentFileStore> { FileKitAttachmentFileStore(newFileName = { kotlin.uuid.Uuid.random().toString() }) }
     single<ExportFileStore> { FileKitExportFileStore() }
     single { AppCoroutineScope() }
@@ -211,6 +218,7 @@ val dataModule: Module = module {
     single<ExportRepository> { ExportRepositoryImpl(get(), get(), get()) }
     single<BillingRepository> { BillingRepositoryImpl(get()) }
     single<AdminRepository> { AdminRepositoryImpl(get()) }
+    single<EditorIdentityRepository> { EditorIdentityRepositoryImpl(get(), get()) }
 }
 
 val presentationModule: Module = module {
@@ -250,6 +258,7 @@ val presentationModule: Module = module {
     viewModelOf(::AdminCreateUserViewModel)
     viewModelOf(::AdminStatsViewModel)
     viewModelOf(::InvitationAcceptViewModel)
+    viewModelOf(::LegalDocumentViewModel)
 }
 
 fun appModules(): List<Module> = listOf(

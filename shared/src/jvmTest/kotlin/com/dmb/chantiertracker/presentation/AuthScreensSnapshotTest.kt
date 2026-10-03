@@ -38,6 +38,7 @@ import com.dmb.chantiertracker.presentation.onboarding.OnboardingScreenContent
 import com.dmb.chantiertracker.presentation.theme.AppTheme
 import com.dmb.chantiertracker.support.FakeAuthRepository
 import com.dmb.chantiertracker.support.FakeBillingRepository
+import com.dmb.chantiertracker.support.legalVm
 import com.dmb.chantiertracker.support.FakeCheckoutLauncher
 import com.dmb.chantiertracker.support.installTestMainDispatcher
 import com.dmb.chantiertracker.support.resetTestMainDispatcher
@@ -186,17 +187,24 @@ class AuthScreensSnapshotTest {
                 WelcomeScreen(onCreateAccount = {}, onSignIn = {}, onDiscoverPlans = {}, onOpenLegalDocument = {})
             }
             snapshot("11-legal-terms-of-use", locale) {
-                StandaloneLegalDocumentScreen(LegalDocument.TermsOfUse, onBack = {})
+                StandaloneLegalDocumentScreen(LegalDocument.TermsOfUse, onBack = {}, viewModel = legalVm())
             }
             // ADR-67 — no provider here, so billing reads UNKNOWN: the provisional CGV.
             snapshot("11b-legal-terms-of-sale-billing-closed", locale) {
-                StandaloneLegalDocumentScreen(LegalDocument.TermsOfSale, onBack = {})
+                StandaloneLegalDocumentScreen(LegalDocument.TermsOfSale, onBack = {}, viewModel = legalVm())
+            }
+            snapshot("12b-legal-notice-filled-identity", locale) {
+                StandaloneLegalDocumentScreen(
+                    LegalDocument.LegalNotice,
+                    onBack = {},
+                    viewModel = legalVm(com.dmb.chantiertracker.support.filledEditorIdentity),
+                )
             }
             snapshot("12-legal-notice-dark", locale, dark = true) {
-                StandaloneLegalDocumentScreen(LegalDocument.LegalNotice, onBack = {})
+                StandaloneLegalDocumentScreen(LegalDocument.LegalNotice, onBack = {}, viewModel = legalVm())
             }
             snapshot("13-legal-privacy-landscape", locale, landscape = true) {
-                StandaloneLegalDocumentScreen(LegalDocument.PrivacyPolicy, onBack = {})
+                StandaloneLegalDocumentScreen(LegalDocument.PrivacyPolicy, onBack = {}, viewModel = legalVm())
             }
         }
     }

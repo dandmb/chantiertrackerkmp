@@ -14,6 +14,8 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
@@ -26,17 +28,29 @@ import com.dmb.chantiertracker.resources.Res
 import com.dmb.chantiertracker.resources.legal_language_notice
 import com.dmb.chantiertracker.resources.legal_last_updated
 import org.jetbrains.compose.resources.stringResource
+import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
-fun StandaloneLegalDocumentScreen(document: LegalDocument, onBack: () -> Unit) {
+fun StandaloneLegalDocumentScreen(
+    document: LegalDocument,
+    onBack: () -> Unit,
+    viewModel: LegalDocumentViewModel = koinViewModel(),
+) {
     Scaffold(topBar = { DetailTopBar(title = stringResource(document.label), onBack = onBack) }) { padding ->
-        LegalDocumentScreen(document, Modifier.padding(padding))
+        LegalDocumentScreen(document, Modifier.padding(padding), viewModel)
     }
 }
 
 @Composable
-fun LegalDocumentScreen(document: LegalDocument, modifier: Modifier = Modifier) {
-    val valuesByToken = LegalPlaceholder.entries.associate { it.token to stringResource(it.value) }
+fun LegalDocumentScreen(
+    document: LegalDocument,
+    modifier: Modifier = Modifier,
+    viewModel: LegalDocumentViewModel = koinViewModel(),
+) {
+    val editorIdentity by viewModel.editorIdentity.collectAsStateWithLifecycle()
+    val valuesByToken = LegalPlaceholder.entries.associate { placeholder ->
+        placeholder.token to (editorIdentity.valueFor(placeholder) ?: stringResource(placeholder.value))
+    }
 
     ResponsiveContent(modifier) {
         Column(

@@ -3,6 +3,7 @@ package com.dmb.chantiertracker.data.local.db
 import androidx.room.Room
 import com.dmb.chantiertracker.support.verifyAttachmentDaoContract
 import com.dmb.chantiertracker.support.verifyDailyLogDaoContract
+import com.dmb.chantiertracker.support.verifyEditorIdentityDaoContract
 import com.dmb.chantiertracker.support.verifyInvitationDaoContract
 import com.dmb.chantiertracker.support.verifyMaterialAndLineDaoContract
 import com.dmb.chantiertracker.support.verifyPlanUsageDaoContract
@@ -38,6 +39,7 @@ class AppDatabaseTest {
         val db = Room.inMemoryDatabaseBuilder<AppDatabase>().buildChantierDatabase()
         try {
             verifyPlanUsageDaoContract(db)
+            verifyEditorIdentityDaoContract(db)
         } finally {
             db.close()
         }
