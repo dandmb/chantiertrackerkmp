@@ -364,4 +364,61 @@ class SyncAndRejectionsIntegrationTest {
         assertTrue(aliceProjectServerId != null)
         assertIs<AuthState.Authenticated>(phone.authState.state.value)
     }
+
+    // ─── A-1 (ADR-69) — sign-out guard and session switch, against the real backend ──
+
+    @Test
+    fun p8_a_voluntary_sign_out_is_blocked_offline_while_writes_are_unsent_then_goes_through() = runScenario {
+        val phone = device()
+        phone.signedInAs("qa-p8-logout", "QA P8 Déconnexion")
+        val projectId = phone.newProject("QA P8 déconnexion")
+        phone.sync.syncNow()
+
+        phone.goOffline()
+        val stageId = phone.newStage(projectId, "Saisie faite hors ligne")
+        val blocked = phone.signOut.signOut()
+        println("P8-déconnexion — hors ligne : $blocked ; état d'auth=${phone.authState.state.value}")
+        assertIs<com.dmb.chantiertracker.domain.repository.SignOutResult.Blocked>(blocked)
+        assertIs<AuthState.Authenticated>(phone.authState.state.value, "toujours connecté, jeton conservé")
+        assertNotNull(phone.storage.get())
+
+        phone.goOnline()
+        val result = phone.signOut.signOut()
+        val stage = phone.db.stageDao().findByLocalId(stageId)
+        println("P8-déconnexion — en ligne : $result ; étape=${stage?.syncStatus} serverId=${stage?.serverId}")
+        assertEquals(com.dmb.chantiertracker.domain.repository.SignOutResult.SignedOut, result)
+        assertEquals(SyncStatus.SYNCED, stage?.syncStatus, "envoyée avant la déconnexion")
+        assertEquals(AuthState.Unauthenticated, phone.authState.state.value)
+    }
+
+    @Test
+    fun p8_after_an_expired_session_another_account_finds_an_empty_device_and_nothing_of_the_previous_one() = runScenario {
+        val phone = device()
+        val alice = phone.signedInAs("qa-p8-exp-alice", "QA P8 Alice expirée")
+        val projectId = phone.newProject("Projet synchronisé d'Alice")
+        phone.sync.syncNow()
+        phone.goOffline()
+        val pendingId = phone.newProject("Saisie en attente d'Alice")
+        phone.fileStore.save(aSmallJpeg(), "photo-alice.jpg")
+
+        // Alice's session is revoked from another device while hers is offline.
+        val other = device()
+        retryingOnRateLimit { other.auth.login(alice.email, "QaPassword1234!") }
+        other.auth.changePassword("QaPassword1234!", "QaPasswordNew5678!")
+        phone.goOnline()
+        phone.sync.syncNow()
+        assertEquals(AuthState.Unauthenticated, phone.authState.state.value, "session expirée")
+
+        val bob = accounts.create("qa-p8-exp-bob", "QA P8 Bob")
+        phone.auth.signInForTheFirstTime(bob, "QaPassword1234!")
+        val shownToBob = phone.projects.observeProjects().first().map { it.name }
+        phone.sync.syncNow()
+        val bobOnServer = phone.projectApi.list().content.map { it.name }
+        println("P8-expirée — affiché à Bob : $shownToBob ; côté serveur pour Bob : $bobOnServer ; fichiers locaux : ${phone.fileStore.storedPaths}")
+        assertTrue(shownToBob.isEmpty(), "rien d'Alice n'est montré à Bob")
+        assertTrue("Saisie en attente d'Alice" !in bobOnServer, "la saisie d'Alice n'est jamais créée sur le compte de Bob")
+        assertTrue(phone.fileStore.storedPaths.isEmpty(), "les fichiers de justificatifs d'Alice sont effacés")
+        assertTrue(phone.db.projectDao().findByLocalId(pendingId) == null && phone.db.projectDao().findByLocalId(projectId) == null)
+    }
 }
+

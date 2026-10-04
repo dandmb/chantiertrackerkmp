@@ -1,5 +1,9 @@
 package com.dmb.chantiertracker.support
 
+import com.dmb.chantiertracker.data.session.LocalDataOwnerStore
+import com.dmb.chantiertracker.data.session.LocalDataOwnership
+import com.dmb.chantiertracker.data.session.LocalDataWiper
+import com.dmb.chantiertracker.data.session.UnsyncedWriteCounter
 import androidx.room.Room
 import com.dmb.chantiertracker.data.AuthStateHolder
 import com.dmb.chantiertracker.data.local.DesktopOnboardingStore
@@ -49,7 +53,6 @@ class DeviceStack : AutoCloseable {
         enableLogging = false,
         onSessionExpired = { authState.update(AuthState.Unauthenticated) },
     )
-    val auth = AuthRepositoryImpl(AuthApi(client), storage, authState, DesktopOnboardingStore(dir.resolve("onboarding.flag")))
 
     val db: AppDatabase = Room.inMemoryDatabaseBuilder<AppDatabase>().buildChantierDatabase()
     val connectivity = FakeConnectivityObserver(initiallyOnline = true)
@@ -88,6 +91,16 @@ class DeviceStack : AutoCloseable {
         syncState = SyncStateHolder(),
         scope = scope,
     )
+
+    val preferences = FakeAppPreferences()
+    val exportStore = FakeExportFileStore()
+    val ownership = LocalDataOwnership(
+        LocalDataOwnerStore(preferences),
+        LocalDataWiper(db.localDataDao(), fileStore, exportStore) {},
+        UnsyncedWriteCounter { db.localDataDao().countUnsynced() },
+    )
+    val auth = AuthRepositoryImpl(AuthApi(client), storage, authState, DesktopOnboardingStore(dir.resolve("onboarding.flag")), sync, ownership)
+    val signOut = com.dmb.chantiertracker.data.repository.SignOutRepositoryImpl(auth, sync, UnsyncedWriteCounter { db.localDataDao().countUnsynced() })
 
     val projects = ProjectRepositoryImpl(db.projectDao(), sync, scope)
     val stages = StageRepositoryImpl(db.stageDao(), sync, scope)

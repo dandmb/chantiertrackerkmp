@@ -1,5 +1,10 @@
 package com.dmb.chantiertracker.data.repository
 
+import com.dmb.chantiertracker.support.FakeAppPreferences
+import com.dmb.chantiertracker.support.FakeLocalDataEraser
+import com.dmb.chantiertracker.support.FakeSyncer
+import com.dmb.chantiertracker.support.FakeUnsyncedWriteCounter
+import com.dmb.chantiertracker.support.testOwnership
 import com.dmb.chantiertracker.data.AuthStateHolder
 import com.dmb.chantiertracker.data.local.AuthTokens
 import com.dmb.chantiertracker.data.remote.AuthApi
@@ -33,10 +38,16 @@ private class Fixture(
     val storage: FakeTokenStorage = FakeTokenStorage(),
     val holder: AuthStateHolder = AuthStateHolder(),
     val onboarding: FakeOnboardingStore = FakeOnboardingStore(),
+    val syncer: FakeSyncer = FakeSyncer(),
+    val preferences: FakeAppPreferences = FakeAppPreferences(),
+    val eraser: FakeLocalDataEraser = FakeLocalDataEraser(),
+    val unsynced: FakeUnsyncedWriteCounter = FakeUnsyncedWriteCounter(),
     handler: suspend MockRequestHandleScope.(HttpRequestData) -> HttpResponseData,
 ) {
     val mock = RecordingMockClient(storage, handler = handler)
-    val repo = AuthRepositoryImpl(AuthApi(mock.client), storage, holder, onboarding)
+    val repo = AuthRepositoryImpl(
+        AuthApi(mock.client), storage, holder, onboarding, syncer, testOwnership(preferences, eraser, unsynced),
+    )
 }
 
 class AuthRepositoryImplTest {
@@ -261,4 +272,181 @@ class AuthRepositoryImplTest {
             f.repo.changePassword("wrong", "NewPass1234!")
         }
     }
+
+    // ─── ADR-69 — local data owner (A-1) and offline start (A-7) ─────────────
+
+    private val otherOwner = mapOf(
+        "local_data_owner_id" to "42", "local_data_owner_email" to "alice@chantier.dev",
+        "local_data_owner_name" to "Alice", "local_data_owner_role" to "USER",
+    )
+
+    private fun loginHandler(): suspend MockRequestHandleScope.(HttpRequestData) -> HttpResponseData = {
+        when (it.url.encodedPath) {
+            "/api/v1/auth/login" -> respondJson(TOKENS_JSON)
+            "/api/v1/users/me" -> respondJson(USER_JSON)
+            else -> error("unexpected ${it.url.encodedPath}")
+        }
+    }
+
+    @Test
+    fun another_account_signing_in_erases_the_local_data_before_any_screen_is_shown() = runTest {
+        lateinit var f: Fixture
+        var stateAtErase: AuthState? = null
+        var tokensAtErase: AuthTokens? = null
+        var exclusiveAtErase = false
+        f = Fixture(
+            preferences = FakeAppPreferences(otherOwner),
+            eraser = FakeLocalDataEraser {
+                stateAtErase = f.holder.state.value
+                tokensAtErase = f.storage.tokens
+                exclusiveAtErase = f.syncer.inExclusive
+            },
+            handler = loginHandler(),
+        )
+
+        f.repo.login("jean@chantier.dev", "Password1234!")
+
+        assertEquals(1, f.eraser.eraseCount)
+        assertTrue(stateAtErase !is AuthState.Authenticated, "erased before Authenticated is published")
+        assertEquals(AuthTokens("access-1", "refresh-1"), tokensAtErase, "the new token is already stored…")
+        assertTrue(exclusiveAtErase, "…but no sync pass can run until the erasure is done")
+        assertEquals("7", f.preferences.store["local_data_owner_id"], "the new account now owns the local data")
+        assertIs<AuthState.Authenticated>(f.holder.state.value)
+    }
+
+    @Test
+    fun the_same_account_signing_in_again_keeps_its_local_data() = runTest {
+        val f = Fixture(
+            preferences = FakeAppPreferences(mapOf("local_data_owner_id" to "7")),
+            handler = loginHandler(),
+        )
+
+        f.repo.login("jean@chantier.dev", "Password1234!")
+
+        assertEquals(0, f.eraser.eraseCount)
+        assertIs<AuthState.Authenticated>(f.holder.state.value)
+    }
+
+    @Test
+    fun storing_the_new_token_happens_inside_the_exclusive_section() = runTest {
+        val f = Fixture(handler = loginHandler())
+
+        f.repo.login("jean@chantier.dev", "Password1234!")
+
+        assertEquals(1, f.syncer.exclusiveCount, "token, identity and ownership in one exclusive section")
+    }
+
+    @Test
+    fun a_sign_in_that_must_change_its_password_erases_nothing_and_records_no_owner() = runTest {
+        val f = Fixture(preferences = FakeAppPreferences(otherOwner)) {
+            when (it.url.encodedPath) {
+                "/api/v1/auth/login" -> respondJson(TOKENS_JSON)
+                else -> respondProblem(HttpStatusCode.Forbidden, "Vous devez changer votre mot de passe avant de continuer.")
+            }
+        }
+
+        f.repo.login("jean@chantier.dev", "Password1234!")
+
+        assertEquals(0, f.eraser.eraseCount, "identity unknown yet: checked at the sign-in after the change")
+        assertEquals("42", f.preferences.store["local_data_owner_id"])
+        assertEquals(AuthState.MustChangePassword("jean@chantier.dev"), f.holder.state.value)
+    }
+
+    @Test
+    fun first_sign_in_after_the_update_erases_when_nothing_is_unsent() = runTest {
+        val f = Fixture(unsynced = FakeUnsyncedWriteCounter(0), handler = loginHandler())
+
+        f.repo.login("jean@chantier.dev", "Password1234!")
+
+        assertEquals(1, f.eraser.eraseCount, "no owner recorded: data of unknown origin, nothing lost")
+        assertEquals("7", f.preferences.store["local_data_owner_id"])
+    }
+
+    @Test
+    fun first_sign_in_after_the_update_adopts_the_data_when_something_is_unsent() = runTest {
+        val f = Fixture(unsynced = FakeUnsyncedWriteCounter(3), handler = loginHandler())
+
+        f.repo.login("jean@chantier.dev", "Password1234!")
+
+        assertEquals(0, f.eraser.eraseCount, "unsent writes can't be attributed — kept rather than lost for good")
+        assertEquals("7", f.preferences.store["local_data_owner_id"])
+    }
+
+    @Test
+    fun a_continuing_session_adopts_the_local_data_when_no_owner_is_recorded() = runTest {
+        val f = Fixture(storage = FakeTokenStorage(AuthTokens("a", "r"))) { respondJson(USER_JSON) }
+
+        f.repo.bootstrap()
+
+        assertEquals(0, f.eraser.eraseCount)
+        assertEquals("7", f.preferences.store["local_data_owner_id"])
+        assertIs<AuthState.Authenticated>(f.holder.state.value)
+    }
+
+    @Test
+    fun reopening_the_app_offline_keeps_the_session_with_the_last_known_profile() = runTest {
+        val f = Fixture(
+            storage = FakeTokenStorage(AuthTokens("a", "r")),
+            preferences = FakeAppPreferences(otherOwner),
+        ) { throw kotlin.RuntimeException("no connection") }
+
+        f.repo.bootstrap()
+
+        assertEquals(AuthState.Authenticated(com.dmb.chantiertracker.domain.model.User(42, "alice@chantier.dev", "Alice", true, com.dmb.chantiertracker.domain.model.GlobalRole.USER)), f.holder.state.value)
+        assertEquals(AuthTokens("a", "r"), f.storage.tokens, "A-7: the token is never cleared for a network failure")
+        assertEquals(0, f.eraser.eraseCount)
+    }
+
+    @Test
+    fun reopening_the_app_during_a_server_error_keeps_the_session_too() = runTest {
+        val f = Fixture(
+            storage = FakeTokenStorage(AuthTokens("a", "r")),
+            preferences = FakeAppPreferences(otherOwner),
+        ) { respondJson("""{"status":503}""", HttpStatusCode.ServiceUnavailable) }
+
+        f.repo.bootstrap()
+
+        assertIs<AuthState.Authenticated>(f.holder.state.value)
+        assertEquals(AuthTokens("a", "r"), f.storage.tokens)
+    }
+
+    @Test
+    fun reopening_the_app_offline_without_a_known_profile_shows_sign_in_but_keeps_the_token() = runTest {
+        val f = Fixture(storage = FakeTokenStorage(AuthTokens("a", "r"))) { throw kotlin.RuntimeException("no connection") }
+
+        f.repo.bootstrap()
+
+        assertEquals(AuthState.Unauthenticated, f.holder.state.value)
+        assertEquals(AuthTokens("a", "r"), f.storage.tokens)
+    }
+
+    @Test
+    fun a_real_refusal_at_start_still_signs_out() = runTest {
+        val f = Fixture(
+            storage = FakeTokenStorage(AuthTokens("a", "r")),
+            preferences = FakeAppPreferences(otherOwner),
+        ) {
+            when (it.url.encodedPath) {
+                "/api/v1/auth/refresh-token" -> respondProblem(HttpStatusCode.Unauthorized, "Jeton invalide.")
+                else -> respondProblem(HttpStatusCode.Unauthorized, "Authentification requise.")
+            }
+        }
+
+        f.repo.bootstrap()
+
+        assertEquals(AuthState.Unauthenticated, f.holder.state.value, "401 after a failed refresh: a real refusal")
+        assertNull(f.storage.tokens)
+    }
+
+    @Test
+    fun signing_out_runs_with_no_sync_pass_in_flight() = runTest {
+        val f = Fixture(storage = FakeTokenStorage(AuthTokens("a", "r"))) { respondJson("{}") }
+
+        f.repo.logout()
+
+        assertEquals(1, f.syncer.exclusiveCount)
+        assertNull(f.storage.tokens)
+        assertEquals(AuthState.Unauthenticated, f.holder.state.value)
+    }
 }
+

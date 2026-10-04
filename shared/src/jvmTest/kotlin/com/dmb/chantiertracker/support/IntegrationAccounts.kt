@@ -53,7 +53,7 @@ class DisposableAccounts : AutoCloseable {
 
     private val adminStorage = FakeTokenStorage()
     private val client = createHttpClient(httpClientEngine(), adminStorage, IntegrationBackend.baseUrl, false) {}
-    private val adminAuth = AuthRepositoryImpl(AuthApi(client), adminStorage, AuthStateHolder(), FakeOnboardingStore())
+    private val adminAuth = AuthRepositoryImpl(AuthApi(client), adminStorage, AuthStateHolder(), FakeOnboardingStore(), FakeSyncer(), testOwnership())
     private val admin = AdminApi(client)
     private val created = mutableListOf<Long>()
 

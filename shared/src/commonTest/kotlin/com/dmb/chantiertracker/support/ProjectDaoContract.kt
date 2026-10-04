@@ -387,3 +387,37 @@ suspend fun verifyEditorIdentityDaoContract(db: AppDatabase) {
     assertNull(row?.siret, "a field cleared on the backend is cleared here too")
     assertEquals(3_000L, row?.refreshedAt)
 }
+
+suspend fun verifyLocalDataDaoContract(db: AppDatabase) {
+    val dao = db.localDataDao()
+    assertEquals(0, dao.countUnsynced())
+
+    db.projectDao().upsert(localProject("proj-1"))
+    db.projectDao().upsertMembers(listOf(com.dmb.chantiertracker.data.local.db.ProjectMemberEntity("proj-1", 7, "Jean", "j@x.dev", "ADMIN")))
+    db.stageDao().upsert(localStage("stage-1", projectLocalId = "proj-1"))
+    db.dailyLogDao().upsert(localDailyLog("log-1", stageLocalId = "stage-1"))
+    db.dailyEntryDao().upsert(localDailyEntry("entry-1", dailyLogLocalId = "log-1"))
+    db.materialDao().upsert(localMaterial("material-1", projectLocalId = "proj-1"))
+    db.purchaseLineDao().upsert(localPurchaseLine("pl-1", entryLocalId = "entry-1", materialLocalId = "material-1"))
+    db.consumptionLineDao().upsert(localConsumptionLine("cl-1", entryLocalId = "entry-1", materialLocalId = "material-1"))
+    db.attachmentDao().upsert(localAttachment("att-1", entryLocalId = "entry-1"))
+    db.planUsageDao().upsert(com.dmb.chantiertracker.data.local.db.PlanUsageEntity(plan = "FREE", projectsLimit = 1, refreshedAt = 1L))
+    db.editorIdentityDao().upsert(com.dmb.chantiertracker.data.local.db.EditorIdentityEntity(siret = "123", refreshedAt = 1L))
+
+    assertEquals(7, dao.countUnsynced(), "project, stage, entry, material, both lines and the photo are pending")
+
+    dao.eraseAll()
+
+    assertEquals(0, dao.countUnsynced())
+    assertTrue(db.projectDao().findAll().isEmpty())
+    assertTrue(db.projectDao().observeMembers("proj-1").first().isEmpty())
+    assertNull(db.stageDao().findByLocalId("stage-1"))
+    assertNull(db.dailyEntryDao().findByLocalId("entry-1"))
+    assertNull(db.materialDao().findByLocalId("material-1"))
+    assertNull(db.purchaseLineDao().findByLocalId("pl-1"))
+    assertNull(db.consumptionLineDao().findByLocalId("cl-1"))
+    assertNull(db.attachmentDao().findByLocalId("att-1"))
+    assertNull(db.planUsageDao().observe().first(), "the plan usage belongs to the account too")
+    assertNull(db.editorIdentityDao().observe().first())
+}
+

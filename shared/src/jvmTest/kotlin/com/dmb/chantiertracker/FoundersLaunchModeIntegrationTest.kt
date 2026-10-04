@@ -79,7 +79,10 @@ class FoundersLaunchModeIntegrationTest {
         enableLogging = false,
         onSessionExpired = { holder.update(AuthState.Unauthenticated) },
     )
-    private val auth = AuthRepositoryImpl(AuthApi(client), storage, holder, DesktopOnboardingStore(dir.resolve("onboarding.flag")))
+    private val auth = AuthRepositoryImpl(
+        AuthApi(client), storage, holder, DesktopOnboardingStore(dir.resolve("onboarding.flag")),
+        com.dmb.chantiertracker.support.FakeSyncer(), com.dmb.chantiertracker.support.testOwnership(),
+    )
     private val billing = BillingRepositoryImpl(BillingApi(client))
 
     private val db: AppDatabase = Room.inMemoryDatabaseBuilder<AppDatabase>().buildChantierDatabase()

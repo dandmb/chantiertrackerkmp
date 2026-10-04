@@ -72,7 +72,10 @@ class DesktopAuthIntegrationTest {
         enableLogging = false,
         onSessionExpired = { holder.update(AuthState.Unauthenticated) },
     )
-    private val repo = AuthRepositoryImpl(AuthApi(client), storage, holder, onboarding)
+    private val preferences = com.dmb.chantiertracker.support.FakeAppPreferences()
+    private val repo by lazy {
+        AuthRepositoryImpl(AuthApi(client), storage, holder, onboarding, syncEngine, ownership)
+    }
 
     private val db: AppDatabase = Room.inMemoryDatabaseBuilder<AppDatabase>().buildChantierDatabase()
     private val accountRepo = AccountRepositoryImpl(AccountApi(client), db.planUsageDao())
@@ -102,6 +105,13 @@ class DesktopAuthIntegrationTest {
         scope = appScope,
     )
     private val projectRepo = ProjectRepositoryImpl(db.projectDao(), syncEngine, appScope)
+    private val ownership = com.dmb.chantiertracker.data.session.LocalDataOwnership(
+        com.dmb.chantiertracker.data.session.LocalDataOwnerStore(preferences),
+        com.dmb.chantiertracker.data.session.LocalDataWiper(
+            db.localDataDao(), com.dmb.chantiertracker.support.FakeAttachmentFileStore(), com.dmb.chantiertracker.support.FakeExportFileStore(),
+        ) {},
+        com.dmb.chantiertracker.data.session.UnsyncedWriteCounter { db.localDataDao().countUnsynced() },
+    )
 
     private val accounts = DisposableAccounts()
 
@@ -138,7 +148,7 @@ class DesktopAuthIntegrationTest {
         val client2 = createHttpClient(httpClientEngine(), storage, "http://localhost:8080/api/v1", false) {
             holder2.update(AuthState.Unauthenticated)
         }
-        val repo2 = AuthRepositoryImpl(AuthApi(client2), storage, holder2, onboarding)
+        val repo2 = AuthRepositoryImpl(AuthApi(client2), storage, holder2, onboarding, syncEngine, ownership)
         repo2.bootstrap()
         assertIs<AuthState.Authenticated>(holder2.state.value)
         client2.close()

@@ -1,5 +1,6 @@
 package com.dmb.chantiertracker.data.local
 
+import io.github.vinceglb.filekit.list
 import io.github.vinceglb.filekit.FileKit
 import io.github.vinceglb.filekit.createDirectories
 import io.github.vinceglb.filekit.delete
@@ -26,6 +27,9 @@ interface AttachmentFileStore {
     suspend fun save(bytes: ByteArray, originalName: String): String
     suspend fun readBytes(key: String): ByteArray
     suspend fun delete(key: String)
+
+    /** Every stored file — the account's whole local copy (ADR-69, another account signing in). */
+    suspend fun deleteAll()
 
     /**
      * The current absolute filesystem path for [key] — resolved fresh every
@@ -54,6 +58,10 @@ class FileKitAttachmentFileStore(private val newFileName: () -> String) : Attach
     override suspend fun delete(key: String) {
         val file = dir / key
         if (file.exists()) file.delete()
+    }
+
+    override suspend fun deleteAll() {
+        if (dir.exists()) dir.list().forEach { it.delete(mustExist = false) }
     }
 
     override fun absolutePathOf(key: String): String = (dir / key).path

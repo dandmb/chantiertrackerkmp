@@ -6,10 +6,19 @@ import com.dmb.chantiertracker.domain.model.AuthState
 import com.dmb.chantiertracker.domain.model.Plan
 import com.dmb.chantiertracker.domain.repository.AccountRepository
 import com.dmb.chantiertracker.domain.repository.AuthRepository
+import com.dmb.chantiertracker.domain.repository.SignOutRepository
+import com.dmb.chantiertracker.domain.repository.SignOutResult
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+
+/** What the sign-out dialog shows (ADR-69). `null` = no dialog. */
+sealed interface LogoutPrompt {
+    data object Sending : LogoutPrompt
+    data class Blocked(val unsentCount: Int) : LogoutPrompt
+    data class RefusedWritesLeft(val count: Int) : LogoutPrompt
+}
 
 data class MainUiState(
     val userName: String = "",
@@ -17,11 +26,13 @@ data class MainUiState(
     val plan: Plan? = null,
     val isFounder: Boolean = false,
     val isLoggingOut: Boolean = false,
+    val logoutPrompt: LogoutPrompt? = null,
 )
 
 class MainViewModel(
     private val authRepository: AuthRepository,
     private val accountRepository: AccountRepository,
+    private val signOutRepository: SignOutRepository,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(MainUiState())
@@ -43,10 +54,24 @@ class MainViewModel(
         viewModelScope.launch { accountRepository.refreshPlanUsage() }
     }
 
-    fun logout() {
+    fun logout() = attemptSignOut(acceptRefusedWrites = false)
+
+    fun retryLogout() = attemptSignOut(acceptRefusedWrites = false)
+
+    fun logoutDespiteRefusedWrites() = attemptSignOut(acceptRefusedWrites = true)
+
+    fun dismissLogoutPrompt() = _state.update { it.copy(logoutPrompt = null, isLoggingOut = false) }
+
+    private fun attemptSignOut(acceptRefusedWrites: Boolean) {
+        if (_state.value.isLoggingOut) return
+        _state.update { it.copy(isLoggingOut = true, logoutPrompt = LogoutPrompt.Sending) }
         viewModelScope.launch {
-            _state.update { it.copy(isLoggingOut = true) }
-            authRepository.logout()
+            val prompt = when (val result = signOutRepository.signOut(acceptRefusedWrites)) {
+                SignOutResult.SignedOut -> null
+                is SignOutResult.Blocked -> LogoutPrompt.Blocked(result.unsentCount)
+                is SignOutResult.RefusedWritesLeft -> LogoutPrompt.RefusedWritesLeft(result.count)
+            }
+            _state.update { it.copy(isLoggingOut = prompt == null, logoutPrompt = prompt) }
         }
     }
 }

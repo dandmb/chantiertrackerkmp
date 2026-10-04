@@ -135,6 +135,15 @@ fun MainScreen(globalRole: GlobalRole, viewModel: MainViewModel = koinViewModel(
     val navController = rememberNavController()
     val account by viewModel.state.collectAsStateWithLifecycle()
     val startDestination = remember(globalRole) { startDestinationFor(globalRole) }
+
+    account.logoutPrompt?.let { prompt ->
+        LogoutPromptDialog(
+            prompt = prompt,
+            onRetry = viewModel::retryLogout,
+            onLogoutAnyway = viewModel::logoutDespiteRefusedWrites,
+            onDismiss = viewModel::dismissLogoutPrompt,
+        )
+    }
     val tabs = remember(globalRole) { tabsFor(globalRole) }
 
     // ADR-51 point 4 — a chantiertracker:// deep link (Stripe checkout/portal

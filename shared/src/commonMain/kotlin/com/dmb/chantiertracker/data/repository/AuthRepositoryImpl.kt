@@ -1,5 +1,8 @@
 package com.dmb.chantiertracker.data.repository
 
+import com.dmb.chantiertracker.data.session.LocalDataOwnership
+import com.dmb.chantiertracker.data.session.SessionStart
+import com.dmb.chantiertracker.data.sync.Syncer
 import com.dmb.chantiertracker.data.AuthStateHolder
 import com.dmb.chantiertracker.data.local.AuthTokens
 import com.dmb.chantiertracker.data.local.OnboardingStore
@@ -27,6 +30,8 @@ class AuthRepositoryImpl(
     private val tokenStorage: TokenStorage,
     private val authStateHolder: AuthStateHolder,
     private val onboardingStore: OnboardingStore,
+    private val syncer: Syncer,
+    private val ownership: LocalDataOwnership,
 ) : AuthRepository {
 
     override val authState: StateFlow<AuthState> = authStateHolder.state
@@ -44,7 +49,9 @@ class AuthRepositoryImpl(
             return
         }
         try {
-            val user = apiCall { api.me() }.toUser()
+            val user = syncer.runExclusive {
+                apiCall { api.me() }.toUser().also { ownership.claim(it, SessionStart.BOOTSTRAP) }
+            }
             authStateHolder.update(AuthState.Authenticated(user))
         } catch (e: CancellationException) {
             throw e
@@ -56,6 +63,16 @@ class AuthRepositoryImpl(
             val email = decodeJwtEmail(tokens.accessToken)
             if (email != null) {
                 authStateHolder.update(AuthState.MustChangePassword(email))
+            } else {
+                tokenStorage.clear()
+                authStateHolder.update(AuthState.Unauthenticated)
+            }
+        } catch (e: DomainException) {
+            if (e.isUnreachableServer()) {
+                // A-7: reopening the app with no network (or a server error) must not sign the
+                // user out — only a real refusal does. The token is kept either way.
+                val cached = ownership.cachedOwner()
+                authStateHolder.update(if (cached != null) AuthState.Authenticated(cached) else AuthState.Unauthenticated)
             } else {
                 tokenStorage.clear()
                 authStateHolder.update(AuthState.Unauthenticated)
@@ -80,23 +97,30 @@ class AuthRepositoryImpl(
 
     override suspend fun login(email: String, password: String) {
         val tokens = apiCall { api.login(LoginRequestDto(email, password)) }
-        tokenStorage.save(AuthTokens(tokens.accessToken, tokens.refreshToken))
-        onboardingStore.markFirstLoginCompleted()
-        try {
-            val user = apiCall { api.me() }.toUser()
-            authStateHolder.update(AuthState.Authenticated(user))
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: DomainException.MustChangePassword) {
-            // Already have the email as a parameter here — no need to decode
-            // the token, unlike bootstrap()'s cold start.
-            authStateHolder.update(AuthState.MustChangePassword(email))
+        // From the moment the new token is stored, any sync pass would push with it — so storing
+        // it, learning who it belongs to and erasing a previous account's data happen with no pass
+        // able to run in between (A-1).
+        val user = syncer.runExclusive {
+            tokenStorage.save(AuthTokens(tokens.accessToken, tokens.refreshToken))
+            onboardingStore.markFirstLoginCompleted()
+            try {
+                apiCall { api.me() }.toUser().also { ownership.claim(it, SessionStart.LOGIN) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: DomainException.MustChangePassword) {
+                // Every endpoint is refused in this state, so nothing can be pushed: the owner is
+                // checked at the sign-in that follows the password change.
+                null
+            }
         }
+        authStateHolder.update(if (user != null) AuthState.Authenticated(user) else AuthState.MustChangePassword(email))
     }
 
     override suspend fun logout() {
-        runCatching { apiCall { api.logout() } }
-        tokenStorage.clear()
+        syncer.runExclusive {
+            runCatching { apiCall { api.logout() } }
+            tokenStorage.clear()
+        }
         authStateHolder.update(AuthState.Unauthenticated)
     }
 
@@ -121,6 +145,9 @@ class AuthRepositoryImpl(
         }
     }
 }
+
+private fun DomainException.isUnreachableServer(): Boolean =
+    this is DomainException.Network || this is DomainException.Unexpected || this is DomainException.RateLimited
 
 private fun UserResponseDto.toUser(): User = User(
     id = id,

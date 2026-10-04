@@ -37,6 +37,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun attachmentDao(): AttachmentDao
     abstract fun invitationDao(): InvitationDao
     abstract fun editorIdentityDao(): EditorIdentityDao
+    abstract fun localDataDao(): LocalDataDao
 }
 
 @Suppress("KotlinNoActualForExpect", "NO_ACTUAL_FOR_EXPECT", "EXPECT_ACTUAL_CLASSIFIERS_ARE_IN_BETA_WARNING")
