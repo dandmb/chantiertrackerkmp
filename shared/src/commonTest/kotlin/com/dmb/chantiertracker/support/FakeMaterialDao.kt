@@ -26,7 +26,7 @@ class FakeMaterialDao(initial: List<MaterialEntity> = emptyList()) : MaterialDao
         materials.value.values.firstOrNull { it.serverId == serverId }
 
     override suspend fun findPending(): List<MaterialEntity> =
-        materials.value.values.filter { it.syncStatus != SyncStatus.SYNCED }
+        materials.value.values.filter { it.syncStatus != SyncStatus.SYNCED && it.lastSyncError != com.dmb.chantiertracker.data.sync.SyncError.DELETED_ON_SERVER }
 
     override suspend fun findForProject(projectLocalId: String): List<MaterialEntity> =
         materials.value.values.filter { it.projectLocalId == projectLocalId }

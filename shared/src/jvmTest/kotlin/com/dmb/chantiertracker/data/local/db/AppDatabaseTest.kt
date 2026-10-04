@@ -5,6 +5,7 @@ import com.dmb.chantiertracker.support.verifyAttachmentDaoContract
 import com.dmb.chantiertracker.support.verifyDailyLogDaoContract
 import com.dmb.chantiertracker.support.verifyEditorIdentityDaoContract
 import com.dmb.chantiertracker.support.verifyLocalDataDaoContract
+import com.dmb.chantiertracker.support.verifyFindPendingSkipsRowsDeletedOnServer
 import com.dmb.chantiertracker.support.verifyInvitationDaoContract
 import com.dmb.chantiertracker.support.verifyMaterialAndLineDaoContract
 import com.dmb.chantiertracker.support.verifyPlanUsageDaoContract
@@ -42,6 +43,7 @@ class AppDatabaseTest {
             verifyPlanUsageDaoContract(db)
             verifyEditorIdentityDaoContract(db)
             verifyLocalDataDaoContract(db)
+            verifyFindPendingSkipsRowsDeletedOnServer(db)
         } finally {
             db.close()
         }

@@ -21,6 +21,7 @@ import com.dmb.chantiertracker.domain.model.AuthState
 import com.dmb.chantiertracker.domain.model.DomainException
 import com.dmb.chantiertracker.domain.model.GlobalRole
 import com.dmb.chantiertracker.domain.model.User
+import com.dmb.chantiertracker.domain.model.isUnreachableServer
 import com.dmb.chantiertracker.domain.repository.AuthRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.StateFlow
@@ -145,9 +146,6 @@ class AuthRepositoryImpl(
         }
     }
 }
-
-private fun DomainException.isUnreachableServer(): Boolean =
-    this is DomainException.Network || this is DomainException.Unexpected || this is DomainException.RateLimited
 
 private fun UserResponseDto.toUser(): User = User(
     id = id,

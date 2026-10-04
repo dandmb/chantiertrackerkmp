@@ -29,7 +29,7 @@ interface PurchaseLineDao {
     @Query("SELECT * FROM purchase_lines WHERE serverId = :serverId")
     suspend fun findByServerId(serverId: Long): PurchaseLineEntity?
 
-    @Query("SELECT * FROM purchase_lines WHERE syncStatus != 'SYNCED'")
+    @Query("SELECT * FROM purchase_lines WHERE syncStatus != 'SYNCED' AND (lastSyncError IS NULL OR lastSyncError != 'DELETED_ON_SERVER')")
     suspend fun findPending(): List<PurchaseLineEntity>
 
     @Query("SELECT * FROM purchase_lines WHERE entryLocalId = :entryLocalId")

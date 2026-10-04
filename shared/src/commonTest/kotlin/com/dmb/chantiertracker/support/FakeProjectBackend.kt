@@ -161,6 +161,8 @@ class FakeProjectBackend {
     /** When true, GET/POST/DELETE on invitations answers 403 (mirrors a non-ADMIN caller). */
     var invitationsForbidden = false
 
+    val goneOnServer = mutableListOf<Regex>()
+
     fun seedInvitation(i: ServerInvitation) = i.also { invitations += it }
     fun seedPendingForMe(i: ServerPendingInvitation) = i.also { myPendingInvitations += it }
     fun seedMaterial(m: ServerMaterial) = m.also { materials += it }
@@ -211,6 +213,7 @@ class FakeProjectBackend {
         receivedMethods += "${request.method.value} $path"
         receivedAuthorizations += "${request.method.value} $path" to request.headers[io.ktor.http.HttpHeaders.Authorization]
         beforeHandle?.invoke(request)
+        if (goneOnServer.any { it.containsMatchIn(path) }) return respondProblem(HttpStatusCode.NotFound, "Introuvable.")
         val idInPath = Regex("""/projects/(\d+)$""").find(path)?.groupValues?.get(1)?.toLong()
         val membersProjectId = Regex("""/projects/(\d+)/members$""").find(path)?.groupValues?.get(1)?.toLong()
         val invitationsProjectId = Regex("""/projects/(\d+)/invitations$""").find(path)?.groupValues?.get(1)?.toLong()

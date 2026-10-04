@@ -23,7 +23,7 @@ interface StageDao {
     @Query("SELECT * FROM stages WHERE serverId = :serverId")
     suspend fun findByServerId(serverId: Long): StageEntity?
 
-    @Query("SELECT * FROM stages WHERE syncStatus != 'SYNCED'")
+    @Query("SELECT * FROM stages WHERE syncStatus != 'SYNCED' AND (lastSyncError IS NULL OR lastSyncError != 'DELETED_ON_SERVER')")
     suspend fun findPending(): List<StageEntity>
 
     @Query("SELECT * FROM stages WHERE projectLocalId = :projectLocalId")
