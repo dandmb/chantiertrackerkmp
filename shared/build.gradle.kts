@@ -124,11 +124,9 @@ room {
 }
 
 tasks.withType<Test>().configureEach {
-    listOf(
-        "chantiertracker.integrationTests",
-        "chantiertracker.integrationBaseUrl",
-        "chantiertracker.integrationPhase",
-    ).forEach { name -> System.getProperty(name)?.let { systemProperty(name, it) } }
+    System.getProperties().stringPropertyNames()
+        .filter { it.startsWith("chantiertracker.") }
+        .forEach { name -> systemProperty(name, System.getProperty(name)) }
 }
 
 compose.resources {

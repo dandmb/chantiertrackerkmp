@@ -25,6 +25,10 @@ import com.dmb.chantiertracker.domain.model.ProjectRole
 import com.dmb.chantiertracker.domain.model.ProjectStatus
 import com.dmb.chantiertracker.domain.model.UpdateProjectInput
 import com.dmb.chantiertracker.support.FakeConnectivityObserver
+import com.dmb.chantiertracker.support.signInForTheFirstTime
+import com.dmb.chantiertracker.support.retryingOnRateLimit
+import com.dmb.chantiertracker.support.IntegrationBackend
+import com.dmb.chantiertracker.support.DisposableAccounts
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
@@ -46,6 +50,14 @@ import kotlin.test.assertTrue
  * Parcours réel du chemin Desktop (DesktopTokenStorage + engine OkHttp) contre le
  * backend local. Ignoré automatiquement si `localhost:8080` ne répond pas.
  * Compte requis : mobile-test@local.dev / ChantierTest1234! (créé pendant la vérif).
+ *
+ * Les scénarios qui ont besoin d'un compte neuf le font créer par le super-admin
+ * ([DisposableAccounts], supprimé en fin de test) : un compte créé par un admin ne passe
+ * jamais par la vérification d'e-mail, donc ne prend aucune place fondateur. Passer
+ * `-Dchantiertracker.adminEmail=… -Dchantiertracker.adminPassword=…` (valeurs du `.env`
+ * backend) ; sans elles, ces scénarios sont ignorés. Le seul scénario qui passe par
+ * l'inscription réelle prend une place par construction : il ne tourne qu'avec
+ * `-Dchantiertracker.integrationAllowFounderSeat=true`.
  */
 class DesktopAuthIntegrationTest {
 
@@ -91,8 +103,11 @@ class DesktopAuthIntegrationTest {
     )
     private val projectRepo = ProjectRepositoryImpl(db.projectDao(), syncEngine, appScope)
 
+    private val accounts = DisposableAccounts()
+
     @AfterTest
     fun cleanUp() {
+        accounts.close()
         client.close()
         db.close()
         dir.toFile().deleteRecursively()
@@ -109,7 +124,7 @@ class DesktopAuthIntegrationTest {
             return@runBlocking
         }
 
-        repo.login("mobile-test@local.dev", "ChantierTest1234!")
+        retryingOnRateLimit { repo.login("mobile-test@local.dev", "ChantierTest1234!") }
 
         val authed = holder.state.value
         assertIs<AuthState.Authenticated>(authed)
@@ -141,7 +156,7 @@ class DesktopAuthIntegrationTest {
     }
 
     @Test
-    fun register_then_reset_password_then_login_with_new_password() = runBlocking {
+    fun a_new_account_resets_its_password_then_signs_in_with_the_new_one() = runBlocking {
         if (System.getProperty("chantiertracker.integrationTests") != "true") {
             println("Test d'intégration désactivé (passer -Dchantiertracker.integrationTests=true).")
             return@runBlocking
@@ -150,26 +165,53 @@ class DesktopAuthIntegrationTest {
             println("Backend localhost:8080 indisponible — test ignoré.")
             return@runBlocking
         }
+        if (!disposableAccountsAvailable()) return@runBlocking
 
-        val email = "reset-flow-${System.currentTimeMillis()}@local.dev"
+        val account = accounts.create("reset-flow", "Reset Flow")
         val firstPassword = "FirstPass1234!"
         val newPassword = "SecondPass5678!"
-
-        repo.register(email, firstPassword, "Reset Flow")
-        val verifyCode = latestCodeFor(email)
-        repo.verifyEmail(email, verifyCode)
-        repo.login(email, firstPassword)
-        assertIs<AuthState.Authenticated>(holder.state.value)
+        repo.signInForTheFirstTime(account, firstPassword)
 
         // Le reset révoque tous les tokens serveur — l'ancien couple est encore sur disque.
-        repo.forgotPassword(email)
-        repo.resetPassword(email, latestCodeFor(email, differentFrom = verifyCode), newPassword)
+        retryingOnRateLimit { repo.forgotPassword(account.email) }
+        val resetCode = latestCodeFor(account.email)
+        retryingOnRateLimit { repo.resetPassword(account.email, resetCode, newPassword) }
 
         // Le cœur du bug #1 : se reconnecter avec le NOUVEAU mot de passe doit réussir.
-        repo.login(email, newPassword)
+        retryingOnRateLimit { repo.login(account.email, newPassword) }
         val authed = holder.state.value
         assertIs<AuthState.Authenticated>(authed)
         assertEquals("Reset Flow", authed.user.name)
+    }
+
+    // The only scenario through self-registration: verify-email is what grants a founder
+    // seat, so this one takes a seat on purpose and only runs when explicitly allowed.
+    @Test
+    fun self_registration_then_email_verification_signs_in_as_a_founder() = runBlocking {
+        if (System.getProperty("chantiertracker.integrationTests") != "true") {
+            println("Test d'intégration désactivé (passer -Dchantiertracker.integrationTests=true).")
+            return@runBlocking
+        }
+        if (!backendUp()) {
+            println("Backend localhost:8080 indisponible — test ignoré.")
+            return@runBlocking
+        }
+        if (System.getProperty("chantiertracker.integrationAllowFounderSeat") != "true") {
+            println("Inscription réelle ignorée : elle prend une place fondateur (passer -Dchantiertracker.integrationAllowFounderSeat=true).")
+            return@runBlocking
+        }
+        if (!disposableAccountsAvailable()) return@runBlocking
+
+        val email = "self-register-${System.currentTimeMillis()}@local.dev"
+        retryingOnRateLimit { repo.register(email, "SelfPass1234!", "Self Register") }
+        retryingOnRateLimit { repo.verifyEmail(email, latestCodeFor(email)) }
+        retryingOnRateLimit { repo.login(email, "SelfPass1234!") }
+        val authed = holder.state.value
+        assertIs<AuthState.Authenticated>(authed)
+        accounts.track(authed.user.id)
+
+        accountRepo.refreshPlanUsage()
+        println("Inscription réelle : isFounder=${accountRepo.observePlanUsage().first()?.isFounder}")
     }
 
     @Test
@@ -183,7 +225,7 @@ class DesktopAuthIntegrationTest {
             return@runBlocking
         }
 
-        repo.login("mobile-test@local.dev", "ChantierTest1234!")
+        retryingOnRateLimit { repo.login("mobile-test@local.dev", "ChantierTest1234!") }
         assertIs<AuthState.Authenticated>(holder.state.value)
 
         // Room est la source de vérité : on pull d'abord, puis on lit le store local.
@@ -209,7 +251,7 @@ class DesktopAuthIntegrationTest {
             return@runBlocking
         }
 
-        repo.login("mobile-test@local.dev", "ChantierTest1234!")
+        retryingOnRateLimit { repo.login("mobile-test@local.dev", "ChantierTest1234!") }
         val userId = (holder.state.value as AuthState.Authenticated).user.id
 
         // Room = source de vérité : on tire la liste + le plan depuis le vrai backend.
@@ -226,7 +268,7 @@ class DesktopAuthIntegrationTest {
     }
 
     @Test
-    fun register_create_project_then_open_its_detail() = runBlocking {
+    fun a_new_account_creates_a_project_then_opens_its_detail() = runBlocking {
         if (System.getProperty("chantiertracker.integrationTests") != "true") {
             println("Test d'intégration désactivé (passer -Dchantiertracker.integrationTests=true).")
             return@runBlocking
@@ -236,12 +278,11 @@ class DesktopAuthIntegrationTest {
             return@runBlocking
         }
 
+        if (!disposableAccountsAvailable()) return@runBlocking
+
         // Compte neuf : le compte de test est FREE (1 projet max) et en a déjà un.
-        val email = "project-flow-${System.currentTimeMillis()}@local.dev"
-        repo.register(email, "ProjectPass1234!", "Project Flow")
-        repo.verifyEmail(email, latestCodeFor(email))
-        repo.login(email, "ProjectPass1234!")
-        assertIs<AuthState.Authenticated>(holder.state.value)
+        val account = accounts.create("project-flow", "Project Flow")
+        repo.signInForTheFirstTime(account, "ProjectPass1234!")
 
         // Écriture locale immédiate…
         val localId = projectRepo.createProject(
@@ -279,10 +320,11 @@ class DesktopAuthIntegrationTest {
             return@runBlocking
         }
 
-        val email = "project-md-${System.currentTimeMillis()}@local.dev"
-        repo.register(email, "ProjectPass1234!", "Project MD")
-        repo.verifyEmail(email, latestCodeFor(email))
-        repo.login(email, "ProjectPass1234!")
+        if (!disposableAccountsAvailable()) return@runBlocking
+
+        val account = accounts.create("project-md", "Project MD")
+        val email = account.email
+        repo.signInForTheFirstTime(account, "ProjectPass1234!")
 
         val localId = projectRepo.createProject(
             CreateProjectInput("Chantier E2E", null, "Nîmes", null, "Europe/Paris"),
@@ -319,6 +361,14 @@ class DesktopAuthIntegrationTest {
         assertTrue(projectRepo.observeProjects().first().none { it.localId == localId })
         val stillOnServer = runCatching { ProjectApi(client).get(serverId!!) }.isSuccess
         assertTrue(!stillOnServer, "le projet a bien été supprimé côté serveur")
+    }
+
+    private fun disposableAccountsAvailable(): Boolean {
+        if (!IntegrationBackend.adminConfigured) {
+            println("Scénario ignoré : pas d'identifiants super-admin (-Dchantiertracker.adminEmail / adminPassword).")
+            return false
+        }
+        return true
     }
 
     private fun backendUp(): Boolean = runCatching {
