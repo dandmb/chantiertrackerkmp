@@ -20,7 +20,9 @@ import com.dmb.chantiertracker.data.local.db.ProjectEntity
 import com.dmb.chantiertracker.data.local.db.PurchaseLineDao
 import com.dmb.chantiertracker.data.local.db.PurchaseLineEntity
 import com.dmb.chantiertracker.data.local.db.StageDao
+import com.dmb.chantiertracker.data.local.db.MaterialStockEntity
 import com.dmb.chantiertracker.data.local.db.StageEntity
+import com.dmb.chantiertracker.data.local.db.StockDao
 import com.dmb.chantiertracker.data.local.db.SyncStatus
 import com.dmb.chantiertracker.data.remote.AttachmentApi
 import com.dmb.chantiertracker.data.remote.ConsumptionLineApi
@@ -30,6 +32,7 @@ import com.dmb.chantiertracker.data.remote.MaterialApi
 import com.dmb.chantiertracker.data.remote.ProjectApi
 import com.dmb.chantiertracker.data.remote.PurchaseLineApi
 import com.dmb.chantiertracker.data.remote.StageApi
+import com.dmb.chantiertracker.data.remote.StockApi
 import com.dmb.chantiertracker.data.remote.apiCall
 import com.dmb.chantiertracker.domain.model.DomainException
 import com.dmb.chantiertracker.presentation.sync.SyncState
@@ -105,6 +108,8 @@ class SyncEngine(
     private val attachmentFileStore: AttachmentFileStore,
     private val invitationDao: InvitationDao,
     private val invitationApi: InvitationApi,
+    private val stockApi: StockApi,
+    private val stockDao: StockDao,
     private val connectivity: ConnectivityObserver,
     private val syncState: SyncStateHolder,
     private val scope: CoroutineScope,
@@ -115,6 +120,7 @@ class SyncEngine(
 ) : Syncer {
 
     private val mutex = Mutex()
+    private val neverLoadedStocksTouchedThisPass = mutableSetOf<String>()
     private var started = false
 
     fun start() {
@@ -160,6 +166,7 @@ class SyncEngine(
         return try {
             pushPending()
             pullAll()
+            refreshStocksMarkedForRefresh()
             syncState.update(SyncState.Idle)
             SyncOutcome.Synced
         } catch (e: CancellationException) {
@@ -182,6 +189,7 @@ class SyncEngine(
             pushPending()
             val serverId = dao.findByLocalId(localId)?.serverId ?: return SyncOutcome.Skipped
             pullProject(serverId, localId)
+            refreshStocksMarkedForRefresh()
             SyncOutcome.Synced
         } catch (e: CancellationException) {
             throw e
@@ -207,6 +215,7 @@ class SyncEngine(
         pullInvitations(serverId, localId)
         pullStages(serverId, localId)
         pullMaterials(serverId, localId)
+        refreshStock(serverId, localId)
         // Log *summaries* only (existence + server id per day); a day's entries,
         // lines and photos are pulled by syncLog when its screen opens, so
         // syncProject stays proportional to what the project detail shows.
@@ -246,6 +255,7 @@ class SyncEngine(
                 pullMaterials(projectServerId, local.projectLocalId)
             }
             pullLogSummaries(serverId, stageLocalId)
+            refreshStocksMarkedForRefresh()
             SyncOutcome.Synced
         } catch (e: CancellationException) {
             throw e
@@ -284,6 +294,8 @@ class SyncEngine(
                     "WORK" -> pullConsumptionLines(entryServerId, entry.localId)
                 }
             }
+            refreshStockOfDay(log)
+            refreshStocksMarkedForRefresh()
             SyncOutcome.Synced
         } catch (e: CancellationException) {
             throw e
@@ -424,7 +436,7 @@ class SyncEngine(
             this is DomainException.EmailAlreadyUsed ||
             this is DomainException.PlanLimitReached
 
-    private enum class RemoteDelete { GONE, REJECTED }
+    private enum class RemoteDelete { DELETED, ALREADY_GONE, REJECTED }
 
     // ─── rows gone on the server (ADR-70) ───────────────────────────────────
 
@@ -507,9 +519,9 @@ class SyncEngine(
     private suspend fun deleteOnServer(call: suspend () -> Unit): RemoteDelete =
         try {
             apiCall { call() }
-            RemoteDelete.GONE
+            RemoteDelete.DELETED
         } catch (e: DomainException.NotFound) {
-            RemoteDelete.GONE
+            RemoteDelete.ALREADY_GONE
         } catch (e: DomainException) {
             if (e.isServerRejection()) RemoteDelete.REJECTED else throw e
         }
@@ -605,6 +617,7 @@ class SyncEngine(
             dailyEntryDao.upsert(entry.copy(syncStatus = SyncStatus.SYNCED, pendingOp = PendingOp.NONE, lastSyncError = SyncError.REJECTED))
             return
         }
+        projectLocalIdOfDay(entry.dailyLogLocalId)?.let { stockDao.markNeedsRefresh(it) }
         dailyEntryDao.deleteByLocalId(entry.localId)
     }
 
@@ -612,7 +625,8 @@ class SyncEngine(
 
     private suspend fun pushPurchaseLineCreate(line: PurchaseLineEntity) {
         val entryServerId = dailyEntryDao.findByLocalId(line.entryLocalId)?.serverId ?: return
-        val materialServerId = materialDao.findByLocalId(line.materialLocalId)?.serverId ?: return
+        val material = materialDao.findByLocalId(line.materialLocalId) ?: return
+        val materialServerId = material.serverId ?: return
         val created = try {
             apiCall { purchaseLineApi.create(entryServerId, line.toCreateRequest(materialServerId)) }
         } catch (e: DomainException.NotFound) {
@@ -625,7 +639,9 @@ class SyncEngine(
             }
             throw e
         }
-        purchaseLineDao.upsert(created.toSyncedEntity(line.localId, line.entryLocalId, line.materialLocalId, clock.nowEpochMillis(), line))
+        val synced = created.toSyncedEntity(line.localId, line.entryLocalId, line.materialLocalId, clock.nowEpochMillis(), line)
+        stockDao.recordPurchaseLineSynced(material.projectLocalId, materialServerId, synced, previousServerQuantity = null)
+        loadStockAtEndOfPassIfNeverLoaded(material.projectLocalId)
     }
 
     private suspend fun pushPurchaseLineUpdate(line: PurchaseLineEntity) {
@@ -642,23 +658,51 @@ class SyncEngine(
             }
             throw e
         }
-        purchaseLineDao.upsert(updated.toSyncedEntity(line.localId, line.entryLocalId, line.materialLocalId, clock.nowEpochMillis(), line))
+        val synced = updated.toSyncedEntity(line.localId, line.entryLocalId, line.materialLocalId, clock.nowEpochMillis(), line)
+        val material = materialDao.findByLocalId(line.materialLocalId)
+        val materialServerId = material?.serverId
+        if (material == null || materialServerId == null) {
+            purchaseLineDao.upsert(synced)
+            return
+        }
+        stockDao.recordPurchaseLineSynced(material.projectLocalId, materialServerId, synced, previousServerQuantity = line.serverQuantity ?: synced.quantity)
+        reloadStockAtEndOfPass(material.projectLocalId)
     }
 
     private suspend fun pushPurchaseLineDelete(line: PurchaseLineEntity) {
-        val serverId = line.serverId
-        if (serverId != null && deleteOnServer { purchaseLineApi.delete(serverId) } == RemoteDelete.REJECTED) {
-            purchaseLineDao.upsert(line.copy(syncStatus = SyncStatus.SYNCED, pendingOp = PendingOp.NONE, lastSyncError = SyncError.REJECTED))
+        val serverId = line.serverId ?: return purchaseLineDao.deleteByLocalId(line.localId)
+        val outcome = deleteOnServer { purchaseLineApi.delete(serverId) }
+        if (outcome == RemoteDelete.REJECTED) {
+            purchaseLineDao.upsert(
+                line.copy(
+                    syncStatus = SyncStatus.SYNCED,
+                    pendingOp = PendingOp.NONE,
+                    lastSyncError = SyncError.REJECTED,
+                    serverQuantity = line.serverQuantity ?: line.quantity,
+                ),
+            )
             return
         }
-        purchaseLineDao.deleteByLocalId(line.localId)
+        val material = materialDao.findByLocalId(line.materialLocalId)
+        val materialServerId = material?.serverId
+        if (material == null || materialServerId == null) {
+            purchaseLineDao.deleteByLocalId(line.localId)
+            return
+        }
+        if (outcome == RemoteDelete.DELETED) {
+            stockDao.recordPurchaseLineDeleted(material.projectLocalId, materialServerId, line.localId, line.serverQuantity ?: line.quantity)
+        } else {
+            purchaseLineDao.deleteByLocalId(line.localId)
+        }
+        reloadStockAtEndOfPass(material.projectLocalId)
     }
 
     // ─── consumption lines ──────────────────────────────────────────────────
 
     private suspend fun pushConsumptionLineCreate(line: ConsumptionLineEntity) {
         val entryServerId = dailyEntryDao.findByLocalId(line.entryLocalId)?.serverId ?: return
-        val materialServerId = materialDao.findByLocalId(line.materialLocalId)?.serverId ?: return
+        val material = materialDao.findByLocalId(line.materialLocalId) ?: return
+        val materialServerId = material.serverId ?: return
         val created = try {
             apiCall { consumptionLineApi.create(entryServerId, line.toCreateRequest(materialServerId)) }
         } catch (e: DomainException.NotFound) {
@@ -671,7 +715,9 @@ class SyncEngine(
             }
             throw e
         }
-        consumptionLineDao.upsert(created.toSyncedEntity(line.localId, line.entryLocalId, line.materialLocalId, clock.nowEpochMillis(), line))
+        val synced = created.toSyncedEntity(line.localId, line.entryLocalId, line.materialLocalId, clock.nowEpochMillis(), line)
+        stockDao.recordConsumptionLineSynced(material.projectLocalId, materialServerId, synced, previousServerQuantity = null)
+        loadStockAtEndOfPassIfNeverLoaded(material.projectLocalId)
     }
 
     private suspend fun pushConsumptionLineUpdate(line: ConsumptionLineEntity) {
@@ -688,16 +734,43 @@ class SyncEngine(
             }
             throw e
         }
-        consumptionLineDao.upsert(updated.toSyncedEntity(line.localId, line.entryLocalId, line.materialLocalId, clock.nowEpochMillis(), line))
+        val synced = updated.toSyncedEntity(line.localId, line.entryLocalId, line.materialLocalId, clock.nowEpochMillis(), line)
+        val material = materialDao.findByLocalId(line.materialLocalId)
+        val materialServerId = material?.serverId
+        if (material == null || materialServerId == null) {
+            consumptionLineDao.upsert(synced)
+            return
+        }
+        stockDao.recordConsumptionLineSynced(material.projectLocalId, materialServerId, synced, previousServerQuantity = line.serverQuantity ?: synced.quantity)
+        reloadStockAtEndOfPass(material.projectLocalId)
     }
 
     private suspend fun pushConsumptionLineDelete(line: ConsumptionLineEntity) {
-        val serverId = line.serverId
-        if (serverId != null && deleteOnServer { consumptionLineApi.delete(serverId) } == RemoteDelete.REJECTED) {
-            consumptionLineDao.upsert(line.copy(syncStatus = SyncStatus.SYNCED, pendingOp = PendingOp.NONE, lastSyncError = SyncError.REJECTED))
+        val serverId = line.serverId ?: return consumptionLineDao.deleteByLocalId(line.localId)
+        val outcome = deleteOnServer { consumptionLineApi.delete(serverId) }
+        if (outcome == RemoteDelete.REJECTED) {
+            consumptionLineDao.upsert(
+                line.copy(
+                    syncStatus = SyncStatus.SYNCED,
+                    pendingOp = PendingOp.NONE,
+                    lastSyncError = SyncError.REJECTED,
+                    serverQuantity = line.serverQuantity ?: line.quantity,
+                ),
+            )
             return
         }
-        consumptionLineDao.deleteByLocalId(line.localId)
+        val material = materialDao.findByLocalId(line.materialLocalId)
+        val materialServerId = material?.serverId
+        if (material == null || materialServerId == null) {
+            consumptionLineDao.deleteByLocalId(line.localId)
+            return
+        }
+        if (outcome == RemoteDelete.DELETED) {
+            stockDao.recordConsumptionLineDeleted(material.projectLocalId, materialServerId, line.localId, line.serverQuantity ?: line.quantity)
+        } else {
+            consumptionLineDao.deleteByLocalId(line.localId)
+        }
+        reloadStockAtEndOfPass(material.projectLocalId)
     }
 
     // ─── attachments (photos) ───────────────────────────────────────────────
@@ -785,6 +858,60 @@ class SyncEngine(
             }
         }
         // No removal pass — the backend never deletes a material (PATCH-only).
+    }
+
+    // ─── pull: stock counters (ADR-71) ──────────────────────────────────────
+
+    private suspend fun refreshStock(projectServerId: Long, projectLocalId: String) {
+        val counters = mutableListOf<MaterialStockEntity>()
+        var page = 0
+        while (true) {
+            val content = try {
+                apiCall { stockApi.list(projectServerId, page, STOCK_PAGE_SIZE) }.content
+            } catch (e: DomainException.NotFound) {
+                return
+            } catch (e: DomainException.Forbidden) {
+                return
+            }
+            content.mapTo(counters) { MaterialStockEntity(projectLocalId, it.materialId, it.quantityIn, it.quantityOut) }
+            if (content.size < STOCK_PAGE_SIZE) break
+            page++
+        }
+        stockDao.replaceCounters(projectLocalId, counters, clock.nowEpochMillis())
+    }
+
+    private suspend fun refreshStockOfDay(log: DailyLogEntity) {
+        val stage = stageDao.findByLocalId(log.stageLocalId) ?: return
+        val project = dao.findByLocalId(stage.projectLocalId) ?: return
+        val projectServerId = project.serverId ?: return
+        if (project.lastSyncError == SyncError.DELETED_ON_SERVER) return
+        pullMaterials(projectServerId, project.localId)
+        refreshStock(projectServerId, project.localId)
+    }
+
+    private suspend fun reloadStockAtEndOfPass(projectLocalId: String) {
+        stockDao.markNeedsRefresh(projectLocalId)
+        loadStockAtEndOfPassIfNeverLoaded(projectLocalId)
+    }
+
+    private suspend fun loadStockAtEndOfPassIfNeverLoaded(projectLocalId: String) {
+        if (stockDao.findSnapshot(projectLocalId) == null) neverLoadedStocksTouchedThisPass += projectLocalId
+    }
+
+    private suspend fun refreshStocksMarkedForRefresh() {
+        val projectLocalIds = stockDao.findProjectsNeedingRefresh() + neverLoadedStocksTouchedThisPass
+        neverLoadedStocksTouchedThisPass.clear()
+        for (projectLocalId in projectLocalIds.distinct()) {
+            val project = dao.findByLocalId(projectLocalId) ?: continue
+            val projectServerId = project.serverId ?: continue
+            if (project.lastSyncError == SyncError.DELETED_ON_SERVER) continue
+            refreshStock(projectServerId, projectLocalId)
+        }
+    }
+
+    private suspend fun projectLocalIdOfDay(dailyLogLocalId: String): String? {
+        val log = dailyLogDao.findByLocalId(dailyLogLocalId) ?: return null
+        return stageDao.findByLocalId(log.stageLocalId)?.projectLocalId
     }
 
     // ─── pull: daily log summaries (one stage) ──────────────────────────────
@@ -982,6 +1109,7 @@ class SyncEngine(
             stageDao.upsert(stage.copy(syncStatus = SyncStatus.SYNCED, pendingOp = PendingOp.NONE, lastSyncError = SyncError.REJECTED))
             return
         }
+        stockDao.markNeedsRefresh(stage.projectLocalId)
         stageDao.deleteByLocalId(stage.localId)
     }
 
@@ -1068,3 +1196,5 @@ class SyncEngine(
             .forEach { projectGoneOnServer(it) }
     }
 }
+
+private const val STOCK_PAGE_SIZE = 100

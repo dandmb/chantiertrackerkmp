@@ -1,6 +1,10 @@
 package com.dmb.chantiertracker.data.repository
 
+import com.dmb.chantiertracker.data.local.db.MaterialStockEntity
+import com.dmb.chantiertracker.data.local.db.PendingOp
+import com.dmb.chantiertracker.data.local.db.SyncStatus
 import com.dmb.chantiertracker.data.sync.AppCoroutineScope
+import com.dmb.chantiertracker.support.FakeStockDao
 import com.dmb.chantiertracker.support.FakeConsumptionLineDao
 import com.dmb.chantiertracker.support.FakeMaterialDao
 import com.dmb.chantiertracker.support.FakePurchaseLineDao
@@ -13,6 +17,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class MaterialRepositoryImplTest {
@@ -26,9 +31,10 @@ class MaterialRepositoryImplTest {
         materialDao: FakeMaterialDao = FakeMaterialDao(),
         purchaseLineDao: FakePurchaseLineDao = FakePurchaseLineDao(projectForEntry = entryToProject),
         consumptionLineDao: FakeConsumptionLineDao = FakeConsumptionLineDao(projectForEntry = entryToProject),
+        stockDao: FakeStockDao = FakeStockDao(purchaseLineDao, consumptionLineDao),
         syncer: FakeSyncer = FakeSyncer(),
         clock: MutableClock = MutableClock(2_000L),
-    ) = MaterialRepositoryImpl(materialDao, purchaseLineDao, consumptionLineDao, syncer, AppCoroutineScope(), clock, newLocalId = { "fixed-material-id" })
+    ) = MaterialRepositoryImpl(materialDao, purchaseLineDao, consumptionLineDao, stockDao, syncer, AppCoroutineScope(), clock, newLocalId = { "fixed-material-id" })
 
     @Test
     fun observe_materials_maps_stored_rows_sorted_by_name() = runTest {
@@ -39,53 +45,49 @@ class MaterialRepositoryImplTest {
         assertEquals(listOf("Ciment", "Fer"), materials.map { it.name })
     }
 
+    private suspend fun loadedStock(stockDao: FakeStockDao, vararg counters: Pair<Long, Pair<Double, Double>>) {
+        stockDao.replaceCounters(
+            "proj-1",
+            counters.map { (materialServerId, inOut) -> MaterialStockEntity("proj-1", materialServerId, inOut.first, inOut.second) },
+            refreshedAt = 5_000L,
+        )
+    }
+
     @Test
-    fun observe_stock_computes_available_from_purchase_and_consumption_lines() = runTest {
-        val materialDao = FakeMaterialDao(listOf(localMaterial("m1", name = "Ciment", unit = "sac", projectLocalId = "proj-1")))
+    fun the_stock_is_the_server_counter_plus_the_pending_lines_of_this_project() = runTest {
+        val materialDao = FakeMaterialDao(listOf(localMaterial("m1", name = "Ciment", unit = "sac", projectLocalId = "proj-1", serverId = 7, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED)))
         val purchaseDao = FakePurchaseLineDao(
             listOf(
-                localPurchaseLine("pl1", entryLocalId = "e1", materialLocalId = "m1", quantity = 100.0),
-                localPurchaseLine("pl2", entryLocalId = "e1", materialLocalId = "m1", quantity = 50.0),
+                localPurchaseLine("pl-pending", entryLocalId = "e1", materialLocalId = "m1", quantity = 5.0),
+                localPurchaseLine("pl-synced", entryLocalId = "e1", materialLocalId = "m1", quantity = 100.0, serverId = 1, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED).copy(serverQuantity = 100.0),
+                localPurchaseLine("pl-other-project", entryLocalId = "other-entry", materialLocalId = "m1", quantity = 999.0),
             ),
             projectForEntry = entryToProject,
         )
         val consumptionDao = FakeConsumptionLineDao(
-            listOf(localConsumptionLine("cl1", entryLocalId = "e2", materialLocalId = "m1", quantity = 30.0)),
+            listOf(localConsumptionLine("cl-pending", entryLocalId = "e2", materialLocalId = "m1", quantity = 3.0)),
             projectForEntry = entryToProject,
         )
+        val stockDao = FakeStockDao(purchaseDao, consumptionDao)
+        loadedStock(stockDao, 7L to (12.0 to 2.0))
 
-        val stock = repo(materialDao, purchaseDao, consumptionDao).observeStock("proj-1").first()
+        val stock = repo(materialDao, purchaseDao, consumptionDao, stockDao).observeStock("proj-1").first()
 
-        val ciment = stock.single()
-        assertEquals(150.0, ciment.quantityIn)
-        assertEquals(30.0, ciment.quantityOut)
-        assertEquals(120.0, ciment.available)
+        val ciment = stock.materials.single()
+        assertEquals(17.0, ciment.quantityIn, "server 12 + this device's pending 5; the synced line is already in the counter")
+        assertEquals(5.0, ciment.quantityOut)
+        assertEquals(12.0, ciment.available)
+        assertEquals(5_000L, stock.refreshedAt)
     }
 
     @Test
-    fun observe_stock_excludes_lines_from_other_projects() = runTest {
-        val materialDao = FakeMaterialDao(listOf(localMaterial("m1", name = "Ciment", projectLocalId = "proj-1")))
-        val purchaseDao = FakePurchaseLineDao(
-            listOf(localPurchaseLine("other", entryLocalId = "other-entry", materialLocalId = "m1", quantity = 999.0)),
-            projectForEntry = entryToProject,
-        )
+    fun a_stock_never_loaded_says_so_instead_of_a_false_zero() = runTest {
+        val materialDao = FakeMaterialDao(listOf(localMaterial("m1", name = "Ciment", projectLocalId = "proj-1", serverId = 7)))
 
-        val stock = repo(materialDao, purchaseDao).observeStock("proj-1").first()
+        val stock = repo(materialDao).observeStock("proj-1").first()
 
-        assertEquals(0.0, stock.single().quantityIn, "a line logged under another project must not count here")
-    }
-
-    @Test
-    fun observe_stock_ignores_pending_delete_lines() = runTest {
-        val materialDao = FakeMaterialDao(listOf(localMaterial("m1", name = "Ciment", projectLocalId = "proj-1")))
-        val purchaseDao = FakePurchaseLineDao(
-            listOf(localPurchaseLine("pl1", entryLocalId = "e1", materialLocalId = "m1", quantity = 100.0, pendingOp = com.dmb.chantiertracker.data.local.db.PendingOp.DELETE)),
-            projectForEntry = entryToProject,
-        )
-
-        val stock = repo(materialDao, purchaseDao).observeStock("proj-1").first()
-
-        assertEquals(0.0, stock.single().quantityIn)
+        assertFalse(stock.isLoaded)
+        assertEquals(listOf("Ciment"), stock.materials.map { it.materialName }, "every material stays listed")
     }
 
     @Test

@@ -44,6 +44,7 @@ class SyncEngineTest {
         val attachmentDao: com.dmb.chantiertracker.support.FakeAttachmentDao = com.dmb.chantiertracker.support.FakeAttachmentDao(),
         val fileStore: com.dmb.chantiertracker.support.FakeAttachmentFileStore = com.dmb.chantiertracker.support.FakeAttachmentFileStore(),
         val invitationDao: com.dmb.chantiertracker.support.FakeInvitationDao = com.dmb.chantiertracker.support.FakeInvitationDao(),
+        val stockDao: com.dmb.chantiertracker.support.FakeStockDao = com.dmb.chantiertracker.support.FakeStockDao(purchaseLineDao, consumptionLineDao),
         val backend: FakeProjectBackend = FakeProjectBackend(),
         val connectivity: FakeConnectivityObserver = FakeConnectivityObserver(),
         val clock: MutableClock = MutableClock(serverMillis("2026-09-02T09:00:00")),
@@ -70,6 +71,8 @@ class SyncEngineTest {
             attachmentFileStore = fileStore,
             invitationDao = invitationDao,
             invitationApi = backend.invitationApi(),
+            stockApi = backend.stockApi(),
+            stockDao = stockDao,
             connectivity = connectivity,
             syncState = syncState,
             scope = scope,
@@ -1318,6 +1321,268 @@ class SyncEngineTest {
 
         val material = f.materialDao.findByLocalId("m-new")
         assertDeletedOnServer(material?.syncStatus, material?.lastSyncError, "the new material")
+    }
+
+    // ─── ADR-71 — the stock comes from the server ──────────────────────────
+
+    private fun stockFixture(): Fixture {
+        val entryToProject = { mapOf("e900" to "p5", "e901" to "p5") }
+        return Fixture(
+            purchaseLineDao = com.dmb.chantiertracker.support.FakePurchaseLineDao(projectForEntry = entryToProject),
+            consumptionLineDao = com.dmb.chantiertracker.support.FakeConsumptionLineDao(projectForEntry = entryToProject),
+        )
+    }
+
+    private suspend fun Fixture.siteWithCement(serverPurchase: Double? = 12.0) {
+        backend.seed(ServerProject(id = 5, name = "Villa"))
+        backend.seedStage(ServerStage(id = 90, projectId = 5, name = "Gros œuvre"))
+        backend.seedLog(com.dmb.chantiertracker.support.ServerLog(id = 800, stageId = 90, date = "2026-09-05"))
+        backend.seedEntry(com.dmb.chantiertracker.support.ServerEntry(id = 900, dailyLogId = 800, type = "PURCHASE"))
+        backend.seedEntry(com.dmb.chantiertracker.support.ServerEntry(id = 901, dailyLogId = 800, type = "WORK"))
+        backend.seedMaterial(com.dmb.chantiertracker.support.ServerMaterial(id = 7, projectId = 5, name = "Ciment", unit = "sac"))
+        serverPurchase?.let {
+            backend.seedPurchaseLine(com.dmb.chantiertracker.support.ServerPurchaseLine(id = 5000, entryId = 900, materialId = 7, quantity = it, unitPrice = 6.0))
+        }
+        dao.upsert(localProject("p5", serverId = 5, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+        stageDao.upsert(localStage("st90", projectLocalId = "p5", serverId = 90, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+        dailyLogDao.upsert(com.dmb.chantiertracker.support.localDailyLog("l800", stageLocalId = "st90", serverId = 800))
+        dailyEntryDao.upsert(com.dmb.chantiertracker.support.localDailyEntry("e900", dailyLogLocalId = "l800", serverId = 900, type = "PURCHASE", pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+        dailyEntryDao.upsert(com.dmb.chantiertracker.support.localDailyEntry("e901", dailyLogLocalId = "l800", serverId = 901, type = "WORK", pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+        materialDao.upsert(com.dmb.chantiertracker.support.localMaterial("m7", projectLocalId = "p5", name = "Ciment", unit = "sac", serverId = 7, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+    }
+
+    private suspend fun Fixture.cementAvailable(): Double =
+        stock().materials.single { it.materialLocalId == "m7" }.available
+
+    private suspend fun Fixture.stock() =
+        com.dmb.chantiertracker.data.repository.MaterialRepositoryImpl(
+            materialDao, purchaseLineDao, consumptionLineDao, stockDao, com.dmb.chantiertracker.support.FakeSyncer(), AppCoroutineScope(),
+        ).observeStock("p5").first()
+
+    private fun Fixture.stockRequests() = backend.receivedMethods.count { it == "GET /projects/5/stock" }
+
+    @Test
+    fun opening_the_project_loads_the_server_stock_even_for_days_never_opened() = runTest {
+        val f = stockFixture()
+        f.siteWithCement(serverPurchase = 12.0)
+        val engine = f.engine(backgroundScope)
+        assertFalse(f.stock().isLoaded)
+
+        assertIs<SyncOutcome.Synced>(engine.syncProject("p5"))
+
+        assertTrue(f.stock().isLoaded)
+        assertEquals(12.0, f.cementAvailable(), "the purchase of a day this device never opened is counted (C-1)")
+        assertTrue(f.purchaseLineDao.stored.isEmpty(), "without downloading that day's lines")
+    }
+
+    @Test
+    fun opening_a_day_reloads_the_stock_and_its_pulled_lines_are_not_counted_twice() = runTest {
+        val f = stockFixture()
+        f.siteWithCement(serverPurchase = 12.0)
+        val engine = f.engine(backgroundScope)
+        engine.syncProject("p5")
+        f.backend.seedPurchaseLine(com.dmb.chantiertracker.support.ServerPurchaseLine(id = 5001, entryId = 900, materialId = 7, quantity = 3.0, unitPrice = 6.0))
+
+        assertIs<SyncOutcome.Synced>(engine.syncLog("l800"))
+
+        assertEquals(2, f.purchaseLineDao.stored.size, "both lines pulled")
+        assertEquals(15.0, f.cementAvailable(), "the reloaded counter, not counter + pulled lines")
+    }
+
+    @Test
+    fun a_pending_purchase_counts_at_once_and_the_figure_does_not_move_when_it_is_sent() = runTest {
+        val f = stockFixture()
+        f.siteWithCement(serverPurchase = 12.0)
+        val engine = f.engine(backgroundScope)
+        engine.syncProject("p5")
+        f.purchaseLineDao.upsert(com.dmb.chantiertracker.support.localPurchaseLine("pl-new", entryLocalId = "e900", materialLocalId = "m7", quantity = 5.0))
+        assertEquals(17.0, f.cementAvailable())
+        val requestsBefore = f.stockRequests()
+
+        assertIs<SyncOutcome.Synced>(engine.syncNow())
+
+        assertEquals(17.0, f.cementAvailable(), "no double count once sent: the counter took the very +5 the server applied")
+        assertEquals(SyncStatus.SYNCED, f.purchaseLineDao.findByLocalId("pl-new")?.syncStatus)
+        assertEquals(requestsBefore, f.stockRequests(), "a creation needs no reload: its delta is exact")
+        assertEquals(17.0, f.backend.purchaseLines.sumOf { it.quantity })
+    }
+
+    @Test
+    fun a_pass_that_sends_lines_of_a_project_whose_stock_was_never_loaded_loads_it() = runTest {
+        val f = stockFixture()
+        f.siteWithCement(serverPurchase = 12.0)
+        val engine = f.engine(backgroundScope)
+        f.purchaseLineDao.upsert(com.dmb.chantiertracker.support.localPurchaseLine("pl-new", entryLocalId = "e900", materialLocalId = "m7", quantity = 5.0))
+        assertFalse(f.stock().isLoaded)
+
+        assertIs<SyncOutcome.Synced>(engine.syncNow())
+
+        assertTrue(f.stock().isLoaded, "the device that just wrote to the project now knows its stock")
+        assertEquals(17.0, f.cementAvailable())
+        assertTrue(f.stockDao.findProjectsNeedingRefresh().isEmpty())
+    }
+
+    @Test
+    fun a_pending_edit_counts_only_its_difference_and_the_stock_follows_the_server_once_sent() = runTest {
+        val f = stockFixture()
+        f.siteWithCement(serverPurchase = 10.0)
+        val engine = f.engine(backgroundScope)
+        engine.syncProject("p5")
+        f.purchaseLineDao.upsert(
+            com.dmb.chantiertracker.support.localPurchaseLine("pl", entryLocalId = "e900", materialLocalId = "m7", quantity = 4.0, serverId = 5000, pendingOp = PendingOp.UPDATE)
+                .copy(serverQuantity = 10.0),
+        )
+        assertEquals(4.0, f.cementAvailable())
+
+        assertIs<SyncOutcome.Synced>(engine.syncNow())
+
+        assertEquals(4.0, f.cementAvailable())
+        assertEquals(4.0, f.purchaseLineDao.findByLocalId("pl")?.serverQuantity)
+        assertEquals(4.0, f.backend.purchaseLines.single().quantity)
+    }
+
+    @Test
+    fun a_pending_delete_removes_what_the_server_held_and_the_stock_follows_once_sent() = runTest {
+        val f = stockFixture()
+        f.siteWithCement(serverPurchase = 10.0)
+        val engine = f.engine(backgroundScope)
+        engine.syncProject("p5")
+        f.purchaseLineDao.upsert(
+            com.dmb.chantiertracker.support.localPurchaseLine("pl", entryLocalId = "e900", materialLocalId = "m7", quantity = 10.0, serverId = 5000, pendingOp = PendingOp.DELETE)
+                .copy(serverQuantity = 10.0),
+        )
+        assertEquals(0.0, f.cementAvailable())
+
+        assertIs<SyncOutcome.Synced>(engine.syncNow())
+
+        assertEquals(0.0, f.cementAvailable())
+        assertNull(f.purchaseLineDao.findByLocalId("pl"))
+    }
+
+    @Test
+    fun a_consumption_the_server_refuses_leaves_the_stock_at_what_the_server_holds() = runTest {
+        val f = stockFixture()
+        f.siteWithCement(serverPurchase = 12.0)
+        val engine = f.engine(backgroundScope)
+        engine.syncProject("p5")
+        f.backend.lineWriteConflict = true
+        f.consumptionLineDao.upsert(com.dmb.chantiertracker.support.localConsumptionLine("cl", entryLocalId = "e901", materialLocalId = "m7", quantity = 99.0))
+        assertEquals(-87.0, f.cementAvailable(), "pending: counted until the server answers")
+
+        engine.syncNow()
+
+        assertEquals(SyncStatus.CONFLICTED, f.consumptionLineDao.findByLocalId("cl")?.syncStatus)
+        assertEquals(12.0, f.cementAvailable(), "refused: the server does not hold it, neither does the displayed stock")
+    }
+
+    @Test
+    fun a_deleted_stage_reloads_the_stock_at_the_end_of_the_pass() = runTest {
+        val f = stockFixture()
+        f.siteWithCement(serverPurchase = 12.0)
+        f.backend.seedStage(ServerStage(id = 91, projectId = 5, name = "Toiture"))
+        f.backend.seedLog(com.dmb.chantiertracker.support.ServerLog(id = 801, stageId = 91, date = "2026-09-06"))
+        f.backend.seedEntry(com.dmb.chantiertracker.support.ServerEntry(id = 902, dailyLogId = 801, type = "PURCHASE"))
+        f.backend.seedPurchaseLine(com.dmb.chantiertracker.support.ServerPurchaseLine(id = 5002, entryId = 902, materialId = 7, quantity = 4.0, unitPrice = 6.0))
+        val engine = f.engine(backgroundScope)
+        engine.syncProject("p5")
+        assertEquals(16.0, f.cementAvailable())
+        f.stageDao.upsert(localStage("st91", projectLocalId = "p5", serverId = 91, pendingOp = PendingOp.DELETE, syncStatus = SyncStatus.PENDING))
+        val requestsBefore = f.stockRequests()
+
+        assertIs<SyncOutcome.Synced>(engine.syncNow())
+
+        assertEquals(12.0, f.cementAvailable(), "the server released lines this device never downloaded")
+        assertEquals(requestsBefore + 1, f.stockRequests())
+        assertTrue(f.stockDao.findProjectsNeedingRefresh().isEmpty())
+    }
+
+    @Test
+    fun a_failed_reload_is_retried_by_the_next_pass() = runTest {
+        val f = stockFixture()
+        f.siteWithCement(serverPurchase = 12.0)
+        f.backend.seedStage(ServerStage(id = 91, projectId = 5, name = "Toiture"))
+        f.backend.seedLog(com.dmb.chantiertracker.support.ServerLog(id = 801, stageId = 91, date = "2026-09-06"))
+        f.backend.seedEntry(com.dmb.chantiertracker.support.ServerEntry(id = 902, dailyLogId = 801, type = "PURCHASE"))
+        f.backend.seedPurchaseLine(com.dmb.chantiertracker.support.ServerPurchaseLine(id = 5002, entryId = 902, materialId = 7, quantity = 4.0, unitPrice = 6.0))
+        val engine = f.engine(backgroundScope)
+        engine.syncProject("p5")
+        f.stageDao.upsert(localStage("st91", projectLocalId = "p5", serverId = 91, pendingOp = PendingOp.DELETE, syncStatus = SyncStatus.PENDING))
+        f.backend.stockStatus = io.ktor.http.HttpStatusCode.InternalServerError
+
+        assertIs<SyncOutcome.Failed>(engine.syncNow())
+        assertEquals(listOf("p5"), f.stockDao.findProjectsNeedingRefresh(), "the reload is owed")
+
+        f.backend.stockStatus = null
+        assertIs<SyncOutcome.Synced>(engine.syncNow())
+        assertEquals(12.0, f.cementAvailable())
+        assertTrue(f.stockDao.findProjectsNeedingRefresh().isEmpty())
+    }
+
+    @Test
+    fun the_server_stock_is_read_page_by_page() = runTest {
+        val f = stockFixture()
+        f.siteWithCement(serverPurchase = null)
+        (1..230).forEach { n ->
+            f.backend.seedMaterial(com.dmb.chantiertracker.support.ServerMaterial(id = 10_000L + n, projectId = 5, name = "Matériau $n", unit = "u"))
+            f.backend.seedPurchaseLine(com.dmb.chantiertracker.support.ServerPurchaseLine(id = 20_000L + n, entryId = 900, materialId = 10_000L + n, quantity = 1.0, unitPrice = 1.0))
+        }
+        val engine = f.engine(backgroundScope)
+
+        engine.syncProject("p5")
+
+        assertEquals(230, f.stockDao.counters.value.size)
+        assertEquals(3, f.stockRequests(), "100 + 100 + 30")
+    }
+
+    @Test
+    fun every_path_that_makes_a_line_synced_records_what_the_server_holds() = runTest {
+        val f = stockFixture()
+        f.siteWithCement(serverPurchase = 10.0)
+        f.backend.seedConsumptionLine(com.dmb.chantiertracker.support.ServerConsumptionLine(id = 6000, entryId = 901, materialId = 7, quantity = 3.0))
+        val engine = f.engine(backgroundScope)
+        engine.syncProject("p5")
+        engine.syncLog("l800")
+        val pulledPurchase = f.purchaseLineDao.stored.single { it.serverId == 5000L }
+        val pulledConsumption = f.consumptionLineDao.stored.single { it.serverId == 6000L }
+        assertEquals(10.0, pulledPurchase.serverQuantity, "pull of a new purchase line")
+        assertEquals(3.0, pulledConsumption.serverQuantity, "pull of a new consumption line")
+
+        f.purchaseLineDao.upsert(com.dmb.chantiertracker.support.localPurchaseLine("pl-new", entryLocalId = "e900", materialLocalId = "m7", quantity = 5.0))
+        f.consumptionLineDao.upsert(com.dmb.chantiertracker.support.localConsumptionLine("cl-new", entryLocalId = "e901", materialLocalId = "m7", quantity = 2.0))
+        engine.syncNow()
+        assertEquals(5.0, f.purchaseLineDao.findByLocalId("pl-new")?.serverQuantity, "push of a purchase creation")
+        assertEquals(2.0, f.consumptionLineDao.findByLocalId("cl-new")?.serverQuantity, "push of a consumption creation")
+
+        f.purchaseLineDao.upsert(pulledPurchase.copy(quantity = 7.0, pendingOp = PendingOp.UPDATE, syncStatus = SyncStatus.PENDING))
+        f.consumptionLineDao.upsert(pulledConsumption.copy(quantity = 1.0, pendingOp = PendingOp.UPDATE, syncStatus = SyncStatus.PENDING))
+        engine.syncNow()
+        assertEquals(7.0, f.purchaseLineDao.findByLocalId(pulledPurchase.localId)?.serverQuantity, "push of a purchase edit")
+        assertEquals(1.0, f.consumptionLineDao.findByLocalId(pulledConsumption.localId)?.serverQuantity, "push of a consumption edit")
+
+        f.backend.purchaseLines.single { it.id == 5000L }.quantity = 8.0
+        f.backend.consumptionLines.single { it.id == 6000L }.quantity = 2.5
+        engine.syncLog("l800")
+        assertEquals(8.0, f.purchaseLineDao.findByLocalId(pulledPurchase.localId)?.serverQuantity, "pull of a purchase line changed elsewhere")
+        assertEquals(2.5, f.consumptionLineDao.findByLocalId(pulledConsumption.localId)?.serverQuantity, "pull of a consumption line changed elsewhere")
+
+        f.backend.deleteStatus = io.ktor.http.HttpStatusCode.Forbidden
+        val created = f.purchaseLineDao.findByLocalId("pl-new")!!
+        val createdConsumption = f.consumptionLineDao.findByLocalId("cl-new")!!
+        f.purchaseLineDao.upsert(created.copy(pendingOp = PendingOp.DELETE, syncStatus = SyncStatus.PENDING))
+        f.consumptionLineDao.upsert(createdConsumption.copy(pendingOp = PendingOp.DELETE, syncStatus = SyncStatus.PENDING))
+        engine.syncNow()
+        f.backend.deleteStatus = null
+        assertEquals(SyncStatus.SYNCED, f.purchaseLineDao.findByLocalId("pl-new")?.syncStatus)
+        assertEquals(5.0, f.purchaseLineDao.findByLocalId("pl-new")?.serverQuantity, "restore of a purchase line after a refused delete")
+        assertEquals(2.0, f.consumptionLineDao.findByLocalId("cl-new")?.serverQuantity, "restore of a consumption line after a refused delete")
+
+        f.purchaseLineDao.stored.filter { it.syncStatus == SyncStatus.SYNCED }.forEach { line ->
+            assertEquals(f.backend.purchaseLines.single { it.id == line.serverId }.quantity, line.serverQuantity, "purchase ${line.localId}")
+        }
+        f.consumptionLineDao.stored.filter { it.syncStatus == SyncStatus.SYNCED }.forEach { line ->
+            assertEquals(f.backend.consumptionLines.single { it.id == line.serverId }.quantity, line.serverQuantity, "consumption ${line.localId}")
+        }
+        assertEquals(f.backend.purchaseLines.sumOf { it.quantity } - f.backend.consumptionLines.sumOf { it.quantity }, f.cementAvailable(), "and the displayed stock is the server's")
     }
 
     @Test

@@ -375,6 +375,9 @@
 
     <string name="stock_available">Available: %1$s %2$s</string>
     <string name="stock_none_available">No material available in stock</string>
+    <string name="stock_refreshed_at">Stock as of %1$s</string>
+    <string name="stock_not_verified_offline">Stock not verified offline: the server will check it when sending</string>
+    <string name="stock_not_loaded">Stock not loaded yet</string>
     <string name="stock_already_used">already added, edit the existing line</string>
 
     <string name="validation_date_format">Use the format YYYY-MM-DD.</string>

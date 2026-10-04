@@ -25,6 +25,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dmb.chantiertracker.presentation.ResponsiveContent
+import com.dmb.chantiertracker.presentation.formatEpochMillisDateTime
 import com.dmb.chantiertracker.presentation.auth.components.AuthPrimaryButton
 import com.dmb.chantiertracker.presentation.format.formatAmount
 import com.dmb.chantiertracker.resources.Res
@@ -35,6 +36,9 @@ import com.dmb.chantiertracker.resources.material_label
 import com.dmb.chantiertracker.resources.quantity_label
 import com.dmb.chantiertracker.resources.stock_available
 import com.dmb.chantiertracker.resources.stock_none_available
+import com.dmb.chantiertracker.resources.stock_not_loaded
+import com.dmb.chantiertracker.resources.stock_not_verified_offline
+import com.dmb.chantiertracker.resources.stock_refreshed_at
 import com.dmb.chantiertracker.resources.validation_stock_exceeded
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
@@ -57,6 +61,25 @@ fun ConsumptionLineFormScreen(
     val title = stringResource(if (lineLocalId != null) Res.string.consumption_line_edit_title else Res.string.consumption_line_add_title)
     LaunchedEffect(title) { onTitleResolved(title) }
 
+    ConsumptionLineFormContent(
+        state = state,
+        onSelectMaterial = viewModel::selectMaterial,
+        onQuantityChange = viewModel::onQuantityChange,
+        onSave = viewModel::submit,
+        onBack = onBack,
+        modifier = modifier,
+    )
+}
+
+@Composable
+fun ConsumptionLineFormContent(
+    state: ConsumptionLineFormUiState,
+    onSelectMaterial: (String) -> Unit,
+    onQuantityChange: (String) -> Unit,
+    onSave: () -> Unit,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     ResponsiveContent(modifier, maxContentWidth = 480.dp) {
         Box(Modifier.fillMaxSize()) {
             when {
@@ -67,7 +90,31 @@ fun ConsumptionLineFormScreen(
                         .padding(PaddingValues(start = 24.dp, end = 24.dp, top = 20.dp, bottom = 32.dp)),
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
-                    Text(stringResource(Res.string.material_label), style = MaterialTheme.typography.titleSmall)
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(stringResource(Res.string.material_label), style = MaterialTheme.typography.titleSmall)
+                        state.stockRefreshedAt?.let { refreshedAt ->
+                            Text(
+                                stringResource(Res.string.stock_refreshed_at, formatEpochMillisDateTime(refreshedAt)),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+
+                    if (!state.stockIsLoaded) {
+                        Surface(
+                            color = MaterialTheme.colorScheme.tertiaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+                            shape = MaterialTheme.shapes.small,
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text(
+                                stringResource(Res.string.stock_not_verified_offline),
+                                style = MaterialTheme.typography.bodySmall,
+                                modifier = Modifier.padding(12.dp),
+                            )
+                        }
+                    }
 
                     if (state.pickable.isEmpty()) {
                         Text(
@@ -79,7 +126,7 @@ fun ConsumptionLineFormScreen(
                     state.pickable.forEach { s ->
                         val selected = s.materialLocalId == state.selectedMaterialId
                         Surface(
-                            onClick = { viewModel.selectMaterial(s.materialLocalId) },
+                            onClick = { onSelectMaterial(s.materialLocalId) },
                             color = if (selected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surface,
                             shape = MaterialTheme.shapes.small,
                             border = BorderStroke(
@@ -91,7 +138,11 @@ fun ConsumptionLineFormScreen(
                             Column(Modifier.padding(12.dp)) {
                                 Text("${s.materialName} (${s.unit})", style = MaterialTheme.typography.bodyMedium)
                                 Text(
-                                    stringResource(Res.string.stock_available, formatAmount(s.available), s.unit),
+                                    if (state.stockIsLoaded) {
+                                        stringResource(Res.string.stock_available, formatAmount(s.available), s.unit)
+                                    } else {
+                                        stringResource(Res.string.stock_not_loaded)
+                                    },
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
@@ -102,16 +153,17 @@ fun ConsumptionLineFormScreen(
                     state.selectedStock?.let {
                         OutlinedTextField(
                             value = state.quantity,
-                            onValueChange = viewModel::onQuantityChange,
+                            onValueChange = onQuantityChange,
                             label = { Text(stringResource(Res.string.quantity_label) + " (${it.unit})") },
                             isError = state.quantityError != null || state.exceedsStock,
                             supportingText = {
                                 val message = when {
                                     state.exceedsStock -> stringResource(Res.string.validation_stock_exceeded, formatAmount(state.ceiling ?: 0.0))
                                     state.quantityError != null -> stringResource(state.quantityError!!)
+                                    state.ceiling == null -> null
                                     else -> stringResource(Res.string.stock_available, formatAmount(state.ceiling ?: 0.0), it.unit)
                                 }
-                                Text(message)
+                                message?.let { text -> Text(text) }
                             },
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
@@ -122,7 +174,7 @@ fun ConsumptionLineFormScreen(
 
                     AuthPrimaryButton(
                         text = stringResource(Res.string.action_save),
-                        onClick = viewModel::submit,
+                        onClick = onSave,
                         loading = state.isSubmitting,
                         enabled = state.canSave,
                     )

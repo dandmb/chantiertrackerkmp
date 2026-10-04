@@ -315,10 +315,11 @@ class FakeDailyLogRepository(
 class FakeMaterialRepository(
     materials: List<com.dmb.chantiertracker.domain.model.Material> = emptyList(),
     stock: List<com.dmb.chantiertracker.domain.model.MaterialStock> = emptyList(),
+    stockRefreshedAt: Long? = 1_700_000_000_000L,
 ) : com.dmb.chantiertracker.domain.repository.MaterialRepository {
 
     val materialsFlow = MutableStateFlow(materials)
-    val stockFlow = MutableStateFlow(stock)
+    val stockFlow = MutableStateFlow(com.dmb.chantiertracker.domain.model.ProjectStock(stock, stockRefreshedAt))
     val log = mutableListOf<String>()
 
     /** Material returned by [createMaterial]; defaults to echoing the requested name/unit under a fixed id. */

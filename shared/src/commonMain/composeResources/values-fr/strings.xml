@@ -375,6 +375,9 @@
 
     <string name="stock_available">Disponible : %1$s %2$s</string>
     <string name="stock_none_available">Aucun matériau disponible en stock</string>
+    <string name="stock_refreshed_at">Stock au %1$s</string>
+    <string name="stock_not_verified_offline">Stock non vérifié hors ligne : le serveur validera à l'envoi</string>
+    <string name="stock_not_loaded">Stock pas encore chargé</string>
     <string name="stock_already_used">déjà ajouté, modifie la ligne existante</string>
 
     <string name="validation_date_format">Utilise le format AAAA-MM-JJ.</string>

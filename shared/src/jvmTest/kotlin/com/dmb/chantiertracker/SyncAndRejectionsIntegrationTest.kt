@@ -140,7 +140,7 @@ class SyncAndRejectionsIntegrationTest {
         assertEquals(1, serverConsumption.size)
         assertEquals(1, serverPhotos.size)
 
-        val stock = phone.materials.observeStock(projectId).first().single { it.materialLocalId == cement.localId }
+        val stock = phone.materials.observeStock(projectId).first().materials.single { it.materialLocalId == cement.localId }
         println("P2 — stock affiché après synchro : entrée=${stock.quantityIn} sortie=${stock.quantityOut} dispo=${stock.available}")
         assertEquals(6.0, stock.available)
     }
@@ -202,13 +202,13 @@ class SyncAndRejectionsIntegrationTest {
         phone.goOffline()
         val work = phone.entryOf(phone.logs.createWorkEntry(stageId, today), EntryType.WORK)
         val tooMuch = phone.consumptionLines.createLine(work, CreateConsumptionLineInput(cement.localId, 5.0))
-        val stockOffline = phone.materials.observeStock(projectId).first().single { it.materialLocalId == cement.localId }
+        val stockOffline = phone.materials.observeStock(projectId).first().materials.single { it.materialLocalId == cement.localId }
         println("P3-stock — stock affiché hors ligne avant synchro : dispo=${stockOffline.available}")
         phone.goOnline()
         phone.sync.syncNow()
 
         val line = phone.db.consumptionLineDao().findByLocalId(tooMuch)!!
-        val stockAfter = phone.materials.observeStock(projectId).first().single { it.materialLocalId == cement.localId }
+        val stockAfter = phone.materials.observeStock(projectId).first().materials.single { it.materialLocalId == cement.localId }
         val shownLines = phone.consumptionLines.observeLines(work).first()
         println("P3-stock — ligne de conso : ${line.syncStatus} / ${line.lastSyncError}")
         println("P3-stock — stock affiché après refus : dispo=${stockAfter.available} ; lignes affichées : $shownLines")

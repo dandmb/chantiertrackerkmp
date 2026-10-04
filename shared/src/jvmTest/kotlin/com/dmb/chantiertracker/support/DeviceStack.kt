@@ -87,6 +87,8 @@ class DeviceStack : AutoCloseable {
         attachmentFileStore = fileStore,
         invitationDao = db.invitationDao(),
         invitationApi = invitationApi,
+        stockApi = com.dmb.chantiertracker.data.remote.StockApi(client),
+        stockDao = db.stockDao(),
         connectivity = connectivity,
         syncState = SyncStateHolder(),
         scope = scope,
@@ -105,7 +107,7 @@ class DeviceStack : AutoCloseable {
     val projects = ProjectRepositoryImpl(db.projectDao(), sync, scope)
     val stages = StageRepositoryImpl(db.stageDao(), sync, scope)
     val logs = DailyLogRepositoryImpl(db.dailyLogDao(), db.dailyEntryDao(), sync, scope)
-    val materials = MaterialRepositoryImpl(db.materialDao(), db.purchaseLineDao(), db.consumptionLineDao(), sync, scope)
+    val materials = MaterialRepositoryImpl(db.materialDao(), db.purchaseLineDao(), db.consumptionLineDao(), db.stockDao(), sync, scope)
     val purchaseLines = PurchaseLineRepositoryImpl(db.purchaseLineDao(), sync, scope)
     val consumptionLines = ConsumptionLineRepositoryImpl(db.consumptionLineDao(), sync, scope)
     val attachments = AttachmentRepositoryImpl(db.attachmentDao(), db.dailyEntryDao(), attachmentApi, fileStore, sync, scope)

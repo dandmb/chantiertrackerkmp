@@ -179,7 +179,7 @@ class RolesAndInvitationsIntegrationTest {
         val ownerEntry = owner.logs.observeLog(ownerDay.localId).first()!!.entries.single { it.type == EntryType.PURCHASE }
         val ownerLines = owner.purchaseLines.observeLines(ownerEntry.localId).first()
         val ownerPhotos = owner.attachments.observeAttachments(ownerEntry.localId).first()
-        val ownerStock = owner.materials.observeStock(projectId).first()
+        val ownerStock = owner.materials.observeStock(projectId).first().materials
         println("P1 — vu par le propriétaire : lignes=${ownerLines.map { it.quantity }} photos=${ownerPhotos.size} stock=${ownerStock.map { it.materialName to it.available }}")
         assertEquals(listOf(8.0), ownerLines.map { it.quantity })
         assertEquals(1, ownerPhotos.size)

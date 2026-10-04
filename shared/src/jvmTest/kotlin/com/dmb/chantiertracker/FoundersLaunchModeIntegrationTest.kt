@@ -107,6 +107,8 @@ class FoundersLaunchModeIntegrationTest {
         attachmentFileStore = com.dmb.chantiertracker.support.FakeAttachmentFileStore(),
         invitationDao = db.invitationDao(),
         invitationApi = com.dmb.chantiertracker.data.remote.InvitationApi(client),
+        stockApi = com.dmb.chantiertracker.data.remote.StockApi(client),
+        stockDao = db.stockDao(),
         connectivity = FakeConnectivityObserver(initiallyOnline = true),
         syncState = SyncStateHolder(),
         scope = appScope,

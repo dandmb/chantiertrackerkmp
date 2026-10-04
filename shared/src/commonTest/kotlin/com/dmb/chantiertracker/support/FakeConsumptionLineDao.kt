@@ -21,9 +21,11 @@ class FakeConsumptionLineDao(
     override fun observeLinesForEntry(entryLocalId: String): Flow<List<ConsumptionLineEntity>> =
         lines.map { rows -> rows.values.filter { it.entryLocalId == entryLocalId && it.pendingOp != PendingOp.DELETE } }
 
-    override fun observeLinesForProject(projectLocalId: String): Flow<List<ConsumptionLineEntity>> =
+    override fun observeStockMovements(projectLocalId: String): Flow<List<com.dmb.chantiertracker.data.local.db.StockMovementRow>> =
         lines.map { rows ->
-            rows.values.filter { projectForEntry()[it.entryLocalId] == projectLocalId && it.pendingOp != PendingOp.DELETE }
+            rows.values
+                .filter { projectForEntry()[it.entryLocalId] == projectLocalId && it.syncStatus == SyncStatus.PENDING }
+                .map { com.dmb.chantiertracker.data.local.db.StockMovementRow(it.materialLocalId, it.quantity, it.serverQuantity, it.syncStatus, it.pendingOp, parentDeleting = false) }
         }
 
     override suspend fun findByLocalId(localId: String): ConsumptionLineEntity? = lines.value[localId]

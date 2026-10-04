@@ -11,15 +11,17 @@ interface ConsumptionLineDao {
     @Query("SELECT * FROM consumption_lines WHERE entryLocalId = :entryLocalId AND pendingOp != 'DELETE' ORDER BY locallyModifiedAt")
     fun observeLinesForEntry(entryLocalId: String): Flow<List<ConsumptionLineEntity>>
 
-    // Same join chain as PurchaseLineDao.observeLinesForProject — stock is project-wide.
     @Query(
-        "SELECT c.* FROM consumption_lines c " +
+        "SELECT c.materialLocalId, c.quantity, c.serverQuantity, c.syncStatus, c.pendingOp, " +
+            "(e.pendingOp = 'DELETE' OR s.pendingOp = 'DELETE') AS parentDeleting " +
+            "FROM consumption_lines c " +
             "INNER JOIN daily_entries e ON e.localId = c.entryLocalId " +
             "INNER JOIN daily_logs l ON l.localId = e.dailyLogLocalId " +
             "INNER JOIN stages s ON s.localId = l.stageLocalId " +
-            "WHERE s.projectLocalId = :projectLocalId AND c.pendingOp != 'DELETE'",
+            "WHERE s.projectLocalId = :projectLocalId " +
+            "AND (c.syncStatus = 'PENDING' OR e.pendingOp = 'DELETE' OR s.pendingOp = 'DELETE')",
     )
-    fun observeLinesForProject(projectLocalId: String): Flow<List<ConsumptionLineEntity>>
+    fun observeStockMovements(projectLocalId: String): Flow<List<StockMovementRow>>
 
     @Query("SELECT * FROM consumption_lines WHERE localId = :localId")
     suspend fun findByLocalId(localId: String): ConsumptionLineEntity?

@@ -11,6 +11,7 @@ import com.dmb.chantiertracker.support.verifyMaterialAndLineDaoContract
 import com.dmb.chantiertracker.support.verifyPlanUsageDaoContract
 import com.dmb.chantiertracker.support.verifyProjectDaoContract
 import com.dmb.chantiertracker.support.verifyStageDaoContract
+import com.dmb.chantiertracker.support.verifyStockDaoContract
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import java.nio.file.Files
@@ -926,6 +927,65 @@ class MigrationTest {
             assertEquals(true, project?.ownerIsFounder)
             assertEquals(null, db.editorIdentityDao().observe().first(), "the new table starts empty")
             verifyEditorIdentityDaoContract(db)
+        } finally {
+            db.close()
+        }
+    }
+
+    @Test
+    fun migrating_from_v13_adds_the_server_stock_tables_and_backfills_what_the_server_holds() = runTest {
+        val v13Path = dir.resolve("migration-v13.db").absolutePathString()
+        BundledSQLiteDriver().open(v13Path).use { c ->
+            seedV7Schema(c)
+            c.execSQL("ALTER TABLE `projects` ADD COLUMN `ownerPlan` TEXT")
+            c.execSQL("ALTER TABLE `attachments` ADD COLUMN `durationSeconds` INTEGER")
+            listOf(
+                "projectsUsed INTEGER", "photosUsed INTEGER", "photosLimit INTEGER", "videosUsed INTEGER",
+                "videosLimit INTEGER", "videoDurationLimitSeconds INTEGER", "supervisorsUsed INTEGER",
+                "supervisorsLimit INTEGER", "planExpiresAt TEXT", "hasStripeCustomer INTEGER",
+            ).forEach { column -> c.execSQL("ALTER TABLE `plan_usage` ADD COLUMN $column") }
+            MIGRATION_11_12.migrate(c)
+            MIGRATION_12_13.migrate(c)
+            c.execSQL("CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)")
+            c.execSQL("PRAGMA user_version = 13")
+            c.execSQL(
+                "INSERT INTO projects (localId, serverId, name, description, location, currency, timezone, status, " +
+                    "ownerId, createdAt, syncStatus, pendingOp, locallyModifiedAt, lastSyncedAt, remoteUpdatedAt, " +
+                    "lastSyncError) VALUES ('p-v13', 42, 'Chantier v13', NULL, NULL, 'EUR', 'Europe/Paris', 'IN_PROGRESS', 1, NULL, " +
+                    "'SYNCED', 'NONE', 1000, NULL, NULL, NULL)",
+            )
+            c.execSQL(
+                "INSERT INTO stages (localId, serverId, projectLocalId, name, description, estimatedBudget, startDate, endDate, status, " +
+                    "syncStatus, pendingOp, locallyModifiedAt, lastSyncedAt) " +
+                    "VALUES ('s-v13', 43, 'p-v13', 'Gros œuvre', NULL, NULL, NULL, NULL, 'IN_PROGRESS', 'SYNCED', 'NONE', 1000, NULL)",
+            )
+            c.execSQL("INSERT INTO daily_logs (localId, serverId, stageLocalId, date, locallyCreatedAt, lastSyncedAt) VALUES ('l-v13', 44, 's-v13', '2026-09-05', 1000, NULL)")
+            c.execSQL(
+                "INSERT INTO daily_entries (localId, serverId, dailyLogLocalId, type, summary, createdById, createdAt, modifiedById, modifiedAt, " +
+                    "syncStatus, pendingOp, locallyModifiedAt, lastSyncedAt, remoteUpdatedAt, lastSyncError) " +
+                    "VALUES ('e-v13', 45, 'l-v13', 'PURCHASE', NULL, NULL, NULL, NULL, NULL, 'SYNCED', 'NONE', 1000, NULL, NULL, NULL)",
+            )
+            c.execSQL(
+                "INSERT INTO materials (localId, serverId, projectLocalId, name, unit, syncStatus, pendingOp, locallyModifiedAt, lastSyncedAt, remoteUpdatedAt, lastSyncError) " +
+                    "VALUES ('m-v13', 7, 'p-v13', 'Ciment', 'sac', 'SYNCED', 'NONE', 1000, NULL, NULL, NULL)",
+            )
+            listOf("('pl-synced', 60, 10.0, 'SYNCED', 'NONE')", "('pl-pending', NULL, 4.0, 'PENDING', 'CREATE')").forEach { values ->
+                val (id, serverId, quantity, status, op) = values.removeSurrounding("(", ")").split(", ")
+                c.execSQL(
+                    "INSERT INTO purchase_lines (localId, serverId, entryLocalId, materialLocalId, quantity, unitPrice, totalPrice, supplier, createdAt, " +
+                        "syncStatus, pendingOp, locallyModifiedAt, lastSyncedAt, remoteUpdatedAt, lastSyncError) " +
+                        "VALUES ($id, $serverId, 'e-v13', 'm-v13', $quantity, 1.0, $quantity, NULL, NULL, $status, $op, 1000, NULL, NULL, NULL)",
+                )
+            }
+        }
+
+        val db = Room.databaseBuilder<AppDatabase>(name = v13Path).buildChantierDatabase()
+        try {
+            assertEquals("Chantier v13", db.projectDao().findByLocalId("p-v13")?.name, "v13 data survives the migration")
+            assertEquals(10.0, db.purchaseLineDao().findByLocalId("pl-synced")?.serverQuantity, "a line already on the server is backfilled")
+            assertEquals(null, db.purchaseLineDao().findByLocalId("pl-pending")?.serverQuantity, "a line never sent holds nothing on the server")
+            assertEquals(null, db.stockDao().findSnapshot("p-v13"), "the stock is not loaded until the next sync")
+            verifyStockDaoContract(db)
         } finally {
             db.close()
         }

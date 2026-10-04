@@ -163,6 +163,8 @@ class FakeProjectBackend {
 
     val goneOnServer = mutableListOf<Regex>()
 
+    var stockStatus: HttpStatusCode? = null
+
     fun seedInvitation(i: ServerInvitation) = i.also { invitations += it }
     fun seedPendingForMe(i: ServerPendingInvitation) = i.also { myPendingInvitations += it }
     fun seedMaterial(m: ServerMaterial) = m.also { materials += it }
@@ -207,6 +209,7 @@ class FakeProjectBackend {
     fun consumptionLineApi() = com.dmb.chantiertracker.data.remote.ConsumptionLineApi(client(sharedTokenStorage))
     fun attachmentApi() = com.dmb.chantiertracker.data.remote.AttachmentApi(client(sharedTokenStorage))
     fun invitationApi() = com.dmb.chantiertracker.data.remote.InvitationApi(client(sharedTokenStorage))
+    fun stockApi() = com.dmb.chantiertracker.data.remote.StockApi(client(sharedTokenStorage))
 
     private suspend fun MockRequestHandleScope.handle(request: HttpRequestData): HttpResponseData {
         val path = request.url.encodedPath.removePrefix("/api/v1")
@@ -237,8 +240,16 @@ class FakeProjectBackend {
         val consumptionLineId = Regex("""/consumption-lines/(\d+)$""").find(path)?.groupValues?.get(1)?.toLong()
         val attachmentsEntryId = Regex("""/entries/(\d+)/attachments$""").find(path)?.groupValues?.get(1)?.toLong()
         val attachmentId = Regex("""/attachments/(\d+)$""").find(path)?.groupValues?.get(1)?.toLong()
+        val stockProjectId = Regex("""/projects/(\d+)/stock$""").find(path)?.groupValues?.get(1)?.toLong()
 
         return when {
+            request.method == HttpMethod.Get && stockProjectId != null -> {
+                stockStatus?.let { return respondProblem(it, "Stock indisponible.") }
+                val page = request.url.parameters["page"]?.toInt() ?: 0
+                val size = request.url.parameters["size"]?.toInt() ?: 20
+                respondJson(pageOf(stockOf(stockProjectId).drop(page * size).take(size)))
+            }
+
             request.method == HttpMethod.Get && stagesProjectId != null -> {
                 if (projects.none { it.id == stagesProjectId }) {
                     return respondProblem(HttpStatusCode.NotFound, "Projet introuvable.")
@@ -560,6 +571,23 @@ class FakeProjectBackend {
             else -> respondProblem(HttpStatusCode.NotFound, "route inconnue: $path")
         }
     }
+
+    private fun entryStillOnServer(entryId: Long): Boolean {
+        val entry = entries.firstOrNull { it.id == entryId } ?: return false
+        val log = logs.firstOrNull { it.id == entry.dailyLogId } ?: return false
+        return stages.isEmpty() || stages.any { it.id == log.stageId }
+    }
+
+    private fun stockOf(projectId: Long): List<String> =
+        materials.filter { it.projectId == projectId }.mapNotNull { m ->
+            val bought = purchaseLines.filter { it.materialId == m.id && entryStillOnServer(it.entryId) }
+            val used = consumptionLines.filter { it.materialId == m.id && entryStillOnServer(it.entryId) }
+            if (bought.isEmpty() && used.isEmpty()) return@mapNotNull null
+            val quantityIn = bought.sumOf { it.quantity }
+            val quantityOut = used.sumOf { it.quantity }
+            """{"id":${m.id},"projectId":$projectId,"materialId":${m.id},"materialName":${m.name.q()},"unit":${m.unit.q()},""" +
+                """"quantityIn":$quantityIn,"quantityOut":$quantityOut,"available":${quantityIn - quantityOut}}"""
+        }
 
     /** The `updatedAt` a PATCH stamps on the server row — overridable per test. */
     var patchAppliedAt: String = "2026-09-02T12:00:00"
