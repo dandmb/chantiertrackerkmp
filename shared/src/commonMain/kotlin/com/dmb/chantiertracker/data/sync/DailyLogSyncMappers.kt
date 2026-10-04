@@ -73,6 +73,7 @@ fun PurchaseLineDto.toSyncedEntity(
     lastSyncedAt = syncedAt,
     remoteUpdatedAt = parseServerTimestampMillis(createdAt),
     lastSyncError = null,
+    serverQuantity = quantity,
 )
 
 fun PurchaseLineEntity.toCreateRequest(materialServerId: Long) = CreatePurchaseLineRequestDto(
@@ -109,6 +110,7 @@ fun ConsumptionLineDto.toSyncedEntity(
     lastSyncedAt = syncedAt,
     remoteUpdatedAt = parseServerTimestampMillis(createdAt),
     lastSyncError = null,
+    serverQuantity = quantity,
 )
 
 fun ConsumptionLineEntity.toCreateRequest(materialServerId: Long) = CreateConsumptionLineRequestDto(

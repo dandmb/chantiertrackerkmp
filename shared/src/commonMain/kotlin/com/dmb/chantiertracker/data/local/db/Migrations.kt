@@ -371,3 +371,31 @@ val MIGRATION_12_13 = object : Migration(12, 13) {
         )
     }
 }
+
+/**
+ * v13 → v14 : stock servi par le serveur (ADR-71). Tables `material_stock` (compteurs de
+ * `GET /projects/{id}/stock`, par projet et matériau serveur) et `stock_snapshots` (date du dernier
+ * chargement, et « à recharger »). Les lignes d'achat et de consommation gagnent `serverQuantity`,
+ * la quantité que le serveur détient pour elles ; rattrapée à `quantity` pour toute ligne déjà sur le
+ * serveur (une modification encore en attente garde un écart nul jusqu'à son envoi — approximation
+ * acceptée).
+ */
+val MIGRATION_13_14 = object : Migration(13, 14) {
+    override fun migrate(connection: SQLiteConnection) {
+        connection.execSQL(
+            "CREATE TABLE IF NOT EXISTS `material_stock` (`projectLocalId` TEXT NOT NULL, `materialServerId` INTEGER NOT NULL, " +
+                "`quantityIn` REAL NOT NULL, `quantityOut` REAL NOT NULL, PRIMARY KEY(`projectLocalId`, `materialServerId`), " +
+                "FOREIGN KEY(`projectLocalId`) REFERENCES `projects`(`localId`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        )
+        connection.execSQL("CREATE INDEX IF NOT EXISTS `index_material_stock_projectLocalId` ON `material_stock` (`projectLocalId`)")
+        connection.execSQL(
+            "CREATE TABLE IF NOT EXISTS `stock_snapshots` (`projectLocalId` TEXT NOT NULL, `refreshedAt` INTEGER NOT NULL, " +
+                "`needsRefresh` INTEGER NOT NULL, PRIMARY KEY(`projectLocalId`), " +
+                "FOREIGN KEY(`projectLocalId`) REFERENCES `projects`(`localId`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        )
+        connection.execSQL("ALTER TABLE `purchase_lines` ADD COLUMN `serverQuantity` REAL")
+        connection.execSQL("ALTER TABLE `consumption_lines` ADD COLUMN `serverQuantity` REAL")
+        connection.execSQL("UPDATE `purchase_lines` SET `serverQuantity` = `quantity` WHERE `serverId` IS NOT NULL")
+        connection.execSQL("UPDATE `consumption_lines` SET `serverQuantity` = `quantity` WHERE `serverId` IS NOT NULL")
+    }
+}

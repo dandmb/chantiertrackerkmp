@@ -32,6 +32,7 @@ import com.dmb.chantiertracker.data.local.db.PlanUsageDao
 import com.dmb.chantiertracker.data.local.db.ProjectDao
 import com.dmb.chantiertracker.data.local.db.PurchaseLineDao
 import com.dmb.chantiertracker.data.local.db.StageDao
+import com.dmb.chantiertracker.data.local.db.StockDao
 import com.dmb.chantiertracker.data.local.db.buildChantierDatabase
 import androidx.room.RoomDatabase
 import com.dmb.chantiertracker.data.remote.AccountApi
@@ -49,6 +50,7 @@ import com.dmb.chantiertracker.data.remote.PurchaseLineApi
 import com.dmb.chantiertracker.data.remote.ExportApi
 import com.dmb.chantiertracker.data.remote.ReportApi
 import com.dmb.chantiertracker.data.remote.StageApi
+import com.dmb.chantiertracker.data.remote.StockApi
 import com.dmb.chantiertracker.data.remote.createHttpClient
 import com.dmb.chantiertracker.data.remote.httpClientEngine
 import com.dmb.chantiertracker.data.sync.AppCoroutineScope
@@ -152,6 +154,7 @@ val networkModule: Module = module {
     singleOf(::StageApi)
     singleOf(::AccountApi)
     singleOf(::MaterialApi)
+    singleOf(::StockApi)
     singleOf(::DailyLogApi)
     singleOf(::PurchaseLineApi)
     singleOf(::ConsumptionLineApi)
@@ -179,6 +182,7 @@ val syncModule: Module = module {
     single<InvitationDao> { get<AppDatabase>().invitationDao() }
     single<EditorIdentityDao> { get<AppDatabase>().editorIdentityDao() }
     single<LocalDataDao> { get<AppDatabase>().localDataDao() }
+    single<StockDao> { get<AppDatabase>().stockDao() }
     single<AttachmentFileStore> { FileKitAttachmentFileStore(newFileName = { kotlin.uuid.Uuid.random().toString() }) }
     single<ExportFileStore> { FileKitExportFileStore() }
     single { AppCoroutineScope() }
@@ -203,6 +207,8 @@ val syncModule: Module = module {
             attachmentFileStore = get(),
             invitationDao = get(),
             invitationApi = get(),
+            stockApi = get(),
+            stockDao = get(),
             connectivity = get(),
             syncState = get(),
             scope = get<AppCoroutineScope>(),
@@ -229,7 +235,7 @@ val dataModule: Module = module {
     single<StageRepository> { StageRepositoryImpl(get(), get(), get<AppCoroutineScope>()) }
     single<AccountRepository> { AccountRepositoryImpl(get(), get()) }
     single<DailyLogRepository> { DailyLogRepositoryImpl(get(), get(), get(), get<AppCoroutineScope>()) }
-    single<MaterialRepository> { MaterialRepositoryImpl(get(), get(), get(), get(), get<AppCoroutineScope>()) }
+    single<MaterialRepository> { MaterialRepositoryImpl(get(), get(), get(), get(), get(), get<AppCoroutineScope>()) }
     single<PurchaseLineRepository> { PurchaseLineRepositoryImpl(get(), get(), get<AppCoroutineScope>()) }
     single<ConsumptionLineRepository> { ConsumptionLineRepositoryImpl(get(), get(), get<AppCoroutineScope>()) }
     single<AttachmentRepository> { AttachmentRepositoryImpl(get(), get(), get(), get(), get(), get<AppCoroutineScope>()) }

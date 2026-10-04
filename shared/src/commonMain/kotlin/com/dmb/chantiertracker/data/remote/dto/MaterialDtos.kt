@@ -21,3 +21,10 @@ data class UpdateMaterialRequestDto(
     val name: String? = null,
     val unit: String? = null,
 )
+
+@Serializable
+data class MaterialStockDto(
+    val materialId: Long,
+    val quantityIn: Double,
+    val quantityOut: Double,
+)

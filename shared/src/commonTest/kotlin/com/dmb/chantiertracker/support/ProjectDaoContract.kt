@@ -1,5 +1,7 @@
 package com.dmb.chantiertracker.support
 
+import com.dmb.chantiertracker.data.local.db.MaterialStockEntity
+
 import com.dmb.chantiertracker.data.local.db.AppDatabase
 import com.dmb.chantiertracker.data.local.db.DailyLogEntity
 import com.dmb.chantiertracker.data.local.db.PendingOp
@@ -207,7 +209,7 @@ suspend fun verifyDailyLogDaoContract(db: AppDatabase) {
  * [com.dmb.chantiertracker.data.local.db.PurchaseLineDao] and
  * [com.dmb.chantiertracker.data.local.db.ConsumptionLineDao] on a real
  * [AppDatabase] — in particular the join chain (line → entry → log → stage →
- * project) that `observeLinesForProject` relies on for stock (ADR-28).
+ * project) that `observeStockMovements` relies on for stock (ADR-71).
  */
 suspend fun verifyMaterialAndLineDaoContract(db: AppDatabase) {
     val projectDao = db.projectDao()
@@ -239,17 +241,21 @@ suspend fun verifyMaterialAndLineDaoContract(db: AppDatabase) {
 
     assertEquals(listOf("pl-in-scope"), purchaseDao.observeLinesForEntry("entry-purchase").first().map { it.localId }, "pending delete hidden")
     assertEquals(
-        listOf("pl-in-scope"),
-        purchaseDao.observeLinesForProject("proj-a").first().map { it.localId },
-        "the join resolves through daily_entries/daily_logs/stages to the project",
+        listOf(999.0),
+        purchaseDao.observeStockMovements("proj-a").first().map { it.quantity },
+        "the join resolves to the project; only the lines that still move the stock (the pending delete), not the synced one",
     )
-    assertTrue(purchaseDao.observeLinesForProject("proj-b").first().isEmpty(), "a line on proj-a never leaks into proj-b's stock")
-    assertEquals(listOf("cl-in-scope"), consumptionDao.observeLinesForProject("proj-a").first().map { it.localId })
+    assertTrue(purchaseDao.observeStockMovements("proj-b").first().isEmpty(), "a line on proj-a never leaks into proj-b's stock")
+    assertTrue(consumptionDao.observeStockMovements("proj-a").first().isEmpty(), "a synced consumption is already in the server counter")
     assertEquals(listOf("pl-deleted"), purchaseDao.findPending().map { it.localId })
 
-    // Deleting the parent entry cascades to its lines; the material itself is untouched.
+    stageDao.upsert(sampleStage("stage-a", "proj-a").copy(pendingOp = PendingOp.DELETE, syncStatus = SyncStatus.PENDING))
+    val underDeletingStage = consumptionDao.observeStockMovements("proj-a").first().single()
+    assertEquals(true, underDeletingStage.parentDeleting, "a line under a stage being deleted will be released by the server")
+    assertEquals(40.0, underDeletingStage.quantity)
+
     entryDao.deleteByLocalId("entry-purchase")
-    assertTrue("purchase lines cascade-deleted with their entry") { purchaseDao.observeLinesForProject("proj-a").first().isEmpty() }
+    assertTrue("purchase lines cascade-deleted with their entry") { purchaseDao.findForEntry("entry-purchase").isEmpty() }
     assertEquals("Ciment", materialDao.findByLocalId("m-ciment")?.name, "materials are never cascade-deleted")
 }
 
@@ -403,6 +409,7 @@ suspend fun verifyLocalDataDaoContract(db: AppDatabase) {
     db.attachmentDao().upsert(localAttachment("att-1", entryLocalId = "entry-1"))
     db.planUsageDao().upsert(com.dmb.chantiertracker.data.local.db.PlanUsageEntity(plan = "FREE", projectsLimit = 1, refreshedAt = 1L))
     db.editorIdentityDao().upsert(com.dmb.chantiertracker.data.local.db.EditorIdentityEntity(siret = "123", refreshedAt = 1L))
+    db.stockDao().replaceCounters("proj-1", listOf(com.dmb.chantiertracker.data.local.db.MaterialStockEntity("proj-1", 7, 12.0, 0.0)), refreshedAt = 1L)
 
     assertEquals(7, dao.countUnsynced(), "project, stage, entry, material, both lines and the photo are pending")
 
@@ -419,6 +426,8 @@ suspend fun verifyLocalDataDaoContract(db: AppDatabase) {
     assertNull(db.attachmentDao().findByLocalId("att-1"))
     assertNull(db.planUsageDao().observe().first(), "the plan usage belongs to the account too")
     assertNull(db.editorIdentityDao().observe().first())
+    assertNull(db.stockDao().findSnapshot("proj-1"), "the server stock belongs to the account too")
+    assertTrue(db.stockDao().observeCounters("proj-1").first().isEmpty())
 }
 
 
@@ -459,4 +468,38 @@ suspend fun verifyFindPendingSkipsRowsDeletedOnServer(db: AppDatabase) {
     assertEquals(listOf("cl-p", "cl-r"), db.consumptionLineDao().findPending().map { it.localId }.sorted())
     assertEquals(listOf("att-p", "att-r"), db.attachmentDao().findPending().map { it.localId }.sorted())
     assertEquals(21, db.localDataDao().countUnsynced(), "rows deleted on the server still count as unsent: signing out warns about them")
+}
+
+suspend fun verifyStockDaoContract(db: AppDatabase) {
+    val dao = db.stockDao()
+    db.projectDao().upsert(localProject("proj-s", serverId = 50, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+    db.stageDao().upsert(localStage("stage-s", projectLocalId = "proj-s", serverId = 51, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+    db.dailyLogDao().upsert(localDailyLog("log-s", stageLocalId = "stage-s"))
+    db.dailyEntryDao().upsert(localDailyEntry("entry-s", dailyLogLocalId = "log-s", serverId = 52, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+    db.materialDao().upsert(localMaterial("mat-s", projectLocalId = "proj-s", serverId = 7, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+    val synced = localPurchaseLine("pl-s", entryLocalId = "entry-s", materialLocalId = "mat-s", quantity = 5.0, serverId = 60, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED).copy(serverQuantity = 5.0)
+
+    dao.recordPurchaseLineSynced("proj-s", 7, synced, previousServerQuantity = null)
+    assertEquals(5.0, db.purchaseLineDao().findByLocalId("pl-s")?.serverQuantity, "the line is written even when no stock was loaded")
+    assertTrue(dao.observeCounters("proj-s").first().isEmpty(), "nothing to correct before the first load")
+
+    dao.replaceCounters("proj-s", listOf(MaterialStockEntity("proj-s", 7, 12.0, 2.0)), refreshedAt = 3_000L)
+    assertEquals(3_000L, dao.observeSnapshot("proj-s").first()?.refreshedAt)
+    dao.recordPurchaseLineSynced("proj-s", 7, synced.copy(quantity = 8.0, serverQuantity = 8.0), previousServerQuantity = 5.0)
+    assertEquals(15.0, dao.findCounter("proj-s", 7)?.quantityIn, "the server's own +3 is mirrored in the same transaction")
+    db.consumptionLineDao().upsert(localConsumptionLine("cl-s", entryLocalId = "entry-s", materialLocalId = "mat-s", quantity = 2.0, serverId = 61, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+    dao.recordConsumptionLineDeleted("proj-s", 7, "cl-s", serverQuantity = 2.0)
+    assertNull(db.consumptionLineDao().findByLocalId("cl-s"))
+    assertEquals(0.0, dao.findCounter("proj-s", 7)?.quantityOut)
+
+    assertTrue(dao.findProjectsNeedingRefresh().isEmpty())
+    dao.markNeedsRefresh("proj-s")
+    assertEquals(listOf("proj-s"), dao.findProjectsNeedingRefresh())
+    dao.replaceCounters("proj-s", listOf(MaterialStockEntity("proj-s", 7, 20.0, 1.0)), refreshedAt = 4_000L)
+    assertTrue(dao.findProjectsNeedingRefresh().isEmpty(), "a reload clears the flag")
+    assertEquals(listOf(20.0), dao.observeCounters("proj-s").first().map { it.quantityIn }, "a reload replaces the counters")
+
+    db.projectDao().deleteByLocalId("proj-s")
+    assertNull(dao.findSnapshot("proj-s"), "cascade with the project")
+    assertTrue(dao.observeCounters("proj-s").first().isEmpty())
 }

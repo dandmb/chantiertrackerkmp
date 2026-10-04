@@ -11,17 +11,17 @@ interface PurchaseLineDao {
     @Query("SELECT * FROM purchase_lines WHERE entryLocalId = :entryLocalId AND pendingOp != 'DELETE' ORDER BY locallyModifiedAt")
     fun observeLinesForEntry(entryLocalId: String): Flow<List<PurchaseLineEntity>>
 
-    // Joins through daily_entries/daily_logs/stages so the project's stock can
-    // be computed from every purchase line in the project, whatever stage or
-    // day it was logged under (stock is project-wide — see MaterialStock).
     @Query(
-        "SELECT p.* FROM purchase_lines p " +
+        "SELECT p.materialLocalId, p.quantity, p.serverQuantity, p.syncStatus, p.pendingOp, " +
+            "(e.pendingOp = 'DELETE' OR s.pendingOp = 'DELETE') AS parentDeleting " +
+            "FROM purchase_lines p " +
             "INNER JOIN daily_entries e ON e.localId = p.entryLocalId " +
             "INNER JOIN daily_logs l ON l.localId = e.dailyLogLocalId " +
             "INNER JOIN stages s ON s.localId = l.stageLocalId " +
-            "WHERE s.projectLocalId = :projectLocalId AND p.pendingOp != 'DELETE'",
+            "WHERE s.projectLocalId = :projectLocalId " +
+            "AND (p.syncStatus = 'PENDING' OR e.pendingOp = 'DELETE' OR s.pendingOp = 'DELETE')",
     )
-    fun observeLinesForProject(projectLocalId: String): Flow<List<PurchaseLineEntity>>
+    fun observeStockMovements(projectLocalId: String): Flow<List<StockMovementRow>>
 
     @Query("SELECT * FROM purchase_lines WHERE localId = :localId")
     suspend fun findByLocalId(localId: String): PurchaseLineEntity?

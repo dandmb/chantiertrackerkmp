@@ -67,7 +67,7 @@ class StockIntegrationTest {
         logs.observeLog(dayLocalId).first()!!.entries.single { it.type == type }.localId
 
     private suspend fun DeviceStack.appStock(projectLocalId: String): Map<String, Double> =
-        materials.observeStock(projectLocalId).first().associate { it.materialName to it.available }
+        materials.observeStock(projectLocalId).first().materials.associate { it.materialName to it.available }
 
     private suspend fun DeviceStack.serverStock(projectLocalId: String): Map<String, Double> {
         val serverId = db.projectDao().findByLocalId(projectLocalId)!!.serverId!!
@@ -134,7 +134,7 @@ class StockIntegrationTest {
         val (afterConsumption, serverAfterConsumption) = owner.compare("P5 consommation", project)
         assertEquals(mapOf("Ciment" to 6.0, "Sable" to 1.75), serverAfterConsumption)
         assertEquals(serverAfterConsumption, afterConsumption)
-        println("P5 — plafond du formulaire de consommation pour le ciment : ${availableCeiling(owner.materials.observeStock(project).first(), cement.localId, null)}")
+        println("P5 — plafond du formulaire de consommation pour le ciment : ${availableCeiling(owner.materials.observeStock(project).first().materials, cement.localId, null)}")
 
         owner.consumptionLines.updateLine(consumption, com.dmb.chantiertracker.domain.model.UpdateConsumptionLineInput(10.0))
         owner.sync.syncNow()
@@ -158,7 +158,7 @@ class StockIntegrationTest {
         site.supervisor.sync.syncProject(site.supervisorProject)
         val (app, server) = site.supervisor.compare("C stock non ouvert (superviseur, projet synchronisé, journée d'hier jamais ouverte)", site.supervisorProject)
         val supervisorCement = site.supervisor.materials.observeMaterials(site.supervisorProject).first().single { it.name == "Ciment" }
-        val ceiling = availableCeiling(site.supervisor.materials.observeStock(site.supervisorProject).first(), supervisorCement.localId, null)
+        val ceiling = availableCeiling(site.supervisor.materials.observeStock(site.supervisorProject).first().materials, supervisorCement.localId, null)
         println("C stock non ouvert — plafond du formulaire de consommation du superviseur : $ceiling (serveur : ${server["Ciment"]})")
 
         val day = site.supervisor.logs.observeLogs(site.supervisorStage).first().single()

@@ -33,6 +33,7 @@ object ApiRoutes {
     fun stage(id: Long) = "stages/$id"
 
     fun projectMaterials(id: Long) = "projects/$id/materials"
+    fun projectStock(id: Long) = "projects/$id/stock"
     fun material(id: Long) = "materials/$id"
 
     fun stageLogs(stageId: Long) = "stages/$stageId/logs"

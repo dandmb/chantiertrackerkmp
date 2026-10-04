@@ -7,11 +7,13 @@ data class Material(
     val unit: String,
 )
 
-/**
- * A material's running total for a project — `available` is never persisted,
- * always derived from the project's purchase/consumption lines (same
- * principle as a stage's spent budget: computed, never stored).
- */
+data class ProjectStock(
+    val materials: List<MaterialStock>,
+    val refreshedAt: Long?,
+) {
+    val isLoaded: Boolean get() = refreshedAt != null
+}
+
 data class MaterialStock(
     val materialLocalId: String,
     val materialName: String,

@@ -119,7 +119,7 @@ class DailyLogViewModel(
             if (projectId == null) {
                 flowOf(emptyList<Material>() to emptyList<MaterialStock>())
             } else {
-                combine(materialRepository.observeMaterials(projectId), materialRepository.observeStock(projectId)) { m, s -> m to s }
+                combine(materialRepository.observeMaterials(projectId), materialRepository.observeStock(projectId)) { m, s -> m to s.materials }
             }
         }
 

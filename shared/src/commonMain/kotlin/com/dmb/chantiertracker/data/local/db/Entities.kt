@@ -256,6 +256,7 @@ data class PurchaseLineEntity(
     val lastSyncedAt: Long?,
     val remoteUpdatedAt: Long?,
     val lastSyncError: String?,
+    val serverQuantity: Double? = null,
 )
 
 @Entity(
@@ -288,6 +289,53 @@ data class ConsumptionLineEntity(
     val lastSyncedAt: Long?,
     val remoteUpdatedAt: Long?,
     val lastSyncError: String?,
+    val serverQuantity: Double? = null,
+)
+
+@Entity(
+    tableName = "material_stock",
+    primaryKeys = ["projectLocalId", "materialServerId"],
+    foreignKeys = [
+        ForeignKey(
+            entity = ProjectEntity::class,
+            parentColumns = ["localId"],
+            childColumns = ["projectLocalId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+    ],
+    indices = [Index("projectLocalId")],
+)
+data class MaterialStockEntity(
+    val projectLocalId: String,
+    val materialServerId: Long,
+    val quantityIn: Double,
+    val quantityOut: Double,
+)
+
+@Entity(
+    tableName = "stock_snapshots",
+    foreignKeys = [
+        ForeignKey(
+            entity = ProjectEntity::class,
+            parentColumns = ["localId"],
+            childColumns = ["projectLocalId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+    ],
+)
+data class StockSnapshotEntity(
+    @PrimaryKey val projectLocalId: String,
+    val refreshedAt: Long,
+    val needsRefresh: Boolean,
+)
+
+data class StockMovementRow(
+    val materialLocalId: String,
+    val quantity: Double,
+    val serverQuantity: Double?,
+    val syncStatus: SyncStatus,
+    val pendingOp: PendingOp,
+    val parentDeleting: Boolean,
 )
 
 // A justificatif photo, always attached to a PURCHASE entry (backend rejects
