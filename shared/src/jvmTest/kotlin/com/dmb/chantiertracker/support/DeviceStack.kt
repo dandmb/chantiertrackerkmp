@@ -110,6 +110,9 @@ class DeviceStack : AutoCloseable {
     val consumptionLines = ConsumptionLineRepositoryImpl(db.consumptionLineDao(), sync, scope)
     val attachments = AttachmentRepositoryImpl(db.attachmentDao(), db.dailyEntryDao(), attachmentApi, fileStore, sync, scope)
     val invitations = InvitationRepositoryImpl(db.invitationDao(), invitationApi, db.projectDao(), sync)
+    val reports = com.dmb.chantiertracker.data.repository.ReportRepositoryImpl(
+        com.dmb.chantiertracker.data.remote.ReportApi(client), db.dailyEntryDao(), db.projectDao(),
+    )
 
     fun goOffline() = connectivity.setOnline(false)
 
