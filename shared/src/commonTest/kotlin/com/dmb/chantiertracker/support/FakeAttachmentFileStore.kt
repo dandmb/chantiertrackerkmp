@@ -26,6 +26,15 @@ class FakeAttachmentFileStore(newPath: (() -> String)? = null) : AttachmentFileS
         deletedPaths += key
     }
 
+    var deleteAllCount = 0
+        private set
+
+    override suspend fun deleteAll() {
+        deleteAllCount++
+        deletedPaths += files.keys
+        files.clear()
+    }
+
     // The tests treat the key as the "path" — good enough, no real filesystem.
     override fun absolutePathOf(key: String): String = key
 }

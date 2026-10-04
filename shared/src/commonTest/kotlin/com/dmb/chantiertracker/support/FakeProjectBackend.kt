@@ -176,6 +176,10 @@ class FakeProjectBackend {
     /** When true, PATCH/DELETE on a stage answers 403 (mirrors a non-ADMIN pushing a stage edit). */
     var stageWriteForbidden = false
     val receivedMethods = mutableListOf<String>()
+    /** "METHOD /path" → the Authorization header it carried, in arrival order. */
+    val receivedAuthorizations = mutableListOf<Pair<String, String?>>()
+    /** Runs before a request is answered — lets a test hold a sync pass mid-flight. */
+    var beforeHandle: (suspend (HttpRequestData) -> Unit)? = null
 
     fun seed(project: ServerProject) = project.also { projects += it }
 
@@ -205,6 +209,8 @@ class FakeProjectBackend {
     private suspend fun MockRequestHandleScope.handle(request: HttpRequestData): HttpResponseData {
         val path = request.url.encodedPath.removePrefix("/api/v1")
         receivedMethods += "${request.method.value} $path"
+        receivedAuthorizations += "${request.method.value} $path" to request.headers[io.ktor.http.HttpHeaders.Authorization]
+        beforeHandle?.invoke(request)
         val idInPath = Regex("""/projects/(\d+)$""").find(path)?.groupValues?.get(1)?.toLong()
         val membersProjectId = Regex("""/projects/(\d+)/members$""").find(path)?.groupValues?.get(1)?.toLong()
         val invitationsProjectId = Regex("""/projects/(\d+)/invitations$""").find(path)?.groupValues?.get(1)?.toLong()

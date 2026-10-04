@@ -61,6 +61,13 @@ interface Syncer {
     suspend fun syncProject(localId: String): SyncOutcome
     suspend fun syncStage(stageLocalId: String): SyncOutcome
     suspend fun syncLog(logLocalId: String): SyncOutcome
+
+    /**
+     * Runs [block] while no sync pass can run: one in flight finishes first, one requested meanwhile
+     * starts after (ADR-69). For what must never interleave with a push — switching the token and the
+     * account that owns the local data, or signing out. Never call a sync method from [block].
+     */
+    suspend fun <T> runExclusive(block: suspend () -> T): T
 }
 
 /**
@@ -141,6 +148,8 @@ class SyncEngine(
     override suspend fun syncStage(stageLocalId: String): SyncOutcome = mutex.withLock { runStageSync(stageLocalId) }
 
     override suspend fun syncLog(logLocalId: String): SyncOutcome = mutex.withLock { runLogSync(logLocalId) }
+
+    override suspend fun <T> runExclusive(block: suspend () -> T): T = mutex.withLock { block() }
 
     private suspend fun runSync(): SyncOutcome {
         if (!connectivity.isOnline()) {

@@ -101,6 +101,21 @@ class FakeSyncer : com.dmb.chantiertracker.data.sync.Syncer {
 
     override fun requestSync() { requestCount++ }
 
+    var exclusiveCount = 0
+        private set
+    var inExclusive = false
+        private set
+
+    override suspend fun <T> runExclusive(block: suspend () -> T): T {
+        exclusiveCount++
+        inExclusive = true
+        try {
+            return block()
+        } finally {
+            inExclusive = false
+        }
+    }
+
     override suspend fun syncNow(): com.dmb.chantiertracker.data.sync.SyncOutcome {
         syncCount++
         onSync?.invoke()
@@ -649,6 +664,14 @@ class FakeExportFileStore : com.dmb.chantiertracker.data.local.ExportFileStore {
     override suspend fun save(bytes: ByteArray, fileName: String): String {
         saved += fileName to bytes.size
         return "/cache/exports/$fileName"
+    }
+
+    var deleteAllCount = 0
+        private set
+
+    override suspend fun deleteAll() {
+        deleteAllCount++
+        saved.clear()
     }
 }
 

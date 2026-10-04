@@ -1,5 +1,14 @@
 package com.dmb.chantiertracker.di
 
+import com.dmb.chantiertracker.presentation.sync.SyncState
+import com.dmb.chantiertracker.data.local.db.LocalDataDao
+import com.dmb.chantiertracker.data.session.LocalDataEraser
+import com.dmb.chantiertracker.data.session.LocalDataOwnerStore
+import com.dmb.chantiertracker.data.session.LocalDataOwnership
+import com.dmb.chantiertracker.data.session.LocalDataWiper
+import com.dmb.chantiertracker.data.session.UnsyncedWriteCounter
+import com.dmb.chantiertracker.data.repository.SignOutRepositoryImpl
+import com.dmb.chantiertracker.domain.repository.SignOutRepository
 import com.dmb.chantiertracker.data.remote.EditorIdentityApi
 import com.dmb.chantiertracker.data.local.db.EditorIdentityDao
 import com.dmb.chantiertracker.data.repository.EditorIdentityRepositoryImpl
@@ -169,6 +178,7 @@ val syncModule: Module = module {
     single<AttachmentDao> { get<AppDatabase>().attachmentDao() }
     single<InvitationDao> { get<AppDatabase>().invitationDao() }
     single<EditorIdentityDao> { get<AppDatabase>().editorIdentityDao() }
+    single<LocalDataDao> { get<AppDatabase>().localDataDao() }
     single<AttachmentFileStore> { FileKitAttachmentFileStore(newFileName = { kotlin.uuid.Uuid.random().toString() }) }
     single<ExportFileStore> { FileKitExportFileStore() }
     single { AppCoroutineScope() }
@@ -203,7 +213,18 @@ val syncModule: Module = module {
 }
 
 val dataModule: Module = module {
-    single<AuthRepository> { AuthRepositoryImpl(get(), get<TokenStorage>(), get(), get()) }
+    single { LocalDataOwnerStore(get()) }
+    single<UnsyncedWriteCounter> { UnsyncedWriteCounter { get<LocalDataDao>().countUnsynced() } }
+    single<LocalDataEraser> {
+        LocalDataWiper(get(), get(), get()) {
+            get<SyncStateHolder>().update(SyncState.Idle)
+            get<CheckoutDeepLinkDispatcher>().consume()
+            get<InvitationDeepLinkDispatcher>().consume()
+        }
+    }
+    single { LocalDataOwnership(get(), get(), get()) }
+    single<AuthRepository> { AuthRepositoryImpl(get(), get<TokenStorage>(), get(), get(), get(), get()) }
+    single<SignOutRepository> { SignOutRepositoryImpl(get(), get(), get()) }
     single<ProjectRepository> { ProjectRepositoryImpl(get(), get(), get<AppCoroutineScope>()) }
     single<StageRepository> { StageRepositoryImpl(get(), get(), get<AppCoroutineScope>()) }
     single<AccountRepository> { AccountRepositoryImpl(get(), get()) }

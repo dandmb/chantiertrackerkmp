@@ -4,6 +4,7 @@ import androidx.room.Room
 import com.dmb.chantiertracker.support.verifyAttachmentDaoContract
 import com.dmb.chantiertracker.support.verifyDailyLogDaoContract
 import com.dmb.chantiertracker.support.verifyEditorIdentityDaoContract
+import com.dmb.chantiertracker.support.verifyLocalDataDaoContract
 import com.dmb.chantiertracker.support.verifyInvitationDaoContract
 import com.dmb.chantiertracker.support.verifyMaterialAndLineDaoContract
 import com.dmb.chantiertracker.support.verifyPlanUsageDaoContract
@@ -40,6 +41,7 @@ class AppDatabaseTest {
         try {
             verifyPlanUsageDaoContract(db)
             verifyEditorIdentityDaoContract(db)
+            verifyLocalDataDaoContract(db)
         } finally {
             db.close()
         }
