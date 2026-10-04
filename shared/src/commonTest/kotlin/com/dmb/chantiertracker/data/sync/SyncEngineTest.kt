@@ -789,7 +789,7 @@ class SyncEngineTest {
     }
 
     @Test
-    fun pushing_an_entry_update_the_server_already_removed_drops_the_local_row() = runTest {
+    fun pushing_an_entry_update_the_server_already_removed_keeps_the_edit_as_deleted_on_server() = runTest {
         val f = Fixture()
         f.backend.seed(ServerProject(id = 5, name = "Villa"))
         f.backend.seedStage(ServerStage(id = 90, projectId = 5, name = "S"))
@@ -802,7 +802,9 @@ class SyncEngineTest {
 
         engine.syncNow()
 
-        assertNull(f.dailyEntryDao.findByLocalId("e1"), "a 404 on the entry PATCH removes the local row")
+        val row = f.dailyEntryDao.findByLocalId("e1")!!
+        assertEquals(SyncStatus.CONFLICTED, row.syncStatus, "the unsent edit is never dropped (ADR-70)")
+        assertEquals(SyncError.DELETED_ON_SERVER, row.lastSyncError)
     }
 
     @Test
@@ -1126,6 +1128,196 @@ class SyncEngineTest {
         assertEquals(PendingOp.NONE, f.dao.findByLocalId("p3")!!.pendingOp)
         assertEquals(PendingOp.NONE, f.stageDao.findByLocalId("st1")!!.pendingOp)
         assertEquals(PendingOp.NONE, f.dailyEntryDao.findByLocalId("e1")!!.pendingOp)
+    }
+
+    // ─── ADR-70 — a row, a parent or the access gone on the server ─────────
+
+    private suspend fun Fixture.siteWithAPendingEntry(project: String, projectServerId: Long, stageServerId: Long, entry: String) {
+        dao.upsert(localProject(project, serverId = projectServerId, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+        stageDao.upsert(localStage("st-$project", projectLocalId = project, serverId = stageServerId, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+        dailyLogDao.upsert(com.dmb.chantiertracker.support.localDailyLog("log-$project", stageLocalId = "st-$project"))
+        dailyEntryDao.upsert(com.dmb.chantiertracker.support.localDailyEntry(entry, dailyLogLocalId = "log-$project", type = "WORK", summary = "Coulage"))
+    }
+
+    private fun assertDeletedOnServer(status: SyncStatus?, error: String?, what: String) {
+        assertEquals(SyncStatus.CONFLICTED, status, "$what is kept, refused")
+        assertEquals(SyncError.DELETED_ON_SERVER, error, "$what carries the dedicated reason")
+    }
+
+    @Test
+    fun an_entry_on_a_stage_deleted_on_the_server_is_kept_and_the_pass_goes_on_to_the_other_projects() = runTest {
+        val f = Fixture()
+        f.backend.seed(ServerProject(id = 5, name = "Villa"))
+        f.backend.seed(ServerProject(id = 6, name = "Atelier"))
+        f.backend.seedStage(ServerStage(id = 60, projectId = 6, name = "Charpente"))
+        f.siteWithAPendingEntry("p5", projectServerId = 5, stageServerId = 50, entry = "e5")
+        f.siteWithAPendingEntry("p6", projectServerId = 6, stageServerId = 60, entry = "e6")
+        f.backend.goneOnServer += Regex("^/stages/50(/|$)")
+        val engine = f.engine(backgroundScope)
+
+        assertIs<SyncOutcome.Synced>(engine.syncNow(), "a 404 no longer aborts the pass")
+        val e5 = f.dailyEntryDao.findByLocalId("e5")
+        assertDeletedOnServer(e5?.syncStatus, e5?.lastSyncError, "the entry on the deleted stage")
+        assertEquals("Coulage", e5?.summary)
+        assertEquals(SyncStatus.SYNCED, f.dailyEntryDao.findByLocalId("e6")?.syncStatus, "the other project's entry went out in the same pass")
+
+        assertIs<SyncOutcome.Synced>(engine.syncProject("p5"))
+        val stage = f.stageDao.findByLocalId("st-p5")
+        assertDeletedOnServer(stage?.syncStatus, stage?.lastSyncError, "the stage missing from the server, holding an unsent entry,")
+        assertNotNull(f.dailyEntryDao.findByLocalId("e5"), "no cascade: the orphan survives the pull")
+
+        f.backend.receivedMethods.clear()
+        assertIs<SyncOutcome.Synced>(engine.syncNow())
+        assertTrue(f.backend.receivedMethods.none { it.contains("/stages/50") }, "a row deleted on the server is not resent: ${f.backend.receivedMethods}")
+    }
+
+    @Test
+    fun a_project_deleted_on_the_server_stays_as_a_ghost_while_it_holds_unsent_entries() = runTest {
+        val f = Fixture()
+        f.siteWithAPendingEntry("p5", projectServerId = 5, stageServerId = 50, entry = "e5")
+        f.backend.goneOnServer += Regex("^/(projects|stages)/(5|50)(/|$)")
+        val engine = f.engine(backgroundScope)
+
+        assertIs<SyncOutcome.Synced>(engine.syncNow())
+
+        val project = f.dao.findByLocalId("p5")
+        assertDeletedOnServer(project?.syncStatus, project?.lastSyncError, "the project no longer listed")
+        assertEquals(5L, project?.serverId, "its server id is kept, so a re-invitation finds it again")
+        val stage = f.stageDao.findByLocalId("st-p5")
+        assertDeletedOnServer(stage?.syncStatus, stage?.lastSyncError, "its stage")
+        val entry = f.dailyEntryDao.findByLocalId("e5")
+        assertDeletedOnServer(entry?.syncStatus, entry?.lastSyncError, "the orphan entry")
+
+        assertIs<SyncOutcome.Synced>(engine.syncProject("p5"), "opening the ghost project is not an error")
+        assertNotNull(f.dailyEntryDao.findByLocalId("e5"))
+    }
+
+    @Test
+    fun a_project_deleted_on_the_server_with_nothing_unsent_below_is_dropped_as_before() = runTest {
+        val f = Fixture()
+        f.dao.upsert(localProject("p5", serverId = 5, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+        f.stageDao.upsert(localStage("st5", projectLocalId = "p5", serverId = 50, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+        f.dailyLogDao.upsert(com.dmb.chantiertracker.support.localDailyLog("l5", stageLocalId = "st5", serverId = 800))
+        f.dailyEntryDao.upsert(
+            com.dmb.chantiertracker.support.localDailyEntry("e5", dailyLogLocalId = "l5", serverId = 900, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED),
+        )
+        val engine = f.engine(backgroundScope)
+
+        assertIs<SyncOutcome.Synced>(engine.syncNow())
+
+        assertNull(f.dao.findByLocalId("p5"))
+    }
+
+    @Test
+    fun a_reinvited_supervisor_gets_the_ghost_project_back_synced_and_the_orphan_entry_stays_deleted_on_server() = runTest {
+        val f = Fixture()
+        f.siteWithAPendingEntry("p5", projectServerId = 5, stageServerId = 50, entry = "e5")
+        f.backend.goneOnServer += Regex("^/(projects|stages)/(5|50)(/|$)")
+        val engine = f.engine(backgroundScope)
+        engine.syncNow()
+        assertEquals(SyncError.DELETED_ON_SERVER, f.dao.findByLocalId("p5")?.lastSyncError)
+
+        f.backend.goneOnServer.clear()
+        f.backend.seed(ServerProject(id = 5, name = "Villa"))
+        f.backend.seedStage(ServerStage(id = 50, projectId = 5, name = "Gros œuvre"))
+        assertIs<SyncOutcome.Synced>(engine.syncNow())
+        assertIs<SyncOutcome.Synced>(engine.syncProject("p5"))
+
+        val project = f.dao.findByLocalId("p5")!!
+        assertEquals(SyncStatus.SYNCED, project.syncStatus, "the ghost is the project again")
+        assertNull(project.lastSyncError)
+        assertEquals(listOf("p5"), f.dao.findAll().map { it.localId }, "matched by server id, not duplicated")
+        val stage = f.stageDao.findByLocalId("st-p5")!!
+        assertEquals(SyncStatus.SYNCED, stage.syncStatus)
+        assertNull(stage.lastSyncError)
+        val entry = f.dailyEntryDao.findByLocalId("e5")
+        assertDeletedOnServer(entry?.syncStatus, entry?.lastSyncError, "the orphan entry, left for an explicit retry (A-2),")
+        assertTrue(f.backend.entries.isEmpty(), "never resent on its own")
+    }
+
+    @Test
+    fun an_edit_to_an_entry_deleted_on_the_server_keeps_the_edit_its_pending_line_and_its_photo() = runTest {
+        val f = Fixture()
+        f.backend.seed(ServerProject(id = 5, name = "Villa"))
+        f.backend.seedStage(ServerStage(id = 90, projectId = 5, name = "S"))
+        f.stageDao.upsert(localStage("st90", projectLocalId = "p5", serverId = 90, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+        f.dailyLogDao.upsert(com.dmb.chantiertracker.support.localDailyLog("l1", stageLocalId = "st90", serverId = 800))
+        f.dailyEntryDao.upsert(
+            com.dmb.chantiertracker.support.localDailyEntry(
+                "e1", dailyLogLocalId = "l1", serverId = 12345, summary = "Livraison partielle", pendingOp = PendingOp.UPDATE, syncStatus = SyncStatus.PENDING,
+            ),
+        )
+        f.materialDao.upsert(com.dmb.chantiertracker.support.localMaterial("m1", serverId = 7, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+        f.purchaseLineDao.upsert(com.dmb.chantiertracker.support.localPurchaseLine("pl1", entryLocalId = "e1", materialLocalId = "m1"))
+        val path = f.fileStore.save(byteArrayOf(4, 2), "bon.jpg")
+        f.attachmentDao.upsert(com.dmb.chantiertracker.support.localAttachment("a1", entryLocalId = "e1", localPath = path))
+        val engine = f.engine(backgroundScope)
+
+        assertIs<SyncOutcome.Synced>(engine.syncNow())
+
+        val entry = f.dailyEntryDao.findByLocalId("e1")
+        assertDeletedOnServer(entry?.syncStatus, entry?.lastSyncError, "the edited entry")
+        assertEquals("Livraison partielle", entry?.summary)
+        val line = f.purchaseLineDao.findByLocalId("pl1")
+        assertDeletedOnServer(line?.syncStatus, line?.lastSyncError, "its pending line")
+        val photo = f.attachmentDao.findByLocalId("a1")
+        assertDeletedOnServer(photo?.syncStatus, photo?.lastSyncError, "its pending photo")
+        assertTrue(path in f.fileStore.storedPaths, "the photo file is kept")
+        assertTrue(f.backend.purchaseLines.isEmpty() && f.backend.attachments.isEmpty(), "nothing sent to an entry that no longer exists")
+    }
+
+    @Test
+    fun a_line_on_an_entry_deleted_on_the_server_is_kept_and_the_entry_too_when_its_day_is_pulled() = runTest {
+        val f = Fixture()
+        f.backend.seed(ServerProject(id = 5, name = "Villa"))
+        f.backend.seedStage(ServerStage(id = 90, projectId = 5, name = "S"))
+        f.backend.seedLog(com.dmb.chantiertracker.support.ServerLog(id = 800, stageId = 90, date = "2026-09-05"))
+        f.backend.goneOnServer += Regex("^/entries/900(/|$)")
+        f.dailyLogDao.upsert(com.dmb.chantiertracker.support.localDailyLog("l800", stageLocalId = "st90", serverId = 800))
+        f.dailyEntryDao.upsert(
+            com.dmb.chantiertracker.support.localDailyEntry("e900", dailyLogLocalId = "l800", serverId = 900, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED),
+        )
+        f.materialDao.upsert(com.dmb.chantiertracker.support.localMaterial("m1", serverId = 7, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+        f.consumptionLineDao.upsert(com.dmb.chantiertracker.support.localConsumptionLine("cl1", entryLocalId = "e900", materialLocalId = "m1"))
+        val engine = f.engine(backgroundScope)
+
+        assertIs<SyncOutcome.Synced>(engine.syncLog("l800"))
+
+        val line = f.consumptionLineDao.findByLocalId("cl1")
+        assertDeletedOnServer(line?.syncStatus, line?.lastSyncError, "the line sent to a deleted entry")
+        val entry = f.dailyEntryDao.findByLocalId("e900")
+        assertDeletedOnServer(entry?.syncStatus, entry?.lastSyncError, "the entry missing from its day, holding an unsent line,")
+        f.backend.receivedMethods.clear()
+        assertIs<SyncOutcome.Synced>(engine.syncLog("l800"))
+        assertTrue(f.backend.receivedMethods.none { it.contains("/entries/900") }, "the ghost entry's lines are not pulled: ${f.backend.receivedMethods}")
+    }
+
+    @Test
+    fun a_stage_created_on_a_project_deleted_on_the_server_is_kept_deleted_on_server() = runTest {
+        val f = Fixture()
+        f.dao.upsert(localProject("p5", serverId = 5, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+        f.stageDao.upsert(localStage("st-new", projectLocalId = "p5", name = "Toiture"))
+        val engine = f.engine(backgroundScope)
+
+        assertIs<SyncOutcome.Synced>(engine.syncNow())
+
+        val stage = f.stageDao.findByLocalId("st-new")
+        assertDeletedOnServer(stage?.syncStatus, stage?.lastSyncError, "the new stage")
+        assertDeletedOnServer(f.dao.findByLocalId("p5")?.syncStatus, f.dao.findByLocalId("p5")?.lastSyncError, "its project")
+    }
+
+    @Test
+    fun a_material_created_on_a_project_deleted_on_the_server_is_kept_deleted_on_server() = runTest {
+        val f = Fixture()
+        f.backend.goneOnServer += Regex("^/projects/5/materials$")
+        f.dao.upsert(localProject("p5", serverId = 5, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+        f.materialDao.upsert(com.dmb.chantiertracker.support.localMaterial("m-new", projectLocalId = "p5", name = "Sable"))
+        val engine = f.engine(backgroundScope)
+
+        assertIs<SyncOutcome.Synced>(engine.syncNow())
+
+        val material = f.materialDao.findByLocalId("m-new")
+        assertDeletedOnServer(material?.syncStatus, material?.lastSyncError, "the new material")
     }
 
     @Test

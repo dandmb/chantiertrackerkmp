@@ -32,7 +32,7 @@ class FakeConsumptionLineDao(
         lines.value.values.firstOrNull { it.serverId == serverId }
 
     override suspend fun findPending(): List<ConsumptionLineEntity> =
-        lines.value.values.filter { it.syncStatus != SyncStatus.SYNCED }
+        lines.value.values.filter { it.syncStatus != SyncStatus.SYNCED && it.lastSyncError != com.dmb.chantiertracker.data.sync.SyncError.DELETED_ON_SERVER }
 
     override suspend fun findForEntry(entryLocalId: String): List<ConsumptionLineEntity> =
         lines.value.values.filter { it.entryLocalId == entryLocalId }

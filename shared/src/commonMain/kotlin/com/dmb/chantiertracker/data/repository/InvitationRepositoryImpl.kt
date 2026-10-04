@@ -101,5 +101,6 @@ private fun String.toInvitationStatus(): InvitationStatus = when (uppercase()) {
     "PENDING" -> InvitationStatus.PENDING
     "ACCEPTED" -> InvitationStatus.ACCEPTED
     "EXPIRED" -> InvitationStatus.EXPIRED
+    "DECLINED" -> InvitationStatus.DECLINED
     else -> InvitationStatus.UNKNOWN
 }

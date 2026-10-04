@@ -23,7 +23,7 @@ class FakeAttachmentDao(initial: List<AttachmentEntity> = emptyList()) : Attachm
         rows.value.values.firstOrNull { it.serverId == serverId }
 
     override suspend fun findPending(): List<AttachmentEntity> =
-        rows.value.values.filter { it.syncStatus != SyncStatus.SYNCED }
+        rows.value.values.filter { it.syncStatus != SyncStatus.SYNCED && it.lastSyncError != com.dmb.chantiertracker.data.sync.SyncError.DELETED_ON_SERVER }
 
     override suspend fun findForEntry(entryLocalId: String): List<AttachmentEntity> =
         rows.value.values.filter { it.entryLocalId == entryLocalId }

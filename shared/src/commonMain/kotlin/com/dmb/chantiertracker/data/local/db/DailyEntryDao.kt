@@ -32,7 +32,7 @@ interface DailyEntryDao {
     @Query("SELECT * FROM daily_entries WHERE dailyLogLocalId = :dailyLogLocalId AND type = :type")
     suspend fun findByLogAndType(dailyLogLocalId: String, type: String): DailyEntryEntity?
 
-    @Query("SELECT * FROM daily_entries WHERE syncStatus != 'SYNCED'")
+    @Query("SELECT * FROM daily_entries WHERE syncStatus != 'SYNCED' AND (lastSyncError IS NULL OR lastSyncError != 'DELETED_ON_SERVER')")
     suspend fun findPending(): List<DailyEntryEntity>
 
     @Query("SELECT * FROM daily_entries WHERE dailyLogLocalId = :dailyLogLocalId")

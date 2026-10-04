@@ -41,7 +41,7 @@ class FakeDailyEntryDao(
         entries.value.values.firstOrNull { it.dailyLogLocalId == dailyLogLocalId && it.type == type }
 
     override suspend fun findPending(): List<DailyEntryEntity> =
-        entries.value.values.filter { it.syncStatus != SyncStatus.SYNCED }
+        entries.value.values.filter { it.syncStatus != SyncStatus.SYNCED && it.lastSyncError != com.dmb.chantiertracker.data.sync.SyncError.DELETED_ON_SERVER }
 
     override suspend fun findForLog(dailyLogLocalId: String): List<DailyEntryEntity> =
         entries.value.values.filter { it.dailyLogLocalId == dailyLogLocalId }

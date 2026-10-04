@@ -421,3 +421,42 @@ suspend fun verifyLocalDataDaoContract(db: AppDatabase) {
     assertNull(db.editorIdentityDao().observe().first())
 }
 
+
+suspend fun verifyFindPendingSkipsRowsDeletedOnServer(db: AppDatabase) {
+    val rejected = com.dmb.chantiertracker.data.sync.SyncError.REJECTED
+    val gone = com.dmb.chantiertracker.data.sync.SyncError.DELETED_ON_SERVER
+    fun <T> Triple<T, T, T>.all() = listOf(first, second, third)
+
+    Triple("proj-p" to null, "proj-r" to rejected, "proj-d" to gone).all().forEach { (id, error) ->
+        db.projectDao().upsert(localProject(id, syncStatus = if (error == null) SyncStatus.PENDING else SyncStatus.CONFLICTED, lastSyncError = error))
+    }
+    Triple("st-p" to null, "st-r" to rejected, "st-d" to gone).all().forEach { (id, error) ->
+        db.stageDao().upsert(localStage(id, projectLocalId = "proj-p", syncStatus = if (error == null) SyncStatus.PENDING else SyncStatus.CONFLICTED, lastSyncError = error))
+    }
+    db.dailyLogDao().upsert(localDailyLog("log-1", stageLocalId = "st-p"))
+    db.dailyLogDao().upsert(localDailyLog("log-2", stageLocalId = "st-p", date = "2026-09-06"))
+    db.dailyEntryDao().upsert(localDailyEntry("e-p", dailyLogLocalId = "log-1", type = "PURCHASE"))
+    db.dailyEntryDao().upsert(localDailyEntry("e-r", dailyLogLocalId = "log-1", type = "WORK", syncStatus = SyncStatus.CONFLICTED, lastSyncError = rejected))
+    db.dailyEntryDao().upsert(localDailyEntry("e-d", dailyLogLocalId = "log-2", syncStatus = SyncStatus.CONFLICTED, lastSyncError = gone))
+    Triple("m-p" to null, "m-r" to rejected, "m-d" to gone).all().forEach { (id, error) ->
+        db.materialDao().upsert(localMaterial(id, projectLocalId = "proj-p").copy(syncStatus = if (error == null) SyncStatus.PENDING else SyncStatus.CONFLICTED, lastSyncError = error))
+    }
+    Triple("pl-p" to null, "pl-r" to rejected, "pl-d" to gone).all().forEach { (id, error) ->
+        db.purchaseLineDao().upsert(localPurchaseLine(id, entryLocalId = "e-p", materialLocalId = "m-p").copy(syncStatus = if (error == null) SyncStatus.PENDING else SyncStatus.CONFLICTED, lastSyncError = error))
+    }
+    Triple("cl-p" to null, "cl-r" to rejected, "cl-d" to gone).all().forEach { (id, error) ->
+        db.consumptionLineDao().upsert(localConsumptionLine(id, entryLocalId = "e-r", materialLocalId = "m-p").copy(syncStatus = if (error == null) SyncStatus.PENDING else SyncStatus.CONFLICTED, lastSyncError = error))
+    }
+    Triple("att-p" to null, "att-r" to rejected, "att-d" to gone).all().forEach { (id, error) ->
+        db.attachmentDao().upsert(localAttachment(id, entryLocalId = "e-p").copy(syncStatus = if (error == null) SyncStatus.PENDING else SyncStatus.CONFLICTED, lastSyncError = error))
+    }
+
+    assertEquals(listOf("proj-p", "proj-r"), db.projectDao().findPending().map { it.localId }.sorted())
+    assertEquals(listOf("st-p", "st-r"), db.stageDao().findPending().map { it.localId }.sorted())
+    assertEquals(listOf("e-p", "e-r"), db.dailyEntryDao().findPending().map { it.localId }.sorted())
+    assertEquals(listOf("m-p", "m-r"), db.materialDao().findPending().map { it.localId }.sorted())
+    assertEquals(listOf("pl-p", "pl-r"), db.purchaseLineDao().findPending().map { it.localId }.sorted())
+    assertEquals(listOf("cl-p", "cl-r"), db.consumptionLineDao().findPending().map { it.localId }.sorted())
+    assertEquals(listOf("att-p", "att-r"), db.attachmentDao().findPending().map { it.localId }.sorted())
+    assertEquals(21, db.localDataDao().countUnsynced(), "rows deleted on the server still count as unsent: signing out warns about them")
+}

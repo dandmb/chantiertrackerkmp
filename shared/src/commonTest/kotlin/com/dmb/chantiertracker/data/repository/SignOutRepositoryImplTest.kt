@@ -78,4 +78,26 @@ class SignOutRepositoryImplTest {
         assertEquals(SignOutResult.Blocked(1), f.repo.signOut(acceptRefusedWrites = true))
         assertTrue(!f.signedOut)
     }
+
+    @Test
+    fun no_network_with_unsent_writes_blocks_the_sign_out() = runTest {
+        val f = Fixture(2, 2, outcome = SyncOutcome.Failed(DomainException.Network))
+
+        assertEquals(SignOutResult.Blocked(2), f.repo.signOut())
+    }
+
+    @Test
+    fun a_rate_limited_sync_blocks_the_sign_out_like_an_unreachable_server() = runTest {
+        val f = Fixture(2, 2, outcome = SyncOutcome.Failed(DomainException.RateLimited(30)))
+
+        assertEquals(SignOutResult.Blocked(2), f.repo.signOut())
+    }
+
+    @Test
+    fun a_sync_the_server_refuses_leaves_the_writes_as_refused_with_a_way_out() = runTest {
+        val f = Fixture(2, 2, outcome = SyncOutcome.Failed(DomainException.NotFound))
+
+        assertEquals(SignOutResult.RefusedWritesLeft(2), f.repo.signOut(), "never a dead end: the user can still sign out (B-1)")
+        assertEquals(SignOutResult.SignedOut, Fixture(2, 2, outcome = SyncOutcome.Failed(DomainException.Forbidden)).repo.signOut(acceptRefusedWrites = true))
+    }
 }

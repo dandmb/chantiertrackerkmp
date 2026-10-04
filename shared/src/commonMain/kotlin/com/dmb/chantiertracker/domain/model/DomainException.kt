@@ -34,3 +34,6 @@ sealed class DomainException : Exception() {
 
     override val message: String get() = this::class.simpleName ?: "DomainException"
 }
+
+fun DomainException.isUnreachableServer(): Boolean =
+    this is DomainException.Network || this is DomainException.Unexpected || this is DomainException.RateLimited

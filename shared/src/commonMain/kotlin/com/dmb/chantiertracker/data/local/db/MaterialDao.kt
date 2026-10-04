@@ -20,7 +20,7 @@ interface MaterialDao {
     @Query("SELECT * FROM materials WHERE serverId = :serverId")
     suspend fun findByServerId(serverId: Long): MaterialEntity?
 
-    @Query("SELECT * FROM materials WHERE syncStatus != 'SYNCED'")
+    @Query("SELECT * FROM materials WHERE syncStatus != 'SYNCED' AND (lastSyncError IS NULL OR lastSyncError != 'DELETED_ON_SERVER')")
     suspend fun findPending(): List<MaterialEntity>
 
     @Query("SELECT * FROM materials WHERE projectLocalId = :projectLocalId")

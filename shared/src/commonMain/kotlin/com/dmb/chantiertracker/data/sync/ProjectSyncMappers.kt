@@ -13,6 +13,7 @@ import com.dmb.chantiertracker.data.remote.dto.UpdateProjectRequestDto
 object SyncError {
     const val PLAN_LIMIT = "PLAN_LIMIT"
     const val REJECTED = "REJECTED"
+    const val DELETED_ON_SERVER = "DELETED_ON_SERVER"
 }
 
 private const val FALLBACK_CURRENCY = "USD"

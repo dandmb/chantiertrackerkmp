@@ -17,7 +17,7 @@ interface AttachmentDao {
     @Query("SELECT * FROM attachments WHERE serverId = :serverId")
     suspend fun findByServerId(serverId: Long): AttachmentEntity?
 
-    @Query("SELECT * FROM attachments WHERE syncStatus != 'SYNCED'")
+    @Query("SELECT * FROM attachments WHERE syncStatus != 'SYNCED' AND (lastSyncError IS NULL OR lastSyncError != 'DELETED_ON_SERVER')")
     suspend fun findPending(): List<AttachmentEntity>
 
     @Query("SELECT * FROM attachments WHERE entryLocalId = :entryLocalId")

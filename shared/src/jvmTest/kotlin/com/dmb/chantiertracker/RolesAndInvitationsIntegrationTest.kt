@@ -1,6 +1,11 @@
 package com.dmb.chantiertracker
 
 import com.dmb.chantiertracker.data.local.db.SyncStatus
+import com.dmb.chantiertracker.data.sync.SyncError
+import com.dmb.chantiertracker.data.sync.SyncOutcome
+import com.dmb.chantiertracker.domain.repository.SignOutResult
+import kotlin.test.assertIs
+import io.ktor.client.request.delete
 import com.dmb.chantiertracker.domain.model.CreateProjectInput
 import com.dmb.chantiertracker.domain.model.CreatePurchaseLineInput
 import com.dmb.chantiertracker.domain.model.CreateStageInput
@@ -95,7 +100,7 @@ class RolesAndInvitationsIntegrationTest {
     }
 
     private class Site(val owner: DeviceStack, val supervisor: DeviceStack, val ownerProject: String, val ownerStage: String,
-                       val supervisorProject: String, val supervisorStage: String)
+                       val supervisorProject: String, val supervisorStage: String, val supervisorEmail: String)
 
     /** Owner creates a project + stage, invites, the supervisor accepts through the e-mailed link. */
     private suspend fun aSiteWithASupervisor(tag: String): Site {
@@ -113,7 +118,7 @@ class RolesAndInvitationsIntegrationTest {
         val supervisorProject = supervisor.projects.observeProjects().first().single().localId
         supervisor.sync.syncProject(supervisorProject)
         val supervisorStage = supervisor.stages.observeStages(supervisorProject).first().single().localId
-        return Site(owner, supervisor, projectId, stageId, supervisorProject, supervisorStage)
+        return Site(owner, supervisor, projectId, stageId, supervisorProject, supervisorStage, supervisorAccount.email)
     }
 
     // ─── P1 — the whole invitation, down to the supervisor's entry seen by the owner ──
@@ -312,7 +317,7 @@ class RolesAndInvitationsIntegrationTest {
     }
 
     @Test
-    fun p9_a_project_deleted_by_the_owner_disappears_from_the_supervisor_and_what_happens_to_pending_writes() = runScenario {
+    fun p9_a_project_deleted_by_the_owner_keeps_the_supervisor_pending_entry_and_never_blocks_the_sync_or_the_sign_out() = runScenario {
         val site = aSiteWithASupervisor("deleted")
         site.supervisor.goOffline()
         val entry = site.supervisor.entryOf(site.supervisor.logs.createWorkEntry(site.supervisorStage, today()), EntryType.WORK)
@@ -330,8 +335,137 @@ class RolesAndInvitationsIntegrationTest {
         println("P9-supprimé — étape=${stageRow?.syncStatus}/${stageRow?.lastSyncError} ; saisie=${entryRow?.syncStatus}/${entryRow?.lastSyncError}")
         val projectLeft = site.supervisor.db.projectDao().findByLocalId(site.supervisorProject)
         val entryLeft = site.supervisor.db.dailyEntryDao().findByLocalId(entry)
-        println("P9-supprimé — chez le superviseur : projet=${projectLeft?.name} ; saisie en attente=${entryLeft?.syncStatus}")
-        assertEquals(null, projectLeft, "le projet supprimé disparaît de l'appareil du superviseur")
+        println("P9-supprimé — chez le superviseur : projet=${projectLeft?.name} ${projectLeft?.syncStatus}/${projectLeft?.lastSyncError} ; saisie=${entryLeft?.syncStatus}/${entryLeft?.lastSyncError}")
+        val signOut = site.supervisor.signOut.signOut()
+        println("P9-supprimé — déconnexion demandée : $signOut")
+
+        assertEquals(SyncOutcome.Synced, fullPass, "la synchro du compte continue (B-1)")
+        assertEquals(SyncOutcome.Synced, secondPass)
+        assertEquals(SyncStatus.CONFLICTED, entryLeft?.syncStatus, "la saisie orpheline reste, refusée : pas de perte silencieuse")
+        assertEquals(SyncError.DELETED_ON_SERVER, entryLeft?.lastSyncError)
+        assertEquals(SyncError.DELETED_ON_SERVER, projectLeft?.lastSyncError, "le projet reste en fantôme tant qu'il porte une saisie non envoyée")
+        assertIs<SignOutResult.RefusedWritesLeft>(signOut, "plus de blocage sans issue : l'avertissement « Se déconnecter quand même »")
+    }
+
+    // ─── B-1 — a parent gone on the server while a supervisor's write waits ──
+
+    private suspend fun DeviceStack.describe(label: String, rows: Map<String, suspend () -> Any?>) {
+        val outcomes = listOf(sync.syncNow(), sync.syncNow())
+        val seen = rows.map { (name, read) -> "$name=${read()}" }
+        println("$label — passes=$outcomes ; ${seen.joinToString(" ; ")}")
+    }
+
+    private fun com.dmb.chantiertracker.data.local.db.DailyEntryEntity?.state() = this?.let { "${it.syncStatus}/${it.lastSyncError}" } ?: "EFFACÉE"
+
+    @Test
+    fun b1_a_stage_deleted_by_the_owner_while_a_supervisor_entry_waits() = runScenario {
+        val site = aSiteWithASupervisor("b1stage")
+        site.supervisor.goOffline()
+        val entry = site.supervisor.entryOf(site.supervisor.logs.createWorkEntry(site.supervisorStage, today()), EntryType.WORK)
+
+        site.owner.stages.deleteStage(site.ownerStage)
+        site.owner.sync.syncNow()
+
+        site.supervisor.goOnline()
+        site.supervisor.describe("B-1 étape supprimée", mapOf(
+            "saisie" to { site.supervisor.db.dailyEntryDao().findByLocalId(entry).state() },
+            "étape" to { site.supervisor.db.stageDao().findByLocalId(site.supervisorStage)?.syncStatus ?: "EFFACÉE" },
+        ))
+        val projectPass = site.supervisor.sync.syncProject(site.supervisorProject)
+        println("B-1 étape supprimée — après syncProject=$projectPass : saisie=${site.supervisor.db.dailyEntryDao().findByLocalId(entry).state()} ; étape=${site.supervisor.db.stageDao().findByLocalId(site.supervisorStage)?.syncStatus ?: "EFFACÉE"}")
+
+        assertEquals(SyncOutcome.Synced, site.supervisor.sync.syncNow(), "la synchro du compte continue")
+        assertEquals(SyncStatus.CONFLICTED, site.supervisor.db.dailyEntryDao().findByLocalId(entry)?.syncStatus, "la saisie orpheline reste, refusée")
+        assertEquals(SyncError.DELETED_ON_SERVER, site.supervisor.db.dailyEntryDao().findByLocalId(entry)?.lastSyncError)
+    }
+
+    @Test
+    fun b1_an_entry_deleted_by_the_owner_while_the_supervisor_adds_to_it() = runScenario {
+        val site = aSiteWithASupervisor("b1entry")
+        val day = site.supervisor.logs.createPurchaseEntry(site.supervisorStage, today())
+        val entry = site.supervisor.entryOf(day, EntryType.PURCHASE)
+        val cement = site.supervisor.materials.createMaterial(site.supervisorProject, "Ciment", "sac")
+        site.supervisor.sync.syncNow()
+        val entryServerId = site.supervisor.db.dailyEntryDao().findByLocalId(entry)!!.serverId!!
+
+        site.supervisor.goOffline()
+        val line = site.supervisor.purchaseLines.createLine(entry, CreatePurchaseLineInput(cement.localId, 4.0, 6.0, "Négoce"))
+        val photo = site.supervisor.attachments.addAttachment(entry, aSmallJpeg(), "bon.jpg", "image/jpeg")
+        site.supervisor.logs.updateEntry(entry, "Livraison partielle")
+
+        site.owner.dailyLogApi.deleteEntry(entryServerId)
+
+        site.supervisor.goOnline()
+        site.supervisor.describe("B-1 saisie supprimée", mapOf(
+            "saisie" to { site.supervisor.db.dailyEntryDao().findByLocalId(entry).state() },
+            "ligne" to { site.supervisor.db.purchaseLineDao().findByLocalId(line)?.let { "${it.syncStatus}/${it.lastSyncError}" } ?: "EFFACÉE" },
+            "photo" to { site.supervisor.db.attachmentDao().findByLocalId(photo.localId)?.let { "${it.syncStatus}/${it.lastSyncError}" } ?: "EFFACÉE" },
+            "journée" to { site.supervisor.db.dailyLogDao().findByLocalId(day)?.let { "présente serverId=${it.serverId}" } ?: "EFFACÉE" },
+        ))
+        val logPass = site.supervisor.sync.syncLog(day)
+        println("B-1 saisie supprimée — après syncLog=$logPass : saisie=${site.supervisor.db.dailyEntryDao().findByLocalId(entry).state()} ; ligne=${site.supervisor.db.purchaseLineDao().findByLocalId(line)?.syncStatus ?: "EFFACÉE"} ; photo=${site.supervisor.db.attachmentDao().findByLocalId(photo.localId)?.syncStatus ?: "EFFACÉE"}")
+
+        assertEquals(SyncOutcome.Synced, site.supervisor.sync.syncNow(), "la synchro du compte continue")
+        assertEquals(SyncStatus.CONFLICTED, site.supervisor.db.purchaseLineDao().findByLocalId(line)?.syncStatus, "la ligne orpheline reste, refusée")
+        assertEquals(SyncStatus.CONFLICTED, site.supervisor.db.attachmentDao().findByLocalId(photo.localId)?.syncStatus, "la photo orpheline reste, refusée")
+        assertEquals(SyncStatus.CONFLICTED, site.supervisor.db.dailyEntryDao().findByLocalId(entry)?.syncStatus, "la saisie modifiée reste, avec sa modification")
+        assertEquals("Livraison partielle", site.supervisor.db.dailyEntryDao().findByLocalId(entry)?.summary)
+    }
+
+    @Test
+    fun b1_a_supervisor_removed_from_the_project_while_an_entry_waits() = runScenario {
+        val site = aSiteWithASupervisor("b1member")
+        site.supervisor.goOffline()
+        val entry = site.supervisor.entryOf(site.supervisor.logs.createWorkEntry(site.supervisorStage, today()), EntryType.WORK)
+
+        site.owner.sync.syncProject(site.ownerProject)
+        val supervisorId = site.owner.projects.observeMembers(site.ownerProject).first().single { it.role == ProjectRole.SUPERVISOR }.userId
+        val projectServerId = site.owner.db.projectDao().findByLocalId(site.ownerProject)!!.serverId!!
+        site.owner.client.delete("${com.dmb.chantiertracker.data.remote.ApiRoutes.projectMembers(projectServerId)}/$supervisorId")
+
+        site.supervisor.goOnline()
+        site.supervisor.describe("B-1 membre retiré", mapOf(
+            "saisie" to { site.supervisor.db.dailyEntryDao().findByLocalId(entry).state() },
+            "projet" to { site.supervisor.db.projectDao().findByLocalId(site.supervisorProject)?.let { "${it.syncStatus}/${it.lastSyncError}" } ?: "EFFACÉ" },
+        ))
+
+        assertEquals(SyncOutcome.Synced, site.supervisor.sync.syncNow(), "la synchro du compte continue")
+        assertEquals(SyncStatus.CONFLICTED, site.supervisor.db.dailyEntryDao().findByLocalId(entry)?.syncStatus, "la saisie orpheline reste, refusée")
+        assertEquals(SyncError.DELETED_ON_SERVER, site.supervisor.db.dailyEntryDao().findByLocalId(entry)?.lastSyncError)
+        assertEquals(SyncError.DELETED_ON_SERVER, site.supervisor.db.projectDao().findByLocalId(site.supervisorProject)?.lastSyncError, "projet fantôme")
+    }
+
+    @Test
+    fun b1_a_reinvited_supervisor_gets_the_ghost_project_back_and_the_orphan_entry_stays_deleted_on_server() = runScenario {
+        val site = aSiteWithASupervisor("b1reinvite")
+        site.supervisor.goOffline()
+        val entry = site.supervisor.entryOf(site.supervisor.logs.createWorkEntry(site.supervisorStage, today()), EntryType.WORK)
+        site.owner.sync.syncProject(site.ownerProject)
+        val supervisorId = site.owner.projects.observeMembers(site.ownerProject).first().single { it.role == ProjectRole.SUPERVISOR }.userId
+        val projectServerId = site.owner.db.projectDao().findByLocalId(site.ownerProject)!!.serverId!!
+        site.owner.client.delete("${com.dmb.chantiertracker.data.remote.ApiRoutes.projectMembers(projectServerId)}/$supervisorId")
+        site.supervisor.goOnline()
+        site.supervisor.sync.syncNow()
+        val ghost = site.supervisor.db.projectDao().findByLocalId(site.supervisorProject)
+        println("B-1 réinvitation — après retrait : projet=${ghost?.syncStatus}/${ghost?.lastSyncError} ; saisie=${site.supervisor.db.dailyEntryDao().findByLocalId(entry).state()}")
+        assertEquals(SyncError.DELETED_ON_SERVER, ghost?.lastSyncError)
+
+        site.owner.invitations.invite(site.ownerProject, site.supervisorEmail)
+        site.supervisor.invitations.acceptInvitation(site.supervisor.invitations.listIncomingInvitations().single().token)
+        val passes = listOf(site.supervisor.sync.syncNow(), site.supervisor.sync.syncProject(site.supervisorProject))
+
+        val back = site.supervisor.db.projectDao().findByLocalId(site.supervisorProject)
+        val stage = site.supervisor.db.stageDao().findByLocalId(site.supervisorStage)
+        val orphan = site.supervisor.db.dailyEntryDao().findByLocalId(entry)
+        val projects = site.supervisor.projects.observeProjects().first()
+        println("B-1 réinvitation — passes=$passes ; projet=${back?.syncStatus}/${back?.lastSyncError} ; étape=${stage?.syncStatus}/${stage?.lastSyncError} ; saisie=${orphan.state()} ; projets listés=${projects.map { it.name }}")
+
+        assertEquals(SyncStatus.SYNCED, back?.syncStatus, "le fantôme redevient le projet")
+        assertEquals(null, back?.lastSyncError)
+        assertEquals(1, projects.size, "retrouvé par son id serveur, pas dupliqué")
+        assertEquals(SyncStatus.CONFLICTED, orphan?.syncStatus, "la saisie orpheline n'est pas renvoyée d'elle-même")
+        assertEquals(SyncError.DELETED_ON_SERVER, orphan?.lastSyncError)
+        assertEquals(null, orphan?.serverId)
     }
 
     // ─── P10 — a report, processed by the owner ──────────────────────────────

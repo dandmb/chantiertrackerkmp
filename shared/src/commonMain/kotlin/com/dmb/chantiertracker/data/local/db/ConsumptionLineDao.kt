@@ -27,7 +27,7 @@ interface ConsumptionLineDao {
     @Query("SELECT * FROM consumption_lines WHERE serverId = :serverId")
     suspend fun findByServerId(serverId: Long): ConsumptionLineEntity?
 
-    @Query("SELECT * FROM consumption_lines WHERE syncStatus != 'SYNCED'")
+    @Query("SELECT * FROM consumption_lines WHERE syncStatus != 'SYNCED' AND (lastSyncError IS NULL OR lastSyncError != 'DELETED_ON_SERVER')")
     suspend fun findPending(): List<ConsumptionLineEntity>
 
     @Query("SELECT * FROM consumption_lines WHERE entryLocalId = :entryLocalId")

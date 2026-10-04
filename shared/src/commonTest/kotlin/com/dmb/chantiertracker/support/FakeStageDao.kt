@@ -31,7 +31,7 @@ class FakeStageDao(initial: List<StageEntity> = emptyList()) : StageDao {
         stages.value.values.firstOrNull { it.serverId == serverId }
 
     override suspend fun findPending(): List<StageEntity> =
-        stages.value.values.filter { it.syncStatus != SyncStatus.SYNCED }
+        stages.value.values.filter { it.syncStatus != SyncStatus.SYNCED && it.lastSyncError != com.dmb.chantiertracker.data.sync.SyncError.DELETED_ON_SERVER }
 
     override suspend fun findForProject(projectLocalId: String): List<StageEntity> =
         stages.value.values.filter { it.projectLocalId == projectLocalId }
