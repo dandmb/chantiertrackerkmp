@@ -31,7 +31,17 @@ val RefusalReason.dependsOnSomethingElse: Boolean
 val SyncIssue.canBeRetried: Boolean
     get() = (kind == SyncIssueKind.REFUSED || kind == SyncIssueKind.UPDATE_REFUSED) && reason?.dependsOnSomethingElse == true
 
+val SyncIssue.countsToReview: Boolean
+    get() = kind != SyncIssueKind.BLOCKED_BY_PARENT
+
 enum class SyncIssueTarget { PROJECT, STAGE, MATERIAL, ENTRY, PURCHASE_LINE, CONSUMPTION_LINE, ATTACHMENT }
+
+data class SyncIssueParent(
+    val target: SyncIssueTarget,
+    val name: String? = null,
+    val entryType: EntryType? = null,
+    val date: String? = null,
+)
 
 data class SyncIssueItem(
     val target: SyncIssueTarget,
@@ -48,6 +58,7 @@ data class SyncIssueItem(
     val unit: String? = null,
     val quantity: Double? = null,
     val serverQuantity: Double? = null,
+    val blockedBy: SyncIssueParent? = null,
 ) {
     val key: String get() = "$target:$localId"
 }

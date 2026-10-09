@@ -1,5 +1,9 @@
 package com.dmb.chantiertracker.presentation
 
+import androidx.compose.material3.Surface
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsNode
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
@@ -9,6 +13,11 @@ import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasScrollAction
+import androidx.compose.ui.test.onFirst
+import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasText
@@ -18,12 +27,15 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.runDesktopComposeUiTest
+import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import com.dmb.chantiertracker.domain.model.EntryType
 import com.dmb.chantiertracker.domain.model.RefusalReason
 import com.dmb.chantiertracker.domain.model.SyncIssue
 import com.dmb.chantiertracker.domain.model.SyncIssueItem
 import com.dmb.chantiertracker.domain.model.SyncIssueKind
+import com.dmb.chantiertracker.domain.model.SyncIssueParent
 import com.dmb.chantiertracker.domain.model.SyncIssueTarget
 import com.dmb.chantiertracker.domain.repository.RetryOutcome
 import com.dmb.chantiertracker.presentation.i18n.AppEnvironment
@@ -42,6 +54,11 @@ import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+
+fun TextLayoutResult.isCut(): Boolean =
+    didOverflowHeight ||
+        getLineEnd(lineCount - 1, visibleEnd = true) < layoutInput.text.length ||
+        (0 until lineCount).any { line -> getLineRight(line) > size.width + 1.5f || isLineEllipsized(line) }
 
 @OptIn(ExperimentalTestApi::class)
 class SyncIssuesScreenUiTest {
@@ -103,6 +120,10 @@ class SyncIssuesScreenUiTest {
 
     private val suspendedEntry = onDay(SyncIssueTarget.ENTRY, "e1", refusedIssue(RefusalReason.PROJECT_OR_STAGE_INACTIVE))
     private val waitingLine = onDay(SyncIssueTarget.PURCHASE_LINE, "pl1", SyncIssue(SyncIssueKind.BLOCKED_BY_PARENT), label = "Ciment", unit = "sac", quantity = 3.0)
+        .copy(blockedBy = SyncIssueParent(SyncIssueTarget.ENTRY, entryType = EntryType.PURCHASE, date = "2026-10-09"))
+
+    private fun waitingOn(parent: SyncIssueParent?, id: String) =
+        issueItem(SyncIssueTarget.MATERIAL, id, SyncIssue(SyncIssueKind.BLOCKED_BY_PARENT), label = "Matériau $id", blockedBy = parent)
 
     private fun onScreen(
         items: List<SyncIssueItem>,
@@ -110,12 +131,19 @@ class SyncIssuesScreenUiTest {
         width: Int = 412,
         height: Int = 900,
         repo: FakeSyncIssueRepository = FakeSyncIssueRepository(items),
+        fontScale: Float = 1f,
         block: ComposeUiTest.(FakeSyncIssueRepository) -> Unit,
     ) = runDesktopComposeUiTest(width = width, height = height) {
         val vm = SyncIssuesViewModel(repo)
         setContent {
             customAppLocale = locale
-            AppEnvironment { AppTheme { SyncIssuesScreen(viewModel = vm) } }
+            AppEnvironment {
+                AppTheme {
+                    CompositionLocalProvider(LocalDensity provides Density(LocalDensity.current.density, fontScale)) {
+                        Surface { SyncIssuesScreen(viewModel = vm) }
+                    }
+                }
+            }
         }
         waitForIdle()
         block(repo)
@@ -171,7 +199,7 @@ class SyncIssuesScreenUiTest {
             issueItem(SyncIssueTarget.PROJECT, "p0", refusedIssue(RefusalReason.PLAN_LIMIT), projectLocalId = "p0", projectName = "Atelier"),
         ),
     ) {
-        onNodeWithText("3 éléments à revoir").assertExists()
+        onNodeWithText("2 éléments à revoir").assertExists()
         onNodeWithText("Atelier").assertExists()
         onNodeWithText("Villa Vidal").assertExists()
         onNodeWithText("Étape : Charpente").assertExists()
@@ -240,8 +268,73 @@ class SyncIssuesScreenUiTest {
     @Test
     fun a_child_waiting_on_a_refused_parent_says_so_and_has_no_action_of_its_own() = onScreen(listOf(waitingLine)) {
         onNodeWithText("En attente").assertExists()
-        onNodeWithText("Sera envoyé dès que l'élément refusé dont il dépend sera accepté.").assertExists()
+        onNodeWithText("En attente : dépend de la saisie d'achats du 09-10-2026, refusée.").assertExists()
         onAllNodesWithText("Réessayer").assertCountEquals(0)
+    }
+
+    @Test
+    fun a_waiting_child_names_the_parent_it_depends_on_in_french_and_in_english() {
+        val items = listOf(
+            waitingOn(SyncIssueParent(SyncIssueTarget.PROJECT, name = "Villa Vidal"), "1"),
+            waitingOn(SyncIssueParent(SyncIssueTarget.STAGE, name = "Charpente"), "2"),
+            waitingOn(SyncIssueParent(SyncIssueTarget.MATERIAL, name = "Ciment"), "3"),
+            waitingOn(SyncIssueParent(SyncIssueTarget.ENTRY, entryType = EntryType.PURCHASE, date = "2026-10-09"), "4"),
+            waitingOn(SyncIssueParent(SyncIssueTarget.ENTRY, entryType = EntryType.WORK, date = "2026-10-09"), "5"),
+        )
+        onScreen(items, height = 2400) {
+            onNodeWithText("En attente : dépend du projet « Villa Vidal », refusé.").assertExists()
+            onNodeWithText("En attente : dépend de l'étape « Charpente », refusée.").assertExists()
+            onNodeWithText("En attente : dépend du matériau « Ciment », refusé.").assertExists()
+            onNodeWithText("En attente : dépend de la saisie d'achats du 09-10-2026, refusée.").assertExists()
+            onNodeWithText("En attente : dépend de la saisie de travaux du 09-10-2026, refusée.").assertExists()
+        }
+        onScreen(items, locale = "en", height = 2400) {
+            onNodeWithText("Waiting: depends on the project “Villa Vidal”, which was refused.").assertExists()
+            onNodeWithText("Waiting: depends on the stage “Charpente”, which was refused.").assertExists()
+            onNodeWithText("Waiting: depends on the material “Ciment”, which was refused.").assertExists()
+            onNodeWithText("Waiting: depends on the purchases entry of 09-10-2026, which was refused.").assertExists()
+            onNodeWithText("Waiting: depends on the work entry of 09-10-2026, which was refused.").assertExists()
+        }
+    }
+
+    @Test
+    fun a_waiting_child_whose_parent_has_no_readable_name_falls_back_to_a_sentence_without_any_identifier() {
+        val items = listOf(
+            waitingOn(SyncIssueParent(SyncIssueTarget.PROJECT, name = "  "), "1"),
+            waitingOn(SyncIssueParent(SyncIssueTarget.STAGE, name = null), "2"),
+            waitingOn(SyncIssueParent(SyncIssueTarget.MATERIAL, name = ""), "3"),
+            waitingOn(SyncIssueParent(SyncIssueTarget.ENTRY, entryType = EntryType.UNKNOWN, date = null), "4"),
+            waitingOn(null, "5"),
+        )
+        onScreen(items, height = 2400) {
+            onNodeWithText("En attente : dépend du projet, refusé.").assertExists()
+            onNodeWithText("En attente : dépend de l'étape, refusée.").assertExists()
+            onNodeWithText("En attente : dépend du matériau, refusé.").assertExists()
+            onNodeWithText("En attente : dépend de la saisie, refusée.").assertExists()
+            onNodeWithText("En attente : dépend d'un élément refusé.").assertExists()
+            val shown = everythingShown()
+            assertTrue(shown.none { it.contains("null") || it.contains("«  ") || it.contains("« »") }, "no empty quote, no null: $shown")
+        }
+        onScreen(items, locale = "en", height = 2400) {
+            onNodeWithText("Waiting: depends on the project, which was refused.").assertExists()
+            onNodeWithText("Waiting: depends on the stage, which was refused.").assertExists()
+            onNodeWithText("Waiting: depends on the material, which was refused.").assertExists()
+            onNodeWithText("Waiting: depends on the entry, which was refused.").assertExists()
+            onNodeWithText("Waiting: depends on a refused item.").assertExists()
+        }
+    }
+
+    @Test
+    fun a_refused_change_of_a_line_shows_what_was_typed_and_what_the_server_kept_with_the_unit() {
+        val refusedChange = { unit: String? ->
+            onDay(SyncIssueTarget.PURCHASE_LINE, "pl-edit", refusedIssue(RefusalReason.STOCK_CONSUMED, kind = SyncIssueKind.UPDATE_REFUSED), label = "Ciment", unit = unit, quantity = 3.5, serverQuantity = 10.0)
+        }
+        onScreen(listOf(refusedChange("sac"))) { onNodeWithText("Vous avez saisi 3,50 sac ; le serveur a gardé 10 sac.").assertExists() }
+        onScreen(listOf(refusedChange("sac")), locale = "en") { onNodeWithText("You entered 3,50 sac; the server kept 10 sac.").assertExists() }
+        onScreen(listOf(refusedChange(" "))) { onNodeWithText("Vous avez saisi 3,50 ; le serveur a gardé 10.").assertExists() }
+        onScreen(listOf(onDay(SyncIssueTarget.PURCHASE_LINE, "pl-new", refusedIssue(RefusalReason.STOCK_CONSUMED), label = "Ciment", unit = "sac", quantity = 3.0, serverQuantity = 10.0))) {
+            onAllNodesWithText("Vous avez saisi", substring = true).assertCountEquals(0)
+        }
     }
 
     @Test
@@ -255,7 +348,7 @@ class SyncIssuesScreenUiTest {
     ) {
         onNodeWithText("Modification refusée").assertExists()
         onNodeWithText("Ce stock a déjà été consommé.").assertExists()
-        onNodeWithText("Vous avez saisi 3 ; le serveur a gardé 10.").assertExists()
+        onNodeWithText("Vous avez saisi 3 sac ; le serveur a gardé 10 sac.").assertExists()
         onNodeWithText("Suppression refusée").assertExists()
         onNodeWithText("La suppression a été refusée : l'élément a été rétabli. Cette action est réservée à un administrateur du projet.").assertExists()
         onNodeWithText("Supprimé sur le serveur").assertExists()
@@ -312,14 +405,14 @@ class SyncIssuesScreenUiTest {
 
     @Test
     fun the_screen_is_translated() = onScreen(listOf(suspendedEntry, waitingLine), locale = "en") {
-        onNodeWithText("2 items to review").assertExists()
+        onNodeWithText("1 item to review").assertExists()
         onNodeWithText("Stage: Charpente").assertExists()
         onNodeWithText("Day of 09-10-2026").assertExists()
         onNodeWithText("Purchases entry").assertExists()
         onNodeWithText("Refused by the server").assertExists()
         onNodeWithText("Purchase line: Ciment, 3 sac").assertExists()
         onNodeWithText("Waiting").assertExists()
-        onNodeWithText("Will be sent as soon as the refused item it depends on is accepted.").assertExists()
+        onNodeWithText("Waiting: depends on the purchases entry of 09-10-2026, which was refused.").assertExists()
     }
 
     @Test
@@ -345,6 +438,75 @@ class SyncIssuesScreenUiTest {
     @Test
     fun on_a_small_phone_nothing_is_cut_off_and_retry_stays_a_full_size_target() =
         onScreen(listOf(suspendedEntry, waitingLine), width = 320, height = 640) { assertEverythingFitsIn(320) }
+
+    private val everyKind = listOf(
+        suspendedEntry,
+        waitingLine,
+        onDay(SyncIssueTarget.PURCHASE_LINE, "pl-edit", refusedIssue(RefusalReason.STOCK_CONSUMED, kind = SyncIssueKind.UPDATE_REFUSED), label = "Ciment", unit = "sac", quantity = 3.0, serverQuantity = 10.0),
+        issueItem(SyncIssueTarget.STAGE, "st1", refusedIssue(RefusalReason.INSUFFICIENT_ROLE, kind = SyncIssueKind.DELETE_REFUSED), stageLocalId = "st1", stageName = "Charpente"),
+        issueItem(SyncIssueTarget.PROJECT, "p0", refusedIssue(RefusalReason.PLAN_LIMIT), projectLocalId = "p0", projectName = "Atelier de menuiserie Dupont et fils, bâtiment nord"),
+    )
+
+    private fun ComposeUiTest.assertEveryTextCanBeReachedAndIsNeverCut(width: Int, height: Int) {
+        val list = onNode(hasScrollAction())
+        val expected = listOf(
+            "4 éléments à revoir", "Chaque élément indique pourquoi il n'a pas été accepté et ce que vous pouvez faire.",
+            "Atelier de menuiserie Dupont et fils, bâtiment nord", "Projet", "La limite de votre formule est atteinte.",
+            "Changez de formule ou supprimez un projet, puis réessayez.",
+            "Villa Vidal", "Étape : Charpente", "Étape", "Suppression refusée",
+            "La suppression a été refusée : l'élément a été rétabli. Cette action est réservée à un administrateur du projet.",
+            "Journée du 09-10-2026", "Saisie d'achats", "Le projet est suspendu ou terminé, ou l'étape est terminée.",
+            "Demandez à un administrateur du projet de rouvrir le projet ou l'étape, puis réessayez.",
+            "Ligne d'achat : Ciment, 3 sac", "En attente : dépend de la saisie d'achats du 09-10-2026, refusée.",
+            "Modification refusée", "Ce stock a déjà été consommé.", "Vous avez saisi 3 sac ; le serveur a gardé 10 sac.",
+        )
+        expected.forEach { text ->
+            list.performScrollToNode(hasText(text))
+            waitForIdle()
+            onAllNodesWithText(text).onFirst().assertIsDisplayed()
+            onAllNodesWithText(text).fetchSemanticsNodes().forEach { node ->
+                val bounds = node.boundsInRoot
+                assertTrue(bounds.left >= 0f && bounds.right <= width * node.layoutInfo.density.density + 0.5f, "« $text » stays inside $width dp: $bounds")
+                val layouts = mutableListOf<TextLayoutResult>()
+                node.config.getOrNull(SemanticsActions.GetTextLayoutResult)?.action?.invoke(layouts)
+                assertTrue(layouts.isNotEmpty() && layouts.none { it.isCut() }, "« $text » is never cut ($width x $height)")
+            }
+        }
+        list.performScrollToNode(hasText("Demandez à un administrateur du projet de rouvrir le projet ou l'étape, puis réessayez."))
+        list.performScrollToNode(hasText("Réessayer").and(hasClickAction()))
+        waitForIdle()
+    }
+
+    @Test
+    fun at_200_percent_font_on_a_320_dp_phone_every_text_is_reachable_by_scrolling_and_none_is_cut() =
+        onScreen(everyKind, width = 320, height = 640, fontScale = 2f) { assertEveryTextCanBeReachedAndIsNeverCut(320, 640) }
+
+    @Test
+    fun at_200_percent_font_on_an_iphone_se_every_text_is_reachable_by_scrolling_and_none_is_cut() {
+        onScreen(everyKind, width = 320, height = 568, fontScale = 2f) { assertEveryTextCanBeReachedAndIsNeverCut(320, 568) }
+        onScreen(everyKind, width = 375, height = 667, fontScale = 2f) { assertEveryTextCanBeReachedAndIsNeverCut(375, 667) }
+    }
+
+    @Test
+    fun at_200_percent_font_on_an_iphone_se_retry_can_be_scrolled_to_and_clicked_and_its_result_is_shown() =
+        onScreen(listOf(suspendedEntry, waitingLine), width = 320, height = 568, fontScale = 2f) { repo ->
+            repo.retryOutcome = RetryOutcome.STILL_REFUSED
+            onNode(hasScrollAction()).performScrollToNode(hasText("Réessayer"))
+            waitForIdle()
+            val button = onNodeWithText("Réessayer").assertIsDisplayed().assertHeightIsAtLeast(48.dp).getUnclippedBoundsInRoot()
+            assertTrue(button.left >= 0.dp && button.right <= 320.dp && button.bottom <= 568.dp, "the whole button is on screen: $button")
+            onNodeWithText("Réessayer").performClick()
+            waitUntil(timeoutMillis = 5_000L) { repo.retried.isNotEmpty() }
+            waitUntil(timeoutMillis = 5_000L) { onNode(hasScrollAction()).performScrollToNode(hasText("Toujours refusé par le serveur.")); true }
+            onNodeWithText("Toujours refusé par le serveur.").assertIsDisplayed()
+            onNode(hasScrollAction()).performScrollToNode(hasText("Réessayer"))
+            waitForIdle()
+            onNodeWithText("Réessayer").assertIsDisplayed().assertIsEnabled()
+        }
+
+    @Test
+    fun on_an_iphone_se_at_normal_font_nothing_is_cut() =
+        onScreen(everyKind, width = 320, height = 568) { assertEveryTextCanBeReachedAndIsNeverCut(320, 568) }
 
     @Test
     fun on_a_tablet_the_content_is_capped_and_centered() = onScreen(listOf(suspendedEntry, waitingLine), width = 800, height = 1280) {

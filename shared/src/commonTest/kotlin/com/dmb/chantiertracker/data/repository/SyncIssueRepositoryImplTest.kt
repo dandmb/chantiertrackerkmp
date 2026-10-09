@@ -9,6 +9,7 @@ import com.dmb.chantiertracker.domain.model.EntryType
 import com.dmb.chantiertracker.domain.model.RefusalReason
 import com.dmb.chantiertracker.domain.model.SyncIssue
 import com.dmb.chantiertracker.domain.model.SyncIssueKind
+import com.dmb.chantiertracker.domain.model.SyncIssueParent
 import com.dmb.chantiertracker.domain.model.SyncIssueTarget
 import com.dmb.chantiertracker.domain.repository.RetryOutcome
 import com.dmb.chantiertracker.support.FakeAttachmentDao
@@ -24,6 +25,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class SyncIssueRepositoryImplTest {
@@ -100,11 +102,70 @@ class SyncIssueRepositoryImplTest {
     }
 
     @Test
-    fun the_count_is_the_number_of_listed_items() = runTest {
-        dao.rows.value = listOf(refusedEntry, waitingLine, waitingLine.copy(localId = "pl-just-pending"))
+    fun the_count_is_what_the_server_refused_and_leaves_the_waiting_children_out() = runTest {
+        dao.rows.value = listOf(
+            refusedEntry, waitingLine, waitingLine.copy(localId = "pl-just-pending"), refusedLineUpdate,
+            syncIssueRow(SyncIssueTarget.STAGE, "st-del", syncStatus = SyncStatus.SYNCED, pendingOp = PendingOp.NONE, serverId = 5),
+            syncIssueRow(SyncIssueTarget.ENTRY, "e-gone", lastSyncError = SyncError.DELETED_ON_SERVER),
+        )
         purchaseLineDao.blockedByParent.value = listOf("pl1")
 
-        assertEquals(2, repository.observeIssueCount().first())
+        assertEquals(5, repository.observeIssues().first().size, "the waiting child is still listed")
+        assertEquals(4, repository.observeIssueCount().first(), "refused creation, refused update, refused delete, gone on the server; not the waiting child")
+    }
+
+    private val pendingUnder = { target: SyncIssueTarget, id: String -> waitingLine.copy(target = target, localId = id) }
+
+    @Test
+    fun a_waiting_line_names_the_refused_entry_it_depends_on() = runTest {
+        dao.rows.value = listOf(refusedEntry, waitingLine)
+        purchaseLineDao.blockedByParent.value = listOf("pl1")
+
+        val line = repository.observeIssues().first().single { it.localId == "pl1" }
+
+        assertEquals(SyncIssueParent(SyncIssueTarget.ENTRY, name = null, entryType = EntryType.PURCHASE, date = "2026-10-09"), line.blockedBy)
+    }
+
+    @Test
+    fun a_waiting_child_names_the_nearest_refused_parent_up_the_chain() = runTest {
+        val refusedProject = syncIssueRow(SyncIssueTarget.PROJECT, "p1", lastSyncError = SyncError.PLAN_LIMIT)
+        val waitingStage = syncIssueRow(SyncIssueTarget.STAGE, "st1", syncStatus = SyncStatus.PENDING, lastSyncError = null, stageLocalId = "st1", stageName = "Charpente")
+        val waitingEntry = refusedEntry.copy(syncStatus = SyncStatus.PENDING, lastSyncError = null, serverErrorCode = null)
+        dao.rows.value = listOf(refusedProject, waitingStage, waitingEntry, waitingLine, pendingUnder(SyncIssueTarget.ATTACHMENT, "a1"))
+        stageDao.blockedByParent.value = listOf("st1")
+        entryDao.blockedByParent.value = listOf("e1")
+        purchaseLineDao.blockedByParent.value = listOf("pl1")
+        attachmentDao.blockedByParent.value = listOf("a1")
+
+        val items = repository.observeIssues().first().associateBy { it.localId }
+
+        val project = SyncIssueParent(SyncIssueTarget.PROJECT, name = "Villa Vidal")
+        assertEquals(listOf(project, project, project, project), listOf("st1", "e1", "pl1", "a1").map { items.getValue(it).blockedBy })
+        assertNull(items.getValue("p1").blockedBy, "what is refused depends on nothing")
+    }
+
+    @Test
+    fun a_waiting_entry_names_its_refused_stage_and_a_waiting_line_its_refused_material() = runTest {
+        val refusedStage = syncIssueRow(SyncIssueTarget.STAGE, "st1", stageLocalId = "st1", stageName = "Charpente")
+        val waitingEntry = refusedEntry.copy(syncStatus = SyncStatus.PENDING, lastSyncError = null, serverErrorCode = null)
+        val refusedMaterial = syncIssueRow(SyncIssueTarget.MATERIAL, "m1", label = "Ciment", unit = "sac")
+        val lineOnAnotherDay = waitingLine.copy(localId = "pl-material", stageLocalId = "st2", stageName = "Bardage", dailyLogLocalId = "l2", logDate = "2026-10-08")
+        dao.rows.value = listOf(refusedStage, waitingEntry, refusedMaterial, lineOnAnotherDay)
+        entryDao.blockedByParent.value = listOf("e1")
+        purchaseLineDao.blockedByParent.value = listOf("pl-material")
+
+        val items = repository.observeIssues().first().associateBy { it.localId }
+
+        assertEquals(SyncIssueParent(SyncIssueTarget.STAGE, name = "Charpente"), items.getValue("e1").blockedBy)
+        assertEquals(SyncIssueParent(SyncIssueTarget.MATERIAL, name = "Ciment"), items.getValue("pl-material").blockedBy)
+    }
+
+    @Test
+    fun a_waiting_child_whose_parent_cannot_be_told_has_no_parent_rather_than_a_wrong_one() = runTest {
+        dao.rows.value = listOf(waitingLine)
+        purchaseLineDao.blockedByParent.value = listOf("pl1")
+
+        assertNull(repository.observeIssues().first().single().blockedBy)
     }
 
     @Test

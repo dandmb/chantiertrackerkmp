@@ -583,7 +583,16 @@
     <string name="sync_reason_unknown">The server refused this item.</string>
     <string name="sync_reason_deleted_on_server">This item was deleted on the server, or you no longer have access to it.</string>
     <string name="sync_reason_delete_refused">The deletion was refused: the item has been restored. %1$s</string>
-    <string name="sync_reason_blocked">Will be sent as soon as the refused item it depends on is accepted.</string>
+    <string name="sync_reason_blocked">Waiting: depends on a refused item.</string>
+    <string name="sync_waiting_on_project_named">Waiting: depends on the project “%1$s”, which was refused.</string>
+    <string name="sync_waiting_on_project">Waiting: depends on the project, which was refused.</string>
+    <string name="sync_waiting_on_stage_named">Waiting: depends on the stage “%1$s”, which was refused.</string>
+    <string name="sync_waiting_on_stage">Waiting: depends on the stage, which was refused.</string>
+    <string name="sync_waiting_on_material_named">Waiting: depends on the material “%1$s”, which was refused.</string>
+    <string name="sync_waiting_on_material">Waiting: depends on the material, which was refused.</string>
+    <string name="sync_waiting_on_purchase_entry">Waiting: depends on the purchases entry of %1$s, which was refused.</string>
+    <string name="sync_waiting_on_work_entry">Waiting: depends on the work entry of %1$s, which was refused.</string>
+    <string name="sync_waiting_on_entry">Waiting: depends on the entry, which was refused.</string>
     <string name="sync_typed_versus_server">You entered %1$s; the server kept %2$s.</string>
     <string name="sync_hint_plan_limit">Change your plan or delete a project, then retry.</string>
     <string name="sync_hint_project_or_stage_inactive">Ask a project administrator to reopen the project or the stage, then retry.</string>

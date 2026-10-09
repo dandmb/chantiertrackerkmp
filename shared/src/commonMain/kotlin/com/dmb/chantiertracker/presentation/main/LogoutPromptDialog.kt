@@ -6,6 +6,8 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -77,7 +79,7 @@ fun LogoutPromptDialog(
             onDismissRequest = onDismiss,
             title = { Text(stringResource(Res.string.logout_refused_title)) },
             text = {
-                Column {
+                Column(Modifier.verticalScroll(rememberScrollState())) {
                     Text(
                         stringResource(Res.string.logout_refused_message, unsentSummary(prompt.unsent)),
                         style = MaterialTheme.typography.bodyMedium,

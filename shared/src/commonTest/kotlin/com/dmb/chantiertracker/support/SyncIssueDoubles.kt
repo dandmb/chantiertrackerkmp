@@ -119,6 +119,7 @@ fun issueItem(
     unit: String? = null,
     quantity: Double? = null,
     serverQuantity: Double? = null,
+    blockedBy: com.dmb.chantiertracker.domain.model.SyncIssueParent? = null,
 ) = SyncIssueItem(
     target = target,
     localId = localId,
@@ -134,6 +135,7 @@ fun issueItem(
     unit = unit,
     quantity = quantity,
     serverQuantity = serverQuantity,
+    blockedBy = blockedBy,
 )
 
 class FakeSyncIssueRepository(items: List<SyncIssueItem> = emptyList()) : SyncIssueRepository {
@@ -144,7 +146,7 @@ class FakeSyncIssueRepository(items: List<SyncIssueItem> = emptyList()) : SyncIs
 
     override fun observeIssues(): Flow<List<SyncIssueItem>> = items
 
-    override fun observeIssueCount(): Flow<Int> = items.map { it.size }
+    override fun observeIssueCount(): Flow<Int> = items.map { all -> all.count { it.issue.kind != SyncIssueKind.BLOCKED_BY_PARENT } }
 
     override suspend fun retry(item: SyncIssueItem): RetryOutcome {
         retried += item

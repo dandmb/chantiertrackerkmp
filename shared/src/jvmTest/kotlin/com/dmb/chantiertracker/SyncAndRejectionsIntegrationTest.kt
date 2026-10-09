@@ -60,10 +60,7 @@ class SyncAndRejectionsIntegrationTest {
     private fun device() = DeviceStack().also { devices += it }
 
     private fun runScenario(block: suspend () -> Unit) = runBlocking {
-        if (!IntegrationBackend.enabled || !IntegrationBackend.adminConfigured) {
-            println("Scénario ignoré (integrationTests + identifiants super-admin requis).")
-            return@runBlocking
-        }
+        com.dmb.chantiertracker.support.skipUnlessRealBackendScenariosAreEnabled()
         block()
     }
 
@@ -339,7 +336,13 @@ class SyncAndRejectionsIntegrationTest {
         assertEquals(line, waitingLine.localId)
         assertEquals(com.dmb.chantiertracker.domain.model.SyncIssueKind.BLOCKED_BY_PARENT, waitingLine.issue.kind)
         assertEquals(listOf("Ciment", "sac", 3.0), listOf(waitingLine.label, waitingLine.unit, waitingLine.quantity))
-        assertEquals(listed.size, issues.observeIssueCount().first(), "la pastille compte ce que l'écran liste")
+        assertEquals(
+            com.dmb.chantiertracker.domain.model.SyncIssueParent(com.dmb.chantiertracker.domain.model.SyncIssueTarget.ENTRY, name = null, entryType = EntryType.PURCHASE, date = today),
+            waitingLine.blockedBy,
+            "la ligne en attente nomme la saisie refusée dont elle dépend",
+        )
+        assertEquals(2, listed.size, "l'écran liste la saisie refusée et sa ligne en attente")
+        assertEquals(1, issues.observeIssueCount().first(), "la pastille ne compte que la saisie refusée, pas la ligne en attente")
 
         val whileSuspended = issues.retry(refusedEntry)
         println("ADR-74 tranche 2 — « Réessayer » projet encore suspendu : $whileSuspended")

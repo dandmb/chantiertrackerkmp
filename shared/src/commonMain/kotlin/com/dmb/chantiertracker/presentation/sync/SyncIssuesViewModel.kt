@@ -3,6 +3,7 @@ package com.dmb.chantiertracker.presentation.sync
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.dmb.chantiertracker.domain.model.SyncIssueItem
+import com.dmb.chantiertracker.domain.model.countsToReview
 import com.dmb.chantiertracker.domain.repository.RetryOutcome
 import com.dmb.chantiertracker.domain.repository.SyncIssueRepository
 import kotlinx.coroutines.CancellationException
@@ -34,10 +35,11 @@ data class SyncIssuesUiState(
     val isLoading: Boolean = true,
     val projects: List<SyncIssueProjectGroup> = emptyList(),
     val total: Int = 0,
+    val listed: Int = 0,
     val retryingKey: String? = null,
     val notice: RetryOutcome? = null,
 ) {
-    val isEmpty: Boolean get() = !isLoading && total == 0
+    val isEmpty: Boolean get() = !isLoading && listed == 0
 }
 
 fun groupSyncIssues(items: List<SyncIssueItem>): List<SyncIssueProjectGroup> =
@@ -78,7 +80,9 @@ class SyncIssuesViewModel(private val repository: SyncIssueRepository) : ViewMod
     init {
         viewModelScope.launch {
             repository.observeIssues().collect { items ->
-                _state.update { it.copy(isLoading = false, projects = groupSyncIssues(items), total = items.size) }
+                _state.update {
+                    it.copy(isLoading = false, projects = groupSyncIssues(items), total = items.count { item -> item.issue.countsToReview }, listed = items.size)
+                }
             }
         }
     }

@@ -583,7 +583,16 @@
     <string name="sync_reason_unknown">Le serveur a refusé cet élément.</string>
     <string name="sync_reason_deleted_on_server">Cet élément a été supprimé sur le serveur, ou ne vous est plus accessible.</string>
     <string name="sync_reason_delete_refused">La suppression a été refusée : l'élément a été rétabli. %1$s</string>
-    <string name="sync_reason_blocked">Sera envoyé dès que l'élément refusé dont il dépend sera accepté.</string>
+    <string name="sync_reason_blocked">En attente : dépend d'un élément refusé.</string>
+    <string name="sync_waiting_on_project_named">En attente : dépend du projet « %1$s », refusé.</string>
+    <string name="sync_waiting_on_project">En attente : dépend du projet, refusé.</string>
+    <string name="sync_waiting_on_stage_named">En attente : dépend de l'étape « %1$s », refusée.</string>
+    <string name="sync_waiting_on_stage">En attente : dépend de l'étape, refusée.</string>
+    <string name="sync_waiting_on_material_named">En attente : dépend du matériau « %1$s », refusé.</string>
+    <string name="sync_waiting_on_material">En attente : dépend du matériau, refusé.</string>
+    <string name="sync_waiting_on_purchase_entry">En attente : dépend de la saisie d'achats du %1$s, refusée.</string>
+    <string name="sync_waiting_on_work_entry">En attente : dépend de la saisie de travaux du %1$s, refusée.</string>
+    <string name="sync_waiting_on_entry">En attente : dépend de la saisie, refusée.</string>
     <string name="sync_typed_versus_server">Vous avez saisi %1$s ; le serveur a gardé %2$s.</string>
     <string name="sync_hint_plan_limit">Changez de formule ou supprimez un projet, puis réessayez.</string>
     <string name="sync_hint_project_or_stage_inactive">Demandez à un administrateur du projet de rouvrir le projet ou l'étape, puis réessayez.</string>

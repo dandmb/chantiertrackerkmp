@@ -32,10 +32,10 @@ abstract class LocalDataDao {
     @Query(
         """
         SELECT
-            (SELECT COUNT(*) FROM projects WHERE syncStatus != 'SYNCED' AND NOT (lastSyncError = 'DELETED_ON_SERVER' AND pendingOp = 'NONE' AND serverId IS NOT NULL)) AS projects,
-            (SELECT COUNT(*) FROM stages WHERE syncStatus != 'SYNCED' AND NOT (lastSyncError = 'DELETED_ON_SERVER' AND pendingOp = 'NONE' AND serverId IS NOT NULL)) AS stages,
-            (SELECT COUNT(*) FROM materials WHERE syncStatus != 'SYNCED' AND NOT (lastSyncError = 'DELETED_ON_SERVER' AND pendingOp = 'NONE' AND serverId IS NOT NULL)) AS materials,
-            (SELECT COUNT(*) FROM daily_entries WHERE syncStatus != 'SYNCED' AND NOT (lastSyncError = 'DELETED_ON_SERVER' AND pendingOp = 'NONE' AND serverId IS NOT NULL)) AS entries,
+            (SELECT COUNT(*) FROM projects WHERE syncStatus != 'SYNCED' AND NOT (COALESCE(lastSyncError, '') = 'DELETED_ON_SERVER' AND pendingOp = 'NONE' AND serverId IS NOT NULL)) AS projects,
+            (SELECT COUNT(*) FROM stages WHERE syncStatus != 'SYNCED' AND NOT (COALESCE(lastSyncError, '') = 'DELETED_ON_SERVER' AND pendingOp = 'NONE' AND serverId IS NOT NULL)) AS stages,
+            (SELECT COUNT(*) FROM materials WHERE syncStatus != 'SYNCED' AND NOT (COALESCE(lastSyncError, '') = 'DELETED_ON_SERVER' AND pendingOp = 'NONE' AND serverId IS NOT NULL)) AS materials,
+            (SELECT COUNT(*) FROM daily_entries WHERE syncStatus != 'SYNCED' AND NOT (COALESCE(lastSyncError, '') = 'DELETED_ON_SERVER' AND pendingOp = 'NONE' AND serverId IS NOT NULL)) AS entries,
             (SELECT COUNT(*) FROM purchase_lines WHERE syncStatus != 'SYNCED') +
                 (SELECT COUNT(*) FROM consumption_lines WHERE syncStatus != 'SYNCED') AS lines,
             (SELECT COUNT(*) FROM attachments WHERE syncStatus != 'SYNCED') AS attachments

@@ -180,7 +180,7 @@ private fun IssueCard(item: SyncIssueItem, isRetrying: Boolean, retryEnabled: Bo
                 color = MaterialTheme.colorScheme.onSurface,
             )
             Text(
-                text = item.issue.sentence(),
+                text = item.sentence(),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurface,
             )

@@ -6,10 +6,12 @@ import com.dmb.chantiertracker.domain.model.RefusalReason
 import com.dmb.chantiertracker.domain.model.SyncIssue
 import com.dmb.chantiertracker.domain.model.SyncIssueItem
 import com.dmb.chantiertracker.domain.model.SyncIssueKind
+import com.dmb.chantiertracker.domain.model.SyncIssueParent
 import com.dmb.chantiertracker.domain.model.SyncIssueTarget
 import com.dmb.chantiertracker.domain.model.canBeRetried
 import com.dmb.chantiertracker.domain.repository.RetryOutcome
 import com.dmb.chantiertracker.presentation.format.formatAmount
+import com.dmb.chantiertracker.presentation.formatIsoDate
 import com.dmb.chantiertracker.resources.Res
 import com.dmb.chantiertracker.resources.sync_hint_entry_date_restricted
 import com.dmb.chantiertracker.resources.sync_hint_insufficient_role
@@ -47,6 +49,15 @@ import com.dmb.chantiertracker.resources.sync_status_deleted_on_server
 import com.dmb.chantiertracker.resources.sync_status_refused
 import com.dmb.chantiertracker.resources.sync_status_update_refused
 import com.dmb.chantiertracker.resources.sync_typed_versus_server
+import com.dmb.chantiertracker.resources.sync_waiting_on_entry
+import com.dmb.chantiertracker.resources.sync_waiting_on_material
+import com.dmb.chantiertracker.resources.sync_waiting_on_material_named
+import com.dmb.chantiertracker.resources.sync_waiting_on_project
+import com.dmb.chantiertracker.resources.sync_waiting_on_project_named
+import com.dmb.chantiertracker.resources.sync_waiting_on_purchase_entry
+import com.dmb.chantiertracker.resources.sync_waiting_on_stage
+import com.dmb.chantiertracker.resources.sync_waiting_on_stage_named
+import com.dmb.chantiertracker.resources.sync_waiting_on_work_entry
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 
@@ -87,6 +98,33 @@ fun RetryOutcome.noticeRes(): StringResource = when (this) {
 }
 
 @Composable
+fun SyncIssueItem.sentence(): String =
+    if (issue.kind == SyncIssueKind.BLOCKED_BY_PARENT) blockedBy.waitingSentence() else issue.sentence()
+
+@Composable
+private fun SyncIssueParent?.waitingSentence(): String {
+    val name = this?.name?.trim().orEmpty()
+    return when (this?.target) {
+        SyncIssueTarget.PROJECT ->
+            if (name.isEmpty()) stringResource(Res.string.sync_waiting_on_project) else stringResource(Res.string.sync_waiting_on_project_named, name)
+        SyncIssueTarget.STAGE ->
+            if (name.isEmpty()) stringResource(Res.string.sync_waiting_on_stage) else stringResource(Res.string.sync_waiting_on_stage_named, name)
+        SyncIssueTarget.MATERIAL ->
+            if (name.isEmpty()) stringResource(Res.string.sync_waiting_on_material) else stringResource(Res.string.sync_waiting_on_material_named, name)
+        SyncIssueTarget.ENTRY -> {
+            val day = date?.trim().orEmpty()
+            when {
+                day.isEmpty() -> stringResource(Res.string.sync_waiting_on_entry)
+                entryType == EntryType.PURCHASE -> stringResource(Res.string.sync_waiting_on_purchase_entry, formatIsoDate(day))
+                entryType == EntryType.WORK -> stringResource(Res.string.sync_waiting_on_work_entry, formatIsoDate(day))
+                else -> stringResource(Res.string.sync_waiting_on_entry)
+            }
+        }
+        else -> stringResource(Res.string.sync_reason_blocked)
+    }
+}
+
+@Composable
 fun SyncIssue.sentence(): String = when (kind) {
     SyncIssueKind.BLOCKED_BY_PARENT -> stringResource(Res.string.sync_reason_blocked)
     SyncIssueKind.DELETED_ON_SERVER -> stringResource(Res.string.sync_reason_deleted_on_server)
@@ -121,5 +159,7 @@ fun SyncIssueItem.typedVersusServer(): String? {
     val typed = quantity
     val kept = serverQuantity
     if (issue.kind != SyncIssueKind.UPDATE_REFUSED || typed == null || kept == null) return null
-    return stringResource(Res.string.sync_typed_versus_server, formatAmount(typed), formatAmount(kept))
+    val shownUnit = unit?.trim().orEmpty()
+    val withUnit = { amount: Double -> if (shownUnit.isEmpty()) formatAmount(amount) else formatAmount(amount) + " " + shownUnit }
+    return stringResource(Res.string.sync_typed_versus_server, withUnit(typed), withUnit(kept))
 }

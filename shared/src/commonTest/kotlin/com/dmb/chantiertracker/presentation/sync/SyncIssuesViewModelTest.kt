@@ -67,7 +67,7 @@ class SyncIssuesViewModelTest {
         advanceUntilIdle()
 
         val state = vm.state.value
-        assertEquals(7, state.total)
+        assertEquals(6, state.total, "the line waiting on its entry is shown but not counted")
         assertEquals(listOf("Atelier", "Villa Vidal"), state.projects.map { it.projectName }, "projects in alphabetical order")
 
         val atelier = state.projects[0]
@@ -89,7 +89,8 @@ class SyncIssuesViewModelTest {
         val repo = FakeSyncIssueRepository(listOf(entry, line))
         val vm = SyncIssuesViewModel(repo)
         advanceUntilIdle()
-        assertEquals(2, vm.state.value.total)
+        assertEquals(1, vm.state.value.total)
+        assertEquals(listOf("e1", "pl1"), vm.state.value.projects.single().stages.single().days.single().items.map { it.localId })
 
         repo.items.value = emptyList()
         advanceUntilIdle()
@@ -161,7 +162,7 @@ class SyncIssuesViewModelTest {
         val collected = mutableListOf<Int>()
         val job = backgroundScope.launch { vm.count.collect { collected += it } }
         advanceUntilIdle()
-        assertEquals(2, vm.count.value)
+        assertEquals(1, vm.count.value, "the refused entry; not the line waiting on it")
 
         repo.items.value = emptyList()
         advanceUntilIdle()

@@ -675,4 +675,16 @@ private suspend fun verifySyncIssueListContract(db: AppDatabase) {
     assertEquals(SyncStatus.CONFLICTED, db.projectDao().findByLocalId("p-refused")!!.syncStatus, "a refused creation is not an update to send again")
     db.syncIssueDao().freezeUnsentUpdateAgain(SyncIssueTarget.STAGE, "st-waiting", "X")
     assertEquals(SyncStatus.PENDING, db.stageDao().findByLocalId("st-waiting")!!.syncStatus, "a creation waiting to be sent is never frozen")
+
+    val before = db.localDataDao().countUnsentByKind()
+    db.projectDao().upsert(localProject("p-no-error", serverId = 90, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.PENDING))
+    db.stageDao().upsert(localStage("st-no-error", projectLocalId = "p-ok", serverId = 91, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.PENDING))
+    db.materialDao().upsert(localMaterial("m-no-error", projectLocalId = "p-ok", name = "Chaux", serverId = 92, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.PENDING))
+    db.dailyEntryDao().upsert(localDailyEntry("e-no-error", dailyLogLocalId = "l-waiting", type = "WORK", serverId = 93, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.PENDING))
+    val after = db.localDataDao().countUnsentByKind()
+    assertEquals(
+        listOf(before.projects + 1, before.stages + 1, before.materials + 1, before.entries + 1),
+        listOf(after.projects, after.stages, after.materials, after.entries),
+        "an unsent row with no sync error at all is not a ghost: it must be counted",
+    )
 }
