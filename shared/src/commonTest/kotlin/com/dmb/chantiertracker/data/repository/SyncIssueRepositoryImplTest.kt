@@ -12,6 +12,7 @@ import com.dmb.chantiertracker.domain.model.SyncIssueKind
 import com.dmb.chantiertracker.domain.model.SyncIssueParent
 import com.dmb.chantiertracker.domain.model.SyncIssueTarget
 import com.dmb.chantiertracker.domain.repository.RetryOutcome
+import com.dmb.chantiertracker.domain.repository.RevertOutcome
 import com.dmb.chantiertracker.support.FakeAttachmentDao
 import com.dmb.chantiertracker.support.FakeConsumptionLineDao
 import com.dmb.chantiertracker.support.FakeDailyEntryDao
@@ -25,6 +26,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -38,8 +40,11 @@ class SyncIssueRepositoryImplTest {
     private val consumptionLineDao = FakeConsumptionLineDao()
     private val attachmentDao = FakeAttachmentDao()
     private val syncer = FakeSyncer()
+    private val localActions = com.dmb.chantiertracker.support.FakeSyncIssueLocalActions()
+    private val fileStore = com.dmb.chantiertracker.support.FakeAttachmentFileStore()
+    private val connectivity = com.dmb.chantiertracker.support.FakeConnectivityObserver(initiallyOnline = true)
     private val repository =
-        SyncIssueRepositoryImpl(dao, stageDao, materialDao, entryDao, purchaseLineDao, consumptionLineDao, attachmentDao, syncer)
+        SyncIssueRepositoryImpl(dao, stageDao, materialDao, entryDao, purchaseLineDao, consumptionLineDao, attachmentDao, syncer, localActions, fileStore, connectivity)
 
     private val refusedEntry = syncIssueRow(
         SyncIssueTarget.ENTRY, "e1", serverErrorCode = "PROJECT_OR_STAGE_INACTIVE",
@@ -238,5 +243,217 @@ class SyncIssueRepositoryImplTest {
 
         assertEquals(RetryOutcome.STILL_REFUSED, repository.retry(item))
         assertEquals(0, syncer.syncCount)
+    }
+
+    // ─── actions (tranche 3) ─────────────────────────────────────────────────
+
+    private suspend fun listed(localId: String) = repository.observeIssues().first().single { it.localId == localId }
+
+    private val refusedFile = syncIssueRow(
+        SyncIssueTarget.ATTACHMENT, "a1", lastSyncError = SyncError.FILE_REFUSED, serverErrorCode = "ATTACHMENT_TOO_LARGE",
+        stageLocalId = "st1", stageName = "Charpente", dailyLogLocalId = "l1", logDate = "2026-10-09", entryType = "PURCHASE", label = "facture.jpg",
+    )
+    private val refusedConsumptionChange = syncIssueRow(
+        SyncIssueTarget.CONSUMPTION_LINE, "cl-edit", pendingOp = PendingOp.UPDATE, lastSyncError = SyncError.UPDATE_REFUSED,
+        serverErrorCode = "INSUFFICIENT_STOCK", serverId = 60, label = "Ciment", unit = "sac", quantity = 50.0, serverQuantity = 2.0,
+    )
+
+    private fun removeTheRowLikeRoomWould() {
+        localActions.onRemove = { target, localId ->
+            assertTrue(syncer.inExclusive, "the removal runs while no sync pass can run")
+            dao.rows.value = dao.rows.value.filterNot { it.target == target && it.localId == localId }
+        }
+    }
+
+    @Test
+    fun discarding_removes_the_entry_locally_while_no_sync_can_run_then_deletes_its_files() = runTest {
+        dao.rows.value = listOf(refusedEntry.copy(serverErrorCode = "DUPLICATE_ENTRY"))
+        removeTheRowLikeRoomWould()
+        val kept = fileStore.save(ByteArray(4), "autre.jpg")
+        val first = fileStore.save(ByteArray(4), "a.jpg")
+        val second = fileStore.save(ByteArray(4), "b.jpg")
+        localActions.pathsOfRemoved = listOf(first, second)
+
+        repository.discard(listed("e1"))
+
+        assertEquals(listOf("remove ENTRY e1"), localActions.calls)
+        assertEquals(1, syncer.exclusiveCount)
+        assertEquals(setOf(kept), fileStore.storedPaths, "only the files of what was removed are deleted")
+        assertTrue(repository.observeIssues().first().isEmpty())
+        assertEquals(0, syncer.syncCount, "discarding sends nothing")
+    }
+
+    @Test
+    fun discarding_twice_is_harmless() = runTest {
+        dao.rows.value = listOf(refusedFile)
+        removeTheRowLikeRoomWould()
+        val path = fileStore.save(ByteArray(4), "facture.jpg")
+        localActions.pathsOfRemoved = listOf(path)
+        val item = listed("a1")
+
+        repository.discard(item)
+        repository.discard(item)
+
+        assertTrue(fileStore.storedPaths.isEmpty())
+        assertTrue(repository.observeIssues().first().isEmpty())
+    }
+
+    @Test
+    fun a_file_that_cannot_be_deleted_does_not_bring_the_discarded_entry_back() = runTest {
+        dao.rows.value = listOf(refusedFile)
+        removeTheRowLikeRoomWould()
+        localActions.pathsOfRemoved = listOf("a/file/that/is/already/gone.jpg")
+        fileStore.failOnDelete = true
+
+        repository.discard(listed("a1"))
+
+        assertTrue(repository.observeIssues().first().isEmpty(), "the row is gone whatever happens to the file afterwards")
+    }
+
+    @Test
+    fun an_entry_that_exists_on_the_server_is_never_discarded() = runTest {
+        dao.rows.value = listOf(refusedLineUpdate, waitingLine)
+        purchaseLineDao.blockedByParent.value = listOf("pl1")
+
+        repository.discard(listed("pl-edit"))
+        repository.discard(listed("pl1"))
+        repository.acknowledge(listed("pl-edit"))
+
+        assertEquals(emptyList(), localActions.calls)
+        assertEquals(0, syncer.exclusiveCount)
+    }
+
+    @Test
+    fun acknowledging_what_was_deleted_on_the_server_or_refused_for_an_unknown_reason_purges_it_locally() = runTest {
+        dao.rows.value = listOf(
+            syncIssueRow(SyncIssueTarget.ENTRY, "e-gone", lastSyncError = SyncError.DELETED_ON_SERVER, serverId = 7),
+            syncIssueRow(SyncIssueTarget.STAGE, "st-unknown", serverErrorCode = "A_CODE_THE_APP_DOES_NOT_KNOW"),
+            syncIssueRow(SyncIssueTarget.MATERIAL, "m-no-code", serverErrorCode = null),
+        )
+        removeTheRowLikeRoomWould()
+        val path = fileStore.save(ByteArray(4), "photo.jpg")
+        localActions.pathsOfRemoved = listOf(path)
+
+        repository.acknowledge(listed("e-gone"))
+        repository.acknowledge(listed("st-unknown"))
+        repository.acknowledge(listed("m-no-code"))
+
+        assertEquals(listOf("remove ENTRY e-gone", "remove STAGE st-unknown", "remove MATERIAL m-no-code"), localActions.calls)
+        assertTrue(fileStore.storedPaths.isEmpty())
+        assertTrue(repository.observeIssues().first().isEmpty())
+        assertEquals(0, repository.observeIssueCount().first())
+    }
+
+    @Test
+    fun acknowledging_a_refused_delete_only_clears_the_mention_and_removes_nothing() = runTest {
+        dao.rows.value = listOf(syncIssueRow(SyncIssueTarget.STAGE, "st-del", syncStatus = SyncStatus.SYNCED, pendingOp = PendingOp.NONE, serverId = 5, serverErrorCode = "PROJECT_INSUFFICIENT_ROLE"))
+        localActions.onForget = { _, _ ->
+            assertTrue(syncer.inExclusive)
+            dao.rows.value = emptyList()
+        }
+
+        repository.acknowledge(listed("st-del"))
+
+        assertEquals(listOf("forget STAGE st-del"), localActions.calls)
+        assertTrue(repository.observeIssues().first().isEmpty())
+    }
+
+    @Test
+    fun the_number_of_linked_entries_comes_from_the_local_store() = runTest {
+        dao.rows.value = listOf(refusedEntry)
+        localActions.linked = 3
+
+        assertEquals(3, repository.linkedCount(listed("e1")))
+        assertEquals(listOf("count ENTRY e1"), localActions.calls)
+    }
+
+    @Test
+    fun reverting_a_change_whose_server_value_is_known_on_the_device_works_without_any_network() = runTest {
+        dao.rows.value = listOf(refusedConsumptionChange)
+        connectivity.setOnline(false)
+        localActions.onRestoreKnown = { _, _ ->
+            assertTrue(syncer.inExclusive)
+            dao.rows.value = emptyList()
+        }
+
+        assertEquals(RevertOutcome.RESTORED, repository.revert(listed("cl-edit")))
+
+        assertEquals(listOf("restoreKnown CONSUMPTION_LINE cl-edit"), localActions.calls)
+        assertEquals(emptyList(), syncer.restored)
+        assertEquals(0, syncer.syncCount)
+    }
+
+    @Test
+    fun reverting_a_change_whose_server_value_is_unknown_needs_a_connection_and_touches_nothing_offline() = runTest {
+        dao.rows.value = listOf(refusedLineUpdate)
+        connectivity.setOnline(false)
+
+        assertEquals(RevertOutcome.NEEDS_CONNECTION, repository.revert(listed("pl-edit")))
+
+        assertEquals(emptyList(), localActions.calls)
+        assertEquals(emptyList(), syncer.restored)
+        assertEquals(refusedLineUpdate, dao.rows.value.single(), "the refused change is left exactly as it was")
+    }
+
+    @Test
+    fun reverting_online_refreshes_from_the_server_then_restores() = runTest {
+        dao.rows.value = listOf(refusedLineUpdate)
+        syncer.onRestore = { dao.rows.value = emptyList() }
+
+        assertEquals(RevertOutcome.RESTORED, repository.revert(listed("pl-edit")))
+
+        assertEquals(listOf(SyncIssueTarget.PURCHASE_LINE to "pl-edit"), syncer.restored)
+        assertEquals(0, syncer.syncCount, "reverting never sends the refused change again")
+        assertTrue(dao.sentAgain.isEmpty())
+    }
+
+    @Test
+    fun a_revert_the_server_could_not_answer_says_so_and_leaves_the_change_refused() = runTest {
+        dao.rows.value = listOf(refusedLineUpdate)
+        val item = listed("pl-edit")
+
+        syncer.restoreOutcome = SyncOutcome.Failed(DomainException.Network)
+        assertEquals(RevertOutcome.FAILED, repository.revert(item))
+        syncer.restoreOutcome = SyncOutcome.Skipped
+        assertEquals(RevertOutcome.NEEDS_CONNECTION, repository.revert(item))
+
+        assertEquals(refusedLineUpdate, dao.rows.value.single())
+    }
+
+    @Test
+    fun a_consumption_line_whose_kept_server_value_vanished_falls_back_to_the_server() = runTest {
+        dao.rows.value = listOf(refusedConsumptionChange)
+        localActions.knownServerValue = false
+        val item = listed("cl-edit")
+
+        assertEquals(RevertOutcome.RESTORED, repository.revert(item))
+
+        assertEquals(listOf(SyncIssueTarget.CONSUMPTION_LINE to "cl-edit"), syncer.restored)
+    }
+
+    @Test
+    fun only_a_refused_change_can_be_reverted() = runTest {
+        dao.rows.value = listOf(refusedEntry)
+
+        assertEquals(RevertOutcome.FAILED, repository.revert(listed("e1")))
+
+        assertEquals(emptyList(), syncer.restored)
+        assertEquals(emptyList(), localActions.calls)
+    }
+
+    @Test
+    fun the_connection_state_follows_the_device() = runTest {
+        assertTrue(repository.observeOnline().first())
+        connectivity.setOnline(false)
+        assertFalse(repository.observeOnline().first())
+    }
+
+    @Test
+    fun an_item_carries_what_its_form_needs_to_be_reopened() = runTest {
+        dao.rows.value = listOf(refusedLineUpdate.copy(entryLocalId = "e1", currency = "EUR"))
+
+        val item = listed("pl-edit")
+
+        assertEquals(listOf("e1", "EUR", "p1"), listOf(item.entryLocalId, item.currency, item.projectLocalId))
     }
 }

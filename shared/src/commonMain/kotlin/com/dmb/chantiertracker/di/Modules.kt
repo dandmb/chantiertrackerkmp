@@ -11,6 +11,7 @@ import com.dmb.chantiertracker.data.session.UnsyncedWriteCounter
 import com.dmb.chantiertracker.data.repository.SignOutRepositoryImpl
 import com.dmb.chantiertracker.data.repository.SyncIssueRepositoryImpl
 import com.dmb.chantiertracker.data.local.db.SyncIssueDao
+import com.dmb.chantiertracker.data.local.db.SyncIssueLocalActions
 import com.dmb.chantiertracker.domain.repository.SyncIssueRepository
 import com.dmb.chantiertracker.presentation.sync.SyncIssueCountViewModel
 import com.dmb.chantiertracker.presentation.sync.SyncIssuesViewModel
@@ -192,6 +193,7 @@ val syncModule: Module = module {
     single<StockDao> { get<AppDatabase>().stockDao() }
     single<MaterialAdoptionDao> { get<AppDatabase>().materialAdoptionDao() }
     single<SyncIssueDao> { get<AppDatabase>().syncIssueDao() }
+    single<SyncIssueLocalActions> { get<AppDatabase>().syncIssueActionDao() }
     single<AttachmentFileStore> { FileKitAttachmentFileStore(newFileName = { kotlin.uuid.Uuid.random().toString() }) }
     single<ExportFileStore> { FileKitExportFileStore() }
     single { AppCoroutineScope() }
@@ -241,7 +243,7 @@ val dataModule: Module = module {
     single { LocalDataOwnership(get(), get(), get()) }
     single<AuthRepository> { AuthRepositoryImpl(get(), get<TokenStorage>(), get(), get(), get(), get()) }
     single<SignOutRepository> { SignOutRepositoryImpl(get(), get(), get()) }
-    single<SyncIssueRepository> { SyncIssueRepositoryImpl(get(), get(), get(), get(), get(), get(), get(), get()) }
+    single<SyncIssueRepository> { SyncIssueRepositoryImpl(get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get()) }
     single<ProjectRepository> { ProjectRepositoryImpl(get(), get(), get<AppCoroutineScope>()) }
     single<StageRepository> { StageRepositoryImpl(get(), get(), get<AppCoroutineScope>()) }
     single<AccountRepository> { AccountRepositoryImpl(get(), get()) }

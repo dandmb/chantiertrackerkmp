@@ -8,6 +8,13 @@ import com.dmb.chantiertracker.domain.model.CreateProjectInput
 import com.dmb.chantiertracker.domain.model.CreatePurchaseLineInput
 import com.dmb.chantiertracker.domain.model.CreateStageInput
 import com.dmb.chantiertracker.domain.model.EntryType
+import com.dmb.chantiertracker.domain.model.SyncIssueAction
+import com.dmb.chantiertracker.domain.model.SyncIssueKind
+import com.dmb.chantiertracker.domain.model.actions
+import com.dmb.chantiertracker.domain.model.serverValueKnownLocally
+import com.dmb.chantiertracker.domain.repository.RevertOutcome
+import com.dmb.chantiertracker.presentation.navigation.ConsumptionLineFormRoute
+import com.dmb.chantiertracker.presentation.navigation.fixRoute
 import com.dmb.chantiertracker.domain.model.UpdatePurchaseLineInput
 import com.dmb.chantiertracker.presentation.logs.availableCeiling
 import com.dmb.chantiertracker.support.DeviceStack
@@ -29,6 +36,7 @@ import java.time.ZoneId
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 /**
  * Campagne QA, groupe C — le stock (P5), contre un vrai backend. Même convention que les groupes
@@ -215,6 +223,98 @@ class StockIntegrationTest {
         owner.sync.syncNow()
         assertEquals(row, owner.db.purchaseLineDao().findByLocalId(line), "une passe de plus ne change rien à la ligne")
         assertEquals(3.0, shown.quantity, "la saisie de l'utilisateur est gardée")
+    }
+
+    @Test
+    fun adr74_a_refused_consumption_is_fixed_offline_then_sent_once_and_accepted() = runScenario {
+        val owner = device()
+        owner.signedInAs("qa-74f", "QA 74 Corriger")
+        val (project, stage) = owner.newSite("QA 74 corriger")
+        val date = today().toString()
+        val purchase = owner.entryOf(owner.logs.createPurchaseEntry(stage, date), EntryType.PURCHASE)
+        val cement = owner.materials.createMaterial(project, "Ciment", "sac")
+        owner.purchaseLines.createLine(purchase, CreatePurchaseLineInput(cement.localId, 2.0, 5.0, null))
+        owner.sync.syncNow()
+
+        owner.goOffline()
+        val work = owner.entryOf(owner.logs.createWorkEntry(stage, date), EntryType.WORK)
+        val tooMuch = owner.consumptionLines.createLine(work, CreateConsumptionLineInput(cement.localId, 5.0))
+        owner.goOnline()
+        owner.sync.syncNow()
+
+        val issues = owner.syncIssues
+        val refused = issues.observeIssues().first().single()
+        println("ADR-74 tranche 3 — corriger : ${refused.target} ${refused.issue.kind} ${refused.issue.reason}, actions=${refused.actions}, formulaire=${refused.fixRoute()}")
+        assertEquals(tooMuch, refused.localId)
+        assertEquals(listOf(SyncIssueAction.FIX, SyncIssueAction.DISCARD), refused.actions)
+        assertEquals(ConsumptionLineFormRoute(entryLocalId = work, projectLocalId = project, lineLocalId = tooMuch), refused.fixRoute(), "« Corriger » rouvre le formulaire de la ligne")
+
+        owner.goOffline()
+        owner.waitForTheRunningSyncPass()
+        owner.consumptionLines.updateLine(tooMuch, com.dmb.chantiertracker.domain.model.UpdateConsumptionLineInput(2.0))
+        val queued = owner.db.consumptionLineDao().findPending()
+        println("ADR-74 tranche 3 — corriger : hors ligne après enregistrement, file=${queued.map { it.syncStatus to it.pendingOp }}, à revoir=${issues.observeIssueCount().first()}")
+        assertEquals(listOf(tooMuch), queued.map { it.localId }, "en file une seule fois")
+        assertEquals(SyncStatus.PENDING, queued.single().syncStatus, "hors ligne, la saisie corrigée repasse en attente d'envoi")
+        assertEquals(0, issues.observeIssueCount().first(), "la pastille revient à zéro sans relancer l'écran")
+        assertTrue(issues.observeIssues().first().isEmpty())
+
+        owner.goOnline()
+        owner.sync.syncNow()
+        val sent = owner.db.consumptionLineDao().findByLocalId(tooMuch)!!
+        println("ADR-74 tranche 3 — corriger : après renvoi, ligne=${sent.syncStatus}/${sent.pendingOp}/${sent.lastSyncError}/${sent.serverErrorCode} quantité=${sent.quantity} serverId=${sent.serverId}")
+        val (app, server) = owner.compare("ADR-74 tranche 3 — corriger, après renvoi", project)
+        assertEquals(SyncStatus.SYNCED, sent.syncStatus, "la saisie corrigée est acceptée")
+        assertEquals(server, app)
+        assertEquals(0.0, server.getValue("Ciment"), "2 achetés, 2 consommés : une seule consommation est arrivée, pas de doublon")
+        assertTrue(issues.observeIssues().first().isEmpty())
+    }
+
+    @Test
+    fun adr74_undoing_a_refused_change_restores_what_the_server_holds_online_and_touches_nothing_offline() = runScenario {
+        val owner = device()
+        owner.signedInAs("qa-74r", "QA 74 Annuler")
+        val (project, stage) = owner.newSite("QA 74 annuler")
+        val date = today().toString()
+        val purchase = owner.entryOf(owner.logs.createPurchaseEntry(stage, date), EntryType.PURCHASE)
+        val cement = owner.materials.createMaterial(project, "Ciment", "sac")
+        val line = owner.purchaseLines.createLine(purchase, CreatePurchaseLineInput(cement.localId, 10.0, 6.5, "Point P"))
+        val work = owner.entryOf(owner.logs.createWorkEntry(stage, date), EntryType.WORK)
+        owner.consumptionLines.createLine(work, CreateConsumptionLineInput(cement.localId, 4.0))
+        owner.sync.syncNow()
+
+        owner.waitForTheRunningSyncPass()
+        owner.purchaseLines.updateLine(line, UpdatePurchaseLineInput(3.0, 9.0, "Autre"))
+        owner.sync.syncNow()
+
+        val issues = owner.syncIssues
+        val refused = issues.observeIssues().first().single()
+        println("ADR-74 tranche 3 — annuler : ${refused.issue.kind} ${refused.issue.reason}, actions=${refused.actions}, valeur du serveur connue ici=${refused.serverValueKnownLocally}")
+        assertEquals(SyncIssueKind.UPDATE_REFUSED, refused.issue.kind)
+        assertEquals(listOf(SyncIssueAction.FIX, SyncIssueAction.REVERT), refused.actions)
+        assertTrue(!refused.serverValueKnownLocally, "le prix et le fournisseur du serveur ne sont pas gardés sur l'appareil")
+
+        owner.goOffline()
+        val before = owner.db.purchaseLineDao().findByLocalId(line)
+        assertEquals(RevertOutcome.NEEDS_CONNECTION, issues.revert(refused), "hors ligne : action impossible, expliquée à l'utilisateur")
+        assertEquals(before, owner.db.purchaseLineDao().findByLocalId(line), "hors ligne, rien n'est touché")
+        owner.goOnline()
+
+        val online = issues.revert(refused)
+        val restored = owner.db.purchaseLineDao().findByLocalId(line)!!
+        println("ADR-74 tranche 3 — annuler : en ligne=$online, ligne=${restored.quantity} x ${restored.unitPrice} (${restored.supplier}) ${restored.syncStatus}")
+        assertEquals(RevertOutcome.RESTORED, online)
+        assertEquals<List<Any?>>(listOf(10.0, 6.5, "Point P", SyncStatus.SYNCED), listOf(restored.quantity, restored.unitPrice, restored.supplier, restored.syncStatus))
+        assertTrue(issues.observeIssues().first().isEmpty(), "plus rien à revoir")
+        assertEquals(0, issues.observeIssueCount().first())
+        assertEquals(RevertOutcome.RESTORED, issues.revert(refused), "un deuxième appui ne change rien")
+
+        owner.sync.syncNow()
+        owner.sync.syncLog(owner.db.dailyEntryDao().findByLocalId(purchase)!!.dailyLogLocalId)
+        val (app, server) = owner.compare("ADR-74 tranche 3 — annuler, après restauration", project)
+        assertEquals(server, app)
+        assertEquals(6.0, server.getValue("Ciment"), "le serveur n'a jamais reçu la modification : 10 achetés, 4 consommés")
+        assertEquals(10.0, owner.db.purchaseLineDao().findByLocalId(line)!!.quantity)
     }
 
     @Test

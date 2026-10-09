@@ -1,5 +1,23 @@
 package com.dmb.chantiertracker.presentation.sync
 
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.TextButton
+import com.dmb.chantiertracker.domain.model.SyncIssueAction
+import com.dmb.chantiertracker.domain.model.SyncIssueTarget
+import com.dmb.chantiertracker.domain.model.actions
+import com.dmb.chantiertracker.resources.action_cancel
+import com.dmb.chantiertracker.resources.sync_acknowledge_body
+import com.dmb.chantiertracker.resources.sync_acknowledge_title
+import com.dmb.chantiertracker.resources.sync_action_working
+import com.dmb.chantiertracker.resources.sync_discard_body
+import com.dmb.chantiertracker.resources.sync_discard_file
+import com.dmb.chantiertracker.resources.sync_discard_title
+import com.dmb.chantiertracker.resources.sync_linked_removed
+import com.dmb.chantiertracker.resources.sync_revert_offline
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -66,57 +84,81 @@ import org.koin.compose.viewmodel.koinViewModel
 fun SyncIssuesScreen(
     modifier: Modifier = Modifier,
     viewModel: SyncIssuesViewModel = koinViewModel(),
+    onFix: (SyncIssueItem) -> Unit = {},
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val actions = IssueActions(
+        onFix = onFix,
+        onRetry = viewModel::retry,
+        onRevert = viewModel::revert,
+        onDiscard = viewModel::discard,
+        onAcknowledge = viewModel::acknowledge,
+    )
+
+    state.confirmation?.let { confirmation ->
+        ConfirmRemovalDialog(confirmation, onConfirm = viewModel::confirm, onDismiss = viewModel::dismissConfirmation)
+    }
 
     ResponsiveContent(modifier) {
         when {
             state.isLoading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
-            state.isEmpty -> NothingToReview(notice = state.notice, onDismissNotice = viewModel::dismissNotice)
+            state.isEmpty -> NothingToReview(state, onDismissNotice = viewModel::dismissNotice)
             else -> LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                state.notice?.let { notice ->
-                    item(key = "notice") { RetryNotice(notice, onDismiss = viewModel::dismissNotice) }
+                if (state.notice != null || state.actionNotice != null) {
+                    item(key = "notice") { Notice(state, onDismiss = viewModel::dismissNotice) }
                 }
                 item(key = "summary") { Summary(state.total) }
-                state.projects.forEach { project ->
-                    projectGroup(project, retryingKey = state.retryingKey, onRetry = viewModel::retry)
-                }
+                state.projects.forEach { project -> projectGroup(project, state, actions) }
             }
         }
     }
 }
 
-private fun LazyListScope.projectGroup(project: SyncIssueProjectGroup, retryingKey: String?, onRetry: (SyncIssueItem) -> Unit) {
+private class IssueActions(
+    val onFix: (SyncIssueItem) -> Unit,
+    val onRetry: (SyncIssueItem) -> Unit,
+    val onRevert: (SyncIssueItem) -> Unit,
+    val onDiscard: (SyncIssueItem) -> Unit,
+    val onAcknowledge: (SyncIssueItem) -> Unit,
+) {
+    fun run(action: SyncIssueAction, item: SyncIssueItem) = when (action) {
+        SyncIssueAction.FIX -> onFix(item)
+        SyncIssueAction.RETRY -> onRetry(item)
+        SyncIssueAction.REVERT -> onRevert(item)
+        SyncIssueAction.DISCARD -> onDiscard(item)
+        SyncIssueAction.ACKNOWLEDGE -> onAcknowledge(item)
+    }
+}
+
+private fun LazyListScope.projectGroup(project: SyncIssueProjectGroup, state: SyncIssuesUiState, actions: IssueActions) {
     item(key = "project:${project.projectLocalId}") {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             GroupTitle(project.projectName, ProjectsIcon, emphasis = GroupEmphasis.PROJECT)
         }
     }
-    issueCards(project.items, retryingKey, onRetry)
+    issueCards(project.items, state, actions)
     project.stages.forEach { stage ->
         item(key = "stage:${stage.stageLocalId}") {
             GroupTitle(stringResource(Res.string.sync_group_stage, stage.stageName), ConstructionIcon, emphasis = GroupEmphasis.STAGE)
         }
-        issueCards(stage.items, retryingKey, onRetry)
+        issueCards(stage.items, state, actions)
         stage.days.forEach { day ->
             item(key = "day:${day.dailyLogLocalId}") {
                 GroupTitle(stringResource(Res.string.sync_group_day, formatIsoDate(day.date)), CalendarIcon, emphasis = GroupEmphasis.DAY)
             }
-            issueCards(day.items, retryingKey, onRetry)
+            issueCards(day.items, state, actions)
         }
     }
 }
 
-private fun LazyListScope.issueCards(items: List<SyncIssueItem>, retryingKey: String?, onRetry: (SyncIssueItem) -> Unit) {
+private fun LazyListScope.issueCards(items: List<SyncIssueItem>, state: SyncIssuesUiState, actions: IssueActions) {
     items.forEach { item ->
-        item(key = "issue:${item.key}") {
-            IssueCard(item, isRetrying = retryingKey == item.key, retryEnabled = retryingKey == null, onRetry = { onRetry(item) })
-        }
+        item(key = "issue:${item.key}") { IssueCard(item, state, actions) }
     }
 }
 
@@ -163,8 +205,11 @@ private fun GroupTitle(text: String, icon: ImageVector, emphasis: GroupEmphasis)
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun IssueCard(item: SyncIssueItem, isRetrying: Boolean, retryEnabled: Boolean, onRetry: () -> Unit) {
+private fun IssueCard(item: SyncIssueItem, state: SyncIssuesUiState, actions: IssueActions) {
+    val offered = item.actions
+    val revertUnavailable = SyncIssueAction.REVERT in offered && !state.canRevert(item)
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.large,
@@ -190,20 +235,98 @@ private fun IssueCard(item: SyncIssueItem, isRetrying: Boolean, retryEnabled: Bo
             item.issue.instruction()?.let {
                 Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            if (item.issue.canBeRetried) {
-                OutlinedButton(
-                    onClick = onRetry,
-                    enabled = retryEnabled,
-                    modifier = Modifier.align(Alignment.End).heightIn(min = 48.dp),
+            if (revertUnavailable) {
+                Text(
+                    text = stringResource(Res.string.sync_revert_offline),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            if (offered.isNotEmpty()) {
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
-                    if (isRetrying) {
-                        CircularProgressIndicator(Modifier.padding(end = 8.dp).size(16.dp), strokeWidth = 2.dp)
+                    offered.forEach { action ->
+                        ActionButton(
+                            action = action,
+                            enabled = !state.isBusy && !(action == SyncIssueAction.REVERT && revertUnavailable),
+                            isRetrying = action == SyncIssueAction.RETRY && state.retryingKey == item.key,
+                            isWorking = action == offered.last() && action != SyncIssueAction.RETRY && state.busyKey == item.key,
+                            onClick = { actions.run(action, item) },
+                        )
                     }
-                    Text(stringResource(if (isRetrying) Res.string.sync_issue_retrying else Res.string.sync_issue_retry))
                 }
             }
         }
     }
+}
+
+@Composable
+private fun ActionButton(action: SyncIssueAction, enabled: Boolean, isRetrying: Boolean, isWorking: Boolean, onClick: () -> Unit) {
+    val label = stringResource(
+        when {
+            isRetrying -> Res.string.sync_issue_retrying
+            isWorking -> Res.string.sync_action_working
+            else -> action.labelRes()
+        },
+    )
+    val content: @Composable () -> Unit = {
+        if (isRetrying || isWorking) {
+            CircularProgressIndicator(Modifier.padding(end = 8.dp).size(16.dp), strokeWidth = 2.dp)
+        }
+        Text(label)
+    }
+    val size = Modifier.heightIn(min = 48.dp)
+    when (action) {
+        SyncIssueAction.FIX -> FilledTonalButton(onClick = onClick, enabled = enabled, modifier = size) { content() }
+        SyncIssueAction.DISCARD -> TextButton(
+            onClick = onClick,
+            enabled = enabled,
+            modifier = size,
+            colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+        ) { content() }
+        SyncIssueAction.RETRY, SyncIssueAction.REVERT, SyncIssueAction.ACKNOWLEDGE ->
+            OutlinedButton(onClick = onClick, enabled = enabled, modifier = size) { content() }
+    }
+}
+
+@Composable
+private fun ConfirmRemovalDialog(confirmation: SyncIssueConfirmation, onConfirm: () -> Unit, onDismiss: () -> Unit) {
+    val discarding = confirmation.action == SyncIssueAction.DISCARD
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(if (discarding) Res.string.sync_discard_title else Res.string.sync_acknowledge_title)) },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    stringResource(if (discarding) Res.string.sync_discard_body else Res.string.sync_acknowledge_body),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                if (confirmation.linkedCount > 0) {
+                    Text(
+                        pluralStringResource(Res.plurals.sync_linked_removed, confirmation.linkedCount, confirmation.linkedCount),
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                }
+                if (confirmation.item.target == SyncIssueTarget.ATTACHMENT) {
+                    Text(stringResource(Res.string.sync_discard_file), style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = onConfirm,
+                modifier = Modifier.heightIn(min = 48.dp),
+                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+            ) { Text(stringResource(confirmation.action.labelRes())) }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss, modifier = Modifier.heightIn(min = 48.dp)) { Text(stringResource(Res.string.action_cancel)) }
+        },
+    )
 }
 
 @Composable
@@ -222,14 +345,17 @@ private fun StatusLabel(kind: SyncIssueKind) {
 }
 
 @Composable
-private fun RetryNotice(notice: RetryOutcome, onDismiss: () -> Unit) {
-    val accepted = notice == RetryOutcome.ACCEPTED
-    val container = if (accepted) MaterialTheme.colorScheme.tertiaryContainer else MaterialTheme.colorScheme.errorContainer
-    val content = if (accepted) MaterialTheme.colorScheme.onTertiaryContainer else MaterialTheme.colorScheme.onErrorContainer
+private fun Notice(state: SyncIssuesUiState, onDismiss: () -> Unit) {
+    val text = state.actionNotice?.let { stringResource(it.noticeRes()) } ?: state.notice?.let { stringResource(it.noticeRes()) } ?: return
+    val positive = state.actionNotice?.let {
+        it == SyncIssueActionNotice.DISCARDED || it == SyncIssueActionNotice.ACKNOWLEDGED || it == SyncIssueActionNotice.REVERTED
+    } ?: (state.notice == RetryOutcome.ACCEPTED)
+    val container = if (positive) MaterialTheme.colorScheme.tertiaryContainer else MaterialTheme.colorScheme.errorContainer
+    val content = if (positive) MaterialTheme.colorScheme.onTertiaryContainer else MaterialTheme.colorScheme.onErrorContainer
     Surface(color = container, shape = MaterialTheme.shapes.small, modifier = Modifier.fillMaxWidth()) {
         Row(Modifier.padding(start = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(
-                text = stringResource(notice.noticeRes()),
+                text = text,
                 style = MaterialTheme.typography.bodyMedium,
                 color = content,
                 modifier = Modifier.weight(1f).padding(vertical = 12.dp).semantics { liveRegion = LiveRegionMode.Polite },
@@ -242,9 +368,9 @@ private fun RetryNotice(notice: RetryOutcome, onDismiss: () -> Unit) {
 }
 
 @Composable
-private fun NothingToReview(notice: RetryOutcome?, onDismissNotice: () -> Unit) {
+private fun NothingToReview(state: SyncIssuesUiState, onDismissNotice: () -> Unit) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)) {
-        notice?.let { RetryNotice(it, onDismiss = onDismissNotice) }
+        Notice(state, onDismiss = onDismissNotice)
         Column(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 48.dp),
             horizontalAlignment = Alignment.CenterHorizontally,

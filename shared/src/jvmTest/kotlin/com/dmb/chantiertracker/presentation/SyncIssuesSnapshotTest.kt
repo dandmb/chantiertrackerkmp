@@ -125,4 +125,29 @@ class SyncIssuesSnapshotTest {
             LogoutPromptDialog(LogoutPrompt.RefusedWritesLeft(UnsentWrites(entries = 1, lines = 2)), onRetry = {}, onLogoutAnyway = {}, onDismiss = {}, onSeeDetails = {})
         }
     }
+
+    @Test
+    fun capture_the_actions_and_the_discard_confirmation() {
+        val withActions = listOf(
+            onDay(SyncIssueTarget.CONSUMPTION_LINE, "cl1", refusedIssue(RefusalReason.INSUFFICIENT_STOCK), label = "Ciment", quantity = 50.0, type = EntryType.WORK),
+            onDay(SyncIssueTarget.PURCHASE_LINE, "pl2", refusedIssue(RefusalReason.STOCK_CONSUMED, kind = SyncIssueKind.UPDATE_REFUSED), label = "Sable", quantity = 3.0, serverQuantity = 10.0),
+            onDay(SyncIssueTarget.ENTRY, "e1", refusedIssue(RefusalReason.PROJECT_OR_STAGE_INACTIVE)),
+            onDay(SyncIssueTarget.ENTRY, "e-gone", SyncIssue(SyncIssueKind.DELETED_ON_SERVER), type = EntryType.WORK).copy(dailyLogLocalId = "l0", date = "2026-10-08"),
+        )
+        for (width in listOf(320, 412)) {
+            capture("sync-issue-actions", "fr", width, 1700) {
+                val vm = SyncIssuesViewModel(FakeSyncIssueRepository(withActions).apply { online.value = false })
+                Scaffold(topBar = { DetailTopBar(title = "Saisies à revoir", onBack = {}) }) { padding ->
+                    SyncIssuesScreen(modifier = Modifier.padding(padding), viewModel = vm)
+                }
+            }
+        }
+        capture("sync-issue-discard-dialog", "fr", 320, 568) {
+            val vm = SyncIssuesViewModel(FakeSyncIssueRepository(withActions).apply { linked = 3 })
+            androidx.compose.runtime.LaunchedEffect(Unit) { vm.discard(withActions.first()) }
+            Scaffold(topBar = { DetailTopBar(title = "Saisies à revoir", onBack = {}) }) { padding ->
+                SyncIssuesScreen(modifier = Modifier.padding(padding), viewModel = vm)
+            }
+        }
+    }
 }

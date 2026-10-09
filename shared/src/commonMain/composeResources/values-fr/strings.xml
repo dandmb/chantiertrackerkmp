@@ -603,4 +603,24 @@
     <string name="sync_retry_accepted">Envoyé : le serveur a accepté.</string>
     <string name="sync_retry_still_refused">Toujours refusé par le serveur.</string>
     <string name="sync_retry_not_sent">Envoi impossible pour le moment. Vérifiez votre connexion, puis réessayez.</string>
+    <string name="sync_action_fix">Corriger</string>
+    <string name="sync_action_revert">Annuler ma modification</string>
+    <string name="sync_action_discard">Abandonner</string>
+    <string name="sync_action_acknowledge">J'ai compris</string>
+    <string name="sync_action_working">En cours…</string>
+    <string name="sync_revert_offline">Hors ligne : la valeur du serveur n'est pas connue sur cet appareil. Reconnectez-vous pour annuler votre modification.</string>
+    <string name="sync_discard_title">Abandonner cet élément ?</string>
+    <string name="sync_discard_body">Il n'a jamais été enregistré sur le serveur. Il sera supprimé de cet appareil.</string>
+    <string name="sync_discard_file">Le fichier sera aussi supprimé de cet appareil.</string>
+    <string name="sync_acknowledge_title">Retirer cet élément de la liste ?</string>
+    <string name="sync_acknowledge_body">Il sera supprimé de cet appareil.</string>
+    <string name="sync_notice_discarded">Élément abandonné : il est supprimé de cet appareil.</string>
+    <string name="sync_notice_acknowledged">Élément retiré de la liste.</string>
+    <string name="sync_notice_reverted">Modification annulée : la valeur du serveur est rétablie.</string>
+    <string name="sync_notice_revert_needs_connection">Annulation impossible hors ligne. Reconnectez-vous, puis réessayez.</string>
+    <string name="sync_notice_revert_failed">Annulation impossible pour le moment. Réessayez plus tard.</string>
+    <plurals name="sync_linked_removed">
+        <item quantity="one">1 saisie liée sera aussi supprimée.</item>
+        <item quantity="other">%1$d saisies liées seront aussi supprimées.</item>
+    </plurals>
 </resources>

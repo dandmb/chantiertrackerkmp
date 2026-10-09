@@ -100,4 +100,14 @@ class AppDatabaseTest {
             db.close()
         }
     }
+
+    @Test
+    fun sync_issue_actions_contract_holds_on_jvm() = runTest {
+        val db = Room.inMemoryDatabaseBuilder<AppDatabase>().buildChantierDatabase()
+        try {
+            com.dmb.chantiertracker.support.verifySyncIssueActionsContract(db)
+        } finally {
+            db.close()
+        }
+    }
 }

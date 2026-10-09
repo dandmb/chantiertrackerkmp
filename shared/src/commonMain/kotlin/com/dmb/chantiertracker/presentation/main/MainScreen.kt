@@ -64,6 +64,7 @@ import com.dmb.chantiertracker.presentation.navigation.ReportEntryRoute
 import com.dmb.chantiertracker.presentation.navigation.SettingsRoute
 import com.dmb.chantiertracker.presentation.navigation.StageDetailRoute
 import com.dmb.chantiertracker.presentation.navigation.SyncIssuesRoute
+import com.dmb.chantiertracker.presentation.navigation.fixRoute
 import com.dmb.chantiertracker.presentation.sync.SyncIssueCountViewModel
 import com.dmb.chantiertracker.presentation.sync.SyncIssuesScreen
 import com.dmb.chantiertracker.presentation.logs.ConsumptionLineFormScreen
@@ -393,7 +394,7 @@ fun MainScreen(
                 )
             }
             composable<SyncIssuesRoute> {
-                SyncIssuesScreen()
+                SyncIssuesScreen(onFix = { item -> item.fixRoute()?.let { route -> navController.navigate(route) } })
             }
             composable<AdminStatsRoute> {
                 AdminStatsScreen(

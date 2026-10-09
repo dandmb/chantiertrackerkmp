@@ -3,9 +3,11 @@ package com.dmb.chantiertracker.presentation.sync
 import com.dmb.chantiertracker.domain.model.EntryType
 import com.dmb.chantiertracker.domain.model.RefusalReason
 import com.dmb.chantiertracker.domain.model.SyncIssue
+import com.dmb.chantiertracker.domain.model.SyncIssueAction
 import com.dmb.chantiertracker.domain.model.SyncIssueKind
 import com.dmb.chantiertracker.domain.model.SyncIssueTarget
 import com.dmb.chantiertracker.domain.repository.RetryOutcome
+import com.dmb.chantiertracker.domain.repository.RevertOutcome
 import com.dmb.chantiertracker.support.FakeSyncIssueRepository
 import com.dmb.chantiertracker.support.installTestMainDispatcher
 import com.dmb.chantiertracker.support.issueItem
@@ -169,5 +171,222 @@ class SyncIssuesViewModelTest {
 
         assertEquals(0, vm.count.value)
         job.cancel()
+    }
+
+    // ─── actions (tranche 3) ─────────────────────────────────────────────────
+
+    private val duplicate = onDay(SyncIssueTarget.ENTRY, "e-dup", refusedIssue(RefusalReason.DUPLICATE_ENTRY), "2026-10-09", "l1")
+    private val goneOnServer = onDay(SyncIssueTarget.ENTRY, "e-gone", SyncIssue(SyncIssueKind.DELETED_ON_SERVER), "2026-10-08", "l0")
+    private val refusedDelete = issueItem(SyncIssueTarget.STAGE, "st-del", refusedIssue(RefusalReason.INSUFFICIENT_ROLE, kind = SyncIssueKind.DELETE_REFUSED), stageLocalId = "st-del", stageName = "Toiture")
+    private val refusedChange = onDay(SyncIssueTarget.PURCHASE_LINE, "pl-edit", refusedIssue(RefusalReason.STOCK_CONSUMED, kind = SyncIssueKind.UPDATE_REFUSED), "2026-10-09", "l1")
+    private val refusedChangeKnownHere =
+        onDay(SyncIssueTarget.CONSUMPTION_LINE, "cl-edit", refusedIssue(RefusalReason.INSUFFICIENT_STOCK, kind = SyncIssueKind.UPDATE_REFUSED), "2026-10-09", "l1", type = EntryType.WORK)
+            .copy(quantity = 50.0, serverQuantity = 2.0)
+
+    @Test
+    fun discarding_first_asks_for_confirmation_with_the_number_of_linked_entries() = runTest {
+        val repo = FakeSyncIssueRepository(listOf(duplicate, line))
+        repo.linked = 3
+        val vm = SyncIssuesViewModel(repo)
+        advanceUntilIdle()
+
+        vm.discard(duplicate)
+        advanceUntilIdle()
+
+        assertEquals(SyncIssueConfirmation(duplicate, SyncIssueAction.DISCARD, linkedCount = 3), vm.state.value.confirmation)
+        assertTrue(repo.actions.isEmpty(), "nothing is removed before the user confirms")
+    }
+
+    @Test
+    fun cancelling_the_confirmation_removes_nothing() = runTest {
+        val repo = FakeSyncIssueRepository(listOf(duplicate))
+        val vm = SyncIssuesViewModel(repo)
+        advanceUntilIdle()
+        vm.discard(duplicate)
+        advanceUntilIdle()
+
+        vm.dismissConfirmation()
+        advanceUntilIdle()
+
+        assertNull(vm.state.value.confirmation)
+        assertTrue(repo.actions.isEmpty())
+        assertEquals(1, vm.state.value.total)
+    }
+
+    @Test
+    fun confirming_discards_once_updates_the_count_and_says_so() = runTest {
+        val repo = FakeSyncIssueRepository(listOf(duplicate, entry))
+        repo.actionGate = CompletableDeferred()
+        val vm = SyncIssuesViewModel(repo)
+        advanceUntilIdle()
+        vm.discard(duplicate)
+        advanceUntilIdle()
+
+        vm.confirm()
+        vm.confirm()
+        advanceUntilIdle()
+        assertEquals(duplicate.key, vm.state.value.busyKey)
+        assertNull(vm.state.value.confirmation)
+        vm.discard(entry)
+        vm.retry(entry)
+        advanceUntilIdle()
+        assertNull(vm.state.value.confirmation, "no other action starts while one is running")
+
+        repo.actionGate!!.complete(Unit)
+        advanceUntilIdle()
+
+        assertEquals(listOf("discard ${duplicate.key}"), repo.actions, "a double tap discards once")
+        assertTrue(repo.retried.isEmpty())
+        assertNull(vm.state.value.busyKey)
+        assertEquals(SyncIssueActionNotice.DISCARDED, vm.state.value.actionNotice)
+        assertEquals(1, vm.state.value.total, "the title follows without reopening the screen")
+    }
+
+    @Test
+    fun acknowledging_a_leaf_acts_at_once_and_a_parent_with_linked_entries_asks_first() = runTest {
+        val repo = FakeSyncIssueRepository(listOf(goneOnServer, duplicate))
+        val vm = SyncIssuesViewModel(repo)
+        advanceUntilIdle()
+
+        vm.acknowledge(goneOnServer)
+        advanceUntilIdle()
+        assertEquals(listOf("acknowledge ${goneOnServer.key}"), repo.actions)
+        assertEquals(SyncIssueActionNotice.ACKNOWLEDGED, vm.state.value.actionNotice)
+        assertNull(vm.state.value.confirmation)
+
+        val unknown = issueItem(SyncIssueTarget.STAGE, "st-unknown", refusedIssue(RefusalReason.UNKNOWN), stageLocalId = "st-unknown", stageName = "Bardage")
+        repo.items.value = repo.items.value + unknown
+        repo.linked = 2
+        advanceUntilIdle()
+        vm.acknowledge(unknown)
+        advanceUntilIdle()
+        assertEquals(SyncIssueConfirmation(unknown, SyncIssueAction.ACKNOWLEDGE, linkedCount = 2), vm.state.value.confirmation)
+        assertEquals(1, repo.actions.size)
+
+        vm.confirm()
+        advanceUntilIdle()
+        assertEquals("acknowledge ${unknown.key}", repo.actions.last())
+    }
+
+    @Test
+    fun acknowledging_a_refused_delete_never_asks_since_nothing_is_removed() = runTest {
+        val repo = FakeSyncIssueRepository(listOf(refusedDelete))
+        repo.linked = 5
+        val vm = SyncIssuesViewModel(repo)
+        advanceUntilIdle()
+
+        vm.acknowledge(refusedDelete)
+        advanceUntilIdle()
+
+        assertNull(vm.state.value.confirmation)
+        assertEquals(listOf("acknowledge ${refusedDelete.key}"), repo.actions)
+        assertTrue(vm.state.value.isEmpty)
+    }
+
+    @Test
+    fun reverting_reports_each_outcome() = runTest {
+        val repo = FakeSyncIssueRepository(listOf(refusedChange))
+        val vm = SyncIssuesViewModel(repo)
+        advanceUntilIdle()
+
+        repo.revertOutcome = RevertOutcome.FAILED
+        vm.revert(refusedChange)
+        advanceUntilIdle()
+        assertEquals(SyncIssueActionNotice.REVERT_FAILED, vm.state.value.actionNotice)
+
+        repo.revertOutcome = RevertOutcome.NEEDS_CONNECTION
+        vm.revert(refusedChange)
+        advanceUntilIdle()
+        assertEquals(SyncIssueActionNotice.REVERT_NEEDS_CONNECTION, vm.state.value.actionNotice)
+        assertEquals(1, vm.state.value.total)
+
+        repo.revertOutcome = RevertOutcome.RESTORED
+        vm.revert(refusedChange)
+        advanceUntilIdle()
+        assertEquals(SyncIssueActionNotice.REVERTED, vm.state.value.actionNotice)
+        assertTrue(vm.state.value.isEmpty)
+        assertEquals(3, repo.actions.size)
+
+        vm.dismissNotice()
+        assertNull(vm.state.value.actionNotice)
+    }
+
+    @Test
+    fun offline_a_revert_whose_server_value_is_unknown_is_not_even_attempted() = runTest {
+        val repo = FakeSyncIssueRepository(listOf(refusedChange, refusedChangeKnownHere))
+        val vm = SyncIssuesViewModel(repo)
+        advanceUntilIdle()
+        assertTrue(vm.state.value.isOnline)
+        assertTrue(vm.state.value.canRevert(refusedChange))
+
+        repo.online.value = false
+        advanceUntilIdle()
+        assertFalse(vm.state.value.isOnline)
+        assertFalse(vm.state.value.canRevert(refusedChange))
+        assertTrue(vm.state.value.canRevert(refusedChangeKnownHere), "its server value is on the device")
+
+        vm.revert(refusedChange)
+        advanceUntilIdle()
+        assertTrue(repo.actions.isEmpty())
+        assertEquals(SyncIssueActionNotice.REVERT_NEEDS_CONNECTION, vm.state.value.actionNotice)
+
+        vm.revert(refusedChangeKnownHere)
+        advanceUntilIdle()
+        assertEquals(listOf("revert ${refusedChangeKnownHere.key}"), repo.actions)
+    }
+
+    @Test
+    fun an_action_the_item_does_not_offer_is_ignored() = runTest {
+        val repo = FakeSyncIssueRepository(listOf(refusedChange, line, goneOnServer))
+        val vm = SyncIssuesViewModel(repo)
+        advanceUntilIdle()
+
+        vm.discard(refusedChange)
+        vm.discard(line)
+        vm.acknowledge(refusedChange)
+        vm.revert(goneOnServer)
+        advanceUntilIdle()
+
+        assertTrue(repo.actions.isEmpty())
+        assertNull(vm.state.value.confirmation)
+    }
+
+    @Test
+    fun the_badge_count_follows_an_action_without_reopening_anything() = runTest {
+        val repo = FakeSyncIssueRepository(listOf(duplicate, entry, line))
+        val count = SyncIssueCountViewModel(repo)
+        val vm = SyncIssuesViewModel(repo)
+        val job = backgroundScope.launch { count.count.collect { } }
+        advanceUntilIdle()
+        assertEquals(2, count.count.value)
+
+        vm.discard(duplicate)
+        advanceUntilIdle()
+        vm.confirm()
+        advanceUntilIdle()
+
+        assertEquals(1, count.count.value)
+        assertEquals(1, vm.state.value.total)
+        job.cancel()
+    }
+
+    @Test
+    fun a_double_tap_on_got_it_while_the_linked_entries_are_still_being_counted_acknowledges_once() = runTest {
+        val repo = FakeSyncIssueRepository(listOf(goneOnServer, duplicate))
+        repo.linkedGate = CompletableDeferred()
+        repo.actionGate = CompletableDeferred()
+        val vm = SyncIssuesViewModel(repo)
+        advanceUntilIdle()
+
+        vm.acknowledge(goneOnServer)
+        vm.acknowledge(goneOnServer)
+        advanceUntilIdle()
+        repo.linkedGate!!.complete(Unit)
+        advanceUntilIdle()
+        repo.actionGate!!.complete(Unit)
+        advanceUntilIdle()
+
+        assertEquals(listOf("acknowledge ${goneOnServer.key}"), repo.actions, "both taps passed the first check before the action started: only one may act")
+        assertEquals(SyncIssueActionNotice.ACKNOWLEDGED, vm.state.value.actionNotice)
     }
 }

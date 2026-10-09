@@ -59,9 +59,52 @@ data class SyncIssueItem(
     val quantity: Double? = null,
     val serverQuantity: Double? = null,
     val blockedBy: SyncIssueParent? = null,
+    val entryLocalId: String? = null,
+    val currency: String? = null,
 ) {
     val key: String get() = "$target:$localId"
 }
+
+enum class SyncIssueAction { FIX, RETRY, REVERT, DISCARD, ACKNOWLEDGE }
+
+val SyncIssueTarget.hasAnEditForm: Boolean
+    get() = this == SyncIssueTarget.PROJECT ||
+        this == SyncIssueTarget.STAGE ||
+        this == SyncIssueTarget.ENTRY ||
+        this == SyncIssueTarget.PURCHASE_LINE ||
+        this == SyncIssueTarget.CONSUMPTION_LINE
+
+val RefusalReason?.canBeLiftedByACorrection: Boolean
+    get() = this == RefusalReason.INSUFFICIENT_STOCK ||
+        this == RefusalReason.STOCK_CONSUMED ||
+        this == RefusalReason.INVALID_VALUE ||
+        this == RefusalReason.UNKNOWN ||
+        this == null
+
+val SyncIssueItem.canBeFixed: Boolean
+    get() = target.hasAnEditForm && issue.reason.canBeLiftedByACorrection
+
+val SyncIssueItem.actions: List<SyncIssueAction>
+    get() = when (issue.kind) {
+        SyncIssueKind.BLOCKED_BY_PARENT -> emptyList()
+        SyncIssueKind.DELETED_ON_SERVER, SyncIssueKind.DELETE_REFUSED -> listOf(SyncIssueAction.ACKNOWLEDGE)
+        SyncIssueKind.UPDATE_REFUSED -> buildList {
+            if (canBeFixed) add(SyncIssueAction.FIX)
+            if (issue.canBeRetried) add(SyncIssueAction.RETRY)
+            add(SyncIssueAction.REVERT)
+        }
+        SyncIssueKind.REFUSED -> buildList {
+            if (canBeFixed) add(SyncIssueAction.FIX)
+            if (issue.canBeRetried) add(SyncIssueAction.RETRY)
+            add(if (issue.reason == null || issue.reason == RefusalReason.UNKNOWN) SyncIssueAction.ACKNOWLEDGE else SyncIssueAction.DISCARD)
+        }
+    }
+
+val SyncIssueItem.removesLocalDataWhenAcknowledged: Boolean
+    get() = issue.kind != SyncIssueKind.DELETE_REFUSED
+
+val SyncIssueItem.serverValueKnownLocally: Boolean
+    get() = issue.kind == SyncIssueKind.UPDATE_REFUSED && target == SyncIssueTarget.CONSUMPTION_LINE && serverQuantity != null
 
 fun refusalReasonOf(serverCode: String?): RefusalReason = when (serverCode) {
     "PLAN_LIMIT_EXCEEDED" -> RefusalReason.PLAN_LIMIT

@@ -3,6 +3,7 @@ package com.dmb.chantiertracker
 import com.dmb.chantiertracker.data.local.db.PendingOp
 import com.dmb.chantiertracker.data.local.db.SyncStatus
 import com.dmb.chantiertracker.data.sync.SyncOutcome
+import com.dmb.chantiertracker.domain.model.actions
 import com.dmb.chantiertracker.domain.model.canBeRetried
 import com.dmb.chantiertracker.data.sync.SyncError
 import com.dmb.chantiertracker.domain.model.AuthState
@@ -367,6 +368,86 @@ class SyncAndRejectionsIntegrationTest {
         assertEquals(SyncStatus.SYNCED, supervisorPhone.db.dailyEntryDao().findByLocalId(entry)?.syncStatus)
         assertEquals(SyncStatus.SYNCED, supervisorPhone.db.purchaseLineDao().findByLocalId(line)?.syncStatus)
         assertEquals(com.dmb.chantiertracker.domain.repository.SignOutResult.SignedOut, supervisorPhone.signOut.signOut(), "plus rien ne retient la déconnexion")
+    }
+
+    @Test
+    fun adr74_discarding_a_refused_entry_removes_it_with_its_lines_and_its_photo_and_nothing_of_it_ever_reaches_the_server() = runScenario {
+        val ownerPhone = device()
+        ownerPhone.signedInAs("qa-74d-owner", "QA 74 Abandon Propriétaire")
+        val supervisorPhone = device()
+        val supervisor = supervisorPhone.signedInAs("qa-74d-super", "QA 74 Abandon Superviseur")
+
+        val projectId = ownerPhone.newProject("QA 74 abandon")
+        ownerPhone.newStage(projectId, "Charpente")
+        ownerPhone.sync.syncNow()
+        ownerPhone.invitations.invite(projectId, supervisor.email)
+        supervisorPhone.invitations.acceptInvitation(supervisorPhone.invitationApi.listMine().single().token)
+        supervisorPhone.sync.syncNow()
+        val supervisorProject = supervisorPhone.projects.observeProjects().first().single()
+        supervisorPhone.sync.syncProject(supervisorProject.localId)
+        val supervisorStage = supervisorPhone.stages.observeStages(supervisorProject.localId).first().single()
+        val cement = supervisorPhone.materials.createMaterial(supervisorProject.localId, "Ciment", "sac")
+        supervisorPhone.sync.syncNow()
+
+        suspend fun ownerSetsStatus(status: ProjectStatus) {
+            val detail = ownerPhone.projects.observeProject(projectId).first()!!
+            ownerPhone.projects.updateProject(
+                projectId,
+                UpdateProjectInput(detail.name, detail.description, detail.location, detail.currency, detail.timezone, status),
+            )
+            assertEquals(SyncOutcome.Synced, ownerPhone.sync.syncNow())
+        }
+        ownerSetsStatus(ProjectStatus.SUSPENDED)
+
+        supervisorPhone.goOffline()
+        val day = supervisorPhone.logs.createPurchaseEntry(supervisorStage.localId, todayInParis())
+        val entry = supervisorPhone.entryOf(day, EntryType.PURCHASE)
+        val firstLine = supervisorPhone.purchaseLines.createLine(entry, CreatePurchaseLineInput(cement.localId, 3.0, 5.0, null))
+        val secondLine = supervisorPhone.purchaseLines.createLine(entry, CreatePurchaseLineInput(cement.localId, 2.0, 5.0, null))
+        val photo = supervisorPhone.attachments.addAttachment(entry, aSmallJpeg(), "bon.jpg", "image/jpeg")
+        supervisorPhone.goOnline()
+        supervisorPhone.sync.syncNow()
+        supervisorPhone.sync.syncNow()
+
+        val issues = supervisorPhone.syncIssues
+        val refusedEntry = issues.observeIssues().first().single { it.localId == entry }
+        val linked = issues.linkedCount(refusedEntry)
+        println("ADR-74 tranche 3 — abandon : ${issues.observeIssues().first().size} éléments listés, actions de la saisie=${refusedEntry.actions}, liés=$linked")
+        assertEquals(4, issues.observeIssues().first().size, "la saisie refusée, ses deux lignes et sa photo en attente")
+        assertEquals(1, issues.observeIssueCount().first())
+        assertEquals(listOf(com.dmb.chantiertracker.domain.model.SyncIssueAction.RETRY, com.dmb.chantiertracker.domain.model.SyncIssueAction.DISCARD), refusedEntry.actions)
+        assertEquals(3, linked, "le dialogue annonce 3 saisies liées : 2 lignes et 1 photo")
+        assertEquals(1, supervisorPhone.fileStore.storedPaths.size, "le fichier de la photo est sur l'appareil")
+
+        issues.discard(refusedEntry)
+        issues.discard(refusedEntry)
+
+        assertTrue(issues.observeIssues().first().isEmpty(), "plus rien à revoir")
+        assertEquals(0, issues.observeIssueCount().first())
+        assertEquals(
+            listOf<Any?>(null, null, null, null, null),
+            listOf(
+                supervisorPhone.db.dailyEntryDao().findByLocalId(entry), supervisorPhone.db.purchaseLineDao().findByLocalId(firstLine),
+                supervisorPhone.db.purchaseLineDao().findByLocalId(secondLine), supervisorPhone.db.attachmentDao().findByLocalId(photo.localId),
+                supervisorPhone.db.dailyLogDao().findByLocalId(day),
+            ),
+            "la saisie, ses lignes, sa photo et sa journée locale sont supprimées",
+        )
+        assertTrue(supervisorPhone.fileStore.storedPaths.isEmpty(), "le fichier local de la photo est supprimé")
+        assertEquals(com.dmb.chantiertracker.domain.model.UnsentWrites(), supervisorPhone.db.localDataDao().countUnsentByKind().let {
+            com.dmb.chantiertracker.domain.model.UnsentWrites(it.projects, it.stages, it.materials, it.entries, it.lines, it.attachments)
+        }, "rien ne reste en file")
+
+        ownerSetsStatus(ProjectStatus.IN_PROGRESS)
+        assertEquals(SyncOutcome.Synced, supervisorPhone.sync.syncNow())
+        assertEquals(SyncOutcome.Synced, supervisorPhone.sync.syncProject(supervisorProject.localId))
+        ownerPhone.sync.syncProject(projectId)
+        val ownerStage = ownerPhone.stages.observeStages(projectId).first().single()
+        ownerPhone.sync.syncStage(ownerStage.localId)
+        val daysOnServer = ownerPhone.logs.observeLogs(ownerStage.localId).first()
+        println("ADR-74 tranche 3 — abandon : journées vues par le propriétaire après réouverture = ${daysOnServer.size}")
+        assertTrue(daysOnServer.isEmpty(), "projet rouvert : rien de la saisie abandonnée n'est arrivé sur le serveur")
+        assertEquals(com.dmb.chantiertracker.domain.repository.SignOutResult.SignedOut, supervisorPhone.signOut.signOut())
     }
 
     @Test
