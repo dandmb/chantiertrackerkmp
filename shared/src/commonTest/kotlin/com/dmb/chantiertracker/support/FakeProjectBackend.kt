@@ -165,6 +165,8 @@ class FakeProjectBackend {
 
     var stockStatus: HttpStatusCode? = null
 
+    var listPageFailure: Pair<Int, HttpStatusCode>? = null
+
     fun seedInvitation(i: ServerInvitation) = i.also { invitations += it }
     fun seedPendingForMe(i: ServerPendingInvitation) = i.also { myPendingInvitations += it }
     fun seedMaterial(m: ServerMaterial) = m.also { materials += it }
@@ -245,16 +247,14 @@ class FakeProjectBackend {
         return when {
             request.method == HttpMethod.Get && stockProjectId != null -> {
                 stockStatus?.let { return respondProblem(it, "Stock indisponible.") }
-                val page = request.url.parameters["page"]?.toInt() ?: 0
-                val size = request.url.parameters["size"]?.toInt() ?: 20
-                respondJson(pageOf(stockOf(stockProjectId).drop(page * size).take(size)))
+                respondPage(request, stockOf(stockProjectId))
             }
 
             request.method == HttpMethod.Get && stagesProjectId != null -> {
                 if (projects.none { it.id == stagesProjectId }) {
                     return respondProblem(HttpStatusCode.NotFound, "Projet introuvable.")
                 }
-                respondJson(stagesPageJson(stagesProjectId))
+                respondPage(request, stages.filter { it.projectId == stagesProjectId }.map { it.id to stageJson(it) })
             }
 
             request.method == HttpMethod.Post && stagesProjectId != null -> {
@@ -309,7 +309,7 @@ class FakeProjectBackend {
 
             // ─── materials ───────────────────────────────────────────────────
             request.method == HttpMethod.Get && materialsProjectId != null ->
-                respondJson(pageOf(materials.filter { it.projectId == materialsProjectId }.map(::materialJson)))
+                respondPage(request, materials.filter { it.projectId == materialsProjectId }.map { it.id to materialJson(it) })
 
             request.method == HttpMethod.Post && materialsProjectId != null -> {
                 val body = request.jsonBody()
@@ -332,7 +332,7 @@ class FakeProjectBackend {
 
             // ─── daily logs / entries ────────────────────────────────────────
             request.method == HttpMethod.Get && stageLogsId != null ->
-                respondJson(pageOf(logs.filter { it.stageId == stageLogsId }.map(::logSummaryJson)))
+                respondPage(request, logs.filter { it.stageId == stageLogsId }.sortedByDescending { it.date }.map { it.id to logSummaryJson(it) })
 
             request.method == HttpMethod.Post && purchaseEntryMatch != null ->
                 createEntry(purchaseEntryMatch[1].toLong(), purchaseEntryMatch[2], "PURCHASE", request)
@@ -362,7 +362,7 @@ class FakeProjectBackend {
 
             // ─── purchase lines ──────────────────────────────────────────────
             request.method == HttpMethod.Get && purchaseLinesEntryId != null ->
-                respondJson(pageOf(purchaseLines.filter { it.entryId == purchaseLinesEntryId }.map(::purchaseLineJson)))
+                respondPage(request, purchaseLines.filter { it.entryId == purchaseLinesEntryId }.map { it.id to purchaseLineJson(it) })
 
             request.method == HttpMethod.Post && purchaseLinesEntryId != null -> {
                 if (lineWriteConflict) return respondProblem(HttpStatusCode.Conflict, "Stock insuffisant.")
@@ -397,7 +397,7 @@ class FakeProjectBackend {
 
             // ─── consumption lines ───────────────────────────────────────────
             request.method == HttpMethod.Get && consumptionLinesEntryId != null ->
-                respondJson(pageOf(consumptionLines.filter { it.entryId == consumptionLinesEntryId }.map(::consumptionLineJson)))
+                respondPage(request, consumptionLines.filter { it.entryId == consumptionLinesEntryId }.map { it.id to consumptionLineJson(it) })
 
             request.method == HttpMethod.Post && consumptionLinesEntryId != null -> {
                 if (lineWriteConflict) return respondProblem(HttpStatusCode.Conflict, "Stock insuffisant.")
@@ -427,7 +427,7 @@ class FakeProjectBackend {
 
             // ─── attachments ─────────────────────────────────────────────────
             request.method == HttpMethod.Get && attachmentsEntryId != null ->
-                respondJson(pageOf(attachments.filter { it.entryId == attachmentsEntryId }.map(::attachmentJson)))
+                respondPage(request, attachments.filter { it.entryId == attachmentsEntryId }.map { it.id to attachmentJson(it) })
 
             request.method == HttpMethod.Post && attachmentsEntryId != null -> {
                 attachmentUploadRejection?.let { (status, detail) -> return respondProblem(status, detail) }
@@ -458,19 +458,19 @@ class FakeProjectBackend {
                 respondJson("", HttpStatusCode.NoContent)
             }
 
-            request.method == HttpMethod.Get && path == "/projects" -> respondJson(pageJson())
+            request.method == HttpMethod.Get && path == "/projects" -> respondPage(request, projects.map { it.id to listItemJson(it) })
 
             request.method == HttpMethod.Get && membersProjectId != null -> {
                 if (projects.none { it.id == membersProjectId }) {
                     return respondProblem(HttpStatusCode.NotFound, "Projet introuvable.")
                 }
-                respondJson(membersPageJson(membersProjectId))
+                respondPage(request, membersOf(membersProjectId))
             }
 
             // ─── invitations (ADMIN only) ────────────────────────────────────
             request.method == HttpMethod.Get && invitationsProjectId != null -> {
                 if (invitationsForbidden) return respondProblem(HttpStatusCode.Forbidden, "Action réservée à un administrateur.")
-                respondJson(pageOf(invitations.filter { it.projectId == invitationsProjectId }.map(::invitationJson)))
+                respondPage(request, invitations.filter { it.projectId == invitationsProjectId }.map { it.id to invitationJson(it) })
             }
 
             request.method == HttpMethod.Post && invitationsProjectId != null -> {
@@ -581,30 +581,46 @@ class FakeProjectBackend {
         return stages.isEmpty() || stages.any { it.id == log.stageId }
     }
 
-    private fun stockOf(projectId: Long): List<String> =
+    private fun stockOf(projectId: Long): List<Pair<Long, String>> =
         materials.filter { it.projectId == projectId }.mapNotNull { m ->
             val bought = purchaseLines.filter { it.materialId == m.id && entryStillOnServer(it.entryId) }
             val used = consumptionLines.filter { it.materialId == m.id && entryStillOnServer(it.entryId) }
             if (bought.isEmpty() && used.isEmpty()) return@mapNotNull null
             val quantityIn = bought.sumOf { it.quantity }
             val quantityOut = used.sumOf { it.quantity }
-            """{"id":${m.id},"projectId":$projectId,"materialId":${m.id},"materialName":${m.name.q()},"unit":${m.unit.q()},""" +
+            m.id to """{"id":${m.id},"projectId":$projectId,"materialId":${m.id},"materialName":${m.name.q()},"unit":${m.unit.q()},""" +
                 """"quantityIn":$quantityIn,"quantityOut":$quantityOut,"available":${quantityIn - quantityOut}}"""
         }
 
     /** The `updatedAt` a PATCH stamps on the server row — overridable per test. */
     var patchAppliedAt: String = "2026-09-02T12:00:00"
 
-    private fun pageJson(): String =
-        """{"content":[${projects.joinToString(",") { listItemJson(it) }}],"totalElements":${projects.size}}"""
-
-    private fun membersPageJson(projectId: Long): String {
-        val list = members[projectId].orEmpty()
-        val items = list.joinToString(",") {
-            """{"userId":${it.userId},"name":${it.name.q()},"email":${it.email.q()},"role":${it.role.q()}}"""
+    private fun MockRequestHandleScope.respondPage(request: HttpRequestData, rows: List<Pair<Long, String>>): HttpResponseData {
+        val number = request.url.parameters["page"]?.toInt() ?: 0
+        val size = (request.url.parameters["size"]?.toInt() ?: DEFAULT_PAGE_SIZE).coerceAtMost(MAX_PAGE_SIZE)
+        val sort = request.url.parameters["sort"]
+        listPageFailure?.let { (failingPage, status) -> if (failingPage == number) return respondProblem(status, "Page indisponible.") }
+        val ordered = when (sort) {
+            null -> rows
+            "id", "id,asc" -> rows.sortedBy { it.first }
+            "id,desc" -> rows.sortedByDescending { it.first }
+            else -> return respondProblem(HttpStatusCode.BadRequest, "Tri invalide : '$sort'.")
         }
-        return """{"content":[$items],"totalElements":${list.size}}"""
+        val content = ordered.drop(number * size).take(size).map { it.second }
+        val totalPages = if (ordered.isEmpty()) 0 else (ordered.size + size - 1) / size
+        val sortJson = """{"empty":${sort == null},"sorted":${sort != null},"unsorted":${sort == null}}"""
+        return respondJson(
+            """{"content":[${content.joinToString(",")}],"empty":${content.isEmpty()},"first":${number == 0},"last":${number >= totalPages - 1},""" +
+                """"number":$number,"numberOfElements":${content.size},""" +
+                """"pageable":{"offset":${number * size},"pageNumber":$number,"pageSize":$size,"paged":true,"sort":$sortJson,"unpaged":false},""" +
+                """"size":$size,"sort":$sortJson,"totalElements":${ordered.size},"totalPages":$totalPages}""",
+        )
     }
+
+    private fun membersOf(projectId: Long): List<Pair<Long, String>> =
+        members[projectId].orEmpty().map {
+            it.userId to """{"userId":${it.userId},"name":${it.name.q()},"email":${it.email.q()},"role":${it.role.q()}}"""
+        }
 
     private fun listItemJson(p: ServerProject): String = """
         {"id":${p.id},"name":${p.name.q()},"description":${p.description.q()},"location":${p.location.q()},
@@ -618,11 +634,6 @@ class FakeProjectBackend {
          ${p.ownerEntitlementsJson}"status":${p.status.q()},"createdAt":${p.createdAt.q()},"updatedAt":${p.updatedAt.q()},
          "totalEstimatedBudget":null,"totalSpent":null}
     """.trimIndent()
-
-    private fun stagesPageJson(projectId: Long): String {
-        val list = stages.filter { it.projectId == projectId }
-        return """{"content":[${list.joinToString(",") { stageJson(it) }}],"totalElements":${list.size}}"""
-    }
 
     private fun stageJson(s: ServerStage): String = """
         {"id":${s.id},"projectId":${s.projectId},"name":${s.name.q()},"description":${s.description.q()},
@@ -649,9 +660,6 @@ class FakeProjectBackend {
         entries += created
         return respondJson(entryJson(created), HttpStatusCode.Created)
     }
-
-    private fun pageOf(items: List<String>): String =
-        """{"content":[${items.joinToString(",")}],"totalElements":${items.size}}"""
 
     private fun materialJson(m: ServerMaterial): String =
         """{"id":${m.id},"projectId":${m.projectId},"name":${m.name.q()},"unit":${m.unit.q()}}"""
@@ -696,6 +704,9 @@ class FakeProjectBackend {
         """{"id":${a.id},"entryId":${a.entryId},"originalName":${a.originalName.q()},"mimeType":${a.mimeType.q()},
             "size":${a.bytes.size},"durationSeconds":${a.durationSeconds ?: "null"},"uploadedById":1,"uploadedAt":"2026-01-01T09:00:00"}"""
 }
+
+private const val DEFAULT_PAGE_SIZE = 20
+private const val MAX_PAGE_SIZE = 100
 
 private val json = Json { ignoreUnknownKeys = true }
 

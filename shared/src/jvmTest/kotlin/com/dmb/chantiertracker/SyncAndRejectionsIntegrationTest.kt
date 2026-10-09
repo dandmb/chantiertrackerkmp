@@ -356,7 +356,7 @@ class SyncAndRejectionsIntegrationTest {
 
         phone.sync.syncNow()
         val shownAfterSync = phone.projects.observeProjects().first().map { it.name }
-        val bobOnServer = phone.projectApi.list().content.map { it.name }
+        val bobOnServer = phone.projectApi.list(page = 0, size = 100).content.map { it.name }
         val pendingRow = phone.db.projectDao().findByLocalId(alicePending)
         println("P8-compte — après la synchro de Bob : affichés=$shownAfterSync ; côté serveur pour Bob=$bobOnServer ; ligne d'Alice=${pendingRow?.syncStatus}")
         assertTrue("Chantier privé d'Alice" !in shownToBob, "Bob ne doit jamais voir les projets d'Alice, même avant la synchro")
@@ -413,7 +413,7 @@ class SyncAndRejectionsIntegrationTest {
         phone.auth.signInForTheFirstTime(bob, "QaPassword1234!")
         val shownToBob = phone.projects.observeProjects().first().map { it.name }
         phone.sync.syncNow()
-        val bobOnServer = phone.projectApi.list().content.map { it.name }
+        val bobOnServer = phone.projectApi.list(page = 0, size = 100).content.map { it.name }
         println("P8-expirée — affiché à Bob : $shownToBob ; côté serveur pour Bob : $bobOnServer ; fichiers locaux : ${phone.fileStore.storedPaths}")
         assertTrue(shownToBob.isEmpty(), "rien d'Alice n'est montré à Bob")
         assertTrue("Saisie en attente d'Alice" !in bobOnServer, "la saisie d'Alice n'est jamais créée sur le compte de Bob")

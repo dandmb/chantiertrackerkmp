@@ -18,8 +18,8 @@ import io.ktor.http.contentType
 
 class ProjectApi(private val client: HttpClient) {
 
-    suspend fun list(): PageDto<ProjectDto> =
-        client.get(ApiRoutes.PROJECTS).body()
+    suspend fun list(page: Int, size: Int): PageDto<ProjectDto> =
+        client.get(ApiRoutes.PROJECTS) { sortedByIdPage(page, size) }.body()
 
     suspend fun get(id: Long): ProjectDetailDto =
         client.get(ApiRoutes.project(id)).body()
