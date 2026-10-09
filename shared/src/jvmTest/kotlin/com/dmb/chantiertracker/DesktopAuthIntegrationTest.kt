@@ -87,6 +87,7 @@ class DesktopAuthIntegrationTest {
         stageDao = db.stageDao(),
         stageApi = com.dmb.chantiertracker.data.remote.StageApi(client),
         materialDao = db.materialDao(),
+        materialAdoptionDao = db.materialAdoptionDao(),
         materialApi = com.dmb.chantiertracker.data.remote.MaterialApi(client),
         dailyLogDao = db.dailyLogDao(),
         dailyEntryDao = db.dailyEntryDao(),

@@ -313,6 +313,9 @@ class FakeProjectBackend {
 
             request.method == HttpMethod.Post && materialsProjectId != null -> {
                 val body = request.jsonBody()
+                if (materials.any { it.projectId == materialsProjectId && it.name == body.string("name") }) {
+                    return respondProblem(HttpStatusCode.Conflict, "Un matériau portant ce nom existe déjà dans ce projet.", code = "DUPLICATE_MATERIAL")
+                }
                 val created = ServerMaterial(nextMaterialId++, materialsProjectId, body.string("name") ?: "", body.string("unit") ?: "")
                 materials += created
                 respondJson(materialJson(created), HttpStatusCode.Created)

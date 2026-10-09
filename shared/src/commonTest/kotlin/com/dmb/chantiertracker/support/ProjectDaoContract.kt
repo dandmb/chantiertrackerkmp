@@ -233,6 +233,11 @@ suspend fun verifyMaterialAndLineDaoContract(db: AppDatabase) {
 
     assertEquals(listOf("Ciment", "Fer"), materialDao.observeMaterialsForProject("proj-a").first().map { it.name })
     assertEquals("m-ciment", materialDao.findByProjectAndName("proj-a", "ciment")?.localId, "name lookup is case-insensitive")
+    assertNull(materialDao.findByProjectAndNameExactly("proj-a", "ciment"), "the exact lookup follows the unique index")
+    assertEquals("m-ciment", materialDao.findByProjectAndNameExactly("proj-a", "Ciment")?.localId)
+    materialDao.upsert(localMaterial("m-clash", projectLocalId = "proj-a", name = "Ciment", unit = "sac", serverId = 99))
+    assertNull(materialDao.findByLocalId("m-clash"), "Room's @Upsert silently stores nothing when the (project, name) unique index refuses the row")
+    assertEquals(2, materialDao.findForProject("proj-a").size)
     assertNull(materialDao.findByProjectAndName("proj-a", "Ciment introuvable"))
 
     purchaseDao.upsert(localPurchaseLine("pl-in-scope", entryLocalId = "entry-purchase", materialLocalId = "m-ciment", quantity = 100.0, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
@@ -253,6 +258,17 @@ suspend fun verifyMaterialAndLineDaoContract(db: AppDatabase) {
     val underDeletingStage = consumptionDao.observeStockMovements("proj-a").first().single()
     assertEquals(true, underDeletingStage.parentDeleting, "a line under a stage being deleted will be released by the server")
     assertEquals(40.0, underDeletingStage.quantity)
+
+    db.materialAdoptionDao().mergeInto("m-fer", localMaterial("m-ciment", projectLocalId = "proj-a", name = "Ciment", unit = "sac", serverId = 7, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+    assertNull(materialDao.findByLocalId("m-fer"), "the duplicate is gone")
+    assertEquals(7L, materialDao.findByLocalId("m-ciment")?.serverId)
+
+    purchaseDao.upsert(localPurchaseLine("pl-fer", entryLocalId = "entry-purchase", materialLocalId = "m-ciment", quantity = 1.0))
+    materialDao.upsert(localMaterial("m-dup", projectLocalId = "proj-a", name = "Ciment bis", unit = "sac"))
+    consumptionDao.upsert(localConsumptionLine("cl-dup", entryLocalId = "entry-work", materialLocalId = "m-dup", quantity = 1.0))
+    db.materialAdoptionDao().mergeInto("m-dup", materialDao.findByLocalId("m-ciment")!!)
+    assertEquals("m-ciment", consumptionDao.findByLocalId("cl-dup")?.materialLocalId, "the duplicate's lines move to the kept material")
+    assertNull(materialDao.findByLocalId("m-dup"))
 
     entryDao.deleteByLocalId("entry-purchase")
     assertTrue("purchase lines cascade-deleted with their entry") { purchaseDao.findForEntry("entry-purchase").isEmpty() }

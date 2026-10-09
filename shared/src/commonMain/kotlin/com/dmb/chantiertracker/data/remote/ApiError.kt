@@ -9,6 +9,7 @@ import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.CancellationException
 
 private const val BILLING_NOT_OPEN_CODE = "BILLING_NOT_OPEN"
+private const val DUPLICATE_MATERIAL_CODE = "DUPLICATE_MATERIAL"
 
 suspend fun <T> apiCall(block: suspend () -> T): T =
     try {
@@ -31,6 +32,7 @@ private suspend fun ResponseException.toDomainException(): DomainException {
     // The backend's machine-readable discriminant (SCREAMING_SNAKE_CASE, derived
     // from the exception name) — tested as is, never the translatable `detail`.
     if (problem?.code == BILLING_NOT_OPEN_CODE) return DomainException.BillingNotOpen
+    if (problem?.code == DUPLICATE_MATERIAL_CODE) return DomainException.DuplicateMaterial
 
     return when (response.status) {
         HttpStatusCode.Unauthorized -> DomainException.InvalidCredentials

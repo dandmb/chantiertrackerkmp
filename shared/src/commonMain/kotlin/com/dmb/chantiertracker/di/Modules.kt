@@ -27,6 +27,7 @@ import com.dmb.chantiertracker.data.local.db.InvitationDao
 import com.dmb.chantiertracker.data.local.db.ConsumptionLineDao
 import com.dmb.chantiertracker.data.local.db.DailyEntryDao
 import com.dmb.chantiertracker.data.local.db.DailyLogDao
+import com.dmb.chantiertracker.data.local.db.MaterialAdoptionDao
 import com.dmb.chantiertracker.data.local.db.MaterialDao
 import com.dmb.chantiertracker.data.local.db.PlanUsageDao
 import com.dmb.chantiertracker.data.local.db.ProjectDao
@@ -183,6 +184,7 @@ val syncModule: Module = module {
     single<EditorIdentityDao> { get<AppDatabase>().editorIdentityDao() }
     single<LocalDataDao> { get<AppDatabase>().localDataDao() }
     single<StockDao> { get<AppDatabase>().stockDao() }
+    single<MaterialAdoptionDao> { get<AppDatabase>().materialAdoptionDao() }
     single<AttachmentFileStore> { FileKitAttachmentFileStore(newFileName = { kotlin.uuid.Uuid.random().toString() }) }
     single<ExportFileStore> { FileKitExportFileStore() }
     single { AppCoroutineScope() }
@@ -194,6 +196,7 @@ val syncModule: Module = module {
             stageDao = get(),
             stageApi = get(),
             materialDao = get(),
+            materialAdoptionDao = get(),
             materialApi = get(),
             dailyLogDao = get(),
             dailyEntryDao = get(),

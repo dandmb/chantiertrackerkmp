@@ -12,6 +12,7 @@ import com.dmb.chantiertracker.data.local.db.DailyEntryEntity
 import com.dmb.chantiertracker.data.local.db.DailyLogDao
 import com.dmb.chantiertracker.data.local.db.DailyLogEntity
 import com.dmb.chantiertracker.data.local.db.InvitationDao
+import com.dmb.chantiertracker.data.local.db.MaterialAdoptionDao
 import com.dmb.chantiertracker.data.local.db.MaterialDao
 import com.dmb.chantiertracker.data.local.db.MaterialEntity
 import com.dmb.chantiertracker.data.local.db.PendingOp
@@ -34,6 +35,7 @@ import com.dmb.chantiertracker.data.remote.PurchaseLineApi
 import com.dmb.chantiertracker.data.remote.StageApi
 import com.dmb.chantiertracker.data.remote.StockApi
 import com.dmb.chantiertracker.data.remote.apiCall
+import com.dmb.chantiertracker.data.remote.dto.MaterialDto
 import com.dmb.chantiertracker.domain.model.DomainException
 import com.dmb.chantiertracker.presentation.sync.SyncState
 import com.dmb.chantiertracker.presentation.sync.SyncStateHolder
@@ -95,6 +97,7 @@ class SyncEngine(
     private val stageDao: StageDao,
     private val stageApi: StageApi,
     private val materialDao: MaterialDao,
+    private val materialAdoptionDao: MaterialAdoptionDao,
     private val materialApi: MaterialApi,
     private val dailyLogDao: DailyLogDao,
     private val dailyEntryDao: DailyEntryDao,
@@ -434,7 +437,8 @@ class SyncEngine(
             this is DomainException.Validation ||
             this is DomainException.InvalidCode ||
             this is DomainException.EmailAlreadyUsed ||
-            this is DomainException.PlanLimitReached
+            this is DomainException.PlanLimitReached ||
+            this is DomainException.DuplicateMaterial
 
     private enum class RemoteDelete { DELETED, ALREADY_GONE, REJECTED }
 
@@ -535,6 +539,11 @@ class SyncEngine(
         } catch (e: DomainException.NotFound) {
             materialDao.upsert(material.copy(syncStatus = SyncStatus.CONFLICTED, lastSyncError = SyncError.DELETED_ON_SERVER))
             return
+        } catch (e: DomainException.DuplicateMaterial) {
+            if (!adoptServerMaterialOfSameName(material, projectServerId)) {
+                materialDao.upsert(material.copy(syncStatus = SyncStatus.CONFLICTED, lastSyncError = SyncError.REJECTED))
+            }
+            return
         } catch (e: DomainException) {
             if (e.isServerRejection()) {
                 materialDao.upsert(material.copy(syncStatus = SyncStatus.CONFLICTED, lastSyncError = SyncError.REJECTED))
@@ -543,6 +552,21 @@ class SyncEngine(
             throw e
         }
         materialDao.upsert(created.toSyncedEntity(material.localId, material.projectLocalId, clock.nowEpochMillis(), material))
+    }
+
+    private suspend fun adoptServerMaterialOfSameName(material: MaterialEntity, projectServerId: Long): Boolean {
+        val remote = apiCall { materialApi.list(projectServerId) }.content
+        val match = remote.firstOrNull { it.name == material.name }
+            ?: remote.firstOrNull { it.name.equals(material.name, ignoreCase = true) }
+            ?: return false
+        val syncedAt = clock.nowEpochMillis()
+        val alreadyLocal = materialDao.findByServerId(match.id)
+        if (alreadyLocal == null) {
+            materialDao.upsert(match.toSyncedEntity(material.localId, material.projectLocalId, syncedAt, material))
+        } else {
+            materialAdoptionDao.mergeInto(material.localId, match.toSyncedEntity(alreadyLocal.localId, material.projectLocalId, syncedAt, alreadyLocal))
+        }
+        return true
     }
 
     private suspend fun pushMaterialUpdate(material: MaterialEntity) {
@@ -844,20 +868,25 @@ class SyncEngine(
 
     private suspend fun pullMaterials(projectServerId: Long, projectLocalId: String) {
         val remote = apiCall { materialApi.list(projectServerId) }.content
-        val locals = materialDao.findForProject(projectLocalId)
-        val byServerId = locals.mapNotNull { local -> local.serverId?.let { it to local } }.toMap()
         val syncedAt = clock.nowEpochMillis()
+        for (dto in remote) storeServerMaterial(dto, projectLocalId, syncedAt)
+        // No removal pass — the backend never deletes a material (PATCH-only).
+    }
 
-        for (dto in remote) {
-            val local = byServerId[dto.id]
-            when {
-                local == null -> materialDao.upsert(dto.toSyncedEntity(newLocalId(), projectLocalId, syncedAt))
-                local.pendingOp == PendingOp.NONE -> materialDao.upsert(dto.toSyncedEntity(local.localId, projectLocalId, syncedAt, local))
+    private suspend fun storeServerMaterial(dto: MaterialDto, projectLocalId: String, syncedAt: Long) {
+        val byServerId = materialDao.findByServerId(dto.id)
+        val sameName = materialDao.findByProjectAndNameExactly(projectLocalId, dto.name)
+        when {
+            sameName == null || sameName.localId == byServerId?.localId -> when {
+                byServerId == null -> materialDao.upsert(dto.toSyncedEntity(newLocalId(), projectLocalId, syncedAt))
+                byServerId.pendingOp == PendingOp.NONE -> materialDao.upsert(dto.toSyncedEntity(byServerId.localId, projectLocalId, syncedAt, byServerId))
                 // else: a pending local rename — it wins on its next push (LWW).
                 else -> Unit
             }
+            sameName.serverId != null -> Unit
+            byServerId == null -> materialDao.upsert(dto.toSyncedEntity(sameName.localId, projectLocalId, syncedAt, sameName))
+            else -> materialAdoptionDao.mergeInto(sameName.localId, dto.toSyncedEntity(byServerId.localId, projectLocalId, syncedAt, byServerId))
         }
-        // No removal pass — the backend never deletes a material (PATCH-only).
     }
 
     // ─── pull: stock counters (ADR-71) ──────────────────────────────────────

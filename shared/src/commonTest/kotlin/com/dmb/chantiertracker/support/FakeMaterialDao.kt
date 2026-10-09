@@ -7,7 +7,11 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.map
 
-/** In-memory [MaterialDao] — lets sync/repository tests run on every platform without Room. */
+/**
+ * In-memory [MaterialDao]. Reproduces Room's `@Upsert` against the (projectLocalId, name) unique
+ * index: a new row clashing on the name is silently not stored; an existing row renamed into a
+ * clash throws.
+ */
 class FakeMaterialDao(initial: List<MaterialEntity> = emptyList()) : MaterialDao {
 
     private val materials = MutableStateFlow(initial.associateBy { it.localId })
@@ -22,6 +26,9 @@ class FakeMaterialDao(initial: List<MaterialEntity> = emptyList()) : MaterialDao
     override suspend fun findByProjectAndName(projectLocalId: String, name: String): MaterialEntity? =
         materials.value.values.firstOrNull { it.projectLocalId == projectLocalId && it.name.equals(name, ignoreCase = true) }
 
+    override suspend fun findByProjectAndNameExactly(projectLocalId: String, name: String): MaterialEntity? =
+        materials.value.values.firstOrNull { it.projectLocalId == projectLocalId && it.name == name }
+
     override suspend fun findByServerId(serverId: Long): MaterialEntity? =
         materials.value.values.firstOrNull { it.serverId == serverId }
 
@@ -32,6 +39,17 @@ class FakeMaterialDao(initial: List<MaterialEntity> = emptyList()) : MaterialDao
         materials.value.values.filter { it.projectLocalId == projectLocalId }
 
     override suspend fun upsert(material: MaterialEntity) {
+        val clash = materials.value.values.any {
+            it.localId != material.localId && it.projectLocalId == material.projectLocalId && it.name == material.name
+        }
+        if (clash) {
+            check(material.localId !in materials.value) { "UNIQUE constraint failed: materials.projectLocalId, materials.name" }
+            return
+        }
         materials.value = materials.value + (material.localId to material)
+    }
+
+    fun delete(localId: String) {
+        materials.value = materials.value - localId
     }
 }

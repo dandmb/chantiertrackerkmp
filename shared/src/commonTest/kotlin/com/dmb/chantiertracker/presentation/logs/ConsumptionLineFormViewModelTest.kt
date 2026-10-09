@@ -1,5 +1,7 @@
 package com.dmb.chantiertracker.presentation.logs
 
+import com.dmb.chantiertracker.resources.Res
+import com.dmb.chantiertracker.resources.validation_amount_two_decimals
 import com.dmb.chantiertracker.domain.model.ConsumptionLine
 import com.dmb.chantiertracker.domain.model.MaterialStock
 import com.dmb.chantiertracker.support.FakeConsumptionLineRepository
@@ -139,5 +141,20 @@ class ConsumptionLineFormViewModelTest {
         assertEquals(9_000L, v.state.value.stockRefreshedAt)
         v.selectMaterial("m1")
         assertEquals(12.0, v.state.value.ceiling)
+    }
+
+    @Test
+    fun a_quantity_with_three_decimals_is_refused_before_anything_is_saved() = runTest {
+        val (v, _, lines) = vm(stock = listOf(MaterialStock("m1", "Sable", "t", quantityIn = 10.0, quantityOut = 0.0)))
+        v.load("e1", "p1", lineLocalId = null)
+        advanceUntilIdle()
+
+        v.selectMaterial("m1")
+        v.onQuantityChange("2,675")
+        v.submit()
+        advanceUntilIdle()
+
+        assertEquals(Res.string.validation_amount_two_decimals, v.state.value.quantityError)
+        assertTrue(lines.log.isEmpty(), "never sent: the server would refuse it (C-4)")
     }
 }
