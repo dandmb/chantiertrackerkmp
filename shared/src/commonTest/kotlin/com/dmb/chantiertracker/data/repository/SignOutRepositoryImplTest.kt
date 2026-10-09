@@ -43,7 +43,7 @@ class SignOutRepositoryImplTest {
     fun offline_with_unsent_writes_blocks_the_sign_out() = runTest {
         val f = Fixture(3, 3, outcome = SyncOutcome.Skipped)
 
-        assertEquals(SignOutResult.Blocked(3), f.repo.signOut())
+        assertEquals(SignOutResult.Blocked(com.dmb.chantiertracker.domain.model.UnsentWrites(entries = 3)), f.repo.signOut())
         assertTrue(!f.signedOut, "the session and the token are kept")
     }
 
@@ -51,7 +51,7 @@ class SignOutRepositoryImplTest {
     fun a_failing_server_with_unsent_writes_blocks_the_sign_out_too() = runTest {
         val f = Fixture(2, 2, outcome = SyncOutcome.Failed(DomainException.Unexpected))
 
-        assertEquals(SignOutResult.Blocked(2), f.repo.signOut())
+        assertEquals(SignOutResult.Blocked(com.dmb.chantiertracker.domain.model.UnsentWrites(entries = 2)), f.repo.signOut())
         assertTrue(!f.signedOut)
     }
 
@@ -59,7 +59,7 @@ class SignOutRepositoryImplTest {
     fun writes_left_after_a_successful_sync_are_reported_as_refused_not_blocking() = runTest {
         val f = Fixture(4, 1)
 
-        assertEquals(SignOutResult.RefusedWritesLeft(1), f.repo.signOut())
+        assertEquals(SignOutResult.RefusedWritesLeft(com.dmb.chantiertracker.domain.model.UnsentWrites(entries = 1)), f.repo.signOut())
         assertTrue(!f.signedOut, "the user is asked first")
     }
 
@@ -75,7 +75,7 @@ class SignOutRepositoryImplTest {
     fun confirming_never_skips_writes_that_could_still_be_sent() = runTest {
         val f = Fixture(1, 1, outcome = SyncOutcome.Skipped)
 
-        assertEquals(SignOutResult.Blocked(1), f.repo.signOut(acceptRefusedWrites = true))
+        assertEquals(SignOutResult.Blocked(com.dmb.chantiertracker.domain.model.UnsentWrites(entries = 1)), f.repo.signOut(acceptRefusedWrites = true))
         assertTrue(!f.signedOut)
     }
 
@@ -83,21 +83,49 @@ class SignOutRepositoryImplTest {
     fun no_network_with_unsent_writes_blocks_the_sign_out() = runTest {
         val f = Fixture(2, 2, outcome = SyncOutcome.Failed(DomainException.Network))
 
-        assertEquals(SignOutResult.Blocked(2), f.repo.signOut())
+        assertEquals(SignOutResult.Blocked(com.dmb.chantiertracker.domain.model.UnsentWrites(entries = 2)), f.repo.signOut())
     }
 
     @Test
     fun a_rate_limited_sync_blocks_the_sign_out_like_an_unreachable_server() = runTest {
         val f = Fixture(2, 2, outcome = SyncOutcome.Failed(DomainException.RateLimited(30)))
 
-        assertEquals(SignOutResult.Blocked(2), f.repo.signOut())
+        assertEquals(SignOutResult.Blocked(com.dmb.chantiertracker.domain.model.UnsentWrites(entries = 2)), f.repo.signOut())
     }
 
     @Test
     fun a_sync_the_server_refuses_leaves_the_writes_as_refused_with_a_way_out() = runTest {
         val f = Fixture(2, 2, outcome = SyncOutcome.Failed(DomainException.NotFound))
 
-        assertEquals(SignOutResult.RefusedWritesLeft(2), f.repo.signOut(), "never a dead end: the user can still sign out (B-1)")
+        assertEquals(SignOutResult.RefusedWritesLeft(com.dmb.chantiertracker.domain.model.UnsentWrites(entries = 2)), f.repo.signOut(), "never a dead end: the user can still sign out (B-1)")
         assertEquals(SignOutResult.SignedOut, Fixture(2, 2, outcome = SyncOutcome.Failed(DomainException.Forbidden)).repo.signOut(acceptRefusedWrites = true))
+    }
+
+    @Test
+    fun what_is_left_unsent_is_reported_by_kind_as_the_counter_gives_it() = runTest {
+        val byKind = com.dmb.chantiertracker.domain.model.UnsentWrites(entries = 1, lines = 2, attachments = 1)
+        val counter = object : com.dmb.chantiertracker.data.session.UnsyncedWriteCounter {
+            override suspend fun countUnsynced(): Int = 6
+            override suspend fun unsentByKind() = byKind
+        }
+        val auth = FakeAuthRepository()
+
+        val refused = SignOutRepositoryImpl(auth, FakeSyncer().apply { outcome = SyncOutcome.Synced }, counter).signOut()
+        val offline = SignOutRepositoryImpl(auth, FakeSyncer().apply { outcome = SyncOutcome.Skipped }, counter).signOut()
+
+        assertEquals(SignOutResult.RefusedWritesLeft(byKind), refused, "ghost parents are not in the count: 4, not 6")
+        assertEquals(SignOutResult.Blocked(byKind), offline)
+    }
+
+    @Test
+    fun only_ghost_parents_left_do_not_hold_the_sign_out() = runTest {
+        val counter = object : com.dmb.chantiertracker.data.session.UnsyncedWriteCounter {
+            override suspend fun countUnsynced(): Int = 2
+            override suspend fun unsentByKind() = com.dmb.chantiertracker.domain.model.UnsentWrites()
+        }
+        val auth = FakeAuthRepository()
+
+        assertEquals(SignOutResult.SignedOut, SignOutRepositoryImpl(auth, FakeSyncer(), counter).signOut())
+        assertTrue("logout" in auth.calls)
     }
 }

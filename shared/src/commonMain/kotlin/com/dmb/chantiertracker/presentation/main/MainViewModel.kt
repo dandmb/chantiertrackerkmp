@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.dmb.chantiertracker.domain.model.AuthState
 import com.dmb.chantiertracker.domain.model.Plan
+import com.dmb.chantiertracker.domain.model.UnsentWrites
 import com.dmb.chantiertracker.domain.repository.AccountRepository
 import com.dmb.chantiertracker.domain.repository.AuthRepository
 import com.dmb.chantiertracker.domain.repository.SignOutRepository
@@ -16,8 +17,8 @@ import kotlinx.coroutines.launch
 /** What the sign-out dialog shows (ADR-69). `null` = no dialog. */
 sealed interface LogoutPrompt {
     data object Sending : LogoutPrompt
-    data class Blocked(val unsentCount: Int) : LogoutPrompt
-    data class RefusedWritesLeft(val count: Int) : LogoutPrompt
+    data class Blocked(val unsent: UnsentWrites) : LogoutPrompt
+    data class RefusedWritesLeft(val unsent: UnsentWrites) : LogoutPrompt
 }
 
 data class MainUiState(
@@ -68,8 +69,8 @@ class MainViewModel(
         viewModelScope.launch {
             val prompt = when (val result = signOutRepository.signOut(acceptRefusedWrites)) {
                 SignOutResult.SignedOut -> null
-                is SignOutResult.Blocked -> LogoutPrompt.Blocked(result.unsentCount)
-                is SignOutResult.RefusedWritesLeft -> LogoutPrompt.RefusedWritesLeft(result.count)
+                is SignOutResult.Blocked -> LogoutPrompt.Blocked(result.unsent)
+                is SignOutResult.RefusedWritesLeft -> LogoutPrompt.RefusedWritesLeft(result.unsent)
             }
             _state.update { it.copy(isLoggingOut = prompt == null, logoutPrompt = prompt) }
         }

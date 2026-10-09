@@ -519,3 +519,77 @@ suspend fun verifyStockDaoContract(db: AppDatabase) {
     assertNull(dao.findSnapshot("proj-s"), "cascade with the project")
     assertTrue(dao.observeCounters("proj-s").first().isEmpty())
 }
+
+suspend fun verifySyncIssueContract(db: AppDatabase) {
+    val rejected = com.dmb.chantiertracker.data.sync.SyncError.REJECTED
+    val gone = com.dmb.chantiertracker.data.sync.SyncError.DELETED_ON_SERVER
+    val updateRefused = com.dmb.chantiertracker.data.sync.SyncError.UPDATE_REFUSED
+    val fileRefused = com.dmb.chantiertracker.data.sync.SyncError.FILE_REFUSED
+
+    db.projectDao().upsert(localProject("p-ok", serverId = 1, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+    db.projectDao().upsert(localProject("p-refused", syncStatus = SyncStatus.CONFLICTED, lastSyncError = com.dmb.chantiertracker.data.sync.SyncError.PLAN_LIMIT).copy(serverErrorCode = "PLAN_LIMIT_EXCEEDED"))
+    db.projectDao().upsert(localProject("p-ghost", serverId = 3, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.CONFLICTED, lastSyncError = gone))
+    db.projectDao().upsert(localProject("p-edit", serverId = 4, pendingOp = PendingOp.UPDATE, syncStatus = SyncStatus.CONFLICTED, lastSyncError = updateRefused))
+
+    db.stageDao().upsert(localStage("st-ok", projectLocalId = "p-ok", serverId = 10, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+    db.stageDao().upsert(localStage("st-waiting", projectLocalId = "p-ok"))
+    db.stageDao().upsert(localStage("st-under-refused", projectLocalId = "p-refused"))
+    db.stageDao().upsert(localStage("st-refused", projectLocalId = "p-ok", syncStatus = SyncStatus.CONFLICTED, lastSyncError = rejected))
+    db.stageDao().upsert(localStage("st-ghost", projectLocalId = "p-ghost", serverId = 13, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.CONFLICTED, lastSyncError = gone))
+    db.stageDao().upsert(localStage("st-under-edit", projectLocalId = "p-edit"))
+
+    db.materialDao().upsert(localMaterial("m-ok", projectLocalId = "p-ok", name = "Ciment", serverId = 20, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+    db.materialDao().upsert(localMaterial("m-under-refused", projectLocalId = "p-refused", name = "Sable"))
+    db.materialDao().upsert(localMaterial("m-refused", projectLocalId = "p-ok", name = "Gravier").copy(syncStatus = SyncStatus.CONFLICTED, lastSyncError = rejected))
+
+    listOf("l-ok" to "st-ok", "l-waiting" to "st-waiting", "l-under-refused" to "st-under-refused", "l-refused" to "st-refused", "l-ghost" to "st-ghost")
+        .forEach { (log, stage) -> db.dailyLogDao().upsert(localDailyLog(log, stageLocalId = stage)) }
+    db.dailyEntryDao().upsert(localDailyEntry("e-ok", dailyLogLocalId = "l-ok", serverId = 30, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+    db.dailyEntryDao().upsert(localDailyEntry("e-refused", dailyLogLocalId = "l-ok", type = "WORK", syncStatus = SyncStatus.CONFLICTED, lastSyncError = rejected))
+    db.dailyEntryDao().upsert(localDailyEntry("e-under-waiting-stage", dailyLogLocalId = "l-waiting"))
+    db.dailyEntryDao().upsert(localDailyEntry("e-under-refused-project", dailyLogLocalId = "l-under-refused"))
+    db.dailyEntryDao().upsert(localDailyEntry("e-under-refused-stage", dailyLogLocalId = "l-refused"))
+    db.dailyEntryDao().upsert(localDailyEntry("e-ghost", dailyLogLocalId = "l-ghost", serverId = 34, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.CONFLICTED, lastSyncError = gone))
+
+    db.purchaseLineDao().upsert(localPurchaseLine("pl-waiting", entryLocalId = "e-ok", materialLocalId = "m-ok"))
+    db.purchaseLineDao().upsert(localPurchaseLine("pl-under-refused-entry", entryLocalId = "e-refused", materialLocalId = "m-ok"))
+    db.purchaseLineDao().upsert(localPurchaseLine("pl-with-refused-material", entryLocalId = "e-ok", materialLocalId = "m-refused"))
+    db.purchaseLineDao().upsert(localPurchaseLine("pl-deep", entryLocalId = "e-under-refused-project", materialLocalId = "m-under-refused"))
+    db.purchaseLineDao().upsert(localPurchaseLine("pl-edit", entryLocalId = "e-ok", materialLocalId = "m-ok", serverId = 40, pendingOp = PendingOp.UPDATE, syncStatus = SyncStatus.CONFLICTED).copy(lastSyncError = updateRefused))
+    db.purchaseLineDao().upsert(localPurchaseLine("pl-on-ghost", entryLocalId = "e-ghost", materialLocalId = "m-ok", syncStatus = SyncStatus.CONFLICTED).copy(lastSyncError = gone))
+    db.consumptionLineDao().upsert(localConsumptionLine("cl-under-refused-entry", entryLocalId = "e-refused", materialLocalId = "m-ok"))
+    db.consumptionLineDao().upsert(localConsumptionLine("cl-waiting", entryLocalId = "e-ok", materialLocalId = "m-ok"))
+    db.attachmentDao().upsert(localAttachment("a-under-refused-entry", entryLocalId = "e-refused"))
+    db.attachmentDao().upsert(localAttachment("a-waiting", entryLocalId = "e-ok"))
+    db.attachmentDao().upsert(localAttachment("a-too-large", entryLocalId = "e-ok").copy(syncStatus = SyncStatus.CONFLICTED, lastSyncError = fileRefused, serverErrorCode = "ATTACHMENT_TOO_LARGE"))
+
+    assertEquals(listOf("st-under-refused"), db.stageDao().observeBlockedByParent().first(), "a stage under a refused project; not one under a project whose edit was refused")
+    assertEquals(listOf("m-under-refused"), db.materialDao().observeBlockedByParent().first())
+    assertEquals(
+        listOf("e-under-refused-project", "e-under-refused-stage"),
+        db.dailyEntryDao().observeBlockedByParent().first().sorted(),
+        "an entry under a refused stage, or under a stage itself waiting on a refused project; not one under a stage that is simply waiting",
+    )
+    assertEquals(
+        listOf("pl-deep", "pl-under-refused-entry", "pl-with-refused-material"),
+        db.purchaseLineDao().observeBlockedByParent().first().sorted(),
+    )
+    assertEquals(listOf("cl-under-refused-entry"), db.consumptionLineDao().observeBlockedByParent().first())
+    assertEquals(listOf("a-under-refused-entry"), db.attachmentDao().observeBlockedByParent().first())
+
+    assertEquals(listOf("p-refused"), db.projectDao().findPending().map { it.localId }, "a refused edit and a ghost wait for the user, a refused creation is sent again")
+    assertEquals(listOf("pl-deep", "pl-under-refused-entry", "pl-waiting", "pl-with-refused-material"), db.purchaseLineDao().findPending().map { it.localId }.sorted())
+    assertEquals(listOf("a-under-refused-entry", "a-waiting"), db.attachmentDao().findPending().map { it.localId }.sorted(), "a refused file is not uploaded again")
+
+    val unsent = db.localDataDao().countUnsentByKind()
+    assertEquals(2, unsent.projects, "the refused creation and the refused edit; the ghost project is already on the server")
+    assertEquals(4, unsent.stages, "the ghost stage does not count")
+    assertEquals(2, unsent.materials)
+    assertEquals(4, unsent.entries, "the ghost entry does not count")
+    assertEquals(8, unsent.lines)
+    assertEquals(3, unsent.attachments)
+    assertEquals(26, db.localDataDao().countUnsynced(), "the raw count still sees the three ghosts (ADR-69 erase guard)")
+
+    assertEquals("PLAN_LIMIT_EXCEEDED", db.projectDao().findByLocalId("p-refused")?.serverErrorCode)
+    assertEquals("ATTACHMENT_TOO_LARGE", db.attachmentDao().findByLocalId("a-too-large")?.serverErrorCode)
+}

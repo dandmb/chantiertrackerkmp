@@ -32,8 +32,15 @@ interface DailyEntryDao {
     @Query("SELECT * FROM daily_entries WHERE dailyLogLocalId = :dailyLogLocalId AND type = :type")
     suspend fun findByLogAndType(dailyLogLocalId: String, type: String): DailyEntryEntity?
 
-    @Query("SELECT * FROM daily_entries WHERE syncStatus != 'SYNCED' AND (lastSyncError IS NULL OR lastSyncError != 'DELETED_ON_SERVER')")
+    @Query("SELECT * FROM daily_entries WHERE syncStatus != 'SYNCED' AND (lastSyncError IS NULL OR lastSyncError NOT IN ('DELETED_ON_SERVER', 'UPDATE_REFUSED', 'FILE_REFUSED'))")
     suspend fun findPending(): List<DailyEntryEntity>
+
+    @Query(
+        """
+        SELECT c.localId FROM daily_entries c JOIN daily_logs l ON l.localId = c.dailyLogLocalId JOIN stages s ON s.localId = l.stageLocalId JOIN projects p ON p.localId = s.projectLocalId WHERE c.syncStatus = 'PENDING' AND (s.serverId IS NULL AND (s.syncStatus = 'CONFLICTED' OR (p.serverId IS NULL AND p.syncStatus = 'CONFLICTED')))
+        """,
+    )
+    fun observeBlockedByParent(): Flow<List<String>>
 
     @Query("SELECT * FROM daily_entries WHERE dailyLogLocalId = :dailyLogLocalId")
     suspend fun findForLog(dailyLogLocalId: String): List<DailyEntryEntity>

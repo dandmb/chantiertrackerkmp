@@ -10,6 +10,7 @@ data class Attachment(
     // Video only — whole seconds, from the server; null for a photo.
     val durationSeconds: Int? = null,
     val uploadedAt: Long,
+    val syncIssue: SyncIssue? = null,
 ) {
     val isVideo: Boolean get() = mimeType.startsWith("video/")
 }

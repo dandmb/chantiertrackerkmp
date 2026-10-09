@@ -425,6 +425,7 @@
     <string name="error_rate_limited">Too many requests. Please try again shortly.</string>
     <string name="error_plan_limit">You've reached your plan's project limit. Upgrade to a higher tier to create more.</string>
     <string name="error_duplicate_material">A material with this name already exists in this project.</string>
+    <string name="error_file_too_large">This file is too large to be sent.</string>
     <string name="error_plan_limit_no_upgrade">You've reached your plan's project limit.</string>
     <string name="error_billing_not_open">Paid plans are not open yet.</string>
     <string name="error_forbidden">You're not allowed to do that.</string>
@@ -507,15 +508,35 @@
     <string name="legal_terms_of_sale_provisional_s2_body">The General Terms of Sale will be published on this page when paid plans open, before any subscription is possible.\nUse of the Service remains governed by the General Terms of Use.</string>
     <string name="logout_sending">Sending your entries before signing out…</string>
     <string name="logout_blocked_title">Some entries have not been sent yet</string>
-    <plurals name="logout_blocked_message">
-        <item quantity="one">%1$d entry has not been sent yet. Get back online to send it before signing out.</item>
-        <item quantity="other">%1$d entries have not been sent yet. Get back online to send them before signing out.</item>
-    </plurals>
+    <string name="logout_blocked_message">Not sent yet: %1$s. Reconnect to the Internet to send it before signing out.</string>
     <string name="logout_retry">Retry</string>
     <string name="logout_refused_title">Entries refused by the server</string>
-    <plurals name="logout_refused_message">
-        <item quantity="one">%1$d entry was refused by the server and will not be sent. It will be erased if another account signs in on this device.</item>
-        <item quantity="other">%1$d entries were refused by the server and will not be sent. They will be erased if another account signs in on this device.</item>
-    </plurals>
+    <string name="logout_refused_message">Refused by the server, or waiting on a refused item: %1$s. None of this will be sent, and all of it will be erased if another account signs in on this device.</string>
     <string name="logout_anyway">Sign out anyway</string>
+    <string name="list_separator">,</string>
+    <string name="list_last_separator">and</string>
+    <plurals name="unsent_projects">
+        <item quantity="one">%1$d project</item>
+        <item quantity="other">%1$d projects</item>
+    </plurals>
+    <plurals name="unsent_stages">
+        <item quantity="one">%1$d stage</item>
+        <item quantity="other">%1$d stages</item>
+    </plurals>
+    <plurals name="unsent_materials">
+        <item quantity="one">%1$d material</item>
+        <item quantity="other">%1$d materials</item>
+    </plurals>
+    <plurals name="unsent_entries">
+        <item quantity="one">%1$d entry</item>
+        <item quantity="other">%1$d entries</item>
+    </plurals>
+    <plurals name="unsent_lines">
+        <item quantity="one">%1$d line</item>
+        <item quantity="other">%1$d lines</item>
+    </plurals>
+    <plurals name="unsent_attachments">
+        <item quantity="one">%1$d attachment</item>
+        <item quantity="other">%1$d attachments</item>
+    </plurals>
 </resources>

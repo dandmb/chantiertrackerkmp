@@ -90,4 +90,14 @@ class AppDatabaseTest {
             db.close()
         }
     }
+
+    @Test
+    fun sync_issue_contract_holds_on_ios() = runTest {
+        val db = Room.inMemoryDatabaseBuilder<AppDatabase>().buildChantierDatabase()
+        try {
+            com.dmb.chantiertracker.support.verifySyncIssueContract(db)
+        } finally {
+            db.close()
+        }
+    }
 }

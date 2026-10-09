@@ -5,6 +5,7 @@ data class Material(
     val projectLocalId: String,
     val name: String,
     val unit: String,
+    val syncIssue: SyncIssue? = null,
 )
 
 data class ProjectStock(

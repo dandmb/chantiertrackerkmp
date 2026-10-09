@@ -9,8 +9,9 @@ import com.dmb.chantiertracker.data.local.db.ProjectMemberEntity
 import com.dmb.chantiertracker.data.local.db.SyncStatus
 import com.dmb.chantiertracker.data.sync.AppCoroutineScope
 import com.dmb.chantiertracker.data.sync.Clock
-import com.dmb.chantiertracker.data.sync.SystemClock
 import com.dmb.chantiertracker.data.sync.Syncer
+import com.dmb.chantiertracker.data.sync.SystemClock
+import com.dmb.chantiertracker.data.sync.syncIssue
 import com.dmb.chantiertracker.domain.model.CreateProjectInput
 import com.dmb.chantiertracker.domain.model.Project
 import com.dmb.chantiertracker.domain.model.ProjectDetail
@@ -20,10 +21,10 @@ import com.dmb.chantiertracker.domain.model.ProjectRole
 import com.dmb.chantiertracker.domain.model.ProjectStatus
 import com.dmb.chantiertracker.domain.model.UpdateProjectInput
 import com.dmb.chantiertracker.domain.repository.ProjectRepository
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.map
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 
 private const val DEFAULT_CURRENCY = "USD"
 
@@ -136,6 +137,7 @@ internal fun ProjectEntity.toProject(): Project = Project(
     location = location,
     status = status.toProjectStatus(),
     createdAt = createdAt,
+    syncIssue = syncIssue(),
 )
 
 internal fun ProjectEntity.toProjectDetail(): ProjectDetail = ProjectDetail(

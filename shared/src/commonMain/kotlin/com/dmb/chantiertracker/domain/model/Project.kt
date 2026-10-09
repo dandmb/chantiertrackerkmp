@@ -7,6 +7,7 @@ data class Project(
     val location: String?,
     val status: ProjectStatus,
     val createdAt: String? = null,
+    val syncIssue: SyncIssue? = null,
 )
 
 enum class ProjectStatus { IN_PROGRESS, SUSPENDED, COMPLETED, UNKNOWN }

@@ -399,3 +399,11 @@ val MIGRATION_13_14 = object : Migration(13, 14) {
         connection.execSQL("UPDATE `consumption_lines` SET `serverQuantity` = `quantity` WHERE `serverId` IS NOT NULL")
     }
 }
+
+val MIGRATION_14_15 = object : Migration(14, 15) {
+    override fun migrate(connection: SQLiteConnection) {
+        listOf("projects", "stages", "materials", "daily_entries", "purchase_lines", "consumption_lines", "attachments").forEach { table ->
+            connection.execSQL("ALTER TABLE `$table` ADD COLUMN `serverErrorCode` TEXT")
+        }
+    }
+}

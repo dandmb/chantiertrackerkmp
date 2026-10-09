@@ -11,16 +11,17 @@ import com.dmb.chantiertracker.data.local.db.StockDao
 import com.dmb.chantiertracker.data.local.db.SyncStatus
 import com.dmb.chantiertracker.data.sync.AppCoroutineScope
 import com.dmb.chantiertracker.data.sync.Clock
-import com.dmb.chantiertracker.data.sync.SystemClock
 import com.dmb.chantiertracker.data.sync.Syncer
+import com.dmb.chantiertracker.data.sync.SystemClock
+import com.dmb.chantiertracker.data.sync.syncIssue
 import com.dmb.chantiertracker.domain.model.Material
 import com.dmb.chantiertracker.domain.model.ProjectStock
 import com.dmb.chantiertracker.domain.repository.MaterialRepository
+import kotlin.uuid.ExperimentalUuidApi
+import kotlin.uuid.Uuid
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
-import kotlin.uuid.ExperimentalUuidApi
-import kotlin.uuid.Uuid
 
 class MaterialRepositoryImpl(
     private val materialDao: MaterialDao,
@@ -34,7 +35,9 @@ class MaterialRepositoryImpl(
 ) : MaterialRepository {
 
     override fun observeMaterials(projectLocalId: String): Flow<List<Material>> =
-        materialDao.observeMaterialsForProject(projectLocalId).map { rows -> rows.map(MaterialEntity::toMaterial) }
+        combine(materialDao.observeMaterialsForProject(projectLocalId), materialDao.observeBlockedByParent()) { rows, blocked ->
+            rows.map { it.toMaterial(blockedByParent = it.localId in blocked) }
+        }
 
     override fun observeStock(projectLocalId: String): Flow<ProjectStock> =
         combine(
@@ -72,9 +75,10 @@ class MaterialRepositoryImpl(
     }
 }
 
-internal fun MaterialEntity.toMaterial(): Material = Material(
+internal fun MaterialEntity.toMaterial(blockedByParent: Boolean = false): Material = Material(
     localId = localId,
     projectLocalId = projectLocalId,
     name = name,
     unit = unit,
+    syncIssue = syncIssue(blockedByParent),
 )

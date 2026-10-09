@@ -10,6 +10,8 @@ import androidx.room.Transaction
  * `clearAllTables()` in common code, hence the explicit deletes — children before parents, so no
  * foreign key is ever violated mid-transaction.
  */
+data class UnsentCounts(val projects: Int, val stages: Int, val materials: Int, val entries: Int, val lines: Int, val attachments: Int)
+
 @Dao
 abstract class LocalDataDao {
 
@@ -26,6 +28,20 @@ abstract class LocalDataDao {
         """,
     )
     abstract suspend fun countUnsynced(): Int
+
+    @Query(
+        """
+        SELECT
+            (SELECT COUNT(*) FROM projects WHERE syncStatus != 'SYNCED' AND NOT (lastSyncError = 'DELETED_ON_SERVER' AND pendingOp = 'NONE' AND serverId IS NOT NULL)) AS projects,
+            (SELECT COUNT(*) FROM stages WHERE syncStatus != 'SYNCED' AND NOT (lastSyncError = 'DELETED_ON_SERVER' AND pendingOp = 'NONE' AND serverId IS NOT NULL)) AS stages,
+            (SELECT COUNT(*) FROM materials WHERE syncStatus != 'SYNCED' AND NOT (lastSyncError = 'DELETED_ON_SERVER' AND pendingOp = 'NONE' AND serverId IS NOT NULL)) AS materials,
+            (SELECT COUNT(*) FROM daily_entries WHERE syncStatus != 'SYNCED' AND NOT (lastSyncError = 'DELETED_ON_SERVER' AND pendingOp = 'NONE' AND serverId IS NOT NULL)) AS entries,
+            (SELECT COUNT(*) FROM purchase_lines WHERE syncStatus != 'SYNCED') +
+                (SELECT COUNT(*) FROM consumption_lines WHERE syncStatus != 'SYNCED') AS lines,
+            (SELECT COUNT(*) FROM attachments WHERE syncStatus != 'SYNCED') AS attachments
+        """,
+    )
+    abstract suspend fun countUnsentByKind(): UnsentCounts
 
     @Query("DELETE FROM attachments") protected abstract suspend fun deleteAttachments()
     @Query("DELETE FROM purchase_lines") protected abstract suspend fun deletePurchaseLines()

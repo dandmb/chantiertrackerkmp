@@ -29,7 +29,7 @@ class FakeProjectDao(initial: List<ProjectEntity> = emptyList()) : ProjectDao {
         projects.value.values.firstOrNull { it.serverId == serverId }
 
     override suspend fun findPending(): List<ProjectEntity> =
-        projects.value.values.filter { it.syncStatus != SyncStatus.SYNCED && it.lastSyncError != com.dmb.chantiertracker.data.sync.SyncError.DELETED_ON_SERVER }
+        projects.value.values.filter { it.syncStatus != SyncStatus.SYNCED && it.lastSyncError !in com.dmb.chantiertracker.data.sync.SyncError.WAITING_FOR_THE_USER }
 
     override fun observeActiveOwnedCount(ownerId: Long): Flow<Int> =
         projects.map { rows ->

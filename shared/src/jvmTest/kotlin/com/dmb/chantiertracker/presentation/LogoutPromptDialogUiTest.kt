@@ -46,22 +46,22 @@ class LogoutPromptDialogUiTest {
         val clicks = Clicks()
         block = { ui, c ->
             ui.onNodeWithText("Des saisies ne sont pas encore envoyées").assertExists()
-            ui.onNodeWithText("3 saisies ne sont pas encore envoyées. Reconnectez-vous à Internet pour les envoyer avant de vous déconnecter.").assertExists()
+            ui.onNodeWithText("Pas encore envoyé : 3 saisies. Reconnectez-vous à Internet pour l'envoyer avant de vous déconnecter.").assertExists()
             ui.onNodeWithText("Se déconnecter quand même").assertDoesNotExist()
             ui.onNodeWithText("Réessayer").performClick()
             ui.onNodeWithText("Annuler").performClick()
             assertEquals(1, c.retry)
             assertEquals(1, c.dismiss)
         }
-        mount(LogoutPrompt.Blocked(3), clicks = clicks)
+        mount(LogoutPrompt.Blocked(com.dmb.chantiertracker.domain.model.UnsentWrites(entries = 3)), clicks = clicks)
     }
 
     @Test
     fun a_single_unsent_entry_is_worded_in_the_singular() {
         block = { ui, _ ->
-            ui.onNodeWithText("1 saisie n'est pas encore envoyée. Reconnectez-vous à Internet pour l'envoyer avant de vous déconnecter.").assertExists()
+            ui.onNodeWithText("Pas encore envoyé : 1 saisie. Reconnectez-vous à Internet pour l'envoyer avant de vous déconnecter.").assertExists()
         }
-        mount(LogoutPrompt.Blocked(1))
+        mount(LogoutPrompt.Blocked(com.dmb.chantiertracker.domain.model.UnsentWrites(entries = 1)))
     }
 
     @Test
@@ -69,11 +69,11 @@ class LogoutPromptDialogUiTest {
         val clicks = Clicks()
         block = { ui, c ->
             ui.onNodeWithText("Saisies refusées par le serveur").assertExists()
-            ui.onNodeWithText("2 saisies ont été refusées par le serveur et ne seront pas envoyées. Elles seront effacées si un autre compte se connecte sur cet appareil.").assertExists()
+            ui.onNodeWithText("Refusé par le serveur, ou en attente d'un élément refusé : 2 saisies. Rien de cela ne sera envoyé, et tout sera effacé si un autre compte se connecte sur cet appareil.").assertExists()
             ui.onNodeWithText("Se déconnecter quand même").performClick()
             assertEquals(1, c.anyway)
         }
-        mount(LogoutPrompt.RefusedWritesLeft(2), clicks = clicks)
+        mount(LogoutPrompt.RefusedWritesLeft(com.dmb.chantiertracker.domain.model.UnsentWrites(entries = 2)), clicks = clicks)
     }
 
     @Test
@@ -82,6 +82,19 @@ class LogoutPromptDialogUiTest {
             ui.onNodeWithText("Some entries have not been sent yet").assertExists()
             ui.onNodeWithText("Retry").assertExists()
         }
-        mount(LogoutPrompt.Blocked(2), locale = "en")
+        mount(LogoutPrompt.Blocked(com.dmb.chantiertracker.domain.model.UnsentWrites(entries = 2)), locale = "en")
+    }
+
+    @Test
+    fun what_is_unsent_is_listed_by_nature_in_french_and_in_english() {
+        val unsent = com.dmb.chantiertracker.domain.model.UnsentWrites(projects = 1, entries = 1, lines = 2, attachments = 1)
+        block = { ui, _ ->
+            ui.onNodeWithText("Pas encore envoyé : 1 projet, 1 saisie, 2 lignes et 1 justificatif. Reconnectez-vous à Internet pour l'envoyer avant de vous déconnecter.").assertExists()
+        }
+        mount(LogoutPrompt.Blocked(unsent))
+        block = { ui, _ ->
+            ui.onNodeWithText("Refused by the server, or waiting on a refused item: 1 project, 1 entry, 2 lines and 1 attachment. None of this will be sent, and all of it will be erased if another account signs in on this device.").assertExists()
+        }
+        mount(LogoutPrompt.RefusedWritesLeft(unsent), locale = "en")
     }
 }

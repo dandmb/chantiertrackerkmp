@@ -10,18 +10,19 @@ import com.dmb.chantiertracker.data.local.db.PendingOp
 import com.dmb.chantiertracker.data.local.db.SyncStatus
 import com.dmb.chantiertracker.data.sync.AppCoroutineScope
 import com.dmb.chantiertracker.data.sync.Clock
-import com.dmb.chantiertracker.data.sync.SystemClock
 import com.dmb.chantiertracker.data.sync.Syncer
+import com.dmb.chantiertracker.data.sync.SystemClock
+import com.dmb.chantiertracker.data.sync.syncIssue
 import com.dmb.chantiertracker.domain.model.DailyEntry
 import com.dmb.chantiertracker.domain.model.DailyLog
 import com.dmb.chantiertracker.domain.model.DailyLogDetail
 import com.dmb.chantiertracker.domain.model.EntryType
 import com.dmb.chantiertracker.domain.repository.DailyLogRepository
+import kotlin.uuid.ExperimentalUuidApi
+import kotlin.uuid.Uuid
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
-import kotlin.uuid.ExperimentalUuidApi
-import kotlin.uuid.Uuid
 
 class DailyLogRepositoryImpl(
     private val logDao: DailyLogDao,
@@ -54,19 +55,22 @@ class DailyLogRepositoryImpl(
         combine(
             logDao.observeLog(logLocalId),
             entryDao.observeEntriesForLog(logLocalId),
-        ) { log, entries ->
+            entryDao.observeBlockedByParent(),
+        ) { log, entries, blocked ->
             log?.let {
                 DailyLogDetail(
                     localId = it.localId,
                     stageLocalId = it.stageLocalId,
                     date = it.date,
-                    entries = entries.map(DailyEntryEntity::toDailyEntry),
+                    entries = entries.map { entry -> entry.toDailyEntry(blockedByParent = entry.localId in blocked) },
                 )
             }
         }
 
     override fun observeEntry(entryLocalId: String): Flow<DailyEntry?> =
-        entryDao.observeEntry(entryLocalId).map { it?.toDailyEntry() }
+        combine(entryDao.observeEntry(entryLocalId), entryDao.observeBlockedByParent()) { entry, blocked ->
+            entry?.toDailyEntry(blockedByParent = entry.localId in blocked)
+        }
 
     override suspend fun createPurchaseEntry(stageLocalId: String, date: String): String =
         createEntry(stageLocalId, date, EntryType.PURCHASE)
@@ -144,9 +148,10 @@ internal fun String.toEntryType(): EntryType = when (uppercase()) {
     else -> EntryType.UNKNOWN
 }
 
-internal fun DailyEntryEntity.toDailyEntry(): DailyEntry = DailyEntry(
+internal fun DailyEntryEntity.toDailyEntry(blockedByParent: Boolean = false): DailyEntry = DailyEntry(
     localId = localId,
     dailyLogLocalId = dailyLogLocalId,
     type = type.toEntryType(),
     summary = summary,
+    syncIssue = syncIssue(blockedByParent),
 )

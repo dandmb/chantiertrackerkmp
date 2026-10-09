@@ -23,8 +23,15 @@ interface StageDao {
     @Query("SELECT * FROM stages WHERE serverId = :serverId")
     suspend fun findByServerId(serverId: Long): StageEntity?
 
-    @Query("SELECT * FROM stages WHERE syncStatus != 'SYNCED' AND (lastSyncError IS NULL OR lastSyncError != 'DELETED_ON_SERVER')")
+    @Query("SELECT * FROM stages WHERE syncStatus != 'SYNCED' AND (lastSyncError IS NULL OR lastSyncError NOT IN ('DELETED_ON_SERVER', 'UPDATE_REFUSED', 'FILE_REFUSED'))")
     suspend fun findPending(): List<StageEntity>
+
+    @Query(
+        """
+        SELECT c.localId FROM stages c JOIN projects p ON p.localId = c.projectLocalId WHERE c.syncStatus = 'PENDING' AND (p.serverId IS NULL AND p.syncStatus = 'CONFLICTED')
+        """,
+    )
+    fun observeBlockedByParent(): Flow<List<String>>
 
     @Query("SELECT * FROM stages WHERE projectLocalId = :projectLocalId")
     suspend fun findForProject(projectLocalId: String): List<StageEntity>

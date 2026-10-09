@@ -6,6 +6,7 @@ import com.dmb.chantiertracker.data.local.ExportFileStore
 import com.dmb.chantiertracker.data.local.db.LocalDataDao
 import com.dmb.chantiertracker.domain.model.GlobalRole
 import com.dmb.chantiertracker.domain.model.User
+import com.dmb.chantiertracker.domain.model.UnsentWrites
 
 fun interface LocalDataEraser {
     suspend fun eraseAll()
@@ -13,6 +14,16 @@ fun interface LocalDataEraser {
 
 fun interface UnsyncedWriteCounter {
     suspend fun countUnsynced(): Int
+
+    suspend fun unsentByKind(): UnsentWrites = UnsentWrites(entries = countUnsynced())
+}
+
+class RoomUnsyncedWriteCounter(private val dao: LocalDataDao) : UnsyncedWriteCounter {
+    override suspend fun countUnsynced(): Int = dao.countUnsynced()
+
+    override suspend fun unsentByKind(): UnsentWrites = dao.countUnsentByKind().let {
+        UnsentWrites(it.projects, it.stages, it.materials, it.entries, it.lines, it.attachments)
+    }
 }
 
 enum class SessionStart { LOGIN, BOOTSTRAP }
