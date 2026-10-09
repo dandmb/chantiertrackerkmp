@@ -35,6 +35,7 @@ import com.dmb.chantiertracker.data.remote.PurchaseLineApi
 import com.dmb.chantiertracker.data.remote.StageApi
 import com.dmb.chantiertracker.data.remote.StockApi
 import com.dmb.chantiertracker.data.remote.apiCall
+import com.dmb.chantiertracker.data.remote.dto.DailyLogSummaryDto
 import com.dmb.chantiertracker.data.remote.dto.MaterialDto
 import com.dmb.chantiertracker.data.remote.dto.ProjectDto
 import com.dmb.chantiertracker.data.remote.dto.StageDto
@@ -545,8 +546,10 @@ class SyncEngine(
             materialDao.upsert(material.copy(syncStatus = SyncStatus.CONFLICTED, lastSyncError = SyncError.DELETED_ON_SERVER))
             return
         } catch (e: DomainException.DuplicateMaterial) {
-            if (!adoptServerMaterialOfSameName(material, projectServerId)) {
-                materialDao.upsert(material.copy(syncStatus = SyncStatus.CONFLICTED, lastSyncError = SyncError.REJECTED))
+            when (adoptServerMaterialOfSameName(material, projectServerId)) {
+                MaterialAdoption.ADOPTED, MaterialAdoption.NAMESAKE_NOT_READ_YET -> Unit
+                MaterialAdoption.NO_NAMESAKE ->
+                    materialDao.upsert(material.copy(syncStatus = SyncStatus.CONFLICTED, lastSyncError = SyncError.REJECTED))
             }
             return
         } catch (e: DomainException) {
@@ -559,11 +562,18 @@ class SyncEngine(
         materialDao.upsert(created.toSyncedEntity(material.localId, material.projectLocalId, clock.nowEpochMillis(), material))
     }
 
-    private suspend fun adoptServerMaterialOfSameName(material: MaterialEntity, projectServerId: Long): Boolean {
-        val remote = apiCall { materialApi.list(projectServerId) }.content
+    private enum class MaterialAdoption { ADOPTED, NO_NAMESAKE, NAMESAKE_NOT_READ_YET }
+
+    private suspend fun readProjectMaterials(projectServerId: Long): PagedRead<MaterialDto> =
+        readAllPages(MaterialDto::id) { page, size -> apiCall { materialApi.list(projectServerId, page, size) } }
+            .also { logIncomplete(it, "materials of project $projectServerId") }
+
+    private suspend fun adoptServerMaterialOfSameName(material: MaterialEntity, projectServerId: Long): MaterialAdoption {
+        val read = readProjectMaterials(projectServerId)
+        val remote = read.items
         val match = remote.firstOrNull { it.name == material.name }
             ?: remote.firstOrNull { it.name.equals(material.name, ignoreCase = true) }
-            ?: return false
+            ?: return if (read.isComplete) MaterialAdoption.NO_NAMESAKE else MaterialAdoption.NAMESAKE_NOT_READ_YET
         val syncedAt = clock.nowEpochMillis()
         val alreadyLocal = materialDao.findByServerId(match.id)
         if (alreadyLocal == null) {
@@ -571,7 +581,7 @@ class SyncEngine(
         } else {
             materialAdoptionDao.mergeInto(material.localId, match.toSyncedEntity(alreadyLocal.localId, material.projectLocalId, syncedAt, alreadyLocal))
         }
-        return true
+        return MaterialAdoption.ADOPTED
     }
 
     private suspend fun pushMaterialUpdate(material: MaterialEntity) {
@@ -872,7 +882,7 @@ class SyncEngine(
     // ─── pull: materials ────────────────────────────────────────────────────
 
     private suspend fun pullMaterials(projectServerId: Long, projectLocalId: String) {
-        val remote = apiCall { materialApi.list(projectServerId) }.content
+        val remote = readProjectMaterials(projectServerId).items
         val syncedAt = clock.nowEpochMillis()
         for (dto in remote) storeServerMaterial(dto, projectLocalId, syncedAt)
         // No removal pass — the backend never deletes a material (PATCH-only).
@@ -951,7 +961,9 @@ class SyncEngine(
     // ─── pull: daily log summaries (one stage) ──────────────────────────────
 
     private suspend fun pullLogSummaries(stageServerId: Long, stageLocalId: String) {
-        val remote = apiCall { dailyLogApi.listLogs(stageServerId) }.content
+        val read = readAllPages(DailyLogSummaryDto::id) { page, size -> apiCall { dailyLogApi.listLogs(stageServerId, page, size) } }
+        logIncomplete(read, "day logs of stage $stageServerId")
+        val remote = read.items
         val locals = dailyLogDao.findForStage(stageLocalId)
         val byDate = locals.associateBy { it.date }
         val syncedAt = clock.nowEpochMillis()
@@ -1236,6 +1248,11 @@ class SyncEngine(
         val reason = read.incompleteReason ?: return false
         log("sync: incomplete read of $listName ($reason), ${read.items.size} read, local removal skipped")
         return true
+    }
+
+    private fun logIncomplete(read: PagedRead<*>, listName: String) {
+        val reason = read.incompleteReason ?: return
+        log("sync: incomplete read of $listName ($reason), ${read.items.size} read")
     }
 }
 

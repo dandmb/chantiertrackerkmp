@@ -17,8 +17,8 @@ import io.ktor.http.contentType
 
 class DailyLogApi(private val client: HttpClient) {
 
-    suspend fun listLogs(stageId: Long): PageDto<DailyLogSummaryDto> =
-        client.get(ApiRoutes.stageLogs(stageId)).body()
+    suspend fun listLogs(stageId: Long, page: Int, size: Int): PageDto<DailyLogSummaryDto> =
+        client.get(ApiRoutes.stageLogs(stageId)) { sortedByIdPage(page, size) }.body()
 
     suspend fun getLog(id: Long): DailyLogDetailDto =
         client.get(ApiRoutes.log(id)).body()
