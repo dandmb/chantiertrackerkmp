@@ -1918,4 +1918,218 @@ class SyncEngineTest {
         assertNotNull(f.stageDao.findByLocalId("orphan"))
         assertEquals(28, f.stageDao.findForProject("p7").size)
     }
+
+    // ─── day logs and materials read page by page (ADR-73, slice 2) ─────────
+
+    private suspend fun Fixture.siteSeven() {
+        backend.seed(ServerProject(id = 7, name = "Villa Vidal"))
+        backend.seedStage(ServerStage(id = 70, projectId = 7, name = "Gros œuvre"))
+        dao.upsert(localProject("p7", serverId = 7, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+        stageDao.upsert(localStage("st70", projectLocalId = "p7", serverId = 70, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+    }
+
+    private fun Fixture.seedServerMaterials(count: Int) =
+        (1..count).forEach { backend.seedMaterial(com.dmb.chantiertracker.support.ServerMaterial(id = 2_000L + it, projectId = 7, name = "Matériau $it", unit = "u")) }
+
+    private fun dayNumber(index: Int): String {
+        val year = 2000 + index / 336
+        val month = (index / 28 % 12 + 1).toString().padStart(2, '0')
+        val day = (index % 28 + 1).toString().padStart(2, '0')
+        return "$year-$month-$day"
+    }
+
+    private fun Fixture.seedServerLogs(count: Int) =
+        (1..count).forEach { backend.seedLog(com.dmb.chantiertracker.support.ServerLog(id = 3_000L + it, stageId = 70, date = dayNumber(it))) }
+
+    @Test
+    fun more_than_twenty_materials_are_all_pulled_and_stay_on_the_next_pass() = runTest {
+        val f = Fixture()
+        f.siteSeven()
+        f.seedServerMaterials(25)
+        val engine = f.engine(backgroundScope)
+
+        assertIs<SyncOutcome.Synced>(engine.syncProject("p7"))
+        assertEquals(25, f.materialDao.findForProject("p7").size)
+
+        assertIs<SyncOutcome.Synced>(engine.syncProject("p7"))
+        assertEquals((2_001L..2_025L).toSet(), f.materialDao.findForProject("p7").mapNotNull { it.serverId }.toSet())
+    }
+
+    @Test
+    fun more_than_a_hundred_materials_are_all_pulled_and_stay_on_the_next_pass() = runTest {
+        val f = Fixture()
+        f.siteSeven()
+        f.seedServerMaterials(230)
+        val engine = f.engine(backgroundScope)
+
+        assertIs<SyncOutcome.Synced>(engine.syncProject("p7"))
+        assertIs<SyncOutcome.Synced>(engine.syncProject("p7"))
+
+        assertEquals((2_001L..2_230L).toSet(), f.materialDao.findForProject("p7").mapNotNull { it.serverId }.toSet())
+        assertEquals(230, f.materialDao.findForProject("p7").size)
+    }
+
+    @Test
+    fun more_than_twenty_day_logs_are_all_pulled_and_stay_on_the_next_pass() = runTest {
+        val f = Fixture()
+        f.siteSeven()
+        f.seedServerLogs(25)
+        val engine = f.engine(backgroundScope)
+
+        assertIs<SyncOutcome.Synced>(engine.syncProject("p7"))
+        assertEquals(25, f.dailyLogDao.findForStage("st70").size)
+
+        assertIs<SyncOutcome.Synced>(engine.syncStage("st70"))
+        assertEquals((3_001L..3_025L).toSet(), f.dailyLogDao.findForStage("st70").mapNotNull { it.serverId }.toSet())
+    }
+
+    @Test
+    fun more_than_a_hundred_day_logs_are_all_pulled_and_stay_on_the_next_pass() = runTest {
+        val f = Fixture()
+        f.siteSeven()
+        f.seedServerLogs(230)
+        val engine = f.engine(backgroundScope)
+
+        assertIs<SyncOutcome.Synced>(engine.syncProject("p7"))
+        assertIs<SyncOutcome.Synced>(engine.syncStage("st70"))
+
+        assertEquals((3_001L..3_230L).toSet(), f.dailyLogDao.findForStage("st70").mapNotNull { it.serverId }.toSet())
+        assertEquals(230, f.dailyLogDao.findForStage("st70").size)
+    }
+
+    @Test
+    fun a_server_material_of_the_same_name_beyond_the_twentieth_is_adopted() = runTest {
+        val f = Fixture()
+        f.siteSeven()
+        f.seedServerMaterials(30)
+        f.backend.seedMaterial(com.dmb.chantiertracker.support.ServerMaterial(id = 9_999, projectId = 7, name = "Sable", unit = "t"))
+        f.materialDao.upsert(com.dmb.chantiertracker.support.localMaterial("m-sand", projectLocalId = "p7", name = "Sable", unit = "tonne"))
+        val engine = f.engine(backgroundScope)
+
+        assertIs<SyncOutcome.Synced>(engine.syncNow())
+
+        val sand = f.materialDao.findByLocalId("m-sand")!!
+        assertEquals(9_999L, sand.serverId)
+        assertEquals(SyncStatus.SYNCED, sand.syncStatus)
+        assertEquals("t", sand.unit)
+    }
+
+    @Test
+    fun a_duplicate_material_whose_namesake_was_not_found_in_an_incomplete_read_stays_pending_then_is_adopted() = runTest {
+        val f = Fixture()
+        f.siteSeven()
+        f.seedServerMaterials(150)
+        f.backend.seedMaterial(com.dmb.chantiertracker.support.ServerMaterial(id = 9_999, projectId = 7, name = "Sable", unit = "t"))
+        f.materialDao.upsert(com.dmb.chantiertracker.support.localMaterial("m-sand", projectLocalId = "p7", name = "Sable", unit = "tonne"))
+        f.backend.listPageFailure = 1 to io.ktor.http.HttpStatusCode.InternalServerError
+        val engine = f.engine(backgroundScope)
+
+        assertIs<SyncOutcome.Synced>(engine.syncNow())
+
+        val waiting = f.materialDao.findByLocalId("m-sand")!!
+        assertEquals(SyncStatus.PENDING, waiting.syncStatus, "not REJECTED: the read that found no namesake was incomplete")
+        assertEquals(PendingOp.CREATE, waiting.pendingOp)
+        assertNull(waiting.serverId)
+        assertNull(waiting.lastSyncError)
+        assertEquals(listOf("sync: incomplete read of materials of project 7 (ERROR), 100 read"), f.logged)
+
+        f.backend.listPageFailure = null
+        assertIs<SyncOutcome.Synced>(engine.syncNow())
+
+        val adopted = f.materialDao.findByLocalId("m-sand")!!
+        assertEquals(9_999L, adopted.serverId)
+        assertEquals(SyncStatus.SYNCED, adopted.syncStatus)
+    }
+
+    @Test
+    fun a_material_created_on_the_server_while_the_list_is_read_is_logged_and_the_pass_succeeds() = runTest {
+        val f = Fixture()
+        f.siteSeven()
+        f.seedServerMaterials(150)
+        f.backend.beforeHandle = { request ->
+            if (request.url.encodedPath.endsWith("/materials") && request.url.parameters["page"] == "1" && f.backend.materials.size == 150) {
+                f.backend.seedMaterial(com.dmb.chantiertracker.support.ServerMaterial(id = 5_000, projectId = 7, name = "Créé pendant la lecture", unit = "u"))
+            }
+        }
+        val engine = f.engine(backgroundScope)
+
+        assertIs<SyncOutcome.Synced>(engine.syncProject("p7"))
+
+        assertEquals(151, f.materialDao.findForProject("p7").size)
+        assertEquals(listOf("sync: incomplete read of materials of project 7 (TOTAL_MISMATCH), 151 read"), f.logged)
+    }
+
+    @Test
+    fun a_page_of_day_logs_that_fails_after_the_first_keeps_what_was_read_and_the_pass_succeeds() = runTest {
+        val f = Fixture()
+        f.siteSeven()
+        f.seedServerLogs(150)
+        f.dailyLogDao.upsert(com.dmb.chantiertracker.support.localDailyLog("known", stageLocalId = "st70", date = dayNumber(150), serverId = 3_150))
+        f.backend.listPageFailure = 1 to io.ktor.http.HttpStatusCode.InternalServerError
+        val engine = f.engine(backgroundScope)
+
+        assertIs<SyncOutcome.Synced>(engine.syncStage("st70"))
+
+        assertEquals(101, f.dailyLogDao.findForStage("st70").size, "the first hundred pulled, the unread one kept")
+        assertNotNull(f.dailyLogDao.findByLocalId("known"))
+        assertEquals(listOf("sync: incomplete read of day logs of stage 70 (ERROR), 100 read"), f.logged)
+    }
+
+    @Test
+    fun a_complete_read_of_materials_never_removes_a_local_material() = runTest {
+        val f = Fixture()
+        f.siteSeven()
+        f.seedServerMaterials(25)
+        f.materialDao.upsert(
+            com.dmb.chantiertracker.support.localMaterial("orphan", projectLocalId = "p7", name = "Orphelin")
+                .copy(syncStatus = SyncStatus.CONFLICTED, lastSyncError = SyncError.DELETED_ON_SERVER),
+        )
+        f.materialDao.upsert(
+            com.dmb.chantiertracker.support.localMaterial("unlisted", projectLocalId = "p7", name = "Hors liste", serverId = 9_001, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED),
+        )
+        val engine = f.engine(backgroundScope)
+
+        assertIs<SyncOutcome.Synced>(engine.syncProject("p7"))
+
+        assertEquals(SyncError.DELETED_ON_SERVER, f.materialDao.findByLocalId("orphan")!!.lastSyncError)
+        assertNotNull(f.materialDao.findByLocalId("unlisted"))
+        assertEquals(27, f.materialDao.findForProject("p7").size)
+        assertTrue(f.logged.isEmpty())
+    }
+
+    @Test
+    fun a_complete_read_of_day_logs_never_removes_a_local_day() = runTest {
+        val f = Fixture()
+        f.siteSeven()
+        f.seedServerLogs(25)
+        f.dailyLogDao.upsert(com.dmb.chantiertracker.support.localDailyLog("local-only", stageLocalId = "st70", date = "2026-09-05"))
+        f.dailyLogDao.upsert(com.dmb.chantiertracker.support.localDailyLog("unlisted", stageLocalId = "st70", date = "2026-09-06", serverId = 9_001))
+        val engine = f.engine(backgroundScope)
+
+        assertIs<SyncOutcome.Synced>(engine.syncStage("st70"))
+
+        assertNull(f.dailyLogDao.findByLocalId("local-only")!!.serverId)
+        assertNotNull(f.dailyLogDao.findByLocalId("unlisted"))
+        assertEquals(27, f.dailyLogDao.findForStage("st70").size)
+        assertTrue(f.logged.isEmpty())
+    }
+
+    @Test
+    fun material_and_day_log_lists_are_requested_a_hundred_at_a_time_sorted_by_id() = runTest {
+        val f = Fixture()
+        f.siteSeven()
+        val listQueries = mutableMapOf<String, String>()
+        f.backend.beforeHandle = { request ->
+            val path = request.url.encodedPath.removePrefix("/api/v1")
+            if (path == "/projects/7/materials" || path == "/stages/70/logs") {
+                listQueries[path] = listOf("page", "size", "sort").joinToString("&") { "$it=${request.url.parameters[it]}" }
+            }
+        }
+        val engine = f.engine(backgroundScope)
+
+        engine.syncProject("p7")
+
+        assertEquals("page=0&size=100&sort=id,asc", listQueries["/projects/7/materials"])
+        assertEquals("page=0&size=100&sort=id,asc", listQueries["/stages/70/logs"])
+    }
 }

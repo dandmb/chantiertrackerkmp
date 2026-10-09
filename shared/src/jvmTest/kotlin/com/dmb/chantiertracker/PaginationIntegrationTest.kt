@@ -1,7 +1,10 @@
 package com.dmb.chantiertracker
 
+import com.dmb.chantiertracker.data.remote.dto.CreateMaterialRequestDto
 import com.dmb.chantiertracker.data.remote.dto.CreateProjectRequestDto
 import com.dmb.chantiertracker.data.remote.dto.CreateStageRequestDto
+import com.dmb.chantiertracker.data.remote.dto.EntryRequestDto
+import com.dmb.chantiertracker.data.remote.dto.UpdateMaterialRequestDto
 import com.dmb.chantiertracker.data.sync.SyncOutcome
 import com.dmb.chantiertracker.domain.model.CreateProjectInput
 import com.dmb.chantiertracker.support.DeviceStack
@@ -10,6 +13,8 @@ import com.dmb.chantiertracker.support.IntegrationBackend
 import com.dmb.chantiertracker.support.signInForTheFirstTime
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import java.time.LocalDate
+import java.time.ZoneId
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -101,5 +106,62 @@ class PaginationIntegrationTest {
         val afterServerDelete = owner.db.projectDao().findAll().mapNotNull { it.serverId }.toSet()
         println("C5 projets — après suppression d'un projet côté serveur : ${afterServerDelete.size}")
         assertEquals(projectServerIds.toSet() - projectServerIds[5], afterServerDelete)
+    }
+
+    @Test
+    fun c5_twenty_five_days_and_twenty_five_materials_all_reach_a_second_device_and_stay_there() = runScenario {
+        val owner = device()
+        owner.signedInAs("qa-c5-days-owner", "QA C5 Propriétaire journées")
+        val supervisor = device()
+        val supervisorAccount = supervisor.signedInAs("qa-c5-days-super", "QA C5 Superviseur journées")
+
+        val project = owner.projects.createProject(CreateProjectInput("QA C5 journées", null, "Nîmes", "EUR", "Europe/Paris"))
+        owner.sync.syncNow()
+        val projectServerId = owner.db.projectDao().findByLocalId(project)!!.serverId!!
+        val mainStage = owner.stageApi.create(projectServerId, CreateStageRequestDto("Gros œuvre")).id
+        val doomedStage = owner.stageApi.create(projectServerId, CreateStageRequestDto("Étape à supprimer")).id
+        val today = LocalDate.now(ZoneId.of("Europe/Paris"))
+        val days = (0..24).map { today.minusDays(it.toLong()).toString() }
+        days.forEach { owner.dailyLogApi.createPurchaseEntry(mainStage, it, EntryRequestDto("Achat du $it")) }
+        owner.dailyLogApi.createPurchaseEntry(doomedStage, today.toString(), EntryRequestDto("Achat de l'étape à supprimer"))
+        val materialIds = (1..25).map { owner.materialApi.create(projectServerId, CreateMaterialRequestDto("Matériau $it", "u")).id }
+        owner.invitations.invite(project, supervisorAccount.email)
+        supervisor.invitations.acceptInvitation(supervisor.invitations.listIncomingInvitations().single().token)
+        supervisor.sync.syncNow()
+        val supervisorProject = supervisor.projects.observeProjects().first().single().localId
+
+        suspend fun daysOf(stageServerId: Long): Set<String> {
+            val stage = supervisor.db.stageDao().findForProject(supervisorProject).firstOrNull { it.serverId == stageServerId } ?: return emptySet()
+            return supervisor.db.dailyLogDao().findForStage(stage.localId).map { it.date }.toSet()
+        }
+        suspend fun materials() = supervisor.db.materialDao().findForProject(supervisorProject)
+
+        assertIs<SyncOutcome.Synced>(supervisor.sync.syncProject(supervisorProject))
+        val daysAfterFirstPass = daysOf(mainStage)
+        val materialsAfterFirstPass = materials().mapNotNull { it.serverId }.toSet()
+        assertIs<SyncOutcome.Synced>(supervisor.sync.syncProject(supervisorProject))
+        val daysAfterSecondPass = daysOf(mainStage)
+        val materialsAfterSecondPass = materials().mapNotNull { it.serverId }.toSet()
+        println(
+            "C5 journées et matériaux — serveur 25 et 25 ; superviseur 1re passe=${daysAfterFirstPass.size} journées, " +
+                "${materialsAfterFirstPass.size} matériaux ; 2e passe=${daysAfterSecondPass.size} journées, ${materialsAfterSecondPass.size} matériaux",
+        )
+        assertEquals(days.toSet(), daysAfterFirstPass)
+        assertEquals(days.toSet(), daysAfterSecondPass)
+        assertEquals(materialIds.toSet(), materialsAfterFirstPass)
+        assertEquals(materialIds.toSet(), materialsAfterSecondPass)
+        assertEquals(1, daysOf(doomedStage).size)
+
+        owner.materialApi.update(materialIds[24], UpdateMaterialRequestDto(name = "Matériau 25 renommé"))
+        owner.stageApi.delete(doomedStage)
+        assertIs<SyncOutcome.Synced>(supervisor.sync.syncProject(supervisorProject))
+        val renamed = materials().single { it.serverId == materialIds[24] }.name
+        val stagesLeft = supervisor.db.stageDao().findForProject(supervisorProject).mapNotNull { it.serverId }
+        println("C5 journées et matériaux — après renommage du 25e matériau et suppression d'une étape côté serveur : « $renamed », étapes=${stagesLeft.size}, journées=${daysOf(mainStage).size}, matériaux=${materials().size}")
+        assertEquals("Matériau 25 renommé", renamed)
+        assertEquals(listOf(mainStage), stagesLeft)
+        assertEquals(emptySet(), daysOf(doomedStage))
+        assertEquals(days.toSet(), daysOf(mainStage))
+        assertEquals(25, materials().size)
     }
 }
