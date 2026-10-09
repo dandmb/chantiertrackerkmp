@@ -131,9 +131,9 @@ class SyncAndRejectionsIntegrationTest {
         println("P2 — après une synchro : " + rows.joinToString { "${it.first}=${it.second}" })
         rows.forEach { (what, status) -> assertEquals(SyncStatus.SYNCED, status, "$what synchronisé en une seule passe") }
 
-        val serverLines = phone.purchaseLineApi.list(purchaseEntry.serverId!!).content
-        val serverConsumption = phone.consumptionLineApi.list(workEntry.serverId!!).content
-        val serverPhotos = phone.attachmentApi.list(purchaseEntry.serverId!!).content
+        val serverLines = phone.purchaseLineApi.list(purchaseEntry.serverId!!, page = 0, size = 100).content
+        val serverConsumption = phone.consumptionLineApi.list(workEntry.serverId!!, page = 0, size = 100).content
+        val serverPhotos = phone.attachmentApi.list(purchaseEntry.serverId!!, page = 0, size = 100).content
         println("P2 — côté serveur : ${serverLines.size} ligne(s) d'achat, ${serverConsumption.size} conso, ${serverPhotos.size} photo(s)")
         assertEquals(1, serverLines.size)
         assertEquals(10.0, serverLines.single().quantity)

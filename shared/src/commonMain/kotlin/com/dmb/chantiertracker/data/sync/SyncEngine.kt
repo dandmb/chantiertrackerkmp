@@ -35,9 +35,12 @@ import com.dmb.chantiertracker.data.remote.PurchaseLineApi
 import com.dmb.chantiertracker.data.remote.StageApi
 import com.dmb.chantiertracker.data.remote.StockApi
 import com.dmb.chantiertracker.data.remote.apiCall
+import com.dmb.chantiertracker.data.remote.dto.AttachmentDto
+import com.dmb.chantiertracker.data.remote.dto.ConsumptionLineDto
 import com.dmb.chantiertracker.data.remote.dto.DailyLogSummaryDto
 import com.dmb.chantiertracker.data.remote.dto.MaterialDto
 import com.dmb.chantiertracker.data.remote.dto.ProjectDto
+import com.dmb.chantiertracker.data.remote.dto.PurchaseLineDto
 import com.dmb.chantiertracker.data.remote.dto.StageDto
 import com.dmb.chantiertracker.domain.model.DomainException
 import com.dmb.chantiertracker.presentation.sync.SyncState
@@ -1018,7 +1021,8 @@ class SyncEngine(
     // ─── pull: lines (one entry) ────────────────────────────────────────────
 
     private suspend fun pullPurchaseLines(entryServerId: Long, entryLocalId: String) {
-        val remote = apiCall { purchaseLineApi.list(entryServerId) }.content
+        val read = readAllPages(PurchaseLineDto::id) { page, size -> apiCall { purchaseLineApi.list(entryServerId, page, size) } }
+        val remote = read.items
         val locals = purchaseLineDao.findForEntry(entryLocalId)
         val byServerId = locals.mapNotNull { l -> l.serverId?.let { it to l } }.toMap()
         val syncedAt = clock.nowEpochMillis()
@@ -1033,6 +1037,7 @@ class SyncEngine(
             }
         }
 
+        if (skipsRemovalAfter(read, "purchase lines of entry $entryServerId")) return
         val remoteIds = remote.map { it.id }.toSet()
         locals
             .filter { it.serverId != null && it.serverId !in remoteIds }
@@ -1041,7 +1046,8 @@ class SyncEngine(
     }
 
     private suspend fun pullConsumptionLines(entryServerId: Long, entryLocalId: String) {
-        val remote = apiCall { consumptionLineApi.list(entryServerId) }.content
+        val read = readAllPages(ConsumptionLineDto::id) { page, size -> apiCall { consumptionLineApi.list(entryServerId, page, size) } }
+        val remote = read.items
         val locals = consumptionLineDao.findForEntry(entryLocalId)
         val byServerId = locals.mapNotNull { l -> l.serverId?.let { it to l } }.toMap()
         val syncedAt = clock.nowEpochMillis()
@@ -1056,6 +1062,7 @@ class SyncEngine(
             }
         }
 
+        if (skipsRemovalAfter(read, "consumption lines of entry $entryServerId")) return
         val remoteIds = remote.map { it.id }.toSet()
         locals
             .filter { it.serverId != null && it.serverId !in remoteIds }
@@ -1069,7 +1076,8 @@ class SyncEngine(
         if (mimeType?.startsWith("video/") == true) "video.mp4" else "photo.jpg"
 
     private suspend fun pullAttachments(entryServerId: Long, entryLocalId: String) {
-        val remote = apiCall { attachmentApi.list(entryServerId) }.content
+        val read = readAllPages(AttachmentDto::id) { page, size -> apiCall { attachmentApi.list(entryServerId, page, size) } }
+        val remote = read.items
         val locals = attachmentDao.findForEntry(entryLocalId)
         val knownServerIds = locals.mapNotNull { it.serverId }.toSet()
         val syncedAt = clock.nowEpochMillis()
@@ -1084,6 +1092,7 @@ class SyncEngine(
             attachmentDao.upsert(dto.toSyncedEntity(newLocalId(), entryLocalId, path, syncedAt))
         }
 
+        if (skipsRemovalAfter(read, "attachments of entry $entryServerId")) return
         val remoteIds = remote.map { it.id }.toSet()
         locals
             .filter { it.serverId != null && it.serverId !in remoteIds }

@@ -16,8 +16,8 @@ import io.ktor.http.contentType
 
 class PurchaseLineApi(private val client: HttpClient) {
 
-    suspend fun list(entryId: Long): PageDto<PurchaseLineDto> =
-        client.get(ApiRoutes.entryPurchaseLines(entryId)).body()
+    suspend fun list(entryId: Long, page: Int, size: Int): PageDto<PurchaseLineDto> =
+        client.get(ApiRoutes.entryPurchaseLines(entryId)) { sortedByIdPage(page, size) }.body()
 
     suspend fun create(entryId: Long, body: CreatePurchaseLineRequestDto): PurchaseLineDto =
         client.post(ApiRoutes.entryPurchaseLines(entryId)) {
