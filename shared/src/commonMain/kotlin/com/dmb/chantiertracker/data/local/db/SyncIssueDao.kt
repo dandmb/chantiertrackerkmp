@@ -24,6 +24,8 @@ data class SyncIssueRow(
     val unit: String?,
     val quantity: Double?,
     val serverQuantity: Double?,
+    val entryLocalId: String? = null,
+    val currency: String? = null,
 ) : SyncedRow
 
 @Dao
@@ -35,7 +37,8 @@ abstract class SyncIssueDao {
             c.lastSyncError AS lastSyncError, c.serverErrorCode AS serverErrorCode,
             p.localId AS projectLocalId, p.name AS projectName, s.localId AS stageLocalId, s.name AS stageName,
             l.localId AS dailyLogLocalId, l.date AS logDate, e.type AS entryType,
-            m.name AS label, m.unit AS unit, c.quantity AS quantity, c.serverQuantity AS serverQuantity
+            m.name AS label, m.unit AS unit, c.quantity AS quantity, c.serverQuantity AS serverQuantity,
+            c.entryLocalId AS entryLocalId, p.currency AS currency
         FROM purchase_lines c
             JOIN daily_entries e ON e.localId = c.entryLocalId JOIN daily_logs l ON l.localId = e.dailyLogLocalId
             JOIN stages s ON s.localId = l.stageLocalId JOIN projects p ON p.localId = s.projectLocalId
@@ -43,7 +46,7 @@ abstract class SyncIssueDao {
         WHERE c.syncStatus != 'SYNCED' OR COALESCE(c.lastSyncError, '') = 'REJECTED'
         UNION ALL
         SELECT 'CONSUMPTION_LINE', c.localId, c.serverId, c.syncStatus, c.pendingOp, c.lastSyncError, c.serverErrorCode,
-            p.localId, p.name, s.localId, s.name, l.localId, l.date, e.type, m.name, m.unit, c.quantity, c.serverQuantity
+            p.localId, p.name, s.localId, s.name, l.localId, l.date, e.type, m.name, m.unit, c.quantity, c.serverQuantity, c.entryLocalId, p.currency
         FROM consumption_lines c
             JOIN daily_entries e ON e.localId = c.entryLocalId JOIN daily_logs l ON l.localId = e.dailyLogLocalId
             JOIN stages s ON s.localId = l.stageLocalId JOIN projects p ON p.localId = s.projectLocalId
@@ -51,14 +54,14 @@ abstract class SyncIssueDao {
         WHERE c.syncStatus != 'SYNCED' OR COALESCE(c.lastSyncError, '') = 'REJECTED'
         UNION ALL
         SELECT 'ATTACHMENT', a.localId, a.serverId, a.syncStatus, a.pendingOp, a.lastSyncError, a.serverErrorCode,
-            p.localId, p.name, s.localId, s.name, l.localId, l.date, e.type, a.originalName, NULL, NULL, NULL
+            p.localId, p.name, s.localId, s.name, l.localId, l.date, e.type, a.originalName, NULL, NULL, NULL, a.entryLocalId, p.currency
         FROM attachments a
             JOIN daily_entries e ON e.localId = a.entryLocalId JOIN daily_logs l ON l.localId = e.dailyLogLocalId
             JOIN stages s ON s.localId = l.stageLocalId JOIN projects p ON p.localId = s.projectLocalId
         WHERE a.syncStatus != 'SYNCED' OR COALESCE(a.lastSyncError, '') = 'REJECTED'
         UNION ALL
         SELECT 'ENTRY', e.localId, e.serverId, e.syncStatus, e.pendingOp, e.lastSyncError, e.serverErrorCode,
-            p.localId, p.name, s.localId, s.name, l.localId, l.date, e.type, NULL, NULL, NULL, NULL
+            p.localId, p.name, s.localId, s.name, l.localId, l.date, e.type, NULL, NULL, NULL, NULL, e.localId, p.currency
         FROM daily_entries e
             JOIN daily_logs l ON l.localId = e.dailyLogLocalId
             JOIN stages s ON s.localId = l.stageLocalId JOIN projects p ON p.localId = s.projectLocalId
@@ -66,19 +69,19 @@ abstract class SyncIssueDao {
             AND NOT (COALESCE(e.lastSyncError, '') = 'DELETED_ON_SERVER' AND e.pendingOp = 'NONE' AND e.serverId IS NOT NULL)
         UNION ALL
         SELECT 'MATERIAL', m.localId, m.serverId, m.syncStatus, m.pendingOp, m.lastSyncError, m.serverErrorCode,
-            p.localId, p.name, NULL, NULL, NULL, NULL, NULL, m.name, m.unit, NULL, NULL
+            p.localId, p.name, NULL, NULL, NULL, NULL, NULL, m.name, m.unit, NULL, NULL, NULL, p.currency
         FROM materials m JOIN projects p ON p.localId = m.projectLocalId
         WHERE (m.syncStatus != 'SYNCED' OR COALESCE(m.lastSyncError, '') = 'REJECTED')
             AND NOT (COALESCE(m.lastSyncError, '') = 'DELETED_ON_SERVER' AND m.pendingOp = 'NONE' AND m.serverId IS NOT NULL)
         UNION ALL
         SELECT 'STAGE', s.localId, s.serverId, s.syncStatus, s.pendingOp, s.lastSyncError, s.serverErrorCode,
-            p.localId, p.name, s.localId, s.name, NULL, NULL, NULL, NULL, NULL, NULL, NULL
+            p.localId, p.name, s.localId, s.name, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, p.currency
         FROM stages s JOIN projects p ON p.localId = s.projectLocalId
         WHERE (s.syncStatus != 'SYNCED' OR COALESCE(s.lastSyncError, '') = 'REJECTED')
             AND NOT (COALESCE(s.lastSyncError, '') = 'DELETED_ON_SERVER' AND s.pendingOp = 'NONE' AND s.serverId IS NOT NULL)
         UNION ALL
         SELECT 'PROJECT', p.localId, p.serverId, p.syncStatus, p.pendingOp, p.lastSyncError, p.serverErrorCode,
-            p.localId, p.name, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
+            p.localId, p.name, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, p.currency
         FROM projects p
         WHERE (p.syncStatus != 'SYNCED' OR COALESCE(p.lastSyncError, '') = 'REJECTED')
             AND NOT (COALESCE(p.lastSyncError, '') = 'DELETED_ON_SERVER' AND p.pendingOp = 'NONE' AND p.serverId IS NOT NULL)

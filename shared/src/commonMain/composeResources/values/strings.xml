@@ -603,4 +603,24 @@
     <string name="sync_retry_accepted">Sent: the server accepted it.</string>
     <string name="sync_retry_still_refused">Still refused by the server.</string>
     <string name="sync_retry_not_sent">Could not send right now. Check your connection, then retry.</string>
+    <string name="sync_action_fix">Fix</string>
+    <string name="sync_action_revert">Undo my change</string>
+    <string name="sync_action_discard">Discard</string>
+    <string name="sync_action_acknowledge">Got it</string>
+    <string name="sync_action_working">Working…</string>
+    <string name="sync_revert_offline">Offline: the server value is not known on this device. Reconnect to undo your change.</string>
+    <string name="sync_discard_title">Discard this item?</string>
+    <string name="sync_discard_body">It was never saved on the server. It will be deleted from this device.</string>
+    <string name="sync_discard_file">The file will be deleted from this device too.</string>
+    <string name="sync_acknowledge_title">Remove this item from the list?</string>
+    <string name="sync_acknowledge_body">It will be deleted from this device.</string>
+    <string name="sync_notice_discarded">Item discarded: it is deleted from this device.</string>
+    <string name="sync_notice_acknowledged">Item removed from the list.</string>
+    <string name="sync_notice_reverted">Change undone: the server value is back.</string>
+    <string name="sync_notice_revert_needs_connection">Cannot undo while offline. Reconnect, then try again.</string>
+    <string name="sync_notice_revert_failed">Cannot undo right now. Try again later.</string>
+    <plurals name="sync_linked_removed">
+        <item quantity="one">1 linked entry will be deleted too.</item>
+        <item quantity="other">%1$d linked entries will be deleted too.</item>
+    </plurals>
 </resources>

@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import com.dmb.chantiertracker.domain.model.EntryType
 import com.dmb.chantiertracker.domain.model.RefusalReason
 import com.dmb.chantiertracker.domain.model.SyncIssue
+import com.dmb.chantiertracker.domain.model.SyncIssueAction
 import com.dmb.chantiertracker.domain.model.SyncIssueItem
 import com.dmb.chantiertracker.domain.model.SyncIssueKind
 import com.dmb.chantiertracker.domain.model.SyncIssueParent
@@ -13,6 +14,16 @@ import com.dmb.chantiertracker.domain.repository.RetryOutcome
 import com.dmb.chantiertracker.presentation.format.formatAmount
 import com.dmb.chantiertracker.presentation.formatIsoDate
 import com.dmb.chantiertracker.resources.Res
+import com.dmb.chantiertracker.resources.sync_action_acknowledge
+import com.dmb.chantiertracker.resources.sync_action_discard
+import com.dmb.chantiertracker.resources.sync_action_fix
+import com.dmb.chantiertracker.resources.sync_action_revert
+import com.dmb.chantiertracker.resources.sync_issue_retry
+import com.dmb.chantiertracker.resources.sync_notice_acknowledged
+import com.dmb.chantiertracker.resources.sync_notice_discarded
+import com.dmb.chantiertracker.resources.sync_notice_revert_failed
+import com.dmb.chantiertracker.resources.sync_notice_revert_needs_connection
+import com.dmb.chantiertracker.resources.sync_notice_reverted
 import com.dmb.chantiertracker.resources.sync_hint_entry_date_restricted
 import com.dmb.chantiertracker.resources.sync_hint_insufficient_role
 import com.dmb.chantiertracker.resources.sync_hint_plan_limit
@@ -89,6 +100,22 @@ fun SyncIssueKind.statusRes(): StringResource = when (this) {
     SyncIssueKind.DELETE_REFUSED -> Res.string.sync_status_delete_refused
     SyncIssueKind.DELETED_ON_SERVER -> Res.string.sync_status_deleted_on_server
     SyncIssueKind.BLOCKED_BY_PARENT -> Res.string.sync_status_blocked
+}
+
+fun SyncIssueAction.labelRes(): StringResource = when (this) {
+    SyncIssueAction.FIX -> Res.string.sync_action_fix
+    SyncIssueAction.RETRY -> Res.string.sync_issue_retry
+    SyncIssueAction.REVERT -> Res.string.sync_action_revert
+    SyncIssueAction.DISCARD -> Res.string.sync_action_discard
+    SyncIssueAction.ACKNOWLEDGE -> Res.string.sync_action_acknowledge
+}
+
+fun SyncIssueActionNotice.noticeRes(): StringResource = when (this) {
+    SyncIssueActionNotice.DISCARDED -> Res.string.sync_notice_discarded
+    SyncIssueActionNotice.ACKNOWLEDGED -> Res.string.sync_notice_acknowledged
+    SyncIssueActionNotice.REVERTED -> Res.string.sync_notice_reverted
+    SyncIssueActionNotice.REVERT_NEEDS_CONNECTION -> Res.string.sync_notice_revert_needs_connection
+    SyncIssueActionNotice.REVERT_FAILED -> Res.string.sync_notice_revert_failed
 }
 
 fun RetryOutcome.noticeRes(): StringResource = when (this) {

@@ -6,7 +6,11 @@ import com.dmb.chantiertracker.data.local.db.DailyEntryDao
 import com.dmb.chantiertracker.data.local.db.MaterialDao
 import com.dmb.chantiertracker.data.local.db.PurchaseLineDao
 import com.dmb.chantiertracker.data.local.db.StageDao
+import com.dmb.chantiertracker.data.local.AttachmentFileStore
 import com.dmb.chantiertracker.data.local.db.SyncIssueDao
+import com.dmb.chantiertracker.data.local.db.SyncIssueLocalActions
+import com.dmb.chantiertracker.data.sync.ConnectivityObserver
+import com.dmb.chantiertracker.domain.repository.RevertOutcome
 import com.dmb.chantiertracker.data.local.db.SyncIssueRow
 import com.dmb.chantiertracker.data.local.db.SyncStatus
 import com.dmb.chantiertracker.data.sync.SyncOutcome
@@ -14,6 +18,10 @@ import com.dmb.chantiertracker.data.sync.Syncer
 import com.dmb.chantiertracker.data.sync.syncIssue
 import com.dmb.chantiertracker.domain.model.EntryType
 import com.dmb.chantiertracker.domain.model.SyncIssue
+import com.dmb.chantiertracker.domain.model.SyncIssueAction
+import com.dmb.chantiertracker.domain.model.actions
+import com.dmb.chantiertracker.domain.model.removesLocalDataWhenAcknowledged
+import com.dmb.chantiertracker.domain.model.serverValueKnownLocally
 import com.dmb.chantiertracker.domain.model.SyncIssueItem
 import com.dmb.chantiertracker.domain.model.SyncIssueKind
 import com.dmb.chantiertracker.domain.model.SyncIssueParent
@@ -36,6 +44,9 @@ class SyncIssueRepositoryImpl(
     consumptionLineDao: ConsumptionLineDao,
     attachmentDao: AttachmentDao,
     private val syncer: Syncer,
+    private val localActions: SyncIssueLocalActions,
+    private val fileStore: AttachmentFileStore,
+    private val connectivity: ConnectivityObserver,
 ) : SyncIssueRepository {
 
     private val blockedByParent: Flow<Set<Pair<SyncIssueTarget, String>>> = combine(
@@ -68,6 +79,42 @@ class SyncIssueRepositoryImpl(
         }
         val stillListed = observeIssues().first().any { it.key == item.key }
         return if (stillListed) RetryOutcome.STILL_REFUSED else RetryOutcome.ACCEPTED
+    }
+
+    override fun observeOnline(): Flow<Boolean> = connectivity.online
+
+    override suspend fun linkedCount(item: SyncIssueItem): Int = localActions.countLinked(item.target, item.localId)
+
+    override suspend fun discard(item: SyncIssueItem) {
+        if (SyncIssueAction.DISCARD !in item.actions) return
+        removeLocally(item)
+    }
+
+    override suspend fun acknowledge(item: SyncIssueItem) {
+        if (SyncIssueAction.ACKNOWLEDGE !in item.actions) return
+        if (item.removesLocalDataWhenAcknowledged) {
+            removeLocally(item)
+        } else {
+            syncer.runExclusive { localActions.forgetRefusedDelete(item.target, item.localId) }
+        }
+    }
+
+    private suspend fun removeLocally(item: SyncIssueItem) {
+        val filePaths = syncer.runExclusive { localActions.removeLocally(item.target, item.localId) }
+        filePaths.forEach { path -> runCatching { fileStore.delete(path) } }
+    }
+
+    override suspend fun revert(item: SyncIssueItem): RevertOutcome {
+        if (SyncIssueAction.REVERT !in item.actions) return RevertOutcome.FAILED
+        if (item.serverValueKnownLocally && syncer.runExclusive { localActions.restoreKnownServerValue(item.target, item.localId) }) {
+            return RevertOutcome.RESTORED
+        }
+        if (!connectivity.isOnline()) return RevertOutcome.NEEDS_CONNECTION
+        return when (syncer.restoreServerVersion(item.target, item.localId)) {
+            SyncOutcome.Synced -> RevertOutcome.RESTORED
+            SyncOutcome.Skipped -> RevertOutcome.NEEDS_CONNECTION
+            is SyncOutcome.Failed -> RevertOutcome.FAILED
+        }
     }
 }
 
@@ -116,4 +163,6 @@ private fun SyncIssueRow.toItem(issue: SyncIssue, blockedBy: SyncIssueParent?) =
     quantity = quantity,
     serverQuantity = serverQuantity,
     blockedBy = blockedBy,
+    entryLocalId = entryLocalId,
+    currency = currency,
 )

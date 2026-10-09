@@ -80,6 +80,8 @@ fun syncIssueRow(
     unit: String? = null,
     quantity: Double? = null,
     serverQuantity: Double? = null,
+    entryLocalId: String? = null,
+    currency: String? = null,
 ) = SyncIssueRow(
     target = target,
     localId = localId,
@@ -99,6 +101,8 @@ fun syncIssueRow(
     unit = unit,
     quantity = quantity,
     serverQuantity = serverQuantity,
+    entryLocalId = entryLocalId,
+    currency = currency,
 )
 
 fun refusedIssue(reason: RefusalReason, serverCode: String? = reason.name, kind: SyncIssueKind = SyncIssueKind.REFUSED) =
@@ -120,6 +124,8 @@ fun issueItem(
     quantity: Double? = null,
     serverQuantity: Double? = null,
     blockedBy: com.dmb.chantiertracker.domain.model.SyncIssueParent? = null,
+    entryLocalId: String? = null,
+    currency: String? = null,
 ) = SyncIssueItem(
     target = target,
     localId = localId,
@@ -136,7 +142,41 @@ fun issueItem(
     quantity = quantity,
     serverQuantity = serverQuantity,
     blockedBy = blockedBy,
+    entryLocalId = entryLocalId,
+    currency = currency,
 )
+
+class FakeSyncIssueLocalActions : com.dmb.chantiertracker.data.local.db.SyncIssueLocalActions {
+    val calls = mutableListOf<String>()
+    var linked = 0
+    var pathsOfRemoved = emptyList<String>()
+    var knownServerValue = true
+    var onRemove: (suspend (SyncIssueTarget, String) -> Unit)? = null
+    var onForget: (suspend (SyncIssueTarget, String) -> Unit)? = null
+    var onRestoreKnown: (suspend (SyncIssueTarget, String) -> Unit)? = null
+
+    override suspend fun countLinked(target: SyncIssueTarget, localId: String): Int {
+        calls += "count $target $localId"
+        return linked
+    }
+
+    override suspend fun removeLocally(target: SyncIssueTarget, localId: String): List<String> {
+        calls += "remove $target $localId"
+        onRemove?.invoke(target, localId)
+        return pathsOfRemoved.also { pathsOfRemoved = emptyList() }
+    }
+
+    override suspend fun forgetRefusedDelete(target: SyncIssueTarget, localId: String) {
+        calls += "forget $target $localId"
+        onForget?.invoke(target, localId)
+    }
+
+    override suspend fun restoreKnownServerValue(target: SyncIssueTarget, localId: String): Boolean {
+        calls += "restoreKnown $target $localId"
+        if (knownServerValue) onRestoreKnown?.invoke(target, localId)
+        return knownServerValue
+    }
+}
 
 class FakeSyncIssueRepository(items: List<SyncIssueItem> = emptyList()) : SyncIssueRepository {
     val items = MutableStateFlow(items)
@@ -147,6 +187,40 @@ class FakeSyncIssueRepository(items: List<SyncIssueItem> = emptyList()) : SyncIs
     override fun observeIssues(): Flow<List<SyncIssueItem>> = items
 
     override fun observeIssueCount(): Flow<Int> = items.map { all -> all.count { it.issue.kind != SyncIssueKind.BLOCKED_BY_PARENT } }
+
+    val online = MutableStateFlow(true)
+    val actions = mutableListOf<String>()
+    var linked = 0
+    var revertOutcome = com.dmb.chantiertracker.domain.repository.RevertOutcome.RESTORED
+    var actionGate: CompletableDeferred<Unit>? = null
+
+    override fun observeOnline(): Flow<Boolean> = online
+
+    var linkedGate: CompletableDeferred<Unit>? = null
+
+    override suspend fun linkedCount(item: SyncIssueItem): Int {
+        linkedGate?.await()
+        return linked
+    }
+
+    override suspend fun discard(item: SyncIssueItem) {
+        actions += "discard ${item.key}"
+        actionGate?.await()
+        items.value = items.value.filterNot { it.key == item.key }
+    }
+
+    override suspend fun acknowledge(item: SyncIssueItem) {
+        actions += "acknowledge ${item.key}"
+        actionGate?.await()
+        items.value = items.value.filterNot { it.key == item.key }
+    }
+
+    override suspend fun revert(item: SyncIssueItem): com.dmb.chantiertracker.domain.repository.RevertOutcome {
+        actions += "revert ${item.key}"
+        actionGate?.await()
+        if (revertOutcome == com.dmb.chantiertracker.domain.repository.RevertOutcome.RESTORED) items.value = items.value.filterNot { it.key == item.key }
+        return revertOutcome
+    }
 
     override suspend fun retry(item: SyncIssueItem): RetryOutcome {
         retried += item

@@ -2,6 +2,8 @@
 
 package com.dmb.chantiertracker.data.sync
 
+import com.dmb.chantiertracker.data.local.db.SyncedRow
+import com.dmb.chantiertracker.domain.model.SyncIssueTarget
 import com.dmb.chantiertracker.data.local.AttachmentFileStore
 import com.dmb.chantiertracker.data.local.db.AttachmentDao
 import com.dmb.chantiertracker.data.local.db.AttachmentEntity
@@ -82,6 +84,8 @@ interface Syncer {
      * account that owns the local data, or signing out. Never call a sync method from [block].
      */
     suspend fun <T> runExclusive(block: suspend () -> T): T
+
+    suspend fun restoreServerVersion(target: SyncIssueTarget, localId: String): SyncOutcome
 }
 
 /**
@@ -176,6 +180,76 @@ class SyncEngine(
     }
 
     override suspend fun <T> runExclusive(block: suspend () -> T): T = mutex.withLock { block() }
+
+    override suspend fun restoreServerVersion(target: SyncIssueTarget, localId: String): SyncOutcome = mutex.withLock {
+        if (!connectivity.isOnline()) return@withLock SyncOutcome.Skipped
+        try {
+            val syncedAt = clock.nowEpochMillis()
+            when (target) {
+                SyncIssueTarget.PROJECT -> restoreProject(localId, syncedAt)
+                SyncIssueTarget.STAGE -> restoreStage(localId, syncedAt)
+                SyncIssueTarget.MATERIAL -> restoreMaterial(localId, syncedAt)
+                SyncIssueTarget.ENTRY -> restoreEntry(localId, syncedAt)
+                SyncIssueTarget.PURCHASE_LINE -> restorePurchaseLine(localId, syncedAt)
+                SyncIssueTarget.CONSUMPTION_LINE -> restoreConsumptionLine(localId, syncedAt)
+                SyncIssueTarget.ATTACHMENT -> Unit
+            }
+            SyncOutcome.Synced
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: DomainException) {
+            SyncOutcome.Failed(e)
+        } catch (e: Throwable) {
+            SyncOutcome.Failed(DomainException.Unexpected)
+        }
+    }
+
+    private fun SyncedRow.holdsARefusedUpdate(): Boolean =
+        syncStatus == SyncStatus.CONFLICTED && pendingOp == PendingOp.UPDATE && serverId != null && lastSyncError != SyncError.DELETED_ON_SERVER
+
+    private suspend fun restoreProject(localId: String, syncedAt: Long) {
+        val local = dao.findByLocalId(localId)?.takeIf { it.holdsARefusedUpdate() } ?: return
+        val remote = serverCall { api.get(local.serverId!!) }
+        dao.upsert(remote.toSyncedEntity(localId = localId, syncedAt = syncedAt, previous = local))
+    }
+
+    private suspend fun restoreStage(localId: String, syncedAt: Long) {
+        val local = stageDao.findByLocalId(localId)?.takeIf { it.holdsARefusedUpdate() } ?: return
+        val remote = serverCall { stageApi.get(local.serverId!!) }
+        stageDao.upsert(remote.toSyncedEntity(localId, local.projectLocalId, syncedAt, local))
+    }
+
+    private suspend fun restoreMaterial(localId: String, syncedAt: Long) {
+        val local = materialDao.findByLocalId(localId)?.takeIf { it.holdsARefusedUpdate() } ?: return
+        val projectServerId = dao.findByLocalId(local.projectLocalId)?.serverId ?: throw DomainException.NotFound
+        val remote = readProjectMaterials(projectServerId).items.firstOrNull { it.id == local.serverId } ?: throw DomainException.NotFound
+        materialDao.upsert(remote.toSyncedEntity(localId, local.projectLocalId, syncedAt, local))
+    }
+
+    private suspend fun restoreEntry(localId: String, syncedAt: Long) {
+        val local = dailyEntryDao.findByLocalId(localId)?.takeIf { it.holdsARefusedUpdate() } ?: return
+        val logServerId = dailyLogDao.findByLocalId(local.dailyLogLocalId)?.serverId ?: throw DomainException.NotFound
+        val remote = serverCall { dailyLogApi.getLog(logServerId) }.entries.firstOrNull { it.id == local.serverId } ?: throw DomainException.NotFound
+        dailyEntryDao.upsert(remote.toSyncedEntity(localId, local.dailyLogLocalId, syncedAt, local))
+    }
+
+    private suspend fun restorePurchaseLine(localId: String, syncedAt: Long) {
+        val local = purchaseLineDao.findByLocalId(localId)?.takeIf { it.holdsARefusedUpdate() } ?: return
+        val entryServerId = dailyEntryDao.findByLocalId(local.entryLocalId)?.serverId ?: throw DomainException.NotFound
+        val read = readAllPages(PurchaseLineDto::id) { page, size -> serverCall { purchaseLineApi.list(entryServerId, page, size) } }
+        val remote = read.items.firstOrNull { it.id == local.serverId } ?: throw DomainException.NotFound
+        val materialLocalId = materialDao.findByServerId(remote.materialId)?.localId ?: local.materialLocalId
+        purchaseLineDao.upsert(remote.toSyncedEntity(localId, local.entryLocalId, materialLocalId, syncedAt, local))
+    }
+
+    private suspend fun restoreConsumptionLine(localId: String, syncedAt: Long) {
+        val local = consumptionLineDao.findByLocalId(localId)?.takeIf { it.holdsARefusedUpdate() } ?: return
+        val entryServerId = dailyEntryDao.findByLocalId(local.entryLocalId)?.serverId ?: throw DomainException.NotFound
+        val read = readAllPages(ConsumptionLineDto::id) { page, size -> serverCall { consumptionLineApi.list(entryServerId, page, size) } }
+        val remote = read.items.firstOrNull { it.id == local.serverId } ?: throw DomainException.NotFound
+        val materialLocalId = materialDao.findByServerId(remote.materialId)?.localId ?: local.materialLocalId
+        consumptionLineDao.upsert(remote.toSyncedEntity(localId, local.entryLocalId, materialLocalId, syncedAt, local))
+    }
 
     private suspend fun runSync(): SyncOutcome {
         if (!connectivity.isOnline()) {

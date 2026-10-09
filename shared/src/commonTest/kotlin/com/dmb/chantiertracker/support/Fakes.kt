@@ -106,6 +106,20 @@ class FakeSyncer : com.dmb.chantiertracker.data.sync.Syncer {
     var inExclusive = false
         private set
 
+    val restored = mutableListOf<Pair<com.dmb.chantiertracker.domain.model.SyncIssueTarget, String>>()
+    var restoreOutcome: com.dmb.chantiertracker.data.sync.SyncOutcome = com.dmb.chantiertracker.data.sync.SyncOutcome.Synced
+    var onRestore: (suspend () -> Unit)? = null
+
+    override suspend fun restoreServerVersion(
+        target: com.dmb.chantiertracker.domain.model.SyncIssueTarget,
+        localId: String,
+    ): com.dmb.chantiertracker.data.sync.SyncOutcome {
+        check(!inExclusive) { "the engine takes its own lock: never call it from runExclusive" }
+        restored += target to localId
+        if (restoreOutcome == com.dmb.chantiertracker.data.sync.SyncOutcome.Synced) onRestore?.invoke()
+        return restoreOutcome
+    }
+
     override suspend fun <T> runExclusive(block: suspend () -> T): T {
         exclusiveCount++
         inExclusive = true

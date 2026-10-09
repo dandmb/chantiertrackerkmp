@@ -69,7 +69,7 @@ class RetryNeverResendsFrozenEntriesTest {
         scope = AppCoroutineScope(),
     )
     private val issues = SyncIssueRepositoryImpl(
-        db.syncIssueDao(), db.stageDao(), db.materialDao(), db.dailyEntryDao(), db.purchaseLineDao(), db.consumptionLineDao(), db.attachmentDao(), engine,
+        db.syncIssueDao(), db.stageDao(), db.materialDao(), db.dailyEntryDao(), db.purchaseLineDao(), db.consumptionLineDao(), db.attachmentDao(), engine, db.syncIssueActionDao(), fileStore, connectivity,
     )
 
     @AfterTest fun close() = db.close()

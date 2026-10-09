@@ -43,6 +43,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun stockDao(): StockDao
     abstract fun materialAdoptionDao(): MaterialAdoptionDao
     abstract fun syncIssueDao(): SyncIssueDao
+    abstract fun syncIssueActionDao(): SyncIssueActionDao
 }
 
 @Suppress("KotlinNoActualForExpect", "NO_ACTUAL_FOR_EXPECT", "EXPECT_ACTUAL_CLASSIFIERS_ARE_IN_BETA_WARNING")

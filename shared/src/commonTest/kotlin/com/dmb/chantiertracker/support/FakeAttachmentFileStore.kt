@@ -21,7 +21,10 @@ class FakeAttachmentFileStore(newPath: (() -> String)? = null) : AttachmentFileS
     override suspend fun readBytes(key: String): ByteArray =
         files[key] ?: error("No fake file at $key")
 
+    var failOnDelete = false
+
     override suspend fun delete(key: String) {
+        if (failOnDelete) error("the process died before the file was deleted")
         files.remove(key)
         deletedPaths += key
     }

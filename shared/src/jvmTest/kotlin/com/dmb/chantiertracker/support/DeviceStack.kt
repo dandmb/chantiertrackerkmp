@@ -113,7 +113,7 @@ class DeviceStack : AutoCloseable {
     val consumptionLines = ConsumptionLineRepositoryImpl(db.consumptionLineDao(), sync, scope)
     val attachments = AttachmentRepositoryImpl(db.attachmentDao(), db.dailyEntryDao(), attachmentApi, fileStore, sync, scope)
     val syncIssues = com.dmb.chantiertracker.data.repository.SyncIssueRepositoryImpl(
-        db.syncIssueDao(), db.stageDao(), db.materialDao(), db.dailyEntryDao(), db.purchaseLineDao(), db.consumptionLineDao(), db.attachmentDao(), sync,
+        db.syncIssueDao(), db.stageDao(), db.materialDao(), db.dailyEntryDao(), db.purchaseLineDao(), db.consumptionLineDao(), db.attachmentDao(), sync, db.syncIssueActionDao(), fileStore, connectivity,
     )
     val invitations = InvitationRepositoryImpl(db.invitationDao(), invitationApi, db.projectDao(), sync)
     val reports = com.dmb.chantiertracker.data.repository.ReportRepositoryImpl(
@@ -123,6 +123,8 @@ class DeviceStack : AutoCloseable {
     fun goOffline() = connectivity.setOnline(false)
 
     fun goOnline() = connectivity.setOnline(true)
+
+    suspend fun waitForTheRunningSyncPass() = sync.runExclusive { }
 
     override fun close() {
         client.close()
