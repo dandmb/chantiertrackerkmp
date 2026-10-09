@@ -2,7 +2,10 @@ package com.dmb.chantiertracker.presentation.logs
 
 import com.dmb.chantiertracker.domain.model.MaterialStock
 import com.dmb.chantiertracker.resources.Res
+import com.dmb.chantiertracker.resources.validation_amount_two_decimals
 import com.dmb.chantiertracker.resources.validation_material_required
+import com.dmb.chantiertracker.resources.validation_quantity_too_large
+import com.dmb.chantiertracker.resources.validation_unit_price_too_large
 import com.dmb.chantiertracker.resources.validation_quantity_positive
 import com.dmb.chantiertracker.resources.validation_quantity_required
 import com.dmb.chantiertracker.resources.validation_unit_price_not_negative
@@ -63,5 +66,24 @@ class LineValidationTest {
     @Test
     fun ceiling_for_an_unknown_material_is_zero() {
         assertEquals(0.0, availableCeiling(stock, "unknown", editingLineQuantity = null))
+    }
+
+    @Test
+    fun a_quantity_or_price_with_more_than_two_decimals_is_refused_like_the_backend() {
+        assertEquals(Res.string.validation_amount_two_decimals, validateRequiredQuantity("2,675"))
+        assertEquals(Res.string.validation_amount_two_decimals, validateRequiredQuantity("0.001"))
+        assertEquals(Res.string.validation_amount_two_decimals, validateRequiredUnitPrice("6.505"))
+        assertNull(validateRequiredQuantity("2,67"))
+        assertNull(validateRequiredQuantity("2.500"), "trailing zeros are not decimals: 2.5 is sent")
+        assertNull(validateRequiredQuantity("0.29"))
+        assertNull(validateRequiredUnitPrice("6,5"))
+    }
+
+    @Test
+    fun a_quantity_or_price_beyond_the_backend_digits_is_refused() {
+        assertNull(validateRequiredQuantity("9999999999.99"))
+        assertEquals(Res.string.validation_quantity_too_large, validateRequiredQuantity("10000000000"))
+        assertNull(validateRequiredUnitPrice("9999999999999.99"))
+        assertEquals(Res.string.validation_unit_price_too_large, validateRequiredUnitPrice("10000000000000"))
     }
 }

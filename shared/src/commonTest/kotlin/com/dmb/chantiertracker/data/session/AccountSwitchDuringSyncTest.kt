@@ -68,7 +68,7 @@ class AccountSwitchDuringSyncTest {
         val engine = SyncEngine(
             dao = projectDao, api = backend.api(storage),
             stageDao = FakeStageDao(), stageApi = backend.stageApi(storage),
-            materialDao = FakeMaterialDao(), materialApi = backend.materialApi(),
+            materialDao = FakeMaterialDao(), materialAdoptionDao = com.dmb.chantiertracker.support.FakeMaterialAdoptionDao(), materialApi = backend.materialApi(),
             dailyLogDao = FakeDailyLogDao(), dailyEntryDao = FakeDailyEntryDao(), dailyLogApi = backend.dailyLogApi(),
             purchaseLineDao = FakePurchaseLineDao(), purchaseLineApi = backend.purchaseLineApi(),
             consumptionLineDao = FakeConsumptionLineDao(), consumptionLineApi = backend.consumptionLineApi(),

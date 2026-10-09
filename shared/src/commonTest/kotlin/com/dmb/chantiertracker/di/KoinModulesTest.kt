@@ -51,6 +51,7 @@ class KoinModulesTest {
         single<Syncer> { FakeSyncer() }
         single<com.dmb.chantiertracker.data.local.db.LocalDataDao> { com.dmb.chantiertracker.support.FakeLocalDataDao() }
         single<com.dmb.chantiertracker.data.local.db.StockDao> { com.dmb.chantiertracker.support.FakeStockDao() }
+        single<com.dmb.chantiertracker.data.local.db.MaterialAdoptionDao> { com.dmb.chantiertracker.support.FakeMaterialAdoptionDao() }
         single<com.dmb.chantiertracker.data.local.AttachmentFileStore> { com.dmb.chantiertracker.support.FakeAttachmentFileStore() }
         single<com.dmb.chantiertracker.data.local.ExportFileStore> { com.dmb.chantiertracker.support.FakeExportFileStore() }
         single { com.dmb.chantiertracker.presentation.sync.SyncStateHolder() }

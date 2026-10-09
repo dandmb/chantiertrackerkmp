@@ -45,6 +45,8 @@ class SyncEngineTest {
         val fileStore: com.dmb.chantiertracker.support.FakeAttachmentFileStore = com.dmb.chantiertracker.support.FakeAttachmentFileStore(),
         val invitationDao: com.dmb.chantiertracker.support.FakeInvitationDao = com.dmb.chantiertracker.support.FakeInvitationDao(),
         val stockDao: com.dmb.chantiertracker.support.FakeStockDao = com.dmb.chantiertracker.support.FakeStockDao(purchaseLineDao, consumptionLineDao),
+        val materialAdoptionDao: com.dmb.chantiertracker.support.FakeMaterialAdoptionDao =
+            com.dmb.chantiertracker.support.FakeMaterialAdoptionDao(materialDao, purchaseLineDao, consumptionLineDao),
         val backend: FakeProjectBackend = FakeProjectBackend(),
         val connectivity: FakeConnectivityObserver = FakeConnectivityObserver(),
         val clock: MutableClock = MutableClock(serverMillis("2026-09-02T09:00:00")),
@@ -58,6 +60,7 @@ class SyncEngineTest {
             stageDao = stageDao,
             stageApi = backend.stageApi(),
             materialDao = materialDao,
+            materialAdoptionDao = materialAdoptionDao,
             materialApi = backend.materialApi(),
             dailyLogDao = dailyLogDao,
             dailyEntryDao = dailyEntryDao,
@@ -1583,6 +1586,88 @@ class SyncEngineTest {
             assertEquals(f.backend.consumptionLines.single { it.id == line.serverId }.quantity, line.serverQuantity, "consumption ${line.localId}")
         }
         assertEquals(f.backend.purchaseLines.sumOf { it.quantity } - f.backend.consumptionLines.sumOf { it.quantity }, f.cementAvailable(), "and the displayed stock is the server's")
+    }
+
+    // ─── C-3 — the same material created on two devices ────────────────────
+
+    @Test
+    fun a_material_the_server_already_has_under_the_same_name_is_adopted_and_its_lines_go_out_in_the_same_pass() = runTest {
+        val f = stockFixture()
+        f.siteWithCement(serverPurchase = null)
+        f.backend.seedMaterial(com.dmb.chantiertracker.support.ServerMaterial(id = 9, projectId = 5, name = "Sable", unit = "t"))
+        f.materialDao.upsert(com.dmb.chantiertracker.support.localMaterial("m-sand", projectLocalId = "p5", name = "Sable", unit = "tonne"))
+        f.purchaseLineDao.upsert(com.dmb.chantiertracker.support.localPurchaseLine("pl-sand", entryLocalId = "e900", materialLocalId = "m-sand", quantity = 3.0))
+        val engine = f.engine(backgroundScope)
+
+        assertIs<SyncOutcome.Synced>(engine.syncNow())
+
+        val sand = f.materialDao.findByLocalId("m-sand")!!
+        assertEquals(9L, sand.serverId, "DUPLICATE_MATERIAL: the server's « Sable » is adopted")
+        assertEquals(SyncStatus.SYNCED, sand.syncStatus)
+        assertEquals("t", sand.unit, "the server's unit wins")
+        assertEquals(SyncStatus.SYNCED, f.purchaseLineDao.findByLocalId("pl-sand")?.syncStatus, "the purchase no longer waits forever")
+        assertEquals(9L, f.backend.purchaseLines.single().materialId)
+        assertEquals(1, f.backend.materials.count { it.name == "Sable" })
+    }
+
+    @Test
+    fun a_material_refused_before_this_fix_is_adopted_on_the_next_pass() = runTest {
+        val f = stockFixture()
+        f.siteWithCement(serverPurchase = null)
+        f.backend.seedMaterial(com.dmb.chantiertracker.support.ServerMaterial(id = 9, projectId = 5, name = "Sable", unit = "t"))
+        f.materialDao.upsert(
+            com.dmb.chantiertracker.support.localMaterial("m-sand", projectLocalId = "p5", name = "Sable", unit = "t")
+                .copy(syncStatus = SyncStatus.CONFLICTED, lastSyncError = SyncError.REJECTED),
+        )
+        val engine = f.engine(backgroundScope)
+
+        engine.syncNow()
+
+        assertEquals(9L, f.materialDao.findByLocalId("m-sand")?.serverId)
+    }
+
+    @Test
+    fun pulling_a_server_material_named_like_a_local_only_one_adopts_it_instead_of_failing_silently() = runTest {
+        val f = stockFixture()
+        f.siteWithCement(serverPurchase = null)
+        f.backend.seedMaterial(com.dmb.chantiertracker.support.ServerMaterial(id = 9, projectId = 5, name = "Sable", unit = "t"))
+        f.materialDao.upsert(
+            com.dmb.chantiertracker.support.localMaterial("m-sand", projectLocalId = "p5", name = "Sable", unit = "t")
+                .copy(syncStatus = SyncStatus.CONFLICTED, lastSyncError = SyncError.REJECTED),
+        )
+        f.connectivity.setOnline(true)
+        val engine = f.engine(backgroundScope)
+        f.materialDao.upsert(com.dmb.chantiertracker.support.localMaterial("probe", projectLocalId = "p5", name = "Sable", unit = "t"))
+        assertNull(f.materialDao.findByLocalId("probe"), "the trap itself: a new row clashing on the name is silently not stored")
+
+        assertIs<SyncOutcome.Synced>(engine.syncProject("p5"))
+
+        val sands = f.materialDao.stored.filter { it.name == "Sable" }
+        assertEquals(listOf("m-sand"), sands.map { it.localId }, "one « Sable », the local row")
+        assertEquals(9L, sands.single().serverId, "it now carries the server's id, so its lines can go out")
+    }
+
+    @Test
+    fun a_server_material_renamed_onto_a_local_only_one_merges_them_and_moves_the_lines() = runTest {
+        val f = stockFixture()
+        f.siteWithCement(serverPurchase = null)
+        f.backend.seedMaterial(com.dmb.chantiertracker.support.ServerMaterial(id = 9, projectId = 5, name = "Sable", unit = "t"))
+        f.materialDao.upsert(com.dmb.chantiertracker.support.localMaterial("m-old-name", projectLocalId = "p5", name = "Gravier", unit = "t", serverId = 9, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+        f.materialDao.upsert(
+            com.dmb.chantiertracker.support.localMaterial("m-local", projectLocalId = "p5", name = "Sable", unit = "t")
+                .copy(syncStatus = SyncStatus.CONFLICTED, lastSyncError = SyncError.REJECTED),
+        )
+        f.purchaseLineDao.upsert(com.dmb.chantiertracker.support.localPurchaseLine("pl-local", entryLocalId = "e900", materialLocalId = "m-local", quantity = 2.0))
+        val engine = f.engine(backgroundScope)
+
+        engine.syncProject("p5")
+        engine.syncNow()
+
+        assertNull(f.materialDao.findByLocalId("m-local"), "the local duplicate is merged away")
+        assertEquals("Sable", f.materialDao.findByLocalId("m-old-name")?.name)
+        assertEquals("m-old-name", f.purchaseLineDao.findByLocalId("pl-local")?.materialLocalId, "its line now points at the kept material")
+        assertEquals(SyncStatus.SYNCED, f.purchaseLineDao.findByLocalId("pl-local")?.syncStatus)
+        assertEquals(9L, f.backend.purchaseLines.single().materialId)
     }
 
     @Test

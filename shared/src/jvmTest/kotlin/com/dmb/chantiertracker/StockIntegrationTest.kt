@@ -1,5 +1,7 @@
 package com.dmb.chantiertracker
 
+import com.dmb.chantiertracker.resources.Res
+import com.dmb.chantiertracker.resources.validation_amount_two_decimals
 import com.dmb.chantiertracker.data.local.db.SyncStatus
 import com.dmb.chantiertracker.domain.model.CreateConsumptionLineInput
 import com.dmb.chantiertracker.domain.model.CreateProjectInput
@@ -298,20 +300,25 @@ class StockIntegrationTest {
     }
 
     @Test
-    fun c_a_quantity_with_three_decimals_is_accepted_by_the_app_but_not_by_the_server() = runScenario {
+    fun c_a_quantity_with_three_decimals_is_refused_by_the_form_and_two_decimals_reach_the_server() = runScenario {
+        val refusal = com.dmb.chantiertracker.presentation.logs.validateRequiredQuantity("2,675")
+        println("C décimales — formulaire, 2,675 t : $refusal")
+        assertEquals(Res.string.validation_amount_two_decimals, refusal, "refusé dès le formulaire, comme le backend")
+
         val owner = device()
         owner.signedInAs("qa-c-decimals", "QA C Décimales")
         val (project, stage) = owner.newSite("QA C décimales")
         val purchase = owner.entryOf(owner.logs.createPurchaseEntry(stage, today().toString()), EntryType.PURCHASE)
         val sand = owner.materials.createMaterial(project, "Sable", "t")
-        val line = owner.purchaseLines.createLine(purchase, CreatePurchaseLineInput(sand.localId, 2.675, 40.0, null))
+        val line = owner.purchaseLines.createLine(purchase, CreatePurchaseLineInput(sand.localId, 2.67, 40.5, null))
         owner.sync.syncNow()
 
         val row = owner.db.purchaseLineDao().findByLocalId(line)
-        println("C décimales — 2,675 t : ${row?.syncStatus}/${row?.lastSyncError}")
+        println("C décimales — 2,67 t à 40,50 : ${row?.syncStatus}/${row?.lastSyncError}")
         val (app, server) = owner.compare("C décimales", project)
 
-        assertEquals(SyncStatus.SYNCED, row?.syncStatus, "une quantité que le formulaire accepte doit être acceptée par le serveur (ou refusée dès le formulaire)")
+        assertEquals(SyncStatus.SYNCED, row?.syncStatus, "deux décimales : acceptées par le serveur")
+        assertEquals(mapOf("Sable" to 2.67), server)
         assertEquals(server, app)
     }
 }

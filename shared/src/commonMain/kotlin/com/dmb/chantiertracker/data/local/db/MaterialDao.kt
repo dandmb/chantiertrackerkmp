@@ -17,6 +17,9 @@ interface MaterialDao {
     @Query("SELECT * FROM materials WHERE projectLocalId = :projectLocalId AND name = :name COLLATE NOCASE")
     suspend fun findByProjectAndName(projectLocalId: String, name: String): MaterialEntity?
 
+    @Query("SELECT * FROM materials WHERE projectLocalId = :projectLocalId AND name = :name")
+    suspend fun findByProjectAndNameExactly(projectLocalId: String, name: String): MaterialEntity?
+
     @Query("SELECT * FROM materials WHERE serverId = :serverId")
     suspend fun findByServerId(serverId: Long): MaterialEntity?
 

@@ -387,6 +387,9 @@
     <string name="validation_quantity_positive">La quantité doit être supérieure à 0.</string>
     <string name="validation_unit_price_required">Le prix unitaire est obligatoire.</string>
     <string name="validation_unit_price_not_negative">Le prix doit être positif.</string>
+    <string name="validation_amount_two_decimals">Au plus 2 chiffres après la virgule.</string>
+    <string name="validation_quantity_too_large">La quantité doit avoir au plus 10 chiffres avant la virgule.</string>
+    <string name="validation_unit_price_too_large">Le prix unitaire doit avoir au plus 13 chiffres avant la virgule.</string>
     <string name="validation_stock_exceeded">Stock insuffisant : %1$s disponible(s)</string>
     <string name="validation_end_before_start">La date de fin ne peut pas précéder la date de début.</string>
 
@@ -421,6 +424,7 @@
     <string name="error_validation">Vérifiez les informations saisies.</string>
     <string name="error_rate_limited">Trop de requêtes. Réessayez dans un instant.</string>
     <string name="error_plan_limit">Vous avez atteint la limite de projets de votre formule. Passez à un palier supérieur pour en créer davantage.</string>
+    <string name="error_duplicate_material">Un matériau de ce nom existe déjà dans ce projet.</string>
     <string name="error_plan_limit_no_upgrade">Vous avez atteint la limite de projets de votre formule.</string>
     <string name="error_billing_not_open">Les abonnements payants ne sont pas encore ouverts.</string>
     <string name="error_forbidden">Vous n'êtes pas autorisé à effectuer cette action.</string>

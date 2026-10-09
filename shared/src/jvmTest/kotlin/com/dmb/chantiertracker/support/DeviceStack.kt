@@ -74,6 +74,7 @@ class DeviceStack : AutoCloseable {
         stageDao = db.stageDao(),
         stageApi = stageApi,
         materialDao = db.materialDao(),
+        materialAdoptionDao = db.materialAdoptionDao(),
         materialApi = materialApi,
         dailyLogDao = db.dailyLogDao(),
         dailyEntryDao = db.dailyEntryDao(),
