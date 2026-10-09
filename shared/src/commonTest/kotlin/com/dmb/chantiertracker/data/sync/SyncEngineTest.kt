@@ -2501,4 +2501,325 @@ class SyncEngineTest {
             listQueries,
         )
     }
+
+    // ─── members, invitations and stock read page by page (ADR-73, slice 4) ─
+
+    private fun Fixture.seedServerMembers(count: Int) =
+        backend.seedMembers(7, *(1..count).map { ServerMember(userId = 100L + it, name = "Membre $it", email = "m$it@x.dev", role = "SUPERVISOR") }.toTypedArray())
+
+    private fun Fixture.seedServerInvitations(count: Int) =
+        (1..count).forEach { backend.seedInvitation(com.dmb.chantiertracker.support.ServerInvitation(id = 1_200L + it, projectId = 7, email = "invite$it@x.dev")) }
+
+    private suspend fun Fixture.memberIds() = dao.observeMembers("p7").first().map { it.userId }.toSet()
+
+    private suspend fun Fixture.invitationIds() = invitationDao.findForProject("p7").map { it.id }.toSet()
+
+    private fun Fixture.seedStockedMaterials(count: Int) =
+        (1..count).forEach { n ->
+            backend.seedMaterial(com.dmb.chantiertracker.support.ServerMaterial(id = 10_000L + n, projectId = 5, name = "Matériau $n", unit = "u"))
+            backend.seedPurchaseLine(com.dmb.chantiertracker.support.ServerPurchaseLine(id = 20_000L + n, entryId = 900, materialId = 10_000L + n, quantity = 4.0, unitPrice = 1.0))
+        }
+
+    @Test
+    fun more_than_twenty_members_are_all_pulled_and_none_disappears_on_the_next_pass() = runTest {
+        val f = Fixture()
+        f.siteSeven()
+        f.seedServerMembers(25)
+        val engine = f.engine(backgroundScope)
+
+        assertIs<SyncOutcome.Synced>(engine.syncProject("p7"))
+        assertEquals(25, f.memberIds().size)
+
+        assertIs<SyncOutcome.Synced>(engine.syncProject("p7"))
+        assertEquals((101L..125L).toSet(), f.memberIds())
+    }
+
+    @Test
+    fun more_than_a_hundred_members_are_all_pulled_and_none_disappears_on_the_next_pass() = runTest {
+        val f = Fixture()
+        f.siteSeven()
+        f.seedServerMembers(230)
+        val engine = f.engine(backgroundScope)
+
+        assertIs<SyncOutcome.Synced>(engine.syncProject("p7"))
+        assertIs<SyncOutcome.Synced>(engine.syncProject("p7"))
+
+        assertEquals((101L..330L).toSet(), f.memberIds())
+    }
+
+    @Test
+    fun a_member_removed_on_the_server_is_still_removed_when_the_list_spans_several_pages() = runTest {
+        val f = Fixture()
+        f.siteSeven()
+        f.seedServerMembers(230)
+        f.dao.upsertMembers(listOf(com.dmb.chantiertracker.data.local.db.ProjectMemberEntity("p7", 9_999, "Parti", "parti@x.dev", "SUPERVISOR")))
+        val engine = f.engine(backgroundScope)
+
+        assertIs<SyncOutcome.Synced>(engine.syncProject("p7"))
+
+        assertEquals((101L..330L).toSet(), f.memberIds())
+        assertTrue(f.logged.isEmpty())
+    }
+
+    @Test
+    fun a_second_page_of_members_that_fails_after_a_first_one_that_succeeded_replaces_nothing() = runTest {
+        val f = Fixture()
+        f.siteSeven()
+        f.seedServerMembers(150)
+        val engine = f.engine(backgroundScope)
+        assertIs<SyncOutcome.Synced>(engine.syncProject("p7"))
+        f.backend.listPageFailure = pageTwoFails
+
+        assertIs<SyncOutcome.Synced>(engine.syncProject("p7"))
+
+        assertEquals((101L..250L).toSet(), f.memberIds(), "the fifty members of the unread page are kept")
+        assertEquals(listOf("sync: incomplete read of members of project 7 (ERROR), 100 read, local removal skipped"), f.logged)
+    }
+
+    @Test
+    fun a_member_added_on_the_server_while_the_list_is_read_skips_the_replacement_without_failing() = runTest {
+        val f = Fixture()
+        f.siteSeven()
+        f.seedServerMembers(150)
+        val engine = f.engine(backgroundScope)
+        assertIs<SyncOutcome.Synced>(engine.syncProject("p7"))
+        f.backend.members.getValue(7).removeAll { it.userId == 101L }
+        f.backend.beforeHandle = { request ->
+            if (request.url.encodedPath.endsWith("/members") && request.url.parameters["page"] == "1" && f.backend.members.getValue(7).size == 149) {
+                f.backend.seedMembers(7, ServerMember(userId = 900, name = "Arrivé pendant la lecture", email = "new@x.dev", role = "SUPERVISOR"))
+            }
+        }
+
+        assertIs<SyncOutcome.Synced>(engine.syncProject("p7"))
+
+        assertTrue(101L in f.memberIds(), "the total changed during the read: the removed member is kept for now")
+        assertTrue(900L in f.memberIds())
+        assertEquals(listOf("sync: incomplete read of members of project 7 (TOTAL_MISMATCH), 150 read, local removal skipped"), f.logged)
+
+        assertIs<SyncOutcome.Synced>(engine.syncProject("p7"))
+
+        assertEquals((102L..250L).toSet() + 900L, f.memberIds(), "the next complete read replaces the list")
+    }
+
+    @Test
+    fun more_than_twenty_invitations_are_all_pulled_and_none_disappears_on_the_next_pass() = runTest {
+        val f = Fixture()
+        f.siteSeven()
+        f.seedServerInvitations(25)
+        val engine = f.engine(backgroundScope)
+
+        assertIs<SyncOutcome.Synced>(engine.syncProject("p7"))
+        assertEquals(25, f.invitationIds().size)
+
+        assertIs<SyncOutcome.Synced>(engine.syncProject("p7"))
+        assertEquals((1_201L..1_225L).toSet(), f.invitationIds())
+    }
+
+    @Test
+    fun more_than_a_hundred_invitations_are_all_pulled_and_none_disappears_on_the_next_pass() = runTest {
+        val f = Fixture()
+        f.siteSeven()
+        f.seedServerInvitations(230)
+        val engine = f.engine(backgroundScope)
+
+        assertIs<SyncOutcome.Synced>(engine.syncProject("p7"))
+        assertIs<SyncOutcome.Synced>(engine.syncProject("p7"))
+
+        assertEquals((1_201L..1_430L).toSet(), f.invitationIds())
+    }
+
+    @Test
+    fun an_invitation_cancelled_on_the_server_is_still_removed_when_the_list_spans_several_pages() = runTest {
+        val f = Fixture()
+        f.siteSeven()
+        f.seedServerInvitations(230)
+        f.invitationDao.upsertAll(listOf(com.dmb.chantiertracker.support.localInvitation(9_999, projectLocalId = "p7")))
+        val engine = f.engine(backgroundScope)
+
+        assertIs<SyncOutcome.Synced>(engine.syncProject("p7"))
+
+        assertEquals((1_201L..1_430L).toSet(), f.invitationIds())
+        assertTrue(f.logged.isEmpty())
+    }
+
+    @Test
+    fun a_second_page_of_invitations_that_fails_after_a_first_one_that_succeeded_replaces_nothing() = runTest {
+        val f = Fixture()
+        f.siteSeven()
+        f.seedServerInvitations(150)
+        val engine = f.engine(backgroundScope)
+        assertIs<SyncOutcome.Synced>(engine.syncProject("p7"))
+        f.backend.listPageFailure = pageTwoFails
+
+        assertIs<SyncOutcome.Synced>(engine.syncProject("p7"))
+
+        assertEquals((1_201L..1_350L).toSet(), f.invitationIds(), "the fifty invitations of the unread page are kept")
+        assertEquals(listOf("sync: incomplete read of invitations of project 7 (ERROR), 100 read, local removal skipped"), f.logged)
+    }
+
+    @Test
+    fun an_invitation_sent_on_the_server_while_the_list_is_read_skips_the_replacement_without_failing() = runTest {
+        val f = Fixture()
+        f.siteSeven()
+        f.seedServerInvitations(150)
+        val engine = f.engine(backgroundScope)
+        assertIs<SyncOutcome.Synced>(engine.syncProject("p7"))
+        f.backend.invitations.removeAll { it.id == 1_201L }
+        f.backend.beforeHandle = { request ->
+            if (request.url.encodedPath.endsWith("/invitations") && request.url.parameters["page"] == "1" && f.backend.invitations.size == 149) {
+                f.backend.seedInvitation(com.dmb.chantiertracker.support.ServerInvitation(id = 1_900, projectId = 7, email = "pendant@x.dev"))
+            }
+        }
+
+        assertIs<SyncOutcome.Synced>(engine.syncProject("p7"))
+
+        assertTrue(1_201L in f.invitationIds(), "the total changed during the read: the cancelled invitation is kept for now")
+        assertTrue(1_900L in f.invitationIds())
+        assertEquals(listOf("sync: incomplete read of invitations of project 7 (TOTAL_MISMATCH), 150 read, local removal skipped"), f.logged)
+
+        assertIs<SyncOutcome.Synced>(engine.syncProject("p7"))
+
+        assertEquals((1_202L..1_350L).toSet() + 1_900L, f.invitationIds())
+    }
+
+    @Test
+    fun the_invitation_cache_is_still_cleared_when_the_first_page_answers_403() = runTest {
+        val f = Fixture()
+        f.siteSeven()
+        f.seedServerInvitations(150)
+        val engine = f.engine(backgroundScope)
+        assertIs<SyncOutcome.Synced>(engine.syncProject("p7"))
+        f.backend.invitationsForbidden = true
+
+        assertIs<SyncOutcome.Synced>(engine.syncProject("p7"))
+
+        assertEquals(emptySet(), f.invitationIds())
+    }
+
+    @Test
+    fun member_and_invitation_lists_are_requested_a_hundred_at_a_time_sorted_by_id() = runTest {
+        val f = Fixture()
+        f.siteSeven()
+        val listQueries = mutableMapOf<String, String>()
+        f.backend.beforeHandle = { request ->
+            val path = request.url.encodedPath.removePrefix("/api/v1")
+            if (path == "/projects/7/members" || path == "/projects/7/invitations" || path == "/projects/7/stock") {
+                listQueries[path] = listOf("page", "size", "sort").joinToString("&") { "$it=${request.url.parameters[it]}" }
+            }
+        }
+        val engine = f.engine(backgroundScope)
+
+        engine.syncProject("p7")
+
+        assertEquals("page=0&size=100&sort=id,asc", listQueries["/projects/7/members"])
+        assertEquals("page=0&size=100&sort=id,asc", listQueries["/projects/7/invitations"])
+        assertEquals("page=0&size=100&sort=id,asc", listQueries["/projects/7/stock"])
+    }
+
+    @Test
+    fun more_than_twenty_stock_counters_are_all_loaded_and_stay_on_the_next_pass() = runTest {
+        val f = stockFixture()
+        f.siteWithCement(serverPurchase = null)
+        f.seedStockedMaterials(25)
+        val engine = f.engine(backgroundScope)
+
+        assertIs<SyncOutcome.Synced>(engine.syncProject("p5"))
+        assertEquals(25, f.stockDao.counters.value.size)
+
+        assertIs<SyncOutcome.Synced>(engine.syncProject("p5"))
+        assertEquals((10_001L..10_025L).toSet(), f.stockDao.counters.value.keys.map { it.second }.toSet())
+        assertTrue(f.logged.isEmpty())
+    }
+
+    @Test
+    fun a_second_page_of_stock_that_fails_after_a_first_one_that_succeeded_keeps_the_previous_counters() = runTest {
+        val f = stockFixture()
+        f.siteWithCement(serverPurchase = null)
+        f.seedStockedMaterials(150)
+        val engine = f.engine(backgroundScope)
+        assertIs<SyncOutcome.Synced>(engine.syncProject("p5"))
+        val loadedAt = f.stockDao.findSnapshot("p5")!!.refreshedAt
+        f.backend.purchaseLines.first { it.materialId == 10_001L }.quantity = 99.0
+        f.clock.advanceBy(60_000)
+        f.backend.listPageFailure = pageTwoFails
+
+        assertIs<SyncOutcome.Synced>(engine.syncProject("p5"))
+
+        assertEquals(150, f.stockDao.counters.value.size, "the fifty counters of the unread page are kept")
+        assertEquals(4.0, f.stockDao.counter("p5", 10_001)!!.quantityIn, "nothing is replaced, not even what the first page said")
+        assertEquals(loadedAt, f.stockDao.findSnapshot("p5")!!.refreshedAt, "« Stock au … » still shows the last complete load")
+        assertEquals(listOf("p5"), f.stockDao.findProjectsNeedingRefresh(), "reloaded at the next pass")
+        assertEquals(
+            listOf(
+                "sync: incomplete read of materials of project 5 (ERROR), 100 read",
+                "sync: incomplete read of stock of project 5 (ERROR), 100 read, local removal skipped",
+            ),
+            f.logged,
+            "the stock is read once per pass, not again at its end",
+        )
+
+        f.backend.listPageFailure = null
+        assertIs<SyncOutcome.Synced>(engine.syncNow())
+
+        assertEquals(99.0, f.stockDao.counter("p5", 10_001)!!.quantityIn)
+        assertTrue(f.stockDao.findProjectsNeedingRefresh().isEmpty())
+    }
+
+    @Test
+    fun a_stock_counter_created_on_the_server_while_the_stock_is_read_keeps_the_previous_counters() = runTest {
+        val f = stockFixture()
+        f.siteWithCement(serverPurchase = null)
+        f.seedStockedMaterials(150)
+        val engine = f.engine(backgroundScope)
+        assertIs<SyncOutcome.Synced>(engine.syncProject("p5"))
+        f.backend.beforeHandle = { request ->
+            if (request.url.encodedPath.endsWith("/stock") && request.url.parameters["page"] == "1" && f.backend.materials.none { it.id == 19_000L }) {
+                f.backend.seedMaterial(com.dmb.chantiertracker.support.ServerMaterial(id = 19_000, projectId = 5, name = "Arrivé pendant la lecture", unit = "u"))
+                f.backend.seedPurchaseLine(com.dmb.chantiertracker.support.ServerPurchaseLine(id = 29_000, entryId = 900, materialId = 19_000, quantity = 1.0, unitPrice = 1.0))
+            }
+        }
+
+        assertIs<SyncOutcome.Synced>(engine.syncProject("p5"))
+
+        assertEquals(150, f.stockDao.counters.value.size)
+        assertNull(f.stockDao.counter("p5", 19_000))
+        assertEquals(listOf("sync: incomplete read of stock of project 5 (TOTAL_MISMATCH), 151 read, local removal skipped"), f.logged)
+
+        assertIs<SyncOutcome.Synced>(engine.syncNow())
+
+        assertEquals(1.0, f.stockDao.counter("p5", 19_000)!!.quantityIn, "the next complete read replaces the counters")
+        assertEquals(151, f.stockDao.counters.value.size)
+    }
+
+    @Test
+    fun a_stock_never_loaded_stays_never_loaded_after_an_incomplete_read() = runTest {
+        val f = stockFixture()
+        f.siteWithCement(serverPurchase = null)
+        f.seedStockedMaterials(150)
+        f.backend.listPageFailure = pageTwoFails
+        val engine = f.engine(backgroundScope)
+
+        assertIs<SyncOutcome.Synced>(engine.syncProject("p5"))
+
+        assertNull(f.stockDao.findSnapshot("p5"), "no partial stock is shown as if it were the server's")
+        assertTrue(f.stockDao.counters.value.isEmpty())
+    }
+
+    @Test
+    fun a_pending_local_line_still_counts_on_top_of_the_counters_kept_after_an_incomplete_read() = runTest {
+        val f = stockFixture()
+        f.siteWithCement(serverPurchase = 12.0)
+        f.seedStockedMaterials(150)
+        val engine = f.engine(backgroundScope)
+        assertIs<SyncOutcome.Synced>(engine.syncProject("p5"))
+        f.backend.purchaseLines.first { it.id == 5000L }.quantity = 50.0
+        f.backend.listPageFailure = pageTwoFails
+        assertIs<SyncOutcome.Synced>(engine.syncProject("p5"))
+        f.connectivity.setOnline(false)
+
+        f.purchaseLineDao.upsert(com.dmb.chantiertracker.support.localPurchaseLine("pl-offline", entryLocalId = "e900", materialLocalId = "m7", quantity = 3.0))
+
+        assertEquals(15.0, f.cementAvailable(), "last complete server counter (12) plus the unsent line (3), ADR-71")
+        assertNotNull(f.purchaseLineDao.findByLocalId("pl-offline"))
+    }
 }
