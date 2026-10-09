@@ -9,6 +9,11 @@ import com.dmb.chantiertracker.data.session.LocalDataWiper
 import com.dmb.chantiertracker.data.session.RoomUnsyncedWriteCounter
 import com.dmb.chantiertracker.data.session.UnsyncedWriteCounter
 import com.dmb.chantiertracker.data.repository.SignOutRepositoryImpl
+import com.dmb.chantiertracker.data.repository.SyncIssueRepositoryImpl
+import com.dmb.chantiertracker.data.local.db.SyncIssueDao
+import com.dmb.chantiertracker.domain.repository.SyncIssueRepository
+import com.dmb.chantiertracker.presentation.sync.SyncIssueCountViewModel
+import com.dmb.chantiertracker.presentation.sync.SyncIssuesViewModel
 import com.dmb.chantiertracker.domain.repository.SignOutRepository
 import com.dmb.chantiertracker.data.remote.EditorIdentityApi
 import com.dmb.chantiertracker.data.local.db.EditorIdentityDao
@@ -186,6 +191,7 @@ val syncModule: Module = module {
     single<LocalDataDao> { get<AppDatabase>().localDataDao() }
     single<StockDao> { get<AppDatabase>().stockDao() }
     single<MaterialAdoptionDao> { get<AppDatabase>().materialAdoptionDao() }
+    single<SyncIssueDao> { get<AppDatabase>().syncIssueDao() }
     single<AttachmentFileStore> { FileKitAttachmentFileStore(newFileName = { kotlin.uuid.Uuid.random().toString() }) }
     single<ExportFileStore> { FileKitExportFileStore() }
     single { AppCoroutineScope() }
@@ -235,6 +241,7 @@ val dataModule: Module = module {
     single { LocalDataOwnership(get(), get(), get()) }
     single<AuthRepository> { AuthRepositoryImpl(get(), get<TokenStorage>(), get(), get(), get(), get()) }
     single<SignOutRepository> { SignOutRepositoryImpl(get(), get(), get()) }
+    single<SyncIssueRepository> { SyncIssueRepositoryImpl(get(), get(), get(), get(), get(), get(), get(), get()) }
     single<ProjectRepository> { ProjectRepositoryImpl(get(), get(), get<AppCoroutineScope>()) }
     single<StageRepository> { StageRepositoryImpl(get(), get(), get<AppCoroutineScope>()) }
     single<AccountRepository> { AccountRepositoryImpl(get(), get()) }
@@ -266,6 +273,8 @@ val presentationModule: Module = module {
     viewModelOf(::ResetPasswordViewModel)
     viewModelOf(::ChangePasswordViewModel)
     viewModelOf(::MainViewModel)
+    viewModelOf(::SyncIssuesViewModel)
+    viewModelOf(::SyncIssueCountViewModel)
     viewModelOf(::ProjectsViewModel)
     viewModelOf(::CreateProjectViewModel)
     viewModelOf(::ProjectDetailViewModel)

@@ -63,6 +63,9 @@ import com.dmb.chantiertracker.presentation.navigation.PurchaseLineFormRoute
 import com.dmb.chantiertracker.presentation.navigation.ReportEntryRoute
 import com.dmb.chantiertracker.presentation.navigation.SettingsRoute
 import com.dmb.chantiertracker.presentation.navigation.StageDetailRoute
+import com.dmb.chantiertracker.presentation.navigation.SyncIssuesRoute
+import com.dmb.chantiertracker.presentation.sync.SyncIssueCountViewModel
+import com.dmb.chantiertracker.presentation.sync.SyncIssuesScreen
 import com.dmb.chantiertracker.presentation.logs.ConsumptionLineFormScreen
 import com.dmb.chantiertracker.presentation.logs.DailyLogScreen
 import com.dmb.chantiertracker.presentation.logs.EntrySummaryScreen
@@ -101,12 +104,13 @@ import com.dmb.chantiertracker.resources.projects_new
 import com.dmb.chantiertracker.resources.report_entry_title
 import com.dmb.chantiertracker.resources.reports_title
 import com.dmb.chantiertracker.resources.stage_detail_title
+import com.dmb.chantiertracker.resources.sync_issues_title
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 
 private enum class MainDestination {
     Projects, Administration, AdminUsers, AdminCreateUser, Settings, CreateProject, ProjectDetail, EditProject, InviteMember, ProjectHistory, ProjectReports, CreateStage, StageDetail, DailyLog,
-    EntrySummary, PurchaseLineForm, ConsumptionLineForm, ReportEntry, Billing, InvitationAccept, LegalDocumentPage
+    EntrySummary, PurchaseLineForm, ConsumptionLineForm, ReportEntry, Billing, InvitationAccept, LegalDocumentPage, SyncIssues
 }
 
 // ADR-52 — a SUPER_ADMIN can neither own nor join a project (blocked
@@ -131,10 +135,16 @@ private fun tabsFor(globalRole: GlobalRole): List<MainTab> =
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MainScreen(globalRole: GlobalRole, viewModel: MainViewModel = koinViewModel()) {
+fun MainScreen(
+    globalRole: GlobalRole,
+    viewModel: MainViewModel = koinViewModel(),
+    syncIssueCountViewModel: SyncIssueCountViewModel = koinViewModel(),
+) {
     val navController = rememberNavController()
     val account by viewModel.state.collectAsStateWithLifecycle()
+    val syncIssueCount by syncIssueCountViewModel.count.collectAsStateWithLifecycle()
     val startDestination = remember(globalRole) { startDestinationFor(globalRole) }
+    val openSyncIssues: () -> Unit = { navController.navigate(SyncIssuesRoute) { launchSingleTop = true } }
 
     account.logoutPrompt?.let { prompt ->
         LogoutPromptDialog(
@@ -142,6 +152,10 @@ fun MainScreen(globalRole: GlobalRole, viewModel: MainViewModel = koinViewModel(
             onRetry = viewModel::retryLogout,
             onLogoutAnyway = viewModel::logoutDespiteRefusedWrites,
             onDismiss = viewModel::dismissLogoutPrompt,
+            onSeeDetails = {
+                viewModel.dismissLogoutPrompt()
+                openSyncIssues()
+            },
         )
     }
     val tabs = remember(globalRole) { tabsFor(globalRole) }
@@ -211,6 +225,7 @@ fun MainScreen(globalRole: GlobalRole, viewModel: MainViewModel = koinViewModel(
         destination?.hasRoute(BillingRoute::class) == true -> MainDestination.Billing
         destination?.hasRoute(InvitationAcceptRoute::class) == true -> MainDestination.InvitationAccept
         destination?.hasRoute(LegalDocumentRoute::class) == true -> MainDestination.LegalDocumentPage
+        destination?.hasRoute(SyncIssuesRoute::class) == true -> MainDestination.SyncIssues
         else -> MainDestination.Projects
     }
     val currentTab = when (current) {
@@ -313,6 +328,10 @@ fun MainScreen(globalRole: GlobalRole, viewModel: MainViewModel = koinViewModel(
                         .orEmpty(),
                     onBack = { navController.popBackStack() },
                 )
+                MainDestination.SyncIssues -> DetailTopBar(
+                    title = stringResource(Res.string.sync_issues_title),
+                    onBack = { navController.popBackStack() },
+                )
                 MainDestination.AdminUsers -> DetailTopBar(
                     title = stringResource(Res.string.admin_users_title),
                     onBack = { navController.popBackStack() },
@@ -328,6 +347,8 @@ fun MainScreen(globalRole: GlobalRole, viewModel: MainViewModel = koinViewModel(
                     isFounder = account.isFounder,
                     onSubscription = { navController.navigate(BillingRoute()) },
                     onLogout = viewModel::logout,
+                    syncIssueCount = syncIssueCount,
+                    onOpenSyncIssues = openSyncIssues,
                     leadingActions = {
                         if (current == MainDestination.Projects) {
                             val sortHolder = koinInject<ProjectSortHolder>()
@@ -365,7 +386,14 @@ fun MainScreen(globalRole: GlobalRole, viewModel: MainViewModel = koinViewModel(
             modifier = Modifier.padding(padding),
         ) {
             composable<ProjectsRoute> {
-                ProjectsScreen(onProjectClick = { localId -> navController.navigate(ProjectDetailRoute(localId)) })
+                ProjectsScreen(
+                    onProjectClick = { localId -> navController.navigate(ProjectDetailRoute(localId)) },
+                    syncIssueCount = syncIssueCount,
+                    onOpenSyncIssues = openSyncIssues,
+                )
+            }
+            composable<SyncIssuesRoute> {
+                SyncIssuesScreen()
             }
             composable<AdminStatsRoute> {
                 AdminStatsScreen(

@@ -2,6 +2,8 @@ package com.dmb.chantiertracker
 
 import com.dmb.chantiertracker.data.local.db.PendingOp
 import com.dmb.chantiertracker.data.local.db.SyncStatus
+import com.dmb.chantiertracker.data.sync.SyncOutcome
+import com.dmb.chantiertracker.domain.model.canBeRetried
 import com.dmb.chantiertracker.data.sync.SyncError
 import com.dmb.chantiertracker.domain.model.AuthState
 import com.dmb.chantiertracker.domain.model.CreateConsumptionLineInput
@@ -281,6 +283,87 @@ class SyncAndRejectionsIntegrationTest {
             "une ligne dont le parent est refusé ne doit pas rester en attente sans signal : elle est signalée comme en attente de lui (ADR-74, décision 2)",
         )
         stageId.let { }
+    }
+
+    @Test
+    fun adr74_an_entry_refused_on_a_suspended_project_is_listed_to_review_and_leaves_with_retry_once_the_project_is_reopened() = runScenario {
+        val ownerPhone = device()
+        ownerPhone.signedInAs("qa-74-owner", "QA 74 Propriétaire")
+        val supervisorPhone = device()
+        val supervisor = supervisorPhone.signedInAs("qa-74-super", "QA 74 Superviseur")
+
+        val projectId = ownerPhone.newProject("QA 74 à revoir")
+        ownerPhone.newStage(projectId, "Charpente")
+        ownerPhone.sync.syncNow()
+        ownerPhone.invitations.invite(projectId, supervisor.email)
+        val token = supervisorPhone.invitationApi.listMine().single().token
+        supervisorPhone.invitations.acceptInvitation(token)
+        supervisorPhone.sync.syncNow()
+        val supervisorProject = supervisorPhone.projects.observeProjects().first().single()
+        supervisorPhone.sync.syncProject(supervisorProject.localId)
+        val supervisorStage = supervisorPhone.stages.observeStages(supervisorProject.localId).first().single()
+
+        suspend fun ownerSetsStatus(status: ProjectStatus) {
+            val detail = ownerPhone.projects.observeProject(projectId).first()!!
+            ownerPhone.projects.updateProject(
+                projectId,
+                UpdateProjectInput(detail.name, detail.description, detail.location, detail.currency, detail.timezone, status),
+            )
+            assertEquals(SyncOutcome.Synced, ownerPhone.sync.syncNow())
+        }
+        ownerSetsStatus(ProjectStatus.SUSPENDED)
+
+        supervisorPhone.goOffline()
+        val today = todayInParis()
+        val entry = supervisorPhone.entryOf(supervisorPhone.logs.createPurchaseEntry(supervisorStage.localId, today), EntryType.PURCHASE)
+        val cement = supervisorPhone.materials.createMaterial(supervisorProject.localId, "Ciment", "sac")
+        val line = supervisorPhone.purchaseLines.createLine(entry, CreatePurchaseLineInput(cement.localId, 3.0, 5.0, null))
+        supervisorPhone.goOnline()
+        supervisorPhone.sync.syncNow()
+        supervisorPhone.sync.syncNow()
+
+        val issues = supervisorPhone.syncIssues
+        val listed = issues.observeIssues().first()
+        println("ADR-74 tranche 2 — à revoir, projet suspendu : " + listed.joinToString { "${it.target} ${it.issue.kind} ${it.issue.reason}" })
+        val refusedEntry = listed.single { it.target == com.dmb.chantiertracker.domain.model.SyncIssueTarget.ENTRY }
+        assertEquals(entry, refusedEntry.localId)
+        assertEquals(com.dmb.chantiertracker.domain.model.SyncIssueKind.REFUSED, refusedEntry.issue.kind)
+        assertEquals(com.dmb.chantiertracker.domain.model.RefusalReason.PROJECT_OR_STAGE_INACTIVE, refusedEntry.issue.reason)
+        assertTrue(refusedEntry.issue.canBeRetried, "un refus qui dépend du propriétaire propose « Réessayer »")
+        assertEquals(
+            listOf(supervisorProject.localId, "QA 74 à revoir", supervisorStage.localId, "Charpente", today, EntryType.PURCHASE),
+            listOf(refusedEntry.projectLocalId, refusedEntry.projectName, refusedEntry.stageLocalId, refusedEntry.stageName, refusedEntry.date, refusedEntry.entryType),
+            "la saisie est rangée sous son projet, son étape et sa journée",
+        )
+        val waitingLine = listed.single { it.target == com.dmb.chantiertracker.domain.model.SyncIssueTarget.PURCHASE_LINE }
+        assertEquals(line, waitingLine.localId)
+        assertEquals(com.dmb.chantiertracker.domain.model.SyncIssueKind.BLOCKED_BY_PARENT, waitingLine.issue.kind)
+        assertEquals(listOf("Ciment", "sac", 3.0), listOf(waitingLine.label, waitingLine.unit, waitingLine.quantity))
+        assertEquals(listed.size, issues.observeIssueCount().first(), "la pastille compte ce que l'écran liste")
+
+        val whileSuspended = issues.retry(refusedEntry)
+        println("ADR-74 tranche 2 — « Réessayer » projet encore suspendu : $whileSuspended")
+        assertEquals(com.dmb.chantiertracker.domain.repository.RetryOutcome.STILL_REFUSED, whileSuspended)
+        assertTrue(issues.observeIssues().first().any { it.localId == entry }, "toujours listée tant que le projet est suspendu")
+
+        supervisorPhone.goOffline()
+        assertEquals(com.dmb.chantiertracker.domain.repository.RetryOutcome.NOT_SENT, issues.retry(refusedEntry), "hors ligne, rien ne part et la saisie reste listée")
+        assertTrue(issues.observeIssues().first().any { it.localId == entry })
+        supervisorPhone.goOnline()
+
+        ownerSetsStatus(ProjectStatus.IN_PROGRESS)
+
+        val afterReopening = issues.retry(refusedEntry)
+        println("ADR-74 tranche 2 — « Réessayer » projet rouvert : $afterReopening")
+        assertEquals(com.dmb.chantiertracker.domain.repository.RetryOutcome.ACCEPTED, afterReopening)
+        supervisorPhone.sync.syncNow()
+        val remaining = issues.observeIssues().first()
+        println("ADR-74 tranche 2 — à revoir après réouverture : ${remaining.size}")
+        assertTrue(remaining.isEmpty(), "projet rouvert puis « Réessayer » : plus rien à revoir")
+        assertEquals(0, issues.observeIssueCount().first())
+        assertEquals(SyncStatus.SYNCED, supervisorPhone.db.dailyEntryDao().findByLocalId(entry)?.syncStatus)
+        assertEquals(SyncStatus.SYNCED, supervisorPhone.db.purchaseLineDao().findByLocalId(line)?.syncStatus)
+        assertEquals(com.dmb.chantiertracker.domain.repository.SignOutResult.SignedOut, supervisorPhone.signOut.signOut(), "plus rien ne retient la déconnexion")
     }
 
     @Test

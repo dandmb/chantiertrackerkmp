@@ -10,6 +10,7 @@ import com.dmb.chantiertracker.data.local.db.ProjectEntity
 import com.dmb.chantiertracker.data.local.db.ProjectMemberEntity
 import com.dmb.chantiertracker.data.local.db.StageEntity
 import com.dmb.chantiertracker.data.local.db.SyncStatus
+import com.dmb.chantiertracker.domain.model.SyncIssueTarget
 import kotlinx.coroutines.flow.first
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -592,4 +593,86 @@ suspend fun verifySyncIssueContract(db: AppDatabase) {
 
     assertEquals("PLAN_LIMIT_EXCEEDED", db.projectDao().findByLocalId("p-refused")?.serverErrorCode)
     assertEquals("ATTACHMENT_TOO_LARGE", db.attachmentDao().findByLocalId("a-too-large")?.serverErrorCode)
+
+    verifySyncIssueListContract(db)
+}
+
+private suspend fun verifySyncIssueListContract(db: AppDatabase) {
+    val updateRefused = com.dmb.chantiertracker.data.sync.SyncError.UPDATE_REFUSED
+    db.stageDao().upsert(
+        localStage("st-delete-refused", projectLocalId = "p-ok", name = "Toiture", serverId = 14, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED, lastSyncError = com.dmb.chantiertracker.data.sync.SyncError.REJECTED)
+            .copy(serverErrorCode = "PROJECT_INSUFFICIENT_ROLE"),
+    )
+
+    val unsettled = db.syncIssueDao().observeUnsettled().first().associateBy { it.localId }
+
+    assertEquals(
+        setOf(
+            "p-refused", "p-edit",
+            "st-waiting", "st-under-refused", "st-refused", "st-under-edit", "st-delete-refused",
+            "m-under-refused", "m-refused",
+            "e-refused", "e-under-waiting-stage", "e-under-refused-project", "e-under-refused-stage",
+            "pl-waiting", "pl-under-refused-entry", "pl-with-refused-material", "pl-deep", "pl-edit", "pl-on-ghost",
+            "cl-under-refused-entry", "cl-waiting",
+            "a-under-refused-entry", "a-waiting", "a-too-large",
+        ),
+        unsettled.keys,
+        "everything not settled, the refused delete included; the three ghosts and the synced rows are left out",
+    )
+
+    val project = unsettled.getValue("p-refused")
+    assertEquals(SyncIssueTarget.PROJECT, project.target)
+    assertEquals(listOf("p-refused", "Chantier p-refused", null, null, null), listOf(project.projectLocalId, project.projectName, project.stageLocalId, project.dailyLogLocalId, project.logDate))
+    assertEquals("PLAN_LIMIT_EXCEEDED", project.serverErrorCode)
+
+    val refusedDelete = unsettled.getValue("st-delete-refused")
+    assertEquals(SyncIssueTarget.STAGE, refusedDelete.target)
+    assertEquals(listOf(SyncStatus.SYNCED, PendingOp.NONE, "PROJECT_INSUFFICIENT_ROLE"), listOf(refusedDelete.syncStatus, refusedDelete.pendingOp, refusedDelete.serverErrorCode))
+    assertEquals(listOf("p-ok", "st-delete-refused", "Toiture"), listOf(refusedDelete.projectLocalId, refusedDelete.stageLocalId, refusedDelete.stageName))
+
+    val material = unsettled.getValue("m-refused")
+    assertEquals(SyncIssueTarget.MATERIAL, material.target)
+    assertEquals(listOf("p-ok", "Gravier", "unité", null), listOf(material.projectLocalId, material.label, material.unit, material.stageLocalId))
+
+    val entry = unsettled.getValue("e-refused")
+    assertEquals(SyncIssueTarget.ENTRY, entry.target)
+    assertEquals(listOf("p-ok", "st-ok", "l-ok", "2026-09-05", "WORK"), listOf(entry.projectLocalId, entry.stageLocalId, entry.dailyLogLocalId, entry.logDate, entry.entryType))
+
+    val deepLine = unsettled.getValue("pl-deep")
+    assertEquals(SyncIssueTarget.PURCHASE_LINE, deepLine.target)
+    assertEquals(
+        listOf("p-refused", "Chantier p-refused", "st-under-refused", "Étape st-under-refused", "l-under-refused", "PURCHASE", "Sable", "unité"),
+        listOf(deepLine.projectLocalId, deepLine.projectName, deepLine.stageLocalId, deepLine.stageName, deepLine.dailyLogLocalId, deepLine.entryType, deepLine.label, deepLine.unit),
+    )
+    assertEquals(1.0, deepLine.quantity)
+
+    assertEquals(SyncIssueTarget.CONSUMPTION_LINE, unsettled.getValue("cl-under-refused-entry").target)
+    assertEquals("WORK", unsettled.getValue("cl-under-refused-entry").entryType)
+
+    val file = unsettled.getValue("a-too-large")
+    assertEquals(SyncIssueTarget.ATTACHMENT, file.target)
+    assertEquals(listOf("p-ok", "st-ok", "l-ok", "photo-a-too-large.jpg", "ATTACHMENT_TOO_LARGE"), listOf(file.projectLocalId, file.stageLocalId, file.dailyLogLocalId, file.label, file.serverErrorCode))
+
+    db.purchaseLineDao().upsert(db.purchaseLineDao().findByLocalId("pl-edit")!!.copy(serverErrorCode = "STOCK_CONSUMED", quantity = 3.0, serverQuantity = 10.0))
+    val refusedEdit = db.syncIssueDao().observeUnsettled().first().single { it.localId == "pl-edit" }
+    assertEquals(listOf(3.0, 10.0), listOf(refusedEdit.quantity, refusedEdit.serverQuantity))
+
+    db.syncIssueDao().sendRefusedUpdateAgain(SyncIssueTarget.PURCHASE_LINE, "pl-edit")
+    val queued = db.purchaseLineDao().findByLocalId("pl-edit")!!
+    assertEquals<List<Any?>>(listOf(SyncStatus.PENDING, PendingOp.UPDATE, null, null), listOf(queued.syncStatus, queued.pendingOp, queued.lastSyncError, queued.serverErrorCode))
+    assertTrue(db.purchaseLineDao().findPending().any { it.localId == "pl-edit" }, "back in the queue of the next pass")
+
+    db.syncIssueDao().freezeUnsentUpdateAgain(SyncIssueTarget.PURCHASE_LINE, "pl-edit", "STOCK_CONSUMED")
+    val frozen = db.purchaseLineDao().findByLocalId("pl-edit")!!
+    assertEquals(listOf(SyncStatus.CONFLICTED, updateRefused, "STOCK_CONSUMED"), listOf(frozen.syncStatus, frozen.lastSyncError, frozen.serverErrorCode))
+
+    db.syncIssueDao().sendRefusedUpdateAgain(SyncIssueTarget.PROJECT, "p-edit")
+    assertEquals(SyncStatus.PENDING, db.projectDao().findByLocalId("p-edit")!!.syncStatus)
+    db.syncIssueDao().freezeUnsentUpdateAgain(SyncIssueTarget.PROJECT, "p-edit", null)
+    assertEquals(updateRefused, db.projectDao().findByLocalId("p-edit")!!.lastSyncError)
+
+    db.syncIssueDao().sendRefusedUpdateAgain(SyncIssueTarget.PROJECT, "p-refused")
+    assertEquals(SyncStatus.CONFLICTED, db.projectDao().findByLocalId("p-refused")!!.syncStatus, "a refused creation is not an update to send again")
+    db.syncIssueDao().freezeUnsentUpdateAgain(SyncIssueTarget.STAGE, "st-waiting", "X")
+    assertEquals(SyncStatus.PENDING, db.stageDao().findByLocalId("st-waiting")!!.syncStatus, "a creation waiting to be sent is never frozen")
 }

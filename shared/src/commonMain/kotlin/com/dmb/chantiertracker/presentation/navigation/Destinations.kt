@@ -70,6 +70,9 @@ data object ProjectsRoute
 @Serializable
 data object SettingsRoute
 
+@Serializable
+data object SyncIssuesRoute
+
 /**
  * Bannière affichée sur l'écran de facturation après un retour de checkout
  * Stripe réussi (ADR-51 point 4, deep link `chantiertracker://checkout-success`)
