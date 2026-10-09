@@ -2132,4 +2132,373 @@ class SyncEngineTest {
         assertEquals("page=0&size=100&sort=id,asc", listQueries["/projects/7/materials"])
         assertEquals("page=0&size=100&sort=id,asc", listQueries["/stages/70/logs"])
     }
+
+    // ─── lines and attachments read page by page (ADR-73, slice 3) ──────────
+
+    private val pageTwoFails = 1 to io.ktor.http.HttpStatusCode.InternalServerError
+
+    private fun Fixture.seedServerPurchaseLines(count: Int) =
+        (1..count).forEach { backend.seedPurchaseLine(com.dmb.chantiertracker.support.ServerPurchaseLine(id = 5_000L + it, entryId = 900, materialId = 7, quantity = 1.0, unitPrice = 2.0)) }
+
+    private fun Fixture.seedServerConsumptionLines(count: Int) =
+        (1..count).forEach { backend.seedConsumptionLine(com.dmb.chantiertracker.support.ServerConsumptionLine(id = 6_000L + it, entryId = 901, materialId = 7, quantity = 1.0)) }
+
+    private fun Fixture.seedServerAttachments(count: Int) =
+        (1..count).forEach { backend.seedAttachment(com.dmb.chantiertracker.support.ServerAttachment(id = 7_000L + it, entryId = 900)) }
+
+    private suspend fun Fixture.syncedPurchaseLine(localId: String, serverId: Long) =
+        purchaseLineDao.upsert(com.dmb.chantiertracker.support.localPurchaseLine(localId, entryLocalId = "e900", materialLocalId = "m7", serverId = serverId, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+
+    private suspend fun Fixture.syncedConsumptionLine(localId: String, serverId: Long) =
+        consumptionLineDao.upsert(com.dmb.chantiertracker.support.localConsumptionLine(localId, entryLocalId = "e901", materialLocalId = "m7", serverId = serverId, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+
+    private suspend fun Fixture.syncedAttachment(localId: String, serverId: Long): String {
+        val path = fileStore.save(byteArrayOf(4, 2), "$localId.jpg")
+        attachmentDao.upsert(com.dmb.chantiertracker.support.localAttachment(localId, entryLocalId = "e900", localPath = path, serverId = serverId, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+        return path
+    }
+
+    private fun Fixture.addOneWhilePageTwoIsRead(pathSuffix: String, sizeNow: () -> Int, add: () -> Unit) {
+        backend.beforeHandle = { request ->
+            if (request.url.encodedPath.endsWith(pathSuffix) && request.url.parameters["page"] == "1" && sizeNow() == 150) add()
+        }
+    }
+
+    @Test
+    fun more_than_twenty_purchase_lines_are_all_pulled_and_none_disappears_on_the_next_pass() = runTest {
+        val f = stockFixture()
+        f.siteWithCement(serverPurchase = null)
+        f.seedServerPurchaseLines(25)
+        val engine = f.engine(backgroundScope)
+
+        assertIs<SyncOutcome.Synced>(engine.syncLog("l800"))
+        assertEquals(25, f.purchaseLineDao.findForEntry("e900").size)
+
+        assertIs<SyncOutcome.Synced>(engine.syncLog("l800"))
+        assertEquals((5_001L..5_025L).toSet(), f.purchaseLineDao.findForEntry("e900").mapNotNull { it.serverId }.toSet())
+        assertTrue(f.logged.isEmpty())
+    }
+
+    @Test
+    fun more_than_a_hundred_purchase_lines_are_all_pulled_and_none_disappears_on_the_next_pass() = runTest {
+        val f = stockFixture()
+        f.siteWithCement(serverPurchase = null)
+        f.seedServerPurchaseLines(230)
+        val engine = f.engine(backgroundScope)
+
+        assertIs<SyncOutcome.Synced>(engine.syncLog("l800"))
+        assertEquals(230, f.purchaseLineDao.findForEntry("e900").size)
+
+        assertIs<SyncOutcome.Synced>(engine.syncLog("l800"))
+        assertEquals((5_001L..5_230L).toSet(), f.purchaseLineDao.findForEntry("e900").mapNotNull { it.serverId }.toSet())
+        assertTrue(f.logged.isEmpty())
+    }
+
+    @Test
+    fun one_of_the_purchase_lines_really_deleted_on_the_server_is_still_removed_when_the_list_spans_several_pages() = runTest {
+        val f = stockFixture()
+        f.siteWithCement(serverPurchase = null)
+        f.seedServerPurchaseLines(230)
+        f.syncedPurchaseLine("gone", serverId = 9_999)
+        val engine = f.engine(backgroundScope)
+
+        assertIs<SyncOutcome.Synced>(engine.syncLog("l800"))
+
+        assertNull(f.purchaseLineDao.findByLocalId("gone"))
+        assertEquals(230, f.purchaseLineDao.findForEntry("e900").size)
+        assertTrue(f.logged.isEmpty())
+    }
+
+    @Test
+    fun a_second_page_of_purchase_lines_that_fails_after_a_first_one_that_succeeded_removes_nothing() = runTest {
+        val f = stockFixture()
+        f.siteWithCement(serverPurchase = null)
+        f.seedServerPurchaseLines(150)
+        (5000+101L..5000+150L).map { f.syncedPurchaseLine("local-$it", serverId = it) }
+        f.backend.listPageFailure = pageTwoFails
+        val engine = f.engine(backgroundScope)
+
+        assertIs<SyncOutcome.Synced>(engine.syncLog("l800"))
+
+        assertEquals(150, f.purchaseLineDao.findForEntry("e900").size, "the first hundred pulled, the fifty unread ones kept")
+        assertEquals(listOf("sync: incomplete read of purchase lines of entry 900 (ERROR), 100 read, local removal skipped"), f.logged)
+    }
+
+    @Test
+    fun one_of_the_purchase_lines_created_on_the_server_while_the_list_is_read_skips_the_removal_without_failing() = runTest {
+        val f = stockFixture()
+        f.siteWithCement(serverPurchase = null)
+        f.seedServerPurchaseLines(150)
+        f.syncedPurchaseLine("gone", serverId = 9_999)
+        f.addOneWhilePageTwoIsRead("purchase-lines", { f.backend.purchaseLines.size }) { f.backend.seedPurchaseLine(com.dmb.chantiertracker.support.ServerPurchaseLine(id = 5_900, entryId = 900, materialId = 7, quantity = 1.0, unitPrice = 2.0)) }
+        val engine = f.engine(backgroundScope)
+
+        assertIs<SyncOutcome.Synced>(engine.syncLog("l800"))
+
+        assertNotNull(f.purchaseLineDao.findByLocalId("gone"), "the total changed during the read: nothing is removed")
+        assertEquals(152, f.purchaseLineDao.findForEntry("e900").size)
+        assertEquals(listOf("sync: incomplete read of purchase lines of entry 900 (TOTAL_MISMATCH), 151 read, local removal skipped"), f.logged)
+
+        assertIs<SyncOutcome.Synced>(engine.syncLog("l800"))
+
+        assertNull(f.purchaseLineDao.findByLocalId("gone"), "the next complete read removes it")
+        assertEquals(1, f.logged.size)
+    }
+
+    @Test
+    fun one_of_the_local_purchase_lines_that_is_not_synced_is_never_removed_by_a_complete_read() = runTest {
+        val f = stockFixture()
+        f.siteWithCement(serverPurchase = null)
+        f.seedServerPurchaseLines(25)
+        f.purchaseLineDao.upsert(com.dmb.chantiertracker.support.localPurchaseLine("editing", entryLocalId = "e900", materialLocalId = "m7", serverId = 9_001, pendingOp = PendingOp.UPDATE, syncStatus = SyncStatus.PENDING))
+        f.purchaseLineDao.upsert(com.dmb.chantiertracker.support.localPurchaseLine("refused", entryLocalId = "e900", materialLocalId = "m7", serverId = 9_002, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.CONFLICTED).copy(lastSyncError = SyncError.REJECTED))
+        f.purchaseLineDao.upsert(com.dmb.chantiertracker.support.localPurchaseLine("orphan", entryLocalId = "e900", materialLocalId = "m7", serverId = 9_003, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.CONFLICTED).copy(lastSyncError = SyncError.DELETED_ON_SERVER))
+        val engine = f.engine(backgroundScope)
+
+        assertIs<SyncOutcome.Synced>(engine.syncLog("l800"))
+
+        assertNotNull(f.purchaseLineDao.findByLocalId("editing"))
+        assertEquals(SyncError.REJECTED, f.purchaseLineDao.findByLocalId("refused")!!.lastSyncError)
+        assertNotNull(f.purchaseLineDao.findByLocalId("orphan"))
+        assertEquals(28, f.purchaseLineDao.findForEntry("e900").size)
+    }
+
+    @Test
+    fun more_than_twenty_consumption_lines_are_all_pulled_and_none_disappears_on_the_next_pass() = runTest {
+        val f = stockFixture()
+        f.siteWithCement(serverPurchase = null)
+        f.seedServerConsumptionLines(25)
+        val engine = f.engine(backgroundScope)
+
+        assertIs<SyncOutcome.Synced>(engine.syncLog("l800"))
+        assertEquals(25, f.consumptionLineDao.findForEntry("e901").size)
+
+        assertIs<SyncOutcome.Synced>(engine.syncLog("l800"))
+        assertEquals((6_001L..6_025L).toSet(), f.consumptionLineDao.findForEntry("e901").mapNotNull { it.serverId }.toSet())
+        assertTrue(f.logged.isEmpty())
+    }
+
+    @Test
+    fun more_than_a_hundred_consumption_lines_are_all_pulled_and_none_disappears_on_the_next_pass() = runTest {
+        val f = stockFixture()
+        f.siteWithCement(serverPurchase = null)
+        f.seedServerConsumptionLines(230)
+        val engine = f.engine(backgroundScope)
+
+        assertIs<SyncOutcome.Synced>(engine.syncLog("l800"))
+        assertEquals(230, f.consumptionLineDao.findForEntry("e901").size)
+
+        assertIs<SyncOutcome.Synced>(engine.syncLog("l800"))
+        assertEquals((6_001L..6_230L).toSet(), f.consumptionLineDao.findForEntry("e901").mapNotNull { it.serverId }.toSet())
+        assertTrue(f.logged.isEmpty())
+    }
+
+    @Test
+    fun one_of_the_consumption_lines_really_deleted_on_the_server_is_still_removed_when_the_list_spans_several_pages() = runTest {
+        val f = stockFixture()
+        f.siteWithCement(serverPurchase = null)
+        f.seedServerConsumptionLines(230)
+        f.syncedConsumptionLine("gone", serverId = 9_999)
+        val engine = f.engine(backgroundScope)
+
+        assertIs<SyncOutcome.Synced>(engine.syncLog("l800"))
+
+        assertNull(f.consumptionLineDao.findByLocalId("gone"))
+        assertEquals(230, f.consumptionLineDao.findForEntry("e901").size)
+        assertTrue(f.logged.isEmpty())
+    }
+
+    @Test
+    fun a_second_page_of_consumption_lines_that_fails_after_a_first_one_that_succeeded_removes_nothing() = runTest {
+        val f = stockFixture()
+        f.siteWithCement(serverPurchase = null)
+        f.seedServerConsumptionLines(150)
+        (6000+101L..6000+150L).map { f.syncedConsumptionLine("local-$it", serverId = it) }
+        f.backend.listPageFailure = pageTwoFails
+        val engine = f.engine(backgroundScope)
+
+        assertIs<SyncOutcome.Synced>(engine.syncLog("l800"))
+
+        assertEquals(150, f.consumptionLineDao.findForEntry("e901").size, "the first hundred pulled, the fifty unread ones kept")
+        assertEquals(listOf("sync: incomplete read of consumption lines of entry 901 (ERROR), 100 read, local removal skipped"), f.logged)
+    }
+
+    @Test
+    fun one_of_the_consumption_lines_created_on_the_server_while_the_list_is_read_skips_the_removal_without_failing() = runTest {
+        val f = stockFixture()
+        f.siteWithCement(serverPurchase = null)
+        f.seedServerConsumptionLines(150)
+        f.syncedConsumptionLine("gone", serverId = 9_999)
+        f.addOneWhilePageTwoIsRead("consumption-lines", { f.backend.consumptionLines.size }) { f.backend.seedConsumptionLine(com.dmb.chantiertracker.support.ServerConsumptionLine(id = 6_900, entryId = 901, materialId = 7, quantity = 1.0)) }
+        val engine = f.engine(backgroundScope)
+
+        assertIs<SyncOutcome.Synced>(engine.syncLog("l800"))
+
+        assertNotNull(f.consumptionLineDao.findByLocalId("gone"), "the total changed during the read: nothing is removed")
+        assertEquals(152, f.consumptionLineDao.findForEntry("e901").size)
+        assertEquals(listOf("sync: incomplete read of consumption lines of entry 901 (TOTAL_MISMATCH), 151 read, local removal skipped"), f.logged)
+
+        assertIs<SyncOutcome.Synced>(engine.syncLog("l800"))
+
+        assertNull(f.consumptionLineDao.findByLocalId("gone"), "the next complete read removes it")
+        assertEquals(1, f.logged.size)
+    }
+
+    @Test
+    fun one_of_the_local_consumption_lines_that_is_not_synced_is_never_removed_by_a_complete_read() = runTest {
+        val f = stockFixture()
+        f.siteWithCement(serverPurchase = null)
+        f.seedServerConsumptionLines(25)
+        f.consumptionLineDao.upsert(com.dmb.chantiertracker.support.localConsumptionLine("editing", entryLocalId = "e901", materialLocalId = "m7", serverId = 9_001, pendingOp = PendingOp.UPDATE, syncStatus = SyncStatus.PENDING))
+        f.consumptionLineDao.upsert(com.dmb.chantiertracker.support.localConsumptionLine("refused", entryLocalId = "e901", materialLocalId = "m7", serverId = 9_002, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.CONFLICTED).copy(lastSyncError = SyncError.REJECTED))
+        f.consumptionLineDao.upsert(com.dmb.chantiertracker.support.localConsumptionLine("orphan", entryLocalId = "e901", materialLocalId = "m7", serverId = 9_003, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.CONFLICTED).copy(lastSyncError = SyncError.DELETED_ON_SERVER))
+        val engine = f.engine(backgroundScope)
+
+        assertIs<SyncOutcome.Synced>(engine.syncLog("l800"))
+
+        assertNotNull(f.consumptionLineDao.findByLocalId("editing"))
+        assertEquals(SyncError.REJECTED, f.consumptionLineDao.findByLocalId("refused")!!.lastSyncError)
+        assertNotNull(f.consumptionLineDao.findByLocalId("orphan"))
+        assertEquals(28, f.consumptionLineDao.findForEntry("e901").size)
+    }
+
+    @Test
+    fun more_than_twenty_attachments_are_all_pulled_and_none_disappears_on_the_next_pass() = runTest {
+        val f = stockFixture()
+        f.siteWithCement(serverPurchase = null)
+        f.seedServerAttachments(25)
+        val engine = f.engine(backgroundScope)
+
+        assertIs<SyncOutcome.Synced>(engine.syncLog("l800"))
+        assertEquals(25, f.attachmentDao.findForEntry("e900").size)
+
+        assertIs<SyncOutcome.Synced>(engine.syncLog("l800"))
+        assertEquals((7_001L..7_025L).toSet(), f.attachmentDao.findForEntry("e900").mapNotNull { it.serverId }.toSet())
+        assertEquals(25, f.fileStore.storedPaths.size)
+        assertTrue(f.fileStore.deletedPaths.isEmpty())
+        assertTrue(f.logged.isEmpty())
+    }
+
+    @Test
+    fun more_than_a_hundred_attachments_are_all_pulled_and_none_disappears_on_the_next_pass() = runTest {
+        val f = stockFixture()
+        f.siteWithCement(serverPurchase = null)
+        f.seedServerAttachments(230)
+        val engine = f.engine(backgroundScope)
+
+        assertIs<SyncOutcome.Synced>(engine.syncLog("l800"))
+        assertEquals(230, f.attachmentDao.findForEntry("e900").size)
+
+        assertIs<SyncOutcome.Synced>(engine.syncLog("l800"))
+        assertEquals((7_001L..7_230L).toSet(), f.attachmentDao.findForEntry("e900").mapNotNull { it.serverId }.toSet())
+        assertEquals(230, f.fileStore.storedPaths.size)
+        assertTrue(f.fileStore.deletedPaths.isEmpty())
+        assertTrue(f.logged.isEmpty())
+    }
+
+    @Test
+    fun one_of_the_attachments_really_deleted_on_the_server_is_still_removed_when_the_list_spans_several_pages() = runTest {
+        val f = stockFixture()
+        f.siteWithCement(serverPurchase = null)
+        f.seedServerAttachments(230)
+        val goneFile = f.syncedAttachment("gone", serverId = 9_999)
+        val engine = f.engine(backgroundScope)
+
+        assertIs<SyncOutcome.Synced>(engine.syncLog("l800"))
+
+        assertNull(f.attachmentDao.findByLocalId("gone"))
+        assertEquals(230, f.attachmentDao.findForEntry("e900").size)
+        assertEquals(listOf(goneFile), f.fileStore.deletedPaths, "only the file of the attachment the server no longer has")
+        assertTrue(f.logged.isEmpty())
+    }
+
+    @Test
+    fun a_second_page_of_attachments_that_fails_after_a_first_one_that_succeeded_removes_nothing() = runTest {
+        val f = stockFixture()
+        f.siteWithCement(serverPurchase = null)
+        f.seedServerAttachments(150)
+        val unreadFiles = (7000+101L..7000+150L).map { f.syncedAttachment("local-$it", serverId = it) }
+        f.backend.listPageFailure = pageTwoFails
+        val engine = f.engine(backgroundScope)
+
+        assertIs<SyncOutcome.Synced>(engine.syncLog("l800"))
+
+        assertEquals(150, f.attachmentDao.findForEntry("e900").size, "the first hundred pulled, the fifty unread ones kept")
+        assertTrue(f.fileStore.deletedPaths.isEmpty(), "no file is deleted after an incomplete read")
+        assertTrue(f.fileStore.storedPaths.containsAll(unreadFiles))
+        assertEquals(150, f.fileStore.storedPaths.size)
+        assertEquals(listOf("sync: incomplete read of attachments of entry 900 (ERROR), 100 read, local removal skipped"), f.logged)
+    }
+
+    @Test
+    fun one_of_the_attachments_created_on_the_server_while_the_list_is_read_skips_the_removal_without_failing() = runTest {
+        val f = stockFixture()
+        f.siteWithCement(serverPurchase = null)
+        f.seedServerAttachments(150)
+        val goneFile = f.syncedAttachment("gone", serverId = 9_999)
+        f.addOneWhilePageTwoIsRead("attachments", { f.backend.attachments.size }) { f.backend.seedAttachment(com.dmb.chantiertracker.support.ServerAttachment(id = 7_900, entryId = 900)) }
+        val engine = f.engine(backgroundScope)
+
+        assertIs<SyncOutcome.Synced>(engine.syncLog("l800"))
+
+        assertNotNull(f.attachmentDao.findByLocalId("gone"), "the total changed during the read: nothing is removed")
+        assertEquals(152, f.attachmentDao.findForEntry("e900").size)
+        assertTrue(f.fileStore.deletedPaths.isEmpty(), "no file is deleted after an incomplete read")
+        assertTrue(goneFile in f.fileStore.storedPaths)
+        assertEquals(listOf("sync: incomplete read of attachments of entry 900 (TOTAL_MISMATCH), 151 read, local removal skipped"), f.logged)
+
+        assertIs<SyncOutcome.Synced>(engine.syncLog("l800"))
+
+        assertNull(f.attachmentDao.findByLocalId("gone"), "the next complete read removes it")
+        assertEquals(listOf(goneFile), f.fileStore.deletedPaths)
+        assertEquals(1, f.logged.size)
+    }
+
+    @Test
+    fun a_local_attachment_that_is_not_synced_is_never_removed_by_a_complete_read_and_keeps_its_file() = runTest {
+        val f = stockFixture()
+        f.siteWithCement(serverPurchase = null)
+        f.seedServerAttachments(25)
+        suspend fun fileOf(localId: String) = f.fileStore.save(byteArrayOf(4, 2), "$localId.jpg")
+        f.attachmentDao.upsert(com.dmb.chantiertracker.support.localAttachment("sending", entryLocalId = "e900", localPath = fileOf("sending"), serverId = null, pendingOp = PendingOp.CREATE, syncStatus = SyncStatus.CONFLICTED).copy(lastSyncError = SyncError.REJECTED))
+        f.attachmentDao.upsert(com.dmb.chantiertracker.support.localAttachment("refused", entryLocalId = "e900", localPath = fileOf("refused"), serverId = 9_002, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.CONFLICTED).copy(lastSyncError = SyncError.REJECTED))
+        f.attachmentDao.upsert(com.dmb.chantiertracker.support.localAttachment("orphan", entryLocalId = "e900", localPath = fileOf("orphan"), serverId = 9_003, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.CONFLICTED).copy(lastSyncError = SyncError.DELETED_ON_SERVER))
+        f.backend.attachmentUploadRejection = io.ktor.http.HttpStatusCode.Forbidden to "Limite de photos atteinte."
+        val localFiles = f.fileStore.storedPaths.toSet()
+        val engine = f.engine(backgroundScope)
+
+        assertIs<SyncOutcome.Synced>(engine.syncLog("l800"))
+
+        assertNotNull(f.attachmentDao.findByLocalId("sending"))
+        assertNotNull(f.attachmentDao.findByLocalId("refused"))
+        assertNotNull(f.attachmentDao.findByLocalId("orphan"))
+        assertEquals(28, f.attachmentDao.findForEntry("e900").size)
+        assertTrue(f.fileStore.deletedPaths.isEmpty())
+        assertTrue(f.fileStore.storedPaths.containsAll(localFiles))
+    }
+
+    @Test
+    fun line_and_attachment_lists_are_requested_a_hundred_at_a_time_sorted_by_id() = runTest {
+        val f = stockFixture()
+        f.siteWithCement(serverPurchase = null)
+        val listQueries = mutableMapOf<String, String>()
+        f.backend.beforeHandle = { request ->
+            val path = request.url.encodedPath.removePrefix("/api/v1")
+            if (request.method == io.ktor.http.HttpMethod.Get && path.startsWith("/entries/")) {
+                listQueries[path] = listOf("page", "size", "sort").joinToString("&") { "$it=${request.url.parameters[it]}" }
+            }
+        }
+        val engine = f.engine(backgroundScope)
+
+        engine.syncLog("l800")
+
+        assertEquals(
+            mapOf(
+                "/entries/900/purchase-lines" to "page=0&size=100&sort=id,asc",
+                "/entries/900/attachments" to "page=0&size=100&sort=id,asc",
+                "/entries/901/consumption-lines" to "page=0&size=100&sort=id,asc",
+            ),
+            listQueries,
+        )
+    }
 }

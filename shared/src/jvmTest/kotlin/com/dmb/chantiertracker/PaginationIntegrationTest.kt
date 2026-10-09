@@ -1,7 +1,10 @@
 package com.dmb.chantiertracker
 
+import com.dmb.chantiertracker.data.remote.apiCall
+import com.dmb.chantiertracker.data.remote.dto.CreateConsumptionLineRequestDto
 import com.dmb.chantiertracker.data.remote.dto.CreateMaterialRequestDto
 import com.dmb.chantiertracker.data.remote.dto.CreateProjectRequestDto
+import com.dmb.chantiertracker.data.remote.dto.CreatePurchaseLineRequestDto
 import com.dmb.chantiertracker.data.remote.dto.CreateStageRequestDto
 import com.dmb.chantiertracker.data.remote.dto.EntryRequestDto
 import com.dmb.chantiertracker.data.remote.dto.UpdateMaterialRequestDto
@@ -10,11 +13,16 @@ import com.dmb.chantiertracker.domain.model.CreateProjectInput
 import com.dmb.chantiertracker.support.DeviceStack
 import com.dmb.chantiertracker.support.DisposableAccounts
 import com.dmb.chantiertracker.support.IntegrationBackend
+import com.dmb.chantiertracker.support.retryingOnRateLimit
 import com.dmb.chantiertracker.support.signInForTheFirstTime
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import kotlinx.io.Buffer
+import java.awt.image.BufferedImage
+import java.io.ByteArrayOutputStream
 import java.time.LocalDate
 import java.time.ZoneId
+import javax.imageio.ImageIO
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -163,5 +171,74 @@ class PaginationIntegrationTest {
         assertEquals(emptySet(), daysOf(doomedStage))
         assertEquals(days.toSet(), daysOf(mainStage))
         assertEquals(25, materials().size)
+    }
+
+    private fun aSmallJpeg(): ByteArray {
+        val image = BufferedImage(32, 32, BufferedImage.TYPE_INT_RGB)
+        return ByteArrayOutputStream().use { out -> ImageIO.write(image, "jpg", out); out.toByteArray() }
+    }
+
+    @Test
+    fun c5_twenty_five_lines_of_each_kind_and_twenty_five_photos_all_reach_a_second_device_and_stay_there() = runScenario {
+        val owner = device()
+        owner.signedInAs("qa-c5-lines-owner", "QA C5 Propriétaire lignes")
+        val supervisor = device()
+        val supervisorAccount = supervisor.signedInAs("qa-c5-lines-super", "QA C5 Superviseur lignes")
+
+        val project = owner.projects.createProject(CreateProjectInput("QA C5 lignes", null, "Nîmes", "EUR", "Europe/Paris"))
+        owner.sync.syncNow()
+        val projectServerId = owner.db.projectDao().findByLocalId(project)!!.serverId!!
+        val stage = owner.stageApi.create(projectServerId, CreateStageRequestDto("Gros œuvre")).id
+        val today = LocalDate.now(ZoneId.of("Europe/Paris")).toString()
+        val purchaseEntry = owner.dailyLogApi.createPurchaseEntry(stage, today, EntryRequestDto("Achats du jour")).id
+        val workEntry = owner.dailyLogApi.createWorkEntry(stage, today, EntryRequestDto("Travaux du jour")).id
+        val cement = owner.materialApi.create(projectServerId, CreateMaterialRequestDto("Ciment", "sac")).id
+        val purchaseIds = (1..25).map { owner.purchaseLineApi.create(purchaseEntry, CreatePurchaseLineRequestDto(cement, 10.0, 2.0, "Fournisseur $it")).id }
+        val consumptionIds = (1..25).map { owner.consumptionLineApi.create(workEntry, CreateConsumptionLineRequestDto(cement, 1.0)).id }
+        val jpeg = aSmallJpeg()
+        val photoIds = (1..25).map {
+            retryingOnRateLimit {
+                apiCall { owner.attachmentApi.upload(purchaseEntry, jpeg.size.toLong(), "ticket-$it.jpg", "image/jpeg", openSource = { Buffer().apply { write(jpeg) } }) }
+            }.id
+        }
+        owner.invitations.invite(project, supervisorAccount.email)
+        supervisor.invitations.acceptInvitation(supervisor.invitations.listIncomingInvitations().single().token)
+        supervisor.sync.syncNow()
+        val supervisorProject = supervisor.projects.observeProjects().first().single().localId
+        assertIs<SyncOutcome.Synced>(supervisor.sync.syncProject(supervisorProject))
+        val supervisorStage = supervisor.db.stageDao().findForProject(supervisorProject).single().localId
+        val day = supervisor.db.dailyLogDao().findForStage(supervisorStage).single().localId
+
+        suspend fun entry(serverId: Long) = supervisor.db.dailyEntryDao().findForLog(day).single { it.serverId == serverId }.localId
+        suspend fun purchases() = supervisor.db.purchaseLineDao().findForEntry(entry(purchaseEntry)).mapNotNull { it.serverId }.toSet()
+        suspend fun consumptions() = supervisor.db.consumptionLineDao().findForEntry(entry(workEntry)).mapNotNull { it.serverId }.toSet()
+        suspend fun photos() = supervisor.db.attachmentDao().findForEntry(entry(purchaseEntry))
+
+        assertIs<SyncOutcome.Synced>(supervisor.sync.syncLog(day))
+        val firstPass = Triple(purchases(), consumptions(), photos().mapNotNull { it.serverId }.toSet())
+        assertIs<SyncOutcome.Synced>(supervisor.sync.syncLog(day))
+        val secondPass = Triple(purchases(), consumptions(), photos().mapNotNull { it.serverId }.toSet())
+        println(
+            "C5 lignes et justificatifs — serveur 25/25/25 ; superviseur 1re passe=${firstPass.first.size}/${firstPass.second.size}/${firstPass.third.size} ; " +
+                "2e passe=${secondPass.first.size}/${secondPass.second.size}/${secondPass.third.size} ; fichiers locaux=${supervisor.fileStore.storedPaths.size}, supprimés=${supervisor.fileStore.deletedPaths.size}",
+        )
+        assertEquals(Triple(purchaseIds.toSet(), consumptionIds.toSet(), photoIds.toSet()), firstPass)
+        assertEquals(firstPass, secondPass)
+        assertEquals(25, supervisor.fileStore.storedPaths.size)
+        assertEquals(emptyList(), supervisor.fileStore.deletedPaths)
+
+        owner.purchaseLineApi.delete(purchaseIds[3])
+        owner.consumptionLineApi.delete(consumptionIds[3])
+        owner.attachmentApi.delete(photoIds[3])
+        assertIs<SyncOutcome.Synced>(supervisor.sync.syncLog(day))
+        println(
+            "C5 lignes et justificatifs — après une suppression de chaque côté serveur : ${purchases().size}/${consumptions().size}/${photos().size} ; " +
+                "fichiers locaux=${supervisor.fileStore.storedPaths.size}, supprimés=${supervisor.fileStore.deletedPaths.size}",
+        )
+        assertEquals(purchaseIds.toSet() - purchaseIds[3], purchases())
+        assertEquals(consumptionIds.toSet() - consumptionIds[3], consumptions())
+        assertEquals(photoIds.toSet() - photoIds[3], photos().mapNotNull { it.serverId }.toSet())
+        assertEquals(1, supervisor.fileStore.deletedPaths.size)
+        assertEquals(photos().map { it.localPath }.toSet(), supervisor.fileStore.storedPaths, "un fichier par justificatif, aucun orphelin")
     }
 }

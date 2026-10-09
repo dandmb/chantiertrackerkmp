@@ -18,8 +18,8 @@ import kotlinx.io.Source
 
 class AttachmentApi(private val client: HttpClient) {
 
-    suspend fun list(entryId: Long): PageDto<AttachmentDto> =
-        client.get(ApiRoutes.entryAttachments(entryId)).body()
+    suspend fun list(entryId: Long, page: Int, size: Int): PageDto<AttachmentDto> =
+        client.get(ApiRoutes.entryAttachments(entryId)) { sortedByIdPage(page, size) }.body()
 
     // The backend compresses/transcodes server-side (photo: resize ≤ 1600px +
     // JPEG re-encode, HEIC decode via ffmpeg; video: H.264 720p MP4 — routed on
