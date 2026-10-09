@@ -6,12 +6,14 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
@@ -53,6 +55,10 @@ import com.dmb.chantiertracker.resources.projects_empty_body
 import com.dmb.chantiertracker.resources.projects_empty_title
 import com.dmb.chantiertracker.resources.role_admin
 import com.dmb.chantiertracker.resources.role_supervisor
+import com.dmb.chantiertracker.resources.sync_issues_banner_body
+import com.dmb.chantiertracker.resources.sync_issues_count
+import com.dmb.chantiertracker.resources.sync_issues_open
+import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -62,6 +68,8 @@ fun ProjectsScreen(
     onProjectClick: (projectLocalId: String) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: ProjectsViewModel = koinViewModel(),
+    syncIssueCount: Int = 0,
+    onOpenSyncIssues: () -> Unit = {},
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
 
@@ -74,6 +82,9 @@ fun ProjectsScreen(
     ) {
         ResponsiveContent {
             Column(Modifier.fillMaxSize()) {
+                if (syncIssueCount > 0) {
+                    SyncIssuesBanner(count = syncIssueCount, onOpen = onOpenSyncIssues)
+                }
                 if (state.incomingInvitations.isNotEmpty() || state.invitationError != null) {
                     IncomingInvitations(
                         invitations = state.incomingInvitations,
@@ -101,6 +112,34 @@ fun ProjectsScreen(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun SyncIssuesBanner(count: Int, onOpen: () -> Unit) {
+    Surface(
+        color = MaterialTheme.colorScheme.errorContainer,
+        shape = MaterialTheme.shapes.medium,
+        modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 16.dp),
+    ) {
+        Column(Modifier.padding(start = 16.dp, end = 8.dp, top = 12.dp, bottom = 4.dp)) {
+            Text(
+                text = pluralStringResource(Res.plurals.sync_issues_count, count, count),
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onErrorContainer,
+            )
+            Text(
+                text = stringResource(Res.string.sync_issues_banner_body),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onErrorContainer,
+            )
+            TextButton(
+                onClick = onOpen,
+                modifier = Modifier.align(Alignment.End).heightIn(min = 48.dp),
+                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onErrorContainer),
+            ) { Text(stringResource(Res.string.sync_issues_open)) }
         }
     }
 }

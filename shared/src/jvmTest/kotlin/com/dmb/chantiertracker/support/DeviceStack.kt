@@ -112,6 +112,9 @@ class DeviceStack : AutoCloseable {
     val purchaseLines = PurchaseLineRepositoryImpl(db.purchaseLineDao(), sync, scope)
     val consumptionLines = ConsumptionLineRepositoryImpl(db.consumptionLineDao(), sync, scope)
     val attachments = AttachmentRepositoryImpl(db.attachmentDao(), db.dailyEntryDao(), attachmentApi, fileStore, sync, scope)
+    val syncIssues = com.dmb.chantiertracker.data.repository.SyncIssueRepositoryImpl(
+        db.syncIssueDao(), db.stageDao(), db.materialDao(), db.dailyEntryDao(), db.purchaseLineDao(), db.consumptionLineDao(), db.attachmentDao(), sync,
+    )
     val invitations = InvitationRepositoryImpl(db.invitationDao(), invitationApi, db.projectDao(), sync)
     val reports = com.dmb.chantiertracker.data.repository.ReportRepositoryImpl(
         com.dmb.chantiertracker.data.remote.ReportApi(client), db.dailyEntryDao(), db.projectDao(),

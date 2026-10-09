@@ -55,10 +55,7 @@ class EditorIdentityIntegrationTest {
     }
 
     private fun runPhase(name: String, block: suspend () -> Unit) = runBlocking {
-        if (!enabled || phase != name) {
-            println("Phase '$name' ignorée (integrationTests=$enabled, integrationPhase=$phase).")
-            return@runBlocking
-        }
+        com.dmb.chantiertracker.support.skipUnless(enabled && phase == name, "phase '$name' contre le vrai backend (integrationTests=$enabled, integrationPhase=$phase)")
         println("=== phase '$name' contre $baseUrl")
         block()
     }

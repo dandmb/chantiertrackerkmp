@@ -2927,6 +2927,37 @@ class SyncEngineTest {
     }
 
     @Test
+    fun a_refused_project_update_does_not_fail_the_pass_and_everything_queued_behind_it_still_leaves() = runTest {
+        val f = stockFixture()
+        f.siteWithCement(serverPurchase = null)
+        f.dao.upsert(
+            f.dao.findByLocalId("p5")!!.copy(
+                name = "Renommé", pendingOp = PendingOp.UPDATE, syncStatus = SyncStatus.PENDING, remoteUpdatedAt = serverMillis("2026-01-01T09:00:00"),
+            ),
+        )
+        f.stageDao.upsert(localStage("st-new", projectLocalId = "p5", name = "Finitions"))
+        f.purchaseLineDao.upsert(com.dmb.chantiertracker.support.localPurchaseLine("pl-new", entryLocalId = "e900", materialLocalId = "m7", quantity = 4.0))
+        f.backend.seed(ServerProject(id = 6, name = "Créé ailleurs"))
+        f.backend.updateStatus = io.ktor.http.HttpStatusCode.Forbidden
+        f.backend.updateRefusalCode = "PROJECT_INSUFFICIENT_ROLE"
+        val engine = f.engine(backgroundScope)
+
+        val outcome = engine.syncNow()
+
+        assertIs<SyncOutcome.Synced>(outcome, "one refused project update must not fail the whole pass")
+        assertEquals(SyncState.Idle, f.syncState.state.value)
+        assertEquals(1, f.sent("PATCH", "/projects/5"))
+        val project = f.dao.findByLocalId("p5")!!
+        assertEquals(SyncStatus.CONFLICTED, project.syncStatus)
+        assertEquals(SyncError.UPDATE_REFUSED, project.lastSyncError)
+        assertEquals("PROJECT_INSUFFICIENT_ROLE", project.serverErrorCode)
+        assertEquals("Renommé", project.name, "what the user typed is kept")
+        assertEquals(SyncStatus.SYNCED, f.stageDao.findByLocalId("st-new")!!.syncStatus, "the stage queued behind the project still leaves")
+        assertEquals(SyncStatus.SYNCED, f.purchaseLineDao.findByLocalId("pl-new")!!.syncStatus, "the line queued behind the project still leaves")
+        assertTrue(f.dao.findAll().any { it.serverId == 6L }, "the pull still runs after the refusal")
+    }
+
+    @Test
     fun a_refused_delete_is_never_sent_again_and_its_mention_survives_the_next_pulls() = runTest {
         val f = stockFixture()
         f.siteWithCement(serverPurchase = 12.0)

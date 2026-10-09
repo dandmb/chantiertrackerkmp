@@ -4,6 +4,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -20,6 +23,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.hideFromAccessibility
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.dmb.chantiertracker.domain.model.Plan
@@ -33,6 +39,9 @@ import com.dmb.chantiertracker.resources.plan_liberte
 import com.dmb.chantiertracker.resources.plan_semi_flex
 import com.dmb.chantiertracker.resources.plan_unknown
 import com.dmb.chantiertracker.resources.plan_with_founder
+import com.dmb.chantiertracker.resources.sync_issues_badge
+import com.dmb.chantiertracker.resources.sync_issues_badge_overflow
+import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -44,6 +53,8 @@ fun AppTopBar(
     onSubscription: () -> Unit,
     onLogout: () -> Unit,
     isFounder: Boolean = false,
+    syncIssueCount: Int = 0,
+    onOpenSyncIssues: () -> Unit = {},
     leadingActions: @Composable RowScope.() -> Unit = {},
 ) {
     var menuOpen by remember { mutableStateOf(false) }
@@ -54,6 +65,9 @@ fun AppTopBar(
         },
         actions = {
             leadingActions()
+            if (syncIssueCount > 0) {
+                SyncIssuesBadge(count = syncIssueCount, onClick = onOpenSyncIssues)
+            }
             IconButton(onClick = { menuOpen = true }) {
                 Icon(AccountIcon, contentDescription = stringResource(Res.string.menu_open))
             }
@@ -81,6 +95,28 @@ fun AppTopBar(
             actionIconContentColor = MaterialTheme.colorScheme.onPrimary,
         ),
     )
+}
+
+@Composable
+private fun SyncIssuesBadge(count: Int, onClick: () -> Unit) {
+    val description = pluralStringResource(Res.plurals.sync_issues_badge, count, count)
+    IconButton(onClick = onClick, modifier = Modifier.size(48.dp).semantics { contentDescription = description }) {
+        BadgedBox(
+            badge = {
+                Badge(
+                    containerColor = MaterialTheme.colorScheme.errorContainer,
+                    contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                ) {
+                    Text(
+                        text = if (count > 99) stringResource(Res.string.sync_issues_badge_overflow) else count.toString(),
+                        modifier = Modifier.semantics { hideFromAccessibility() },
+                    )
+                }
+            },
+        ) {
+            Icon(SyncIssuesIcon, contentDescription = null)
+        }
+    }
 }
 
 @Composable

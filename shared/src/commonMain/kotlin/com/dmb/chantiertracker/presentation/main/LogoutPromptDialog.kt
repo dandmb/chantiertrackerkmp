@@ -1,8 +1,13 @@
 package com.dmb.chantiertracker.presentation.main
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -22,6 +27,7 @@ import com.dmb.chantiertracker.resources.logout_refused_message
 import com.dmb.chantiertracker.resources.logout_refused_title
 import com.dmb.chantiertracker.resources.logout_retry
 import com.dmb.chantiertracker.resources.logout_sending
+import com.dmb.chantiertracker.resources.sync_issues_open
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 import com.dmb.chantiertracker.resources.unsent_attachments
@@ -44,6 +50,7 @@ fun LogoutPromptDialog(
     onRetry: () -> Unit,
     onLogoutAnyway: () -> Unit,
     onDismiss: () -> Unit,
+    onSeeDetails: () -> Unit = {},
 ) {
     when (prompt) {
         LogoutPrompt.Sending -> AlertDialog(
@@ -72,10 +79,17 @@ fun LogoutPromptDialog(
             onDismissRequest = onDismiss,
             title = { Text(stringResource(Res.string.logout_refused_title)) },
             text = {
-                Text(
-                    stringResource(Res.string.logout_refused_message, unsentSummary(prompt.unsent)),
-                    style = MaterialTheme.typography.bodyMedium,
-                )
+                Column(Modifier.verticalScroll(rememberScrollState())) {
+                    Text(
+                        stringResource(Res.string.logout_refused_message, unsentSummary(prompt.unsent)),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    TextButton(
+                        onClick = onSeeDetails,
+                        modifier = Modifier.heightIn(min = 48.dp),
+                        contentPadding = PaddingValues(horizontal = 0.dp),
+                    ) { Text(stringResource(Res.string.sync_issues_open)) }
+                }
             },
             confirmButton = {
                 TextButton(

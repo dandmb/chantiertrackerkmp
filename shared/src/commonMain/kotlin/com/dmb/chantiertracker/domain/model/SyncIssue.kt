@@ -22,6 +22,47 @@ data class SyncIssue(
     val serverCode: String? = null,
 )
 
+val RefusalReason.dependsOnSomethingElse: Boolean
+    get() = this == RefusalReason.PLAN_LIMIT ||
+        this == RefusalReason.PROJECT_OR_STAGE_INACTIVE ||
+        this == RefusalReason.ENTRY_DATE_RESTRICTED ||
+        this == RefusalReason.INSUFFICIENT_ROLE
+
+val SyncIssue.canBeRetried: Boolean
+    get() = (kind == SyncIssueKind.REFUSED || kind == SyncIssueKind.UPDATE_REFUSED) && reason?.dependsOnSomethingElse == true
+
+val SyncIssue.countsToReview: Boolean
+    get() = kind != SyncIssueKind.BLOCKED_BY_PARENT
+
+enum class SyncIssueTarget { PROJECT, STAGE, MATERIAL, ENTRY, PURCHASE_LINE, CONSUMPTION_LINE, ATTACHMENT }
+
+data class SyncIssueParent(
+    val target: SyncIssueTarget,
+    val name: String? = null,
+    val entryType: EntryType? = null,
+    val date: String? = null,
+)
+
+data class SyncIssueItem(
+    val target: SyncIssueTarget,
+    val localId: String,
+    val issue: SyncIssue,
+    val projectLocalId: String,
+    val projectName: String,
+    val stageLocalId: String? = null,
+    val stageName: String? = null,
+    val dailyLogLocalId: String? = null,
+    val date: String? = null,
+    val entryType: EntryType? = null,
+    val label: String? = null,
+    val unit: String? = null,
+    val quantity: Double? = null,
+    val serverQuantity: Double? = null,
+    val blockedBy: SyncIssueParent? = null,
+) {
+    val key: String get() = "$target:$localId"
+}
+
 fun refusalReasonOf(serverCode: String?): RefusalReason = when (serverCode) {
     "PLAN_LIMIT_EXCEEDED" -> RefusalReason.PLAN_LIMIT
     "PROJECT_OR_STAGE_INACTIVE" -> RefusalReason.PROJECT_OR_STAGE_INACTIVE

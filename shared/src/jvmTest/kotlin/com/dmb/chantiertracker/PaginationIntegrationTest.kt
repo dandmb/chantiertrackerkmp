@@ -55,10 +55,7 @@ class PaginationIntegrationTest {
     private fun device() = DeviceStack().also { devices += it }
 
     private fun runScenario(block: suspend () -> Unit) = runBlocking {
-        if (!IntegrationBackend.enabled || !IntegrationBackend.adminConfigured) {
-            println("Scénario ignoré (integrationTests + identifiants super-admin requis).")
-            return@runBlocking
-        }
+        com.dmb.chantiertracker.support.skipUnlessRealBackendScenariosAreEnabled()
         block()
     }
 

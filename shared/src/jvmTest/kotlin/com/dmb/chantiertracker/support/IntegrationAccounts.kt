@@ -26,6 +26,13 @@ object IntegrationBackend {
     val adminConfigured: Boolean get() = adminEmail != null && adminPassword != null
 }
 
+fun skipUnless(condition: Boolean, reason: String) = org.junit.Assume.assumeTrue(reason, condition)
+
+fun skipUnlessRealBackendScenariosAreEnabled() = skipUnless(
+    IntegrationBackend.enabled && IntegrationBackend.adminConfigured,
+    "scénario contre le vrai backend : -Dchantiertracker.integrationTests=true et identifiants super-admin requis",
+)
+
 /**
  * The sensitive endpoints share one 8/min/IP bucket on the backend: a run that signs in several
  * times would otherwise fail on a real, intended 429. Waits the server's own Retry-After.
