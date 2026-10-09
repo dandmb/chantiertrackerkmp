@@ -16,8 +16,8 @@ import io.ktor.http.contentType
 
 class StageApi(private val client: HttpClient) {
 
-    suspend fun list(projectId: Long): PageDto<StageDto> =
-        client.get(ApiRoutes.projectStages(projectId)).body()
+    suspend fun list(projectId: Long, page: Int, size: Int): PageDto<StageDto> =
+        client.get(ApiRoutes.projectStages(projectId)) { sortedByIdPage(page, size) }.body()
 
     suspend fun get(id: Long): StageDto =
         client.get(ApiRoutes.stage(id)).body()

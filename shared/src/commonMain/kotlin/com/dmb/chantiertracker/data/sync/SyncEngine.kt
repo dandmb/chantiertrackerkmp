@@ -36,6 +36,8 @@ import com.dmb.chantiertracker.data.remote.StageApi
 import com.dmb.chantiertracker.data.remote.StockApi
 import com.dmb.chantiertracker.data.remote.apiCall
 import com.dmb.chantiertracker.data.remote.dto.MaterialDto
+import com.dmb.chantiertracker.data.remote.dto.ProjectDto
+import com.dmb.chantiertracker.data.remote.dto.StageDto
 import com.dmb.chantiertracker.domain.model.DomainException
 import com.dmb.chantiertracker.presentation.sync.SyncState
 import com.dmb.chantiertracker.presentation.sync.SyncStateHolder
@@ -120,6 +122,7 @@ class SyncEngine(
     private val newLocalId: () -> String = { Uuid.random().toString() },
     private val backgroundSync: BackgroundSync = NoOpBackgroundSync,
     private val catchUpInterval: Duration = 15.minutes,
+    private val log: (String) -> Unit = ::println,
 ) : Syncer {
 
     private val mutex = Mutex()
@@ -310,7 +313,8 @@ class SyncEngine(
     }
 
     private suspend fun pullStages(projectServerId: Long, projectLocalId: String) {
-        val remote = apiCall { stageApi.list(projectServerId) }.content
+        val read = readAllPages(StageDto::id) { page, size -> apiCall { stageApi.list(projectServerId, page, size) } }
+        val remote = read.items
         val locals = stageDao.findForProject(projectLocalId)
         val byServerId = locals.mapNotNull { local -> local.serverId?.let { it to local } }.toMap()
         val syncedAt = clock.nowEpochMillis()
@@ -330,6 +334,7 @@ class SyncEngine(
             }
         }
 
+        if (skipsRemovalAfter(read, "stages of project $projectServerId")) return
         val remoteIds = remote.map { it.id }.toSet()
         locals
             .filter { it.serverId != null && it.serverId !in remoteIds }
@@ -1195,7 +1200,8 @@ class SyncEngine(
     }
 
     private suspend fun pullAll() {
-        val remote = apiCall { api.list() }.content
+        val read = readAllPages(ProjectDto::id) { page, size -> apiCall { api.list(page, size) } }
+        val remote = read.items
         val locals = dao.findAll()
         val byServerId = locals.mapNotNull { local -> local.serverId?.let { it to local } }.toMap()
         val syncedAt = clock.nowEpochMillis()
@@ -1218,11 +1224,18 @@ class SyncEngine(
             }
         }
 
+        if (skipsRemovalAfter(read, "projects")) return
         val remoteIds = remote.map { it.id }.toSet()
         locals
             .filter { it.serverId != null && it.serverId !in remoteIds }
             .filter { it.syncStatus == SyncStatus.SYNCED && it.pendingOp == PendingOp.NONE }
             .forEach { projectGoneOnServer(it) }
+    }
+
+    private fun skipsRemovalAfter(read: PagedRead<*>, listName: String): Boolean {
+        val reason = read.incompleteReason ?: return false
+        log("sync: incomplete read of $listName ($reason), ${read.items.size} read, local removal skipped")
+        return true
     }
 }
 

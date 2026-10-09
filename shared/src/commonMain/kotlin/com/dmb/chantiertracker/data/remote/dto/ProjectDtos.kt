@@ -3,7 +3,7 @@ package com.dmb.chantiertracker.data.remote.dto
 import kotlinx.serialization.Serializable
 
 @Serializable
-data class PageDto<T>(val content: List<T> = emptyList())
+data class PageDto<T>(val content: List<T> = emptyList(), val totalElements: Long? = null)
 
 @Serializable
 data class ProjectDto(

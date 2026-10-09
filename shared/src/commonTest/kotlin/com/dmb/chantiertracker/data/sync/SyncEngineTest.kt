@@ -54,6 +54,7 @@ class SyncEngineTest {
         val backgroundSync: FakeBackgroundSync = FakeBackgroundSync(),
     ) {
         var idSeq = 0
+        val logged = mutableListOf<String>()
         fun engine(scope: CoroutineScope, catchUpInterval: Duration = 15.minutes) = SyncEngine(
             dao = dao,
             api = backend.api(),
@@ -83,6 +84,7 @@ class SyncEngineTest {
             newLocalId = { "pulled-${idSeq++}" },
             backgroundSync = backgroundSync,
             catchUpInterval = catchUpInterval,
+            log = { logged += it },
         )
     }
 
@@ -1685,5 +1687,235 @@ class SyncEngineTest {
         runCurrent()
 
         assertEquals(1, f.connectivity.isOnlineChecks - afterStart, "one periodic loop, not two")
+    }
+
+    // ─── lists read page by page, removals only after a complete read (ADR-73) ──
+
+    private fun Fixture.seedServerProjects(count: Int) =
+        (1..count).forEach { backend.seed(ServerProject(id = it.toLong(), name = "Chantier $it")) }
+
+    private fun Fixture.seedServerStages(projectId: Long, count: Int) =
+        (1..count).forEach { backend.seedStage(ServerStage(id = 1_000L + it, projectId = projectId, name = "Étape $it")) }
+
+    @Test
+    fun more_than_twenty_projects_are_all_pulled_and_none_disappears_on_the_next_pass() = runTest {
+        val f = Fixture()
+        f.seedServerProjects(25)
+        val engine = f.engine(backgroundScope)
+
+        assertIs<SyncOutcome.Synced>(engine.syncNow())
+        assertEquals((1L..25L).toSet(), f.dao.findAll().mapNotNull { it.serverId }.toSet())
+
+        assertIs<SyncOutcome.Synced>(engine.syncNow())
+        assertEquals((1L..25L).toSet(), f.dao.findAll().mapNotNull { it.serverId }.toSet())
+    }
+
+    @Test
+    fun more_than_a_hundred_projects_are_all_pulled_and_none_disappears_on_the_next_pass() = runTest {
+        val f = Fixture()
+        f.seedServerProjects(230)
+        val engine = f.engine(backgroundScope)
+
+        assertIs<SyncOutcome.Synced>(engine.syncNow())
+        assertIs<SyncOutcome.Synced>(engine.syncNow())
+
+        assertEquals((1L..230L).toSet(), f.dao.findAll().mapNotNull { it.serverId }.toSet())
+        assertEquals(230, f.dao.findAll().size)
+    }
+
+    @Test
+    fun more_than_twenty_stages_are_all_pulled_and_none_disappears_on_the_next_pass() = runTest {
+        val f = Fixture()
+        f.backend.seed(ServerProject(id = 7, name = "Villa Vidal"))
+        f.seedServerStages(projectId = 7, count = 25)
+        f.dao.upsert(localProject("p7", serverId = 7, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+        val engine = f.engine(backgroundScope)
+
+        assertIs<SyncOutcome.Synced>(engine.syncProject("p7"))
+        assertEquals(25, f.stageDao.findForProject("p7").size)
+
+        assertIs<SyncOutcome.Synced>(engine.syncProject("p7"))
+        assertEquals((1_001L..1_025L).toSet(), f.stageDao.findForProject("p7").mapNotNull { it.serverId }.toSet())
+    }
+
+    @Test
+    fun more_than_a_hundred_stages_are_all_pulled_and_none_disappears_on_the_next_pass() = runTest {
+        val f = Fixture()
+        f.backend.seed(ServerProject(id = 7, name = "Villa Vidal"))
+        f.seedServerStages(projectId = 7, count = 230)
+        f.dao.upsert(localProject("p7", serverId = 7, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+        val engine = f.engine(backgroundScope)
+
+        assertIs<SyncOutcome.Synced>(engine.syncProject("p7"))
+        assertIs<SyncOutcome.Synced>(engine.syncProject("p7"))
+
+        assertEquals((1_001L..1_230L).toSet(), f.stageDao.findForProject("p7").mapNotNull { it.serverId }.toSet())
+        assertEquals(230, f.stageDao.findForProject("p7").size)
+    }
+
+    @Test
+    fun project_and_stage_lists_are_requested_a_hundred_at_a_time_sorted_by_id() = runTest {
+        val f = Fixture()
+        f.backend.seed(ServerProject(id = 7, name = "Villa Vidal"))
+        f.dao.upsert(localProject("p7", serverId = 7, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+        val listQueries = mutableMapOf<String, String>()
+        f.backend.beforeHandle = { request ->
+            val path = request.url.encodedPath.removePrefix("/api/v1")
+            if (path == "/projects" || path == "/projects/7/stages") {
+                listQueries[path] = listOf("page", "size", "sort").joinToString("&") { "$it=${request.url.parameters[it]}" }
+            }
+        }
+        val engine = f.engine(backgroundScope)
+
+        engine.syncNow()
+        engine.syncProject("p7")
+
+        assertEquals("page=0&size=100&sort=id,asc", listQueries["/projects"])
+        assertEquals("page=0&size=100&sort=id,asc", listQueries["/projects/7/stages"])
+    }
+
+    @Test
+    fun a_project_really_deleted_on_the_server_is_still_removed_when_the_list_spans_several_pages() = runTest {
+        val f = Fixture()
+        f.seedServerProjects(230)
+        f.dao.upsert(localProject("gone", serverId = 9_999, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+        val engine = f.engine(backgroundScope)
+
+        assertIs<SyncOutcome.Synced>(engine.syncNow())
+
+        assertNull(f.dao.findByLocalId("gone"))
+        assertEquals(230, f.dao.findAll().size)
+        assertTrue(f.logged.isEmpty())
+    }
+
+    @Test
+    fun a_stage_really_deleted_on_the_server_is_still_removed_when_the_list_spans_several_pages() = runTest {
+        val f = Fixture()
+        f.backend.seed(ServerProject(id = 7, name = "Villa Vidal"))
+        f.seedServerStages(projectId = 7, count = 230)
+        f.dao.upsert(localProject("p7", serverId = 7, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+        f.stageDao.upsert(localStage("gone", projectLocalId = "p7", serverId = 9_999, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+        val engine = f.engine(backgroundScope)
+
+        assertIs<SyncOutcome.Synced>(engine.syncProject("p7"))
+
+        assertNull(f.stageDao.findByLocalId("gone"))
+        assertEquals(230, f.stageDao.findForProject("p7").size)
+        assertTrue(f.logged.isEmpty())
+    }
+
+    @Test
+    fun a_project_created_on_the_server_while_the_list_is_read_skips_the_removal_without_failing() = runTest {
+        val f = Fixture()
+        f.seedServerProjects(150)
+        f.dao.upsert(localProject("gone", serverId = 9_999, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+        f.backend.beforeHandle = { request ->
+            if (request.url.encodedPath.endsWith("/projects") && request.url.parameters["page"] == "1" && f.backend.projects.size == 150) {
+                f.backend.seed(ServerProject(id = 151, name = "Créé pendant la lecture"))
+            }
+        }
+        val engine = f.engine(backgroundScope)
+
+        assertIs<SyncOutcome.Synced>(engine.syncNow())
+
+        assertNotNull(f.dao.findByLocalId("gone"), "the total changed during the read: nothing is removed")
+        assertEquals(SyncState.Idle, f.syncState.state.value)
+        assertEquals((1L..151L).toSet() + 9_999L, f.dao.findAll().mapNotNull { it.serverId }.toSet())
+        assertEquals(listOf("sync: incomplete read of projects (TOTAL_MISMATCH), 151 read, local removal skipped"), f.logged)
+
+        assertIs<SyncOutcome.Synced>(engine.syncNow())
+
+        assertNull(f.dao.findByLocalId("gone"), "the next complete read removes it")
+        assertEquals(1, f.logged.size)
+    }
+
+    @Test
+    fun a_stage_created_on_the_server_while_the_list_is_read_skips_the_removal_without_failing() = runTest {
+        val f = Fixture()
+        f.backend.seed(ServerProject(id = 7, name = "Villa Vidal"))
+        f.seedServerStages(projectId = 7, count = 150)
+        f.dao.upsert(localProject("p7", serverId = 7, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+        f.stageDao.upsert(localStage("gone", projectLocalId = "p7", serverId = 9_999, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+        f.backend.beforeHandle = { request ->
+            if (request.url.encodedPath.endsWith("/stages") && request.url.parameters["page"] == "1" && f.backend.stages.size == 150) {
+                f.backend.seedStage(ServerStage(id = 5_000, projectId = 7, name = "Créée pendant la lecture"))
+            }
+        }
+        val engine = f.engine(backgroundScope)
+
+        assertIs<SyncOutcome.Synced>(engine.syncProject("p7"))
+
+        assertNotNull(f.stageDao.findByLocalId("gone"))
+        assertEquals(152, f.stageDao.findForProject("p7").size)
+        assertEquals(listOf("sync: incomplete read of stages of project 7 (TOTAL_MISMATCH), 151 read, local removal skipped"), f.logged)
+
+        assertIs<SyncOutcome.Synced>(engine.syncProject("p7"))
+
+        assertNull(f.stageDao.findByLocalId("gone"))
+    }
+
+    @Test
+    fun a_page_of_projects_that_fails_after_the_first_keeps_every_local_project_and_the_pass_succeeds() = runTest {
+        val f = Fixture()
+        f.seedServerProjects(150)
+        (101L..150L).forEach {
+            f.dao.upsert(localProject("local-$it", serverId = it, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+        }
+        f.backend.listPageFailure = 1 to io.ktor.http.HttpStatusCode.InternalServerError
+        val engine = f.engine(backgroundScope)
+
+        assertIs<SyncOutcome.Synced>(engine.syncNow())
+
+        assertEquals(150, f.dao.findAll().size, "the first hundred pulled, the fifty unread ones kept")
+        assertEquals(listOf("sync: incomplete read of projects (ERROR), 100 read, local removal skipped"), f.logged)
+    }
+
+    @Test
+    fun a_first_page_of_projects_that_fails_still_fails_the_pass() = runTest {
+        val f = Fixture()
+        f.seedServerProjects(3)
+        f.backend.listPageFailure = 0 to io.ktor.http.HttpStatusCode.InternalServerError
+        val engine = f.engine(backgroundScope)
+
+        assertIs<SyncOutcome.Failed>(engine.syncNow())
+    }
+
+    @Test
+    fun a_local_project_that_is_not_synced_is_never_removed_by_a_complete_read() = runTest {
+        val f = Fixture()
+        f.seedServerProjects(25)
+        f.dao.upsert(localProject("editing", serverId = 9_001, pendingOp = PendingOp.UPDATE, syncStatus = SyncStatus.PENDING))
+        f.dao.upsert(localProject("refused", serverId = 9_002, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.CONFLICTED, lastSyncError = SyncError.REJECTED))
+        f.dao.upsert(localProject("orphan", serverId = 9_003, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.CONFLICTED, lastSyncError = SyncError.DELETED_ON_SERVER))
+        f.backend.goneOnServer += Regex("""/projects/9001$""")
+        val engine = f.engine(backgroundScope)
+
+        engine.syncNow()
+
+        assertNotNull(f.dao.findByLocalId("editing"))
+        assertEquals(SyncStatus.CONFLICTED, f.dao.findByLocalId("refused")!!.syncStatus)
+        assertEquals(SyncError.REJECTED, f.dao.findByLocalId("refused")!!.lastSyncError)
+        assertNotNull(f.dao.findByLocalId("orphan"))
+        assertEquals(28, f.dao.findAll().size)
+    }
+
+    @Test
+    fun a_local_stage_that_is_not_synced_is_never_removed_by_a_complete_read() = runTest {
+        val f = Fixture()
+        f.backend.seed(ServerProject(id = 7, name = "Villa Vidal"))
+        f.seedServerStages(projectId = 7, count = 25)
+        f.dao.upsert(localProject("p7", serverId = 7, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+        f.stageDao.upsert(localStage("editing", projectLocalId = "p7", serverId = 9_001, pendingOp = PendingOp.UPDATE, syncStatus = SyncStatus.PENDING))
+        f.stageDao.upsert(localStage("refused", projectLocalId = "p7", serverId = 9_002, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.CONFLICTED, lastSyncError = SyncError.REJECTED))
+        f.stageDao.upsert(localStage("orphan", projectLocalId = "p7", serverId = 9_003, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.CONFLICTED, lastSyncError = SyncError.DELETED_ON_SERVER))
+        f.backend.goneOnServer += Regex("""/stages/9001$""")
+        val engine = f.engine(backgroundScope)
+
+        engine.syncProject("p7")
+
+        assertNotNull(f.stageDao.findByLocalId("editing"))
+        assertEquals(SyncError.REJECTED, f.stageDao.findByLocalId("refused")!!.lastSyncError)
+        assertNotNull(f.stageDao.findByLocalId("orphan"))
+        assertEquals(28, f.stageDao.findForProject("p7").size)
     }
 }
