@@ -3,6 +3,10 @@ package com.dmb.chantiertracker.data.local.db
 import androidx.room.Room
 import androidx.sqlite.driver.bundled.BundledSQLiteDriver
 import androidx.sqlite.execSQL
+import com.dmb.chantiertracker.data.sync.syncIssue
+import com.dmb.chantiertracker.domain.model.RefusalReason
+import com.dmb.chantiertracker.domain.model.SyncIssue
+import com.dmb.chantiertracker.domain.model.SyncIssueKind
 import com.dmb.chantiertracker.support.verifyAttachmentDaoContract
 import com.dmb.chantiertracker.support.verifyDailyLogDaoContract
 import com.dmb.chantiertracker.support.verifyEditorIdentityDaoContract
@@ -14,6 +18,10 @@ import com.dmb.chantiertracker.support.verifyStageDaoContract
 import com.dmb.chantiertracker.support.verifyStockDaoContract
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import java.nio.file.Files
 import kotlin.io.path.absolutePathString
 import kotlin.test.AfterTest
@@ -990,6 +998,134 @@ class MigrationTest {
             db.close()
         }
     }
+
+    @Test
+    fun migrating_a_real_v14_database_keeps_every_row_and_adds_an_empty_server_error_code() = runTest {
+        val v14Path = dir.resolve("migration-v14.db").absolutePathString()
+        BundledSQLiteDriver().open(v14Path).use { c ->
+            createFromExportedSchema(c, version = 14)
+            c.execSQL(
+                "INSERT INTO projects (localId, serverId, name, currency, timezone, status, syncStatus, pendingOp, locallyModifiedAt, lastSyncError) VALUES " +
+                    "('p-synced', 42, 'Chantier v14', 'EUR', 'Europe/Paris', 'IN_PROGRESS', 'SYNCED', 'NONE', 1000, NULL), " +
+                    "('p-over-limit', NULL, 'Au-delà de la limite', 'EUR', 'Europe/Paris', 'IN_PROGRESS', 'CONFLICTED', 'CREATE', 1000, 'PLAN_LIMIT')",
+            )
+            c.execSQL(
+                "INSERT INTO stages (localId, serverId, projectLocalId, name, status, syncStatus, pendingOp, locallyModifiedAt, lastSyncError) VALUES " +
+                    "('s-synced', 43, 'p-synced', 'Gros œuvre', 'IN_PROGRESS', 'SYNCED', 'NONE', 1000, NULL), " +
+                    "('s-edit-refused', 44, 'p-synced', 'Charpente', 'IN_PROGRESS', 'CONFLICTED', 'UPDATE', 1000, 'REJECTED'), " +
+                    "('s-delete-refused', 45, 'p-synced', 'Toiture', 'IN_PROGRESS', 'SYNCED', 'NONE', 1000, 'REJECTED')",
+            )
+            c.execSQL("INSERT INTO daily_logs (localId, serverId, stageLocalId, date, locallyCreatedAt) VALUES ('l-v14', 46, 's-synced', '2026-10-01', 1000)")
+            c.execSQL(
+                "INSERT INTO daily_entries (localId, serverId, dailyLogLocalId, type, syncStatus, pendingOp, locallyModifiedAt, lastSyncError) VALUES " +
+                    "('e-synced', 47, 'l-v14', 'PURCHASE', 'SYNCED', 'NONE', 1000, NULL), " +
+                    "('e-gone', 48, 'l-v14', 'WORK', 'CONFLICTED', 'UPDATE', 1000, 'DELETED_ON_SERVER')",
+            )
+            c.execSQL(
+                "INSERT INTO materials (localId, serverId, projectLocalId, name, unit, syncStatus, pendingOp, locallyModifiedAt) VALUES " +
+                    "('m-v14', 7, 'p-synced', 'Ciment', 'sac', 'SYNCED', 'NONE', 1000)",
+            )
+            c.execSQL(
+                "INSERT INTO purchase_lines (localId, serverId, entryLocalId, materialLocalId, quantity, unitPrice, totalPrice, syncStatus, pendingOp, " +
+                    "locallyModifiedAt, lastSyncError, serverQuantity) VALUES " +
+                    "('pl-synced', 60, 'e-synced', 'm-v14', 10.0, 2.0, 20.0, 'SYNCED', 'NONE', 1000, NULL, 10.0), " +
+                    "('pl-pending', NULL, 'e-synced', 'm-v14', 4.0, 2.0, 8.0, 'PENDING', 'CREATE', 1000, NULL, NULL), " +
+                    "('pl-rejected', NULL, 'e-synced', 'm-v14', 2.675, 2.0, 5.35, 'CONFLICTED', 'CREATE', 1000, 'REJECTED', NULL)",
+            )
+            c.execSQL(
+                "INSERT INTO consumption_lines (localId, serverId, entryLocalId, materialLocalId, quantity, syncStatus, pendingOp, locallyModifiedAt, lastSyncError, serverQuantity) VALUES " +
+                    "('cl-rejected', NULL, 'e-gone', 'm-v14', 99.0, 'CONFLICTED', 'CREATE', 1000, 'REJECTED', NULL)",
+            )
+            c.execSQL(
+                "INSERT INTO attachments (localId, serverId, entryLocalId, localPath, originalName, mimeType, sizeBytes, uploadedAt, syncStatus, pendingOp, " +
+                    "locallyModifiedAt, lastSyncError) VALUES " +
+                    "('a-rejected', NULL, 'e-synced', 'ticket.jpg', 'ticket.jpg', 'image/jpeg', 1024, 1000, 'CONFLICTED', 'CREATE', 1000, 'REJECTED')",
+            )
+            c.execSQL("INSERT INTO material_stock (projectLocalId, materialServerId, quantityIn, quantityOut) VALUES ('p-synced', 7, 10.0, 0.0)")
+            c.execSQL("INSERT INTO stock_snapshots (projectLocalId, refreshedAt, needsRefresh) VALUES ('p-synced', 2000, 0)")
+        }
+
+        val db = Room.databaseBuilder<AppDatabase>(name = v14Path).buildChantierDatabase()
+        try {
+            assertEquals(listOf("p-over-limit", "p-synced"), db.projectDao().findAll().map { it.localId }.sorted(), "every v14 project survives")
+            assertEquals(3, db.stageDao().findForProject("p-synced").size)
+            assertEquals(3, db.purchaseLineDao().findForEntry("e-synced").size)
+            assertEquals(10.0, db.stockDao().findCounter("p-synced", 7)?.quantityIn)
+
+            val rows = listOf(
+                db.projectDao().findByLocalId("p-synced"), db.projectDao().findByLocalId("p-over-limit"),
+                db.stageDao().findByLocalId("s-edit-refused"), db.stageDao().findByLocalId("s-delete-refused"),
+                db.dailyEntryDao().findByLocalId("e-gone"), db.materialDao().findByLocalId("m-v14"),
+                db.purchaseLineDao().findByLocalId("pl-rejected"), db.consumptionLineDao().findByLocalId("cl-rejected"),
+                db.attachmentDao().findByLocalId("a-rejected"),
+            )
+            rows.forEach { row -> assertEquals(null, row!!.serverErrorCode, "no code is invented for a row refused before the migration") }
+
+            val rejectedLine = db.purchaseLineDao().findByLocalId("pl-rejected")!!
+            assertEquals(SyncStatus.CONFLICTED, rejectedLine.syncStatus)
+            assertEquals("REJECTED", rejectedLine.lastSyncError)
+            assertEquals(2.675, rejectedLine.quantity)
+            assertEquals(
+                SyncIssue(SyncIssueKind.REFUSED, RefusalReason.UNKNOWN, null),
+                rejectedLine.syncIssue(),
+                "a line refused before the migration reads as refused, with the generic reason",
+            )
+            assertEquals(SyncIssue(SyncIssueKind.REFUSED, RefusalReason.PLAN_LIMIT, null), db.projectDao().findByLocalId("p-over-limit")!!.syncIssue())
+            assertEquals(SyncIssueKind.UPDATE_REFUSED, db.stageDao().findByLocalId("s-edit-refused")!!.syncIssue()?.kind)
+            assertEquals(SyncIssueKind.DELETE_REFUSED, db.stageDao().findByLocalId("s-delete-refused")!!.syncIssue()?.kind)
+            assertEquals(SyncIssueKind.DELETED_ON_SERVER, db.dailyEntryDao().findByLocalId("e-gone")!!.syncIssue()?.kind)
+            assertEquals(null, db.purchaseLineDao().findByLocalId("pl-pending")!!.syncIssue())
+
+            assertEquals(listOf("pl-pending", "pl-rejected"), db.purchaseLineDao().findPending().map { it.localId }.sorted(), "a creation refused before the migration is still sent again")
+            assertEquals(listOf("s-edit-refused"), db.stageDao().findPending().map { it.localId }, "an edit refused before the migration is sent once more, then waits for the user")
+
+            db.purchaseLineDao().upsert(rejectedLine.copy(serverErrorCode = "INVALID_AMOUNT"))
+            assertEquals("INVALID_AMOUNT", db.purchaseLineDao().findByLocalId("pl-rejected")?.serverErrorCode, "the new column is writable")
+        } finally {
+            db.close()
+        }
+    }
+
+    @Test
+    fun the_exported_v15_schema_adds_only_a_nullable_server_error_code_to_the_seven_synced_tables() {
+        fun columnsByTable(version: Int): Map<String, Map<String, Pair<String, Boolean>>> =
+            exportedSchema(version)["entities"]!!.jsonArray.associate { entity ->
+                entity.jsonObject["tableName"]!!.jsonPrimitive.content to entity.jsonObject["fields"]!!.jsonArray.associate { field ->
+                    val f = field.jsonObject
+                    f["columnName"]!!.jsonPrimitive.content to (f["affinity"]!!.jsonPrimitive.content to (f["notNull"]?.jsonPrimitive?.content == "true"))
+                }
+            }
+        val v14 = columnsByTable(14)
+        val v15 = columnsByTable(15)
+
+        assertEquals(v14.keys, v15.keys, "no table added or removed")
+        val added = v15.flatMap { (table, columns) -> (columns.keys - v14.getValue(table).keys).map { table to it } }.toSet()
+        assertEquals(
+            setOf("projects", "stages", "materials", "daily_entries", "purchase_lines", "consumption_lines", "attachments").map { it to "serverErrorCode" }.toSet(),
+            added,
+        )
+        added.forEach { (table, column) -> assertEquals("TEXT" to false, v15.getValue(table).getValue(column), "$table.$column is a nullable TEXT") }
+        v14.forEach { (table, columns) -> columns.forEach { (name, type) -> assertEquals(type, v15.getValue(table).getValue(name), "$table.$name unchanged") } }
+    }
+}
+
+private fun exportedSchema(version: Int): kotlinx.serialization.json.JsonObject {
+    val relative = "schemas/com.dmb.chantiertracker.data.local.db.AppDatabase/$version.json"
+    val file = listOf(java.io.File(relative), java.io.File("shared/$relative")).first { it.exists() }
+    return Json.parseToJsonElement(file.readText()).jsonObject["database"]!!.jsonObject
+}
+
+private fun createFromExportedSchema(c: androidx.sqlite.SQLiteConnection, version: Int) {
+    val schema = exportedSchema(version)
+    schema["entities"]!!.jsonArray.forEach { entity ->
+        val table = entity.jsonObject["tableName"]!!.jsonPrimitive.content
+        c.execSQL(entity.jsonObject["createSql"]!!.jsonPrimitive.content.replace("\${TABLE_NAME}", table))
+        entity.jsonObject["indices"]?.jsonArray?.forEach { index ->
+            c.execSQL(index.jsonObject["createSql"]!!.jsonPrimitive.content.replace("\${TABLE_NAME}", table))
+        }
+    }
+    schema["setupQueries"]!!.jsonArray.forEach { c.execSQL(it.jsonPrimitive.content) }
+    c.execSQL("PRAGMA user_version = $version")
 }
 
 /** The full v7 table set — shared by the v7→v8 and v8→v9 migration tests. */

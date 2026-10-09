@@ -29,8 +29,15 @@ interface ConsumptionLineDao {
     @Query("SELECT * FROM consumption_lines WHERE serverId = :serverId")
     suspend fun findByServerId(serverId: Long): ConsumptionLineEntity?
 
-    @Query("SELECT * FROM consumption_lines WHERE syncStatus != 'SYNCED' AND (lastSyncError IS NULL OR lastSyncError != 'DELETED_ON_SERVER')")
+    @Query("SELECT * FROM consumption_lines WHERE syncStatus != 'SYNCED' AND (lastSyncError IS NULL OR lastSyncError NOT IN ('DELETED_ON_SERVER', 'UPDATE_REFUSED', 'FILE_REFUSED'))")
     suspend fun findPending(): List<ConsumptionLineEntity>
+
+    @Query(
+        """
+        SELECT c.localId FROM consumption_lines c JOIN daily_entries e ON e.localId = c.entryLocalId JOIN daily_logs l ON l.localId = e.dailyLogLocalId JOIN stages s ON s.localId = l.stageLocalId JOIN projects p ON p.localId = s.projectLocalId JOIN materials m ON m.localId = c.materialLocalId JOIN projects mp ON mp.localId = m.projectLocalId WHERE c.syncStatus = 'PENDING' AND ((e.serverId IS NULL AND (e.syncStatus = 'CONFLICTED' OR (s.serverId IS NULL AND (s.syncStatus = 'CONFLICTED' OR (p.serverId IS NULL AND p.syncStatus = 'CONFLICTED'))))) OR (m.serverId IS NULL AND (m.syncStatus = 'CONFLICTED' OR (mp.serverId IS NULL AND mp.syncStatus = 'CONFLICTED'))))
+        """,
+    )
+    fun observeBlockedByParent(): Flow<List<String>>
 
     @Query("SELECT * FROM consumption_lines WHERE entryLocalId = :entryLocalId")
     suspend fun findForEntry(entryLocalId: String): List<ConsumptionLineEntity>

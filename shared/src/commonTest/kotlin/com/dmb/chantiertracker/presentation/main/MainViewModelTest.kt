@@ -105,14 +105,14 @@ class MainViewModelTest {
     @Test
     fun a_blocked_sign_out_shows_how_many_writes_are_waiting_and_retry_asks_again() = runTest {
         val signOut = signOutWith(
-            com.dmb.chantiertracker.domain.repository.SignOutResult.Blocked(3),
+            com.dmb.chantiertracker.domain.repository.SignOutResult.Blocked(com.dmb.chantiertracker.domain.model.UnsentWrites(entries = 3)),
             com.dmb.chantiertracker.domain.repository.SignOutResult.SignedOut,
         )
         val vm = MainViewModel(FakeAuthRepository(), FakeAccountRepository(), signOut)
 
         vm.logout()
         advanceUntilIdle()
-        assertEquals(LogoutPrompt.Blocked(3), vm.state.value.logoutPrompt)
+        assertEquals(LogoutPrompt.Blocked(com.dmb.chantiertracker.domain.model.UnsentWrites(entries = 3)), vm.state.value.logoutPrompt)
         assertEquals(false, vm.state.value.isLoggingOut)
 
         vm.retryLogout()
@@ -124,14 +124,14 @@ class MainViewModelTest {
     @Test
     fun refused_writes_ask_for_confirmation_and_confirming_signs_out() = runTest {
         val signOut = signOutWith(
-            com.dmb.chantiertracker.domain.repository.SignOutResult.RefusedWritesLeft(2),
+            com.dmb.chantiertracker.domain.repository.SignOutResult.RefusedWritesLeft(com.dmb.chantiertracker.domain.model.UnsentWrites(entries = 2)),
             com.dmb.chantiertracker.domain.repository.SignOutResult.SignedOut,
         )
         val vm = MainViewModel(FakeAuthRepository(), FakeAccountRepository(), signOut)
 
         vm.logout()
         advanceUntilIdle()
-        assertEquals(LogoutPrompt.RefusedWritesLeft(2), vm.state.value.logoutPrompt)
+        assertEquals(LogoutPrompt.RefusedWritesLeft(com.dmb.chantiertracker.domain.model.UnsentWrites(entries = 2)), vm.state.value.logoutPrompt)
 
         vm.logoutDespiteRefusedWrites()
         advanceUntilIdle()
@@ -141,7 +141,7 @@ class MainViewModelTest {
 
     @Test
     fun dismissing_the_dialog_keeps_the_session() = runTest {
-        val signOut = signOutWith(com.dmb.chantiertracker.domain.repository.SignOutResult.Blocked(1))
+        val signOut = signOutWith(com.dmb.chantiertracker.domain.repository.SignOutResult.Blocked(com.dmb.chantiertracker.domain.model.UnsentWrites(entries = 1)))
         val vm = MainViewModel(FakeAuthRepository(), FakeAccountRepository(), signOut)
         vm.logout()
         advanceUntilIdle()

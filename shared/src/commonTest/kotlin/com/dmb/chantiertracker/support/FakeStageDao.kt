@@ -31,7 +31,11 @@ class FakeStageDao(initial: List<StageEntity> = emptyList()) : StageDao {
         stages.value.values.firstOrNull { it.serverId == serverId }
 
     override suspend fun findPending(): List<StageEntity> =
-        stages.value.values.filter { it.syncStatus != SyncStatus.SYNCED && it.lastSyncError != com.dmb.chantiertracker.data.sync.SyncError.DELETED_ON_SERVER }
+        stages.value.values.filter { it.syncStatus != SyncStatus.SYNCED && it.lastSyncError !in com.dmb.chantiertracker.data.sync.SyncError.WAITING_FOR_THE_USER }
+
+    val blockedByParent = kotlinx.coroutines.flow.MutableStateFlow<List<String>>(emptyList())
+
+    override fun observeBlockedByParent(): kotlinx.coroutines.flow.Flow<List<String>> = blockedByParent
 
     override suspend fun findForProject(projectLocalId: String): List<StageEntity> =
         stages.value.values.filter { it.projectLocalId == projectLocalId }

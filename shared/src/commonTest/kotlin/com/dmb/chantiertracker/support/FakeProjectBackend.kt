@@ -151,12 +151,18 @@ class FakeProjectBackend {
     var attachmentUploadDurationSeconds: Int? = 30
     /** When set, `POST /entries/{id}/attachments` answers this status + message (plan refusal, too long…). */
     var attachmentUploadRejection: Pair<HttpStatusCode, String>? = null
+    var attachmentUploadRejectionCode: String? = null
 
     /** When true, POST purchase/consumption line answers 409 (mirrors InsufficientStockException). */
     var lineWriteConflict = false
 
     /** When set, every DELETE (project, stage, entry, purchase/consumption line, attachment) answers this status (403 = a demoted ADMIN, 500 = transient). */
     var deleteStatus: HttpStatusCode? = null
+    var deleteRefusalCode: String? = null
+
+    /** When set, every PATCH (project, stage, material, entry, purchase/consumption line) answers this status with [updateRefusalCode]. */
+    var updateStatus: HttpStatusCode? = null
+    var updateRefusalCode: String? = null
 
     /** When true, GET/POST/DELETE on invitations answers 403 (mirrors a non-ADMIN caller). */
     var invitationsForbidden = false
@@ -219,6 +225,9 @@ class FakeProjectBackend {
         receivedAuthorizations += "${request.method.value} $path" to request.headers[io.ktor.http.HttpHeaders.Authorization]
         beforeHandle?.invoke(request)
         if (goneOnServer.any { it.containsMatchIn(path) }) return respondProblem(HttpStatusCode.NotFound, "Introuvable.")
+        if (request.method == HttpMethod.Patch) {
+            updateStatus?.let { return respondProblem(it, "Modification refusée.", code = updateRefusalCode) }
+        }
         val idInPath = Regex("""/projects/(\d+)$""").find(path)?.groupValues?.get(1)?.toLong()
         val membersProjectId = Regex("""/projects/(\d+)/members$""").find(path)?.groupValues?.get(1)?.toLong()
         val invitationsProjectId = Regex("""/projects/(\d+)/invitations$""").find(path)?.groupValues?.get(1)?.toLong()
@@ -284,7 +293,7 @@ class FakeProjectBackend {
 
             request.method == HttpMethod.Patch && stageId != null -> {
                 if (stageWriteForbidden) {
-                    return respondProblem(HttpStatusCode.Forbidden, "Action réservée à un administrateur.")
+                    return respondProblem(HttpStatusCode.Forbidden, "Action réservée à un administrateur.", code = "PROJECT_INSUFFICIENT_ROLE")
                 }
                 val stage = stages.firstOrNull { it.id == stageId }
                     ?: return respondProblem(HttpStatusCode.NotFound, "Étape introuvable.")
@@ -299,7 +308,7 @@ class FakeProjectBackend {
             }
 
             request.method == HttpMethod.Delete && stageId != null -> {
-                deleteStatus?.let { return respondProblem(it, "Suppression refusée.") }
+                deleteStatus?.let { return respondProblem(it, "Suppression refusée.", code = deleteRefusalCode) }
                 if (stageWriteForbidden) {
                     return respondProblem(HttpStatusCode.Forbidden, "Action réservée à un administrateur.")
                 }
@@ -355,7 +364,7 @@ class FakeProjectBackend {
             }
 
             request.method == HttpMethod.Delete && entryId != null -> {
-                deleteStatus?.let { return respondProblem(it, "Suppression refusée.") }
+                deleteStatus?.let { return respondProblem(it, "Suppression refusée.", code = deleteRefusalCode) }
                 entries.removeAll { it.id == entryId }
                 respondJson("", HttpStatusCode.NoContent)
             }
@@ -365,7 +374,7 @@ class FakeProjectBackend {
                 respondPage(request, purchaseLines.filter { it.entryId == purchaseLinesEntryId }.map { it.id to purchaseLineJson(it) })
 
             request.method == HttpMethod.Post && purchaseLinesEntryId != null -> {
-                if (lineWriteConflict) return respondProblem(HttpStatusCode.Conflict, "Stock insuffisant.")
+                if (lineWriteConflict) return respondProblem(HttpStatusCode.Conflict, "Stock insuffisant.", code = "INSUFFICIENT_STOCK")
                 val body = request.jsonBody()
                 val created = ServerPurchaseLine(
                     id = nextLineId++,
@@ -390,7 +399,7 @@ class FakeProjectBackend {
             }
 
             request.method == HttpMethod.Delete && purchaseLineId != null -> {
-                deleteStatus?.let { return respondProblem(it, "Suppression refusée.") }
+                deleteStatus?.let { return respondProblem(it, "Suppression refusée.", code = deleteRefusalCode) }
                 purchaseLines.removeAll { it.id == purchaseLineId }
                 respondJson("", HttpStatusCode.NoContent)
             }
@@ -400,7 +409,7 @@ class FakeProjectBackend {
                 respondPage(request, consumptionLines.filter { it.entryId == consumptionLinesEntryId }.map { it.id to consumptionLineJson(it) })
 
             request.method == HttpMethod.Post && consumptionLinesEntryId != null -> {
-                if (lineWriteConflict) return respondProblem(HttpStatusCode.Conflict, "Stock insuffisant.")
+                if (lineWriteConflict) return respondProblem(HttpStatusCode.Conflict, "Stock insuffisant.", code = "INSUFFICIENT_STOCK")
                 val body = request.jsonBody()
                 val created = ServerConsumptionLine(
                     id = nextLineId++,
@@ -420,7 +429,7 @@ class FakeProjectBackend {
             }
 
             request.method == HttpMethod.Delete && consumptionLineId != null -> {
-                deleteStatus?.let { return respondProblem(it, "Suppression refusée.") }
+                deleteStatus?.let { return respondProblem(it, "Suppression refusée.", code = deleteRefusalCode) }
                 consumptionLines.removeAll { it.id == consumptionLineId }
                 respondJson("", HttpStatusCode.NoContent)
             }
@@ -430,7 +439,7 @@ class FakeProjectBackend {
                 respondPage(request, attachments.filter { it.entryId == attachmentsEntryId }.map { it.id to attachmentJson(it) })
 
             request.method == HttpMethod.Post && attachmentsEntryId != null -> {
-                attachmentUploadRejection?.let { (status, detail) -> return respondProblem(status, detail) }
+                attachmentUploadRejection?.let { (status, detail) -> return respondProblem(status, detail, code = attachmentUploadRejectionCode) }
                 val isVideo = request.body.toByteArray().decodeToString().contains("Content-Type: video/")
                 val created = if (isVideo) {
                     // Mirrors the backend: the raw upload is transcoded to a small MP4.
@@ -453,7 +462,7 @@ class FakeProjectBackend {
             }
 
             request.method == HttpMethod.Delete && attachmentId != null -> {
-                deleteStatus?.let { return respondProblem(it, "Suppression refusée.") }
+                deleteStatus?.let { return respondProblem(it, "Suppression refusée.", code = deleteRefusalCode) }
                 attachments.removeAll { it.id == attachmentId }
                 respondJson("", HttpStatusCode.NoContent)
             }
@@ -534,7 +543,7 @@ class FakeProjectBackend {
 
             request.method == HttpMethod.Post && path == "/projects" -> {
                 if (planLimitReached) {
-                    return respondProblem(HttpStatusCode.Forbidden, "Vous avez atteint la limite de projets de votre formule.")
+                    return respondProblem(HttpStatusCode.Forbidden, "Vous avez atteint la limite de projets de votre formule.", code = "PLAN_LIMIT_EXCEEDED")
                 }
                 val body = request.jsonBody()
                 val created = ServerProject(
@@ -566,7 +575,7 @@ class FakeProjectBackend {
             }
 
             request.method == HttpMethod.Delete && idInPath != null -> {
-                deleteStatus?.let { return respondProblem(it, "Suppression refusée.") }
+                deleteStatus?.let { return respondProblem(it, "Suppression refusée.", code = deleteRefusalCode) }
                 projects.removeAll { it.id == idInPath }
                 respondJson("", HttpStatusCode.NoContent)
             }

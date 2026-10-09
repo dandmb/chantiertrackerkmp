@@ -27,6 +27,7 @@ sealed class DomainException : Exception() {
     data class RateLimited(val retryAfterSeconds: Int? = null) : DomainException()
     data object PlanLimitReached : DomainException()
     data object DuplicateMaterial : DomainException()
+    data object FileTooLarge : DomainException()
     data object BillingNotOpen : DomainException()
     data object Forbidden : DomainException()
     data object NotFound : DomainException()

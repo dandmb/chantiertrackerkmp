@@ -39,7 +39,11 @@ class FakePurchaseLineDao(
         lines.value.values.firstOrNull { it.serverId == serverId }
 
     override suspend fun findPending(): List<PurchaseLineEntity> =
-        lines.value.values.filter { it.syncStatus != SyncStatus.SYNCED && it.lastSyncError != com.dmb.chantiertracker.data.sync.SyncError.DELETED_ON_SERVER }
+        lines.value.values.filter { it.syncStatus != SyncStatus.SYNCED && it.lastSyncError !in com.dmb.chantiertracker.data.sync.SyncError.WAITING_FOR_THE_USER }
+
+    val blockedByParent = kotlinx.coroutines.flow.MutableStateFlow<List<String>>(emptyList())
+
+    override fun observeBlockedByParent(): kotlinx.coroutines.flow.Flow<List<String>> = blockedByParent
 
     override suspend fun findForEntry(entryLocalId: String): List<PurchaseLineEntity> =
         lines.value.values.filter { it.entryLocalId == entryLocalId }

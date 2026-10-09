@@ -100,10 +100,10 @@ class DeviceStack : AutoCloseable {
     val ownership = LocalDataOwnership(
         LocalDataOwnerStore(preferences),
         LocalDataWiper(db.localDataDao(), fileStore, exportStore) {},
-        UnsyncedWriteCounter { db.localDataDao().countUnsynced() },
+        com.dmb.chantiertracker.data.session.RoomUnsyncedWriteCounter(db.localDataDao()),
     )
     val auth = AuthRepositoryImpl(AuthApi(client), storage, authState, DesktopOnboardingStore(dir.resolve("onboarding.flag")), sync, ownership)
-    val signOut = com.dmb.chantiertracker.data.repository.SignOutRepositoryImpl(auth, sync, UnsyncedWriteCounter { db.localDataDao().countUnsynced() })
+    val signOut = com.dmb.chantiertracker.data.repository.SignOutRepositoryImpl(auth, sync, com.dmb.chantiertracker.data.session.RoomUnsyncedWriteCounter(db.localDataDao()))
 
     val projects = ProjectRepositoryImpl(db.projectDao(), sync, scope)
     val stages = StageRepositoryImpl(db.stageDao(), sync, scope)

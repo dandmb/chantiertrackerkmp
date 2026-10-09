@@ -12,18 +12,20 @@ import com.dmb.chantiertracker.data.remote.AttachmentApi
 import com.dmb.chantiertracker.data.remote.apiCall
 import com.dmb.chantiertracker.data.sync.AppCoroutineScope
 import com.dmb.chantiertracker.data.sync.Clock
-import com.dmb.chantiertracker.data.sync.SystemClock
 import com.dmb.chantiertracker.data.sync.Syncer
+import com.dmb.chantiertracker.data.sync.SystemClock
 import com.dmb.chantiertracker.data.sync.parseServerTimestampMillis
+import com.dmb.chantiertracker.data.sync.syncIssue
 import com.dmb.chantiertracker.domain.model.Attachment
 import com.dmb.chantiertracker.domain.model.DomainException
 import com.dmb.chantiertracker.domain.model.UploadFile
 import com.dmb.chantiertracker.domain.repository.AttachmentRepository
-import kotlinx.io.buffered
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.map
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
+import kotlinx.io.buffered
 
 class AttachmentRepositoryImpl(
     private val dao: AttachmentDao,
@@ -37,12 +39,14 @@ class AttachmentRepositoryImpl(
 ) : AttachmentRepository {
 
     override fun observeAttachments(entryLocalId: String): Flow<List<Attachment>> =
-        dao.observeForEntry(entryLocalId).map { rows -> rows.map(::toAttachment) }
+        combine(dao.observeForEntry(entryLocalId), dao.observeBlockedByParent()) { rows, blocked ->
+            rows.map { toAttachment(it, blockedByParent = it.localId in blocked) }
+        }
 
     // `Attachment.localPath` is the **current** absolute path, resolved from the
     // stable key Room stores (ADR-41) — so the media player / image decoder
     // always get a live path even after an iOS reinstall moved the container.
-    private fun toAttachment(entity: AttachmentEntity): Attachment = Attachment(
+    private fun toAttachment(entity: AttachmentEntity, blockedByParent: Boolean = false): Attachment = Attachment(
         localId = entity.localId,
         entryLocalId = entity.entryLocalId,
         localPath = fileStore.absolutePathOf(entity.localPath),
@@ -51,6 +55,7 @@ class AttachmentRepositoryImpl(
         sizeBytes = entity.sizeBytes,
         durationSeconds = entity.durationSeconds,
         uploadedAt = entity.uploadedAt,
+        syncIssue = entity.syncIssue(blockedByParent),
     )
 
     override suspend fun addAttachment(entryLocalId: String, bytes: ByteArray, originalName: String, mimeType: String): Attachment {

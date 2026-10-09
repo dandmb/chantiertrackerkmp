@@ -34,7 +34,7 @@ import com.dmb.chantiertracker.data.remote.ProjectApi
 import com.dmb.chantiertracker.data.remote.PurchaseLineApi
 import com.dmb.chantiertracker.data.remote.StageApi
 import com.dmb.chantiertracker.data.remote.StockApi
-import com.dmb.chantiertracker.data.remote.apiCall
+import com.dmb.chantiertracker.data.remote.apiCallReportingRefusalCode
 import com.dmb.chantiertracker.data.remote.dto.AttachmentDto
 import com.dmb.chantiertracker.data.remote.dto.ConsumptionLineDto
 import com.dmb.chantiertracker.data.remote.dto.DailyLogSummaryDto
@@ -135,6 +135,7 @@ class SyncEngine(
     private val mutex = Mutex()
     private val neverLoadedStocksTouchedThisPass = mutableSetOf<String>()
     private val stocksReadIncompletelyThisPass = mutableSetOf<String>()
+    private var refusalCode: String? = null
     private var started = false
 
     fun start() {
@@ -221,7 +222,7 @@ class SyncEngine(
 
     private suspend fun pullProject(serverId: Long, localId: String) {
         val detail = try {
-            apiCall { api.get(serverId) }
+            serverCall { api.get(serverId) }
         } catch (e: DomainException.NotFound) {
             dao.findByLocalId(localId)?.let { projectGoneOnServer(it) }
             return
@@ -253,7 +254,7 @@ class SyncEngine(
             pushPending()
             val serverId = stageDao.findByLocalId(stageLocalId)?.serverId ?: return SyncOutcome.Skipped
             val dto = try {
-                apiCall { stageApi.get(serverId) }
+                serverCall { stageApi.get(serverId) }
             } catch (e: DomainException.NotFound) {
                 stageDao.findByLocalId(stageLocalId)?.let { stageGoneOnServer(it) }
                 return SyncOutcome.Synced
@@ -295,7 +296,7 @@ class SyncEngine(
             val log = dailyLogDao.findByLocalId(logLocalId) ?: return SyncOutcome.Skipped
             val logServerId = log.serverId ?: return SyncOutcome.Skipped
             val detail = try {
-                apiCall { dailyLogApi.getLog(logServerId) }
+                serverCall { dailyLogApi.getLog(logServerId) }
             } catch (e: DomainException.NotFound) {
                 // A day is never deleted through its own endpoint; a 404 here just
                 // means it has no server-side entries left. Keep the local row.
@@ -326,7 +327,7 @@ class SyncEngine(
     }
 
     private suspend fun pullStages(projectServerId: Long, projectLocalId: String) {
-        val read = readAllPages(StageDto::id) { page, size -> apiCall { stageApi.list(projectServerId, page, size) } }
+        val read = readAllPages(StageDto::id) { page, size -> serverCall { stageApi.list(projectServerId, page, size) } }
         val remote = read.items
         val locals = stageDao.findForProject(projectLocalId)
         val byServerId = locals.mapNotNull { local -> local.serverId?.let { it to local } }.toMap()
@@ -356,7 +357,7 @@ class SyncEngine(
     }
 
     private suspend fun pullMembers(serverId: Long, localId: String) {
-        val read = readAllPages(MemberDto::userId) { page, size -> apiCall { api.members(serverId, page, size) } }
+        val read = readAllPages(MemberDto::userId) { page, size -> serverCall { api.members(serverId, page, size) } }
         if (!skipsRemovalAfter(read, "members of project $serverId")) dao.clearMembers(localId)
         if (read.items.isNotEmpty()) {
             dao.upsertMembers(read.items.map { it.toEntity(localId) })
@@ -368,7 +369,7 @@ class SyncEngine(
     // error is transient, leave the cache as-is.
     private suspend fun pullInvitations(serverId: Long, localId: String) {
         val read = try {
-            readAllPages(InvitationDto::id) { page, size -> apiCall { invitationApi.list(serverId, page, size) } }
+            readAllPages(InvitationDto::id) { page, size -> serverCall { invitationApi.list(serverId, page, size) } }
         } catch (e: DomainException.Forbidden) {
             invitationDao.clearForProject(localId)
             return
@@ -450,13 +451,22 @@ class SyncEngine(
     // move on, rather than retrying forever. Covers plan limits, validation,
     // 403s (inactive project/stage, non-admin), duplicate entry / insufficient
     // stock (both 409), and entry-type / attachment-type mismatch (400).
+    private suspend fun <T> serverCall(block: suspend () -> T): T {
+        refusalCode = null
+        return apiCallReportingRefusalCode({ refusalCode = it }, block)
+    }
+
+    private fun DomainException.isFileRefusal(): Boolean =
+        this is DomainException.FileTooLarge || refusalCode in FILE_REFUSAL_CODES
+
     private fun DomainException.isServerRejection(): Boolean =
         this is DomainException.Forbidden ||
             this is DomainException.Validation ||
             this is DomainException.InvalidCode ||
             this is DomainException.EmailAlreadyUsed ||
             this is DomainException.PlanLimitReached ||
-            this is DomainException.DuplicateMaterial
+            this is DomainException.DuplicateMaterial ||
+            this is DomainException.FileTooLarge
 
     private enum class RemoteDelete { DELETED, ALREADY_GONE, REJECTED }
 
@@ -540,7 +550,7 @@ class SyncEngine(
     // same pass reconciles it with the server (or drops it if access was lost).
     private suspend fun deleteOnServer(call: suspend () -> Unit): RemoteDelete =
         try {
-            apiCall { call() }
+            serverCall { call() }
             RemoteDelete.DELETED
         } catch (e: DomainException.NotFound) {
             RemoteDelete.ALREADY_GONE
@@ -553,7 +563,7 @@ class SyncEngine(
     private suspend fun pushMaterialCreate(material: MaterialEntity) {
         val projectServerId = dao.findByLocalId(material.projectLocalId)?.serverId ?: return
         val created = try {
-            apiCall { materialApi.create(projectServerId, material.toCreateRequest()) }
+            serverCall { materialApi.create(projectServerId, material.toCreateRequest()) }
         } catch (e: DomainException.NotFound) {
             materialDao.upsert(material.copy(syncStatus = SyncStatus.CONFLICTED, lastSyncError = SyncError.DELETED_ON_SERVER))
             return
@@ -561,12 +571,12 @@ class SyncEngine(
             when (adoptServerMaterialOfSameName(material, projectServerId)) {
                 MaterialAdoption.ADOPTED, MaterialAdoption.NAMESAKE_NOT_READ_YET -> Unit
                 MaterialAdoption.NO_NAMESAKE ->
-                    materialDao.upsert(material.copy(syncStatus = SyncStatus.CONFLICTED, lastSyncError = SyncError.REJECTED))
+                    materialDao.upsert(material.copy(syncStatus = SyncStatus.CONFLICTED, lastSyncError = SyncError.REJECTED, serverErrorCode = refusalCode))
             }
             return
         } catch (e: DomainException) {
             if (e.isServerRejection()) {
-                materialDao.upsert(material.copy(syncStatus = SyncStatus.CONFLICTED, lastSyncError = SyncError.REJECTED))
+                materialDao.upsert(material.copy(syncStatus = SyncStatus.CONFLICTED, lastSyncError = SyncError.REJECTED, serverErrorCode = refusalCode))
                 return
             }
             throw e
@@ -577,7 +587,7 @@ class SyncEngine(
     private enum class MaterialAdoption { ADOPTED, NO_NAMESAKE, NAMESAKE_NOT_READ_YET }
 
     private suspend fun readProjectMaterials(projectServerId: Long): PagedRead<MaterialDto> =
-        readAllPages(MaterialDto::id) { page, size -> apiCall { materialApi.list(projectServerId, page, size) } }
+        readAllPages(MaterialDto::id) { page, size -> serverCall { materialApi.list(projectServerId, page, size) } }
             .also { logIncomplete(it, "materials of project $projectServerId") }
 
     private suspend fun adoptServerMaterialOfSameName(material: MaterialEntity, projectServerId: Long): MaterialAdoption {
@@ -599,13 +609,13 @@ class SyncEngine(
     private suspend fun pushMaterialUpdate(material: MaterialEntity) {
         val serverId = material.serverId ?: return pushMaterialCreate(material)
         val updated = try {
-            apiCall { materialApi.update(serverId, material.toUpdateRequest()) }
+            serverCall { materialApi.update(serverId, material.toUpdateRequest()) }
         } catch (e: DomainException.NotFound) {
             materialDao.upsert(material.copy(syncStatus = SyncStatus.CONFLICTED, lastSyncError = SyncError.DELETED_ON_SERVER))
             return
         } catch (e: DomainException) {
             if (e.isServerRejection()) {
-                materialDao.upsert(material.copy(syncStatus = SyncStatus.CONFLICTED, lastSyncError = SyncError.REJECTED))
+                materialDao.upsert(material.copy(syncStatus = SyncStatus.CONFLICTED, lastSyncError = SyncError.UPDATE_REFUSED, serverErrorCode = refusalCode))
                 return
             }
             throw e
@@ -622,8 +632,8 @@ class SyncEngine(
         val body = entry.toEntryRequest()
         val dto = try {
             when (entry.type.uppercase()) {
-                "PURCHASE" -> apiCall { dailyLogApi.createPurchaseEntry(stageServerId, log.date, body) }
-                "WORK" -> apiCall { dailyLogApi.createWorkEntry(stageServerId, log.date, body) }
+                "PURCHASE" -> serverCall { dailyLogApi.createPurchaseEntry(stageServerId, log.date, body) }
+                "WORK" -> serverCall { dailyLogApi.createWorkEntry(stageServerId, log.date, body) }
                 else -> return
             }
         } catch (e: DomainException.NotFound) {
@@ -631,7 +641,7 @@ class SyncEngine(
             return
         } catch (e: DomainException) {
             if (e.isServerRejection()) {
-                dailyEntryDao.upsert(entry.copy(syncStatus = SyncStatus.CONFLICTED, lastSyncError = SyncError.REJECTED))
+                dailyEntryDao.upsert(entry.copy(syncStatus = SyncStatus.CONFLICTED, lastSyncError = SyncError.REJECTED, serverErrorCode = refusalCode))
                 return
             }
             throw e
@@ -648,13 +658,13 @@ class SyncEngine(
     private suspend fun pushEntryUpdate(entry: DailyEntryEntity) {
         val serverId = entry.serverId ?: return pushEntryCreate(entry)
         val updated = try {
-            apiCall { dailyLogApi.updateEntry(serverId, entry.toEntryRequest()) }
+            serverCall { dailyLogApi.updateEntry(serverId, entry.toEntryRequest()) }
         } catch (e: DomainException.NotFound) {
             entryGoneOnServer(entry)
             return
         } catch (e: DomainException) {
             if (e.isServerRejection()) {
-                dailyEntryDao.upsert(entry.copy(syncStatus = SyncStatus.CONFLICTED, lastSyncError = SyncError.REJECTED))
+                dailyEntryDao.upsert(entry.copy(syncStatus = SyncStatus.CONFLICTED, lastSyncError = SyncError.UPDATE_REFUSED, serverErrorCode = refusalCode))
                 return
             }
             throw e
@@ -665,7 +675,7 @@ class SyncEngine(
     private suspend fun pushEntryDelete(entry: DailyEntryEntity) {
         val serverId = entry.serverId
         if (serverId != null && deleteOnServer { dailyLogApi.deleteEntry(serverId) } == RemoteDelete.REJECTED) {
-            dailyEntryDao.upsert(entry.copy(syncStatus = SyncStatus.SYNCED, pendingOp = PendingOp.NONE, lastSyncError = SyncError.REJECTED))
+            dailyEntryDao.upsert(entry.copy(syncStatus = SyncStatus.SYNCED, pendingOp = PendingOp.NONE, lastSyncError = SyncError.REJECTED, serverErrorCode = refusalCode))
             return
         }
         projectLocalIdOfDay(entry.dailyLogLocalId)?.let { stockDao.markNeedsRefresh(it) }
@@ -679,13 +689,13 @@ class SyncEngine(
         val material = materialDao.findByLocalId(line.materialLocalId) ?: return
         val materialServerId = material.serverId ?: return
         val created = try {
-            apiCall { purchaseLineApi.create(entryServerId, line.toCreateRequest(materialServerId)) }
+            serverCall { purchaseLineApi.create(entryServerId, line.toCreateRequest(materialServerId)) }
         } catch (e: DomainException.NotFound) {
             purchaseLineDao.upsert(line.copy(syncStatus = SyncStatus.CONFLICTED, lastSyncError = SyncError.DELETED_ON_SERVER))
             return
         } catch (e: DomainException) {
             if (e.isServerRejection()) {
-                purchaseLineDao.upsert(line.copy(syncStatus = SyncStatus.CONFLICTED, lastSyncError = SyncError.REJECTED))
+                purchaseLineDao.upsert(line.copy(syncStatus = SyncStatus.CONFLICTED, lastSyncError = SyncError.REJECTED, serverErrorCode = refusalCode))
                 return
             }
             throw e
@@ -698,13 +708,13 @@ class SyncEngine(
     private suspend fun pushPurchaseLineUpdate(line: PurchaseLineEntity) {
         val serverId = line.serverId ?: return pushPurchaseLineCreate(line)
         val updated = try {
-            apiCall { purchaseLineApi.update(serverId, line.toUpdateRequest()) }
+            serverCall { purchaseLineApi.update(serverId, line.toUpdateRequest()) }
         } catch (e: DomainException.NotFound) {
             purchaseLineDao.upsert(line.copy(syncStatus = SyncStatus.CONFLICTED, lastSyncError = SyncError.DELETED_ON_SERVER))
             return
         } catch (e: DomainException) {
             if (e.isServerRejection()) {
-                purchaseLineDao.upsert(line.copy(syncStatus = SyncStatus.CONFLICTED, lastSyncError = SyncError.REJECTED))
+                purchaseLineDao.upsert(line.copy(syncStatus = SyncStatus.CONFLICTED, lastSyncError = SyncError.UPDATE_REFUSED, serverErrorCode = refusalCode))
                 return
             }
             throw e
@@ -729,6 +739,7 @@ class SyncEngine(
                     syncStatus = SyncStatus.SYNCED,
                     pendingOp = PendingOp.NONE,
                     lastSyncError = SyncError.REJECTED,
+                    serverErrorCode = refusalCode,
                     serverQuantity = line.serverQuantity ?: line.quantity,
                 ),
             )
@@ -755,13 +766,13 @@ class SyncEngine(
         val material = materialDao.findByLocalId(line.materialLocalId) ?: return
         val materialServerId = material.serverId ?: return
         val created = try {
-            apiCall { consumptionLineApi.create(entryServerId, line.toCreateRequest(materialServerId)) }
+            serverCall { consumptionLineApi.create(entryServerId, line.toCreateRequest(materialServerId)) }
         } catch (e: DomainException.NotFound) {
             consumptionLineDao.upsert(line.copy(syncStatus = SyncStatus.CONFLICTED, lastSyncError = SyncError.DELETED_ON_SERVER))
             return
         } catch (e: DomainException) {
             if (e.isServerRejection()) {
-                consumptionLineDao.upsert(line.copy(syncStatus = SyncStatus.CONFLICTED, lastSyncError = SyncError.REJECTED))
+                consumptionLineDao.upsert(line.copy(syncStatus = SyncStatus.CONFLICTED, lastSyncError = SyncError.REJECTED, serverErrorCode = refusalCode))
                 return
             }
             throw e
@@ -774,13 +785,13 @@ class SyncEngine(
     private suspend fun pushConsumptionLineUpdate(line: ConsumptionLineEntity) {
         val serverId = line.serverId ?: return pushConsumptionLineCreate(line)
         val updated = try {
-            apiCall { consumptionLineApi.update(serverId, line.toUpdateRequest()) }
+            serverCall { consumptionLineApi.update(serverId, line.toUpdateRequest()) }
         } catch (e: DomainException.NotFound) {
             consumptionLineDao.upsert(line.copy(syncStatus = SyncStatus.CONFLICTED, lastSyncError = SyncError.DELETED_ON_SERVER))
             return
         } catch (e: DomainException) {
             if (e.isServerRejection()) {
-                consumptionLineDao.upsert(line.copy(syncStatus = SyncStatus.CONFLICTED, lastSyncError = SyncError.REJECTED))
+                consumptionLineDao.upsert(line.copy(syncStatus = SyncStatus.CONFLICTED, lastSyncError = SyncError.UPDATE_REFUSED, serverErrorCode = refusalCode))
                 return
             }
             throw e
@@ -805,6 +816,7 @@ class SyncEngine(
                     syncStatus = SyncStatus.SYNCED,
                     pendingOp = PendingOp.NONE,
                     lastSyncError = SyncError.REJECTED,
+                    serverErrorCode = refusalCode,
                     serverQuantity = line.serverQuantity ?: line.quantity,
                 ),
             )
@@ -834,11 +846,11 @@ class SyncEngine(
             throw e
         } catch (e: Throwable) {
             // The local copy is gone — nothing left to upload.
-            attachmentDao.upsert(attachment.copy(syncStatus = SyncStatus.CONFLICTED, lastSyncError = SyncError.REJECTED))
+            attachmentDao.upsert(attachment.copy(syncStatus = SyncStatus.CONFLICTED, lastSyncError = SyncError.FILE_REFUSED, serverErrorCode = LOCAL_FILE_MISSING_CODE))
             return
         }
         val dto = try {
-            apiCall {
+            serverCall {
                 attachmentApi.upload(
                     entryId = entryServerId,
                     contentLength = bytes.size.toLong(),
@@ -851,8 +863,18 @@ class SyncEngine(
             attachmentDao.upsert(attachment.copy(syncStatus = SyncStatus.CONFLICTED, lastSyncError = SyncError.DELETED_ON_SERVER))
             return
         } catch (e: DomainException) {
+            if (e.isFileRefusal()) {
+                attachmentDao.upsert(
+                    attachment.copy(
+                        syncStatus = SyncStatus.CONFLICTED,
+                        lastSyncError = SyncError.FILE_REFUSED,
+                        serverErrorCode = refusalCode ?: ATTACHMENT_TOO_LARGE_CODE,
+                    ),
+                )
+                return
+            }
             if (e.isServerRejection() || e is DomainException.Unexpected) {
-                attachmentDao.upsert(attachment.copy(syncStatus = SyncStatus.CONFLICTED, lastSyncError = SyncError.REJECTED))
+                attachmentDao.upsert(attachment.copy(syncStatus = SyncStatus.CONFLICTED, lastSyncError = SyncError.REJECTED, serverErrorCode = refusalCode))
                 return
             }
             throw e
@@ -875,7 +897,7 @@ class SyncEngine(
     // first appeared on the server.
     private suspend fun restoreAttachmentRefusedByServer(attachment: AttachmentEntity, serverId: Long) {
         val bytes = try {
-            apiCall { attachmentApi.download(serverId) }
+            serverCall { attachmentApi.download(serverId) }
         } catch (e: DomainException.NotFound) {
             attachmentDao.deleteByLocalId(attachment.localId)
             return
@@ -887,6 +909,7 @@ class SyncEngine(
                 syncStatus = SyncStatus.SYNCED,
                 pendingOp = PendingOp.NONE,
                 lastSyncError = SyncError.REJECTED,
+                serverErrorCode = refusalCode,
             ),
         )
     }
@@ -920,7 +943,7 @@ class SyncEngine(
 
     private suspend fun refreshStock(projectServerId: Long, projectLocalId: String) {
         val read = try {
-            readAllPages(MaterialStockDto::materialId) { page, size -> apiCall { stockApi.list(projectServerId, page, size) } }
+            readAllPages(MaterialStockDto::materialId) { page, size -> serverCall { stockApi.list(projectServerId, page, size) } }
         } catch (e: DomainException.NotFound) {
             return
         } catch (e: DomainException.Forbidden) {
@@ -972,7 +995,7 @@ class SyncEngine(
     // ─── pull: daily log summaries (one stage) ──────────────────────────────
 
     private suspend fun pullLogSummaries(stageServerId: Long, stageLocalId: String) {
-        val read = readAllPages(DailyLogSummaryDto::id) { page, size -> apiCall { dailyLogApi.listLogs(stageServerId, page, size) } }
+        val read = readAllPages(DailyLogSummaryDto::id) { page, size -> serverCall { dailyLogApi.listLogs(stageServerId, page, size) } }
         logIncomplete(read, "day logs of stage $stageServerId")
         val remote = read.items
         val locals = dailyLogDao.findForStage(stageLocalId)
@@ -1029,7 +1052,7 @@ class SyncEngine(
     // ─── pull: lines (one entry) ────────────────────────────────────────────
 
     private suspend fun pullPurchaseLines(entryServerId: Long, entryLocalId: String) {
-        val read = readAllPages(PurchaseLineDto::id) { page, size -> apiCall { purchaseLineApi.list(entryServerId, page, size) } }
+        val read = readAllPages(PurchaseLineDto::id) { page, size -> serverCall { purchaseLineApi.list(entryServerId, page, size) } }
         val remote = read.items
         val locals = purchaseLineDao.findForEntry(entryLocalId)
         val byServerId = locals.mapNotNull { l -> l.serverId?.let { it to l } }.toMap()
@@ -1054,7 +1077,7 @@ class SyncEngine(
     }
 
     private suspend fun pullConsumptionLines(entryServerId: Long, entryLocalId: String) {
-        val read = readAllPages(ConsumptionLineDto::id) { page, size -> apiCall { consumptionLineApi.list(entryServerId, page, size) } }
+        val read = readAllPages(ConsumptionLineDto::id) { page, size -> serverCall { consumptionLineApi.list(entryServerId, page, size) } }
         val remote = read.items
         val locals = consumptionLineDao.findForEntry(entryLocalId)
         val byServerId = locals.mapNotNull { l -> l.serverId?.let { it to l } }.toMap()
@@ -1084,7 +1107,7 @@ class SyncEngine(
         if (mimeType?.startsWith("video/") == true) "video.mp4" else "photo.jpg"
 
     private suspend fun pullAttachments(entryServerId: Long, entryLocalId: String) {
-        val read = readAllPages(AttachmentDto::id) { page, size -> apiCall { attachmentApi.list(entryServerId, page, size) } }
+        val read = readAllPages(AttachmentDto::id) { page, size -> serverCall { attachmentApi.list(entryServerId, page, size) } }
         val remote = read.items
         val locals = attachmentDao.findForEntry(entryLocalId)
         val knownServerIds = locals.mapNotNull { it.serverId }.toSet()
@@ -1095,7 +1118,7 @@ class SyncEngine(
             // A photo or video that first appeared on the server (web, another
             // device) — download it once and keep a local copy, same as one
             // added here. Videos are already transcoded server-side (ADR-35).
-            val bytes = apiCall { attachmentApi.download(dto.id) }
+            val bytes = serverCall { attachmentApi.download(dto.id) }
             val path = attachmentFileStore.save(bytes, dto.originalName ?: defaultAttachmentName(dto.mimeType))
             attachmentDao.upsert(dto.toSyncedEntity(newLocalId(), entryLocalId, path, syncedAt))
         }
@@ -1116,15 +1139,15 @@ class SyncEngine(
         // pass (after the project pushes) picks it up. Not an error.
         val projectServerId = dao.findByLocalId(stage.projectLocalId)?.serverId ?: return
         val created = try {
-            apiCall { stageApi.create(projectServerId, stage.toCreateRequest()) }
+            serverCall { stageApi.create(projectServerId, stage.toCreateRequest()) }
         } catch (e: DomainException.NotFound) {
             keepStageGoneOnServer(stage)
             return
         } catch (e: DomainException.Forbidden) {
-            stageDao.upsert(stage.copy(syncStatus = SyncStatus.CONFLICTED, lastSyncError = SyncError.REJECTED))
+            stageDao.upsert(stage.copy(syncStatus = SyncStatus.CONFLICTED, lastSyncError = SyncError.REJECTED, serverErrorCode = refusalCode))
             return
         } catch (e: DomainException.Validation) {
-            stageDao.upsert(stage.copy(syncStatus = SyncStatus.CONFLICTED, lastSyncError = SyncError.REJECTED))
+            stageDao.upsert(stage.copy(syncStatus = SyncStatus.CONFLICTED, lastSyncError = SyncError.REJECTED, serverErrorCode = refusalCode))
             return
         }
         stageDao.upsert(
@@ -1141,19 +1164,17 @@ class SyncEngine(
         val serverId = stage.serverId ?: return pushStageCreate(stage)
 
         try {
-            apiCall { stageApi.get(serverId) }
+            serverCall { stageApi.get(serverId) }
         } catch (e: DomainException.NotFound) {
             stageGoneOnServer(stage)
             return
         }
 
         val updated = try {
-            apiCall { stageApi.update(serverId, stage.toUpdateRequest()) }
-        } catch (e: DomainException.Forbidden) {
-            stageDao.upsert(stage.copy(syncStatus = SyncStatus.CONFLICTED, lastSyncError = SyncError.REJECTED))
-            return
-        } catch (e: DomainException.Validation) {
-            stageDao.upsert(stage.copy(syncStatus = SyncStatus.CONFLICTED, lastSyncError = SyncError.REJECTED))
+            serverCall { stageApi.update(serverId, stage.toUpdateRequest()) }
+        } catch (e: DomainException) {
+            if (!e.isServerRejection()) throw e
+            stageDao.upsert(stage.copy(syncStatus = SyncStatus.CONFLICTED, lastSyncError = SyncError.UPDATE_REFUSED, serverErrorCode = refusalCode))
             return
         }
         stageDao.upsert(
@@ -1169,7 +1190,7 @@ class SyncEngine(
     private suspend fun pushStageDelete(stage: StageEntity) {
         val serverId = stage.serverId
         if (serverId != null && deleteOnServer { stageApi.delete(serverId) } == RemoteDelete.REJECTED) {
-            stageDao.upsert(stage.copy(syncStatus = SyncStatus.SYNCED, pendingOp = PendingOp.NONE, lastSyncError = SyncError.REJECTED))
+            stageDao.upsert(stage.copy(syncStatus = SyncStatus.SYNCED, pendingOp = PendingOp.NONE, lastSyncError = SyncError.REJECTED, serverErrorCode = refusalCode))
             return
         }
         stockDao.markNeedsRefresh(stage.projectLocalId)
@@ -1178,12 +1199,12 @@ class SyncEngine(
 
     private suspend fun pushCreate(entity: ProjectEntity) {
         val created = try {
-            apiCall { api.create(entity.toCreateRequest()) }
+            serverCall { api.create(entity.toCreateRequest()) }
         } catch (e: DomainException.PlanLimitReached) {
-            dao.upsert(entity.copy(syncStatus = SyncStatus.CONFLICTED, lastSyncError = SyncError.PLAN_LIMIT))
+            dao.upsert(entity.copy(syncStatus = SyncStatus.CONFLICTED, lastSyncError = SyncError.PLAN_LIMIT, serverErrorCode = refusalCode))
             return
         } catch (e: DomainException.Validation) {
-            dao.upsert(entity.copy(syncStatus = SyncStatus.CONFLICTED, lastSyncError = SyncError.REJECTED))
+            dao.upsert(entity.copy(syncStatus = SyncStatus.CONFLICTED, lastSyncError = SyncError.REJECTED, serverErrorCode = refusalCode))
             return
         }
         dao.upsert(created.toSyncedEntity(localId = entity.localId, syncedAt = clock.nowEpochMillis(), previous = entity))
@@ -1193,7 +1214,7 @@ class SyncEngine(
         val serverId = entity.serverId ?: return pushCreate(entity)
 
         val remote = try {
-            apiCall { api.get(serverId) }
+            serverCall { api.get(serverId) }
         } catch (e: DomainException.NotFound) {
             projectGoneOnServer(entity)
             return
@@ -1206,7 +1227,13 @@ class SyncEngine(
             return
         }
 
-        val updated = apiCall { api.update(serverId, entity.toUpdateRequest()) }
+        val updated = try {
+            serverCall { api.update(serverId, entity.toUpdateRequest()) }
+        } catch (e: DomainException) {
+            if (!e.isServerRejection()) throw e
+            dao.upsert(entity.copy(syncStatus = SyncStatus.CONFLICTED, lastSyncError = SyncError.UPDATE_REFUSED, serverErrorCode = refusalCode))
+            return
+        }
         dao.upsert(updated.toSyncedEntity(localId = entity.localId, syncedAt = clock.nowEpochMillis(), previous = entity))
     }
 
@@ -1222,14 +1249,14 @@ class SyncEngine(
     private suspend fun pushDelete(entity: ProjectEntity) {
         val serverId = entity.serverId
         if (serverId != null && deleteOnServer { api.delete(serverId) } == RemoteDelete.REJECTED) {
-            dao.upsert(entity.copy(syncStatus = SyncStatus.SYNCED, pendingOp = PendingOp.NONE, lastSyncError = SyncError.REJECTED))
+            dao.upsert(entity.copy(syncStatus = SyncStatus.SYNCED, pendingOp = PendingOp.NONE, lastSyncError = SyncError.REJECTED, serverErrorCode = refusalCode))
             return
         }
         dao.deleteByLocalId(entity.localId)
     }
 
     private suspend fun pullAll() {
-        val read = readAllPages(ProjectDto::id) { page, size -> apiCall { api.list(page, size) } }
+        val read = readAllPages(ProjectDto::id) { page, size -> serverCall { api.list(page, size) } }
         val remote = read.items
         val locals = dao.findAll()
         val byServerId = locals.mapNotNull { local -> local.serverId?.let { it to local } }.toMap()
@@ -1273,3 +1300,13 @@ class SyncEngine(
     }
 }
 
+private const val ATTACHMENT_TOO_LARGE_CODE = "ATTACHMENT_TOO_LARGE"
+private const val LOCAL_FILE_MISSING_CODE = "LOCAL_FILE_MISSING"
+private val FILE_REFUSAL_CODES = setOf(
+    ATTACHMENT_TOO_LARGE_CODE,
+    "INVALID_ATTACHMENT_TYPE",
+    "INVALID_ATTACHMENT_NAME",
+    "UNSUPPORTED_IMAGE",
+    "UNREADABLE_VIDEO",
+    "VIDEO_TOO_LONG",
+)

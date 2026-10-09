@@ -19,9 +19,9 @@ class SignOutRepositoryImpl(
     override suspend fun signOut(acceptRefusedWrites: Boolean): SignOutResult {
         if (unsyncedWrites.countUnsynced() == 0) return signedOut()
         val outcome = syncer.syncNow()
-        val remaining = unsyncedWrites.countUnsynced()
+        val remaining = unsyncedWrites.unsentByKind()
         return when {
-            remaining == 0 -> signedOut()
+            remaining.total == 0 -> signedOut()
             outcome.leftWritesUnsentForLackOfServer() -> SignOutResult.Blocked(remaining)
             acceptRefusedWrites -> signedOut()
             else -> SignOutResult.RefusedWritesLeft(remaining)

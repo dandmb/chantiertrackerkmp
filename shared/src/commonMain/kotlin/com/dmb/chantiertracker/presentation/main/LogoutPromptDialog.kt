@@ -24,6 +24,15 @@ import com.dmb.chantiertracker.resources.logout_retry
 import com.dmb.chantiertracker.resources.logout_sending
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
+import com.dmb.chantiertracker.resources.unsent_attachments
+import com.dmb.chantiertracker.resources.unsent_lines
+import com.dmb.chantiertracker.resources.unsent_entries
+import com.dmb.chantiertracker.resources.unsent_materials
+import com.dmb.chantiertracker.resources.unsent_stages
+import com.dmb.chantiertracker.resources.unsent_projects
+import com.dmb.chantiertracker.resources.list_separator
+import com.dmb.chantiertracker.resources.list_last_separator
+import com.dmb.chantiertracker.domain.model.UnsentWrites
 
 // ADR-69 — a voluntary sign-out never strands writes that can still be sent (A-1, decision a).
 // Blocked: offline / server down, retry once back online. RefusedWritesLeft: the sync worked and
@@ -52,7 +61,7 @@ fun LogoutPromptDialog(
             title = { Text(stringResource(Res.string.logout_blocked_title)) },
             text = {
                 Text(
-                    pluralStringResource(Res.plurals.logout_blocked_message, prompt.unsentCount, prompt.unsentCount),
+                    stringResource(Res.string.logout_blocked_message, unsentSummary(prompt.unsent)),
                     style = MaterialTheme.typography.bodyMedium,
                 )
             },
@@ -64,7 +73,7 @@ fun LogoutPromptDialog(
             title = { Text(stringResource(Res.string.logout_refused_title)) },
             text = {
                 Text(
-                    pluralStringResource(Res.plurals.logout_refused_message, prompt.count, prompt.count),
+                    stringResource(Res.string.logout_refused_message, unsentSummary(prompt.unsent)),
                     style = MaterialTheme.typography.bodyMedium,
                 )
             },
@@ -78,3 +87,19 @@ fun LogoutPromptDialog(
         )
     }
 }
+
+@Composable
+fun unsentSummary(unsent: UnsentWrites): String {
+    val parts = listOf(
+        Res.plurals.unsent_projects to unsent.projects,
+        Res.plurals.unsent_stages to unsent.stages,
+        Res.plurals.unsent_materials to unsent.materials,
+        Res.plurals.unsent_entries to unsent.entries,
+        Res.plurals.unsent_lines to unsent.lines,
+        Res.plurals.unsent_attachments to unsent.attachments,
+    ).filter { (_, count) -> count > 0 }.map { (plural, count) -> pluralStringResource(plural, count, count) }
+    if (parts.size < 2) return parts.joinToString()
+    val separator = stringResource(Res.string.list_separator) + " "
+    return parts.dropLast(1).joinToString(separator) + " " + stringResource(Res.string.list_last_separator) + " " + parts.last()
+}
+

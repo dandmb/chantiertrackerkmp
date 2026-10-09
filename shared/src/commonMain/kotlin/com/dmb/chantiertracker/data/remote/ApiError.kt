@@ -11,7 +11,9 @@ import kotlinx.coroutines.CancellationException
 private const val BILLING_NOT_OPEN_CODE = "BILLING_NOT_OPEN"
 private const val DUPLICATE_MATERIAL_CODE = "DUPLICATE_MATERIAL"
 
-suspend fun <T> apiCall(block: suspend () -> T): T =
+suspend fun <T> apiCall(block: suspend () -> T): T = apiCallReportingRefusalCode({}, block)
+
+suspend fun <T> apiCallReportingRefusalCode(onRefusalCode: (String?) -> Unit, block: suspend () -> T): T =
     try {
         block()
     } catch (e: CancellationException) {
@@ -19,13 +21,14 @@ suspend fun <T> apiCall(block: suspend () -> T): T =
     } catch (e: DomainException) {
         throw e
     } catch (e: ResponseException) {
-        throw e.toDomainException()
+        throw e.toDomainException(onRefusalCode)
     } catch (e: Throwable) {
         throw DomainException.Network
     }
 
-private suspend fun ResponseException.toDomainException(): DomainException {
+private suspend fun ResponseException.toDomainException(onRefusalCode: (String?) -> Unit): DomainException {
     val problem = runCatching { response.body<ProblemDetailDto>() }.getOrNull()
+    onRefusalCode(problem?.code)
     val detail = problem?.detail.orEmpty()
     val hasFieldErrors = !problem?.errors.isNullOrEmpty()
 
@@ -51,6 +54,7 @@ private suspend fun ResponseException.toDomainException(): DomainException {
                 DomainException.MustChangePassword
             else -> DomainException.Forbidden
         }
+        HttpStatusCode.PayloadTooLarge -> DomainException.FileTooLarge
         HttpStatusCode.TooManyRequests -> DomainException.RateLimited(
             retryAfterSeconds = response.headers[HttpHeaders.RetryAfter]?.trim()?.toIntOrNull()?.takeIf { it > 0 },
         )

@@ -425,6 +425,7 @@
     <string name="error_rate_limited">Trop de requêtes. Réessayez dans un instant.</string>
     <string name="error_plan_limit">Vous avez atteint la limite de projets de votre formule. Passez à un palier supérieur pour en créer davantage.</string>
     <string name="error_duplicate_material">Un matériau de ce nom existe déjà dans ce projet.</string>
+    <string name="error_file_too_large">Ce fichier est trop volumineux pour être envoyé.</string>
     <string name="error_plan_limit_no_upgrade">Vous avez atteint la limite de projets de votre formule.</string>
     <string name="error_billing_not_open">Les abonnements payants ne sont pas encore ouverts.</string>
     <string name="error_forbidden">Vous n'êtes pas autorisé à effectuer cette action.</string>
@@ -507,15 +508,35 @@
     <string name="legal_terms_of_sale_provisional_s2_body">Les Conditions Générales de Vente seront publiées sur cette page à l'ouverture des offres payantes, avant toute possibilité de souscription.\nL'utilisation du Service reste régie par les Conditions Générales d'Utilisation.</string>
     <string name="logout_sending">Envoi de vos saisies avant la déconnexion…</string>
     <string name="logout_blocked_title">Des saisies ne sont pas encore envoyées</string>
-    <plurals name="logout_blocked_message">
-        <item quantity="one">%1$d saisie n'est pas encore envoyée. Reconnectez-vous à Internet pour l'envoyer avant de vous déconnecter.</item>
-        <item quantity="other">%1$d saisies ne sont pas encore envoyées. Reconnectez-vous à Internet pour les envoyer avant de vous déconnecter.</item>
-    </plurals>
+    <string name="logout_blocked_message">Pas encore envoyé : %1$s. Reconnectez-vous à Internet pour l'envoyer avant de vous déconnecter.</string>
     <string name="logout_retry">Réessayer</string>
     <string name="logout_refused_title">Saisies refusées par le serveur</string>
-    <plurals name="logout_refused_message">
-        <item quantity="one">%1$d saisie a été refusée par le serveur et ne sera pas envoyée. Elle sera effacée si un autre compte se connecte sur cet appareil.</item>
-        <item quantity="other">%1$d saisies ont été refusées par le serveur et ne seront pas envoyées. Elles seront effacées si un autre compte se connecte sur cet appareil.</item>
-    </plurals>
+    <string name="logout_refused_message">Refusé par le serveur, ou en attente d'un élément refusé : %1$s. Rien de cela ne sera envoyé, et tout sera effacé si un autre compte se connecte sur cet appareil.</string>
     <string name="logout_anyway">Se déconnecter quand même</string>
+    <string name="list_separator">,</string>
+    <string name="list_last_separator">et</string>
+    <plurals name="unsent_projects">
+        <item quantity="one">%1$d projet</item>
+        <item quantity="other">%1$d projets</item>
+    </plurals>
+    <plurals name="unsent_stages">
+        <item quantity="one">%1$d étape</item>
+        <item quantity="other">%1$d étapes</item>
+    </plurals>
+    <plurals name="unsent_materials">
+        <item quantity="one">%1$d matériau</item>
+        <item quantity="other">%1$d matériaux</item>
+    </plurals>
+    <plurals name="unsent_entries">
+        <item quantity="one">%1$d saisie</item>
+        <item quantity="other">%1$d saisies</item>
+    </plurals>
+    <plurals name="unsent_lines">
+        <item quantity="one">%1$d ligne</item>
+        <item quantity="other">%1$d lignes</item>
+    </plurals>
+    <plurals name="unsent_attachments">
+        <item quantity="one">%1$d justificatif</item>
+        <item quantity="other">%1$d justificatifs</item>
+    </plurals>
 </resources>

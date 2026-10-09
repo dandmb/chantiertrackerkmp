@@ -345,6 +345,11 @@ class RolesAndInvitationsIntegrationTest {
         assertEquals(SyncError.DELETED_ON_SERVER, entryLeft?.lastSyncError)
         assertEquals(SyncError.DELETED_ON_SERVER, projectLeft?.lastSyncError, "le projet reste en fantôme tant qu'il porte une saisie non envoyée")
         assertIs<SignOutResult.RefusedWritesLeft>(signOut, "plus de blocage sans issue : l'avertissement « Se déconnecter quand même »")
+        assertEquals(
+            com.dmb.chantiertracker.domain.model.UnsentWrites(entries = 1),
+            (signOut as SignOutResult.RefusedWritesLeft).unsent,
+            "une seule saisie est annoncée : le projet et l'étape fantômes ne comptent pas",
+        )
     }
 
     // ─── B-1 — a parent gone on the server while a supervisor's write waits ──

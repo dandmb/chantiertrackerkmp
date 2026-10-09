@@ -11,10 +11,18 @@ enum class SyncStatus { SYNCED, PENDING, CONFLICTED }
 
 enum class PendingOp { NONE, CREATE, UPDATE, DELETE }
 
+interface SyncedRow {
+    val serverId: Long?
+    val syncStatus: SyncStatus
+    val pendingOp: PendingOp
+    val lastSyncError: String?
+    val serverErrorCode: String?
+}
+
 @Entity(tableName = "projects")
 data class ProjectEntity(
     @PrimaryKey val localId: String,
-    val serverId: Long?,
+    override val serverId: Long?,
     val name: String,
     val description: String?,
     val location: String?,
@@ -23,12 +31,13 @@ data class ProjectEntity(
     val status: String,
     val ownerId: Long?,
     val createdAt: String?,
-    val syncStatus: SyncStatus,
-    val pendingOp: PendingOp,
+    override val syncStatus: SyncStatus,
+    override val pendingOp: PendingOp,
     val locallyModifiedAt: Long,
     val lastSyncedAt: Long?,
     val remoteUpdatedAt: Long?,
-    val lastSyncError: String?,
+    override val lastSyncError: String?,
+    override val serverErrorCode: String? = null,
     // The project OWNER's plan (never the caller's), from ProjectDetailDto.
     // Null until the first detail pull — the supervisor-limit pre-check
     // fails open in that window (ADR-33). Not set by the project-list pull.
@@ -43,7 +52,7 @@ data class ProjectEntity(
     val ownerMaxVideos: Int? = null,
     val ownerMaxVideoDurationSeconds: Int? = null,
     val ownerMaxSupervisorsPerProject: Int? = null,
-)
+) : SyncedRow
 
 @Entity(tableName = "project_members", primaryKeys = ["projectLocalId", "userId"])
 data class ProjectMemberEntity(
@@ -121,7 +130,7 @@ data class PlanUsageEntity(
 )
 data class StageEntity(
     @PrimaryKey val localId: String,
-    val serverId: Long?,
+    override val serverId: Long?,
     val projectLocalId: String,
     val name: String,
     val description: String?,
@@ -129,13 +138,14 @@ data class StageEntity(
     val startDate: String?,
     val endDate: String?,
     val status: String,
-    val syncStatus: SyncStatus,
-    val pendingOp: PendingOp,
+    override val syncStatus: SyncStatus,
+    override val pendingOp: PendingOp,
     val locallyModifiedAt: Long,
     val lastSyncedAt: Long?,
     val remoteUpdatedAt: Long?,
-    val lastSyncError: String?,
-)
+    override val lastSyncError: String?,
+    override val serverErrorCode: String? = null,
+) : SyncedRow
 
 // A daily log is never created/updated/deleted through its own endpoint — the
 // backend creates it as a side effect of the first entry posted for a
@@ -177,7 +187,7 @@ data class DailyLogEntity(
 )
 data class DailyEntryEntity(
     @PrimaryKey val localId: String,
-    val serverId: Long?,
+    override val serverId: Long?,
     val dailyLogLocalId: String,
     val type: String,
     val summary: String?,
@@ -185,13 +195,14 @@ data class DailyEntryEntity(
     val createdAt: String?,
     val modifiedById: Long?,
     val modifiedAt: String?,
-    val syncStatus: SyncStatus,
-    val pendingOp: PendingOp,
+    override val syncStatus: SyncStatus,
+    override val pendingOp: PendingOp,
     val locallyModifiedAt: Long,
     val lastSyncedAt: Long?,
     val remoteUpdatedAt: Long?,
-    val lastSyncError: String?,
-)
+    override val lastSyncError: String?,
+    override val serverErrorCode: String? = null,
+) : SyncedRow
 
 // Referential, scoped to the project (not the stage) — "le ciment restant des
 // fondations sert forcément à l'élévation". Never deleted by the backend
@@ -211,17 +222,18 @@ data class DailyEntryEntity(
 )
 data class MaterialEntity(
     @PrimaryKey val localId: String,
-    val serverId: Long?,
+    override val serverId: Long?,
     val projectLocalId: String,
     val name: String,
     val unit: String,
-    val syncStatus: SyncStatus,
-    val pendingOp: PendingOp,
+    override val syncStatus: SyncStatus,
+    override val pendingOp: PendingOp,
     val locallyModifiedAt: Long,
     val lastSyncedAt: Long?,
     val remoteUpdatedAt: Long?,
-    val lastSyncError: String?,
-)
+    override val lastSyncError: String?,
+    override val serverErrorCode: String? = null,
+) : SyncedRow
 
 @Entity(
     tableName = "purchase_lines",
@@ -242,7 +254,7 @@ data class MaterialEntity(
 )
 data class PurchaseLineEntity(
     @PrimaryKey val localId: String,
-    val serverId: Long?,
+    override val serverId: Long?,
     val entryLocalId: String,
     val materialLocalId: String,
     val quantity: Double,
@@ -250,14 +262,15 @@ data class PurchaseLineEntity(
     val totalPrice: Double,
     val supplier: String?,
     val createdAt: String?,
-    val syncStatus: SyncStatus,
-    val pendingOp: PendingOp,
+    override val syncStatus: SyncStatus,
+    override val pendingOp: PendingOp,
     val locallyModifiedAt: Long,
     val lastSyncedAt: Long?,
     val remoteUpdatedAt: Long?,
-    val lastSyncError: String?,
+    override val lastSyncError: String?,
+    override val serverErrorCode: String? = null,
     val serverQuantity: Double? = null,
-)
+) : SyncedRow
 
 @Entity(
     tableName = "consumption_lines",
@@ -278,19 +291,20 @@ data class PurchaseLineEntity(
 )
 data class ConsumptionLineEntity(
     @PrimaryKey val localId: String,
-    val serverId: Long?,
+    override val serverId: Long?,
     val entryLocalId: String,
     val materialLocalId: String,
     val quantity: Double,
     val createdAt: String?,
-    val syncStatus: SyncStatus,
-    val pendingOp: PendingOp,
+    override val syncStatus: SyncStatus,
+    override val pendingOp: PendingOp,
     val locallyModifiedAt: Long,
     val lastSyncedAt: Long?,
     val remoteUpdatedAt: Long?,
-    val lastSyncError: String?,
+    override val lastSyncError: String?,
+    override val serverErrorCode: String? = null,
     val serverQuantity: Double? = null,
-)
+) : SyncedRow
 
 @Entity(
     tableName = "material_stock",
@@ -358,7 +372,7 @@ data class StockMovementRow(
 )
 data class AttachmentEntity(
     @PrimaryKey val localId: String,
-    val serverId: Long?,
+    override val serverId: Long?,
     val entryLocalId: String,
     val localPath: String,
     val originalName: String,
@@ -367,13 +381,14 @@ data class AttachmentEntity(
     // Video only — the server-reported length (whole seconds); null for a photo.
     val durationSeconds: Int? = null,
     val uploadedAt: Long,
-    val syncStatus: SyncStatus,
-    val pendingOp: PendingOp,
+    override val syncStatus: SyncStatus,
+    override val pendingOp: PendingOp,
     val locallyModifiedAt: Long,
     val lastSyncedAt: Long?,
     val remoteUpdatedAt: Long?,
-    val lastSyncError: String?,
-)
+    override val lastSyncError: String?,
+    override val serverErrorCode: String? = null,
+) : SyncedRow
 
 // Last-known publisher identity for the legal pages (GET /editor-identity),
 // one row (id = 0) like plan_usage, so the legal notice stays right offline and

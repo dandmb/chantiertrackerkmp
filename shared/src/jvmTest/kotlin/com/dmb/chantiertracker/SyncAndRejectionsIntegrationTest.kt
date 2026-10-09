@@ -169,6 +169,8 @@ class SyncAndRejectionsIntegrationTest {
 
         val listed = phone.projects.observeProjects().first().single { it.localId == second }
         println("P3-limite — ce que reçoit l'écran de liste pour le projet refusé : $listed")
+        val stageListed = phone.stages.observeStages(second).first().single()
+        println("P3-limite — ce que reçoit l'écran pour l'étape créée sous ce projet : $stageListed")
 
         // Une fois la limite levée, la synchro suivante doit le pousser sans intervention
         // (les lignes CONFLICTED sont représentées à chaque passe).
@@ -179,12 +181,14 @@ class SyncAndRejectionsIntegrationTest {
         println("P3-limite — après passage en SEMI_FLEX : projet=${retried?.syncStatus}, étape=${stageRetried?.syncStatus}")
         assertEquals(SyncStatus.SYNCED, retried?.syncStatus, "limite levée : le projet refusé part à la synchro suivante")
 
-        // Constat attendu : le modèle du domaine ne porte aucun état de synchro, l'écran ne peut
-        // donc pas distinguer ce projet refusé d'un projet normal.
-        assertTrue(
-            listed.toString().contains("CONFLICTED") || listed.toString().contains("PLAN_LIMIT"),
-            "l'écran doit pouvoir savoir que ce projet a été refusé par le serveur",
+        assertEquals(
+            com.dmb.chantiertracker.domain.model.SyncIssue(com.dmb.chantiertracker.domain.model.SyncIssueKind.REFUSED, com.dmb.chantiertracker.domain.model.RefusalReason.PLAN_LIMIT, "PLAN_LIMIT_EXCEEDED"),
+            listed.syncIssue,
+            "l'écran doit pouvoir savoir que ce projet a été refusé par le serveur, et pourquoi",
         )
+        assertEquals(com.dmb.chantiertracker.domain.model.SyncIssueKind.BLOCKED_BY_PARENT, stageListed.syncIssue?.kind, "l'étape sous le projet refusé est signalée comme en attente de lui")
+        assertEquals(null, phone.projects.observeProjects().first().single { it.localId == second }.syncIssue, "plus rien à signaler une fois le projet accepté")
+        assertEquals(null, phone.stages.observeStages(second).first().single().syncIssue)
     }
 
     @Test
@@ -214,6 +218,11 @@ class SyncAndRejectionsIntegrationTest {
         println("P3-stock — stock affiché après refus : dispo=${stockAfter.available} ; lignes affichées : $shownLines")
         assertEquals(SyncStatus.CONFLICTED, line.syncStatus, "409 stock insuffisant = rejet définitif")
         assertTrue(stockAfter.available >= 0.0, "le stock affiché ne doit pas rester négatif à cause d'une ligne refusée")
+        assertEquals(
+            com.dmb.chantiertracker.domain.model.SyncIssue(com.dmb.chantiertracker.domain.model.SyncIssueKind.REFUSED, com.dmb.chantiertracker.domain.model.RefusalReason.INSUFFICIENT_STOCK, "INSUFFICIENT_STOCK"),
+            shownLines.single().syncIssue,
+            "la ligne refusée doit se distinguer des autres, avec sa raison",
+        )
     }
 
     @Test
@@ -258,9 +267,18 @@ class SyncAndRejectionsIntegrationTest {
         println("P3-suspendu — ligne : ${lineRow?.syncStatus} / ${lineRow?.pendingOp} / ${lineRow?.lastSyncError}")
         assertNotNull(entryRow)
         assertEquals(SyncStatus.CONFLICTED, entryRow.syncStatus, "projet suspendu : 403 = rejet définitif")
-        assertTrue(
-            lineRow?.syncStatus != SyncStatus.PENDING,
-            "une ligne dont le parent est refusé ne doit pas rester en attente indéfiniment, sans signal",
+        val shownEntry = supervisorPhone.logs.observeEntry(entry).first()
+        val shownLine = supervisorPhone.purchaseLines.observeLines(entry).first().single()
+        println("P3-suspendu — ce que reçoit l'écran : entrée=${shownEntry?.syncIssue} ; ligne=${shownLine.syncIssue}")
+        assertEquals(
+            com.dmb.chantiertracker.domain.model.SyncIssue(com.dmb.chantiertracker.domain.model.SyncIssueKind.REFUSED, com.dmb.chantiertracker.domain.model.RefusalReason.PROJECT_OR_STAGE_INACTIVE, "PROJECT_OR_STAGE_INACTIVE"),
+            shownEntry?.syncIssue,
+            "l'entrée refusée porte la raison du serveur",
+        )
+        assertEquals(
+            com.dmb.chantiertracker.domain.model.SyncIssueKind.BLOCKED_BY_PARENT,
+            shownLine.syncIssue?.kind,
+            "une ligne dont le parent est refusé ne doit pas rester en attente sans signal : elle est signalée comme en attente de lui (ADR-74, décision 2)",
         )
         stageId.let { }
     }
@@ -298,10 +316,16 @@ class SyncAndRejectionsIntegrationTest {
         println("P3-suppression — entrée après refus : ${after?.syncStatus} / ${after?.pendingOp} / ${after?.lastSyncError} ; visible=${visible.map { it.localId }}")
         assertNotNull(after)
         assertEquals(PendingOp.NONE, after.pendingOp, "la suppression refusée est annulée (ADR-62/63)")
-        assertTrue(
-            visible.toString().contains("REJECTED"),
+        assertEquals(
+            com.dmb.chantiertracker.domain.model.SyncIssueKind.DELETE_REFUSED,
+            visible.single().syncIssue?.kind,
             "l'entrée réapparaît : l'écran doit pouvoir dire que la suppression a été refusée",
         )
+        supervisorPhone.sync.syncLog(supervisorLog.localId)
+        supervisorPhone.sync.syncNow()
+        val afterPulls = supervisorPhone.logs.observeLog(supervisorLog.localId).first()!!.entries.single()
+        println("P3-suppression — après deux nouvelles synchros : ${afterPulls.syncIssue}")
+        assertEquals(visible.single().syncIssue, afterPulls.syncIssue, "la mention reste tant que l'utilisateur ne l'a pas acquittée")
         entry.let { }
     }
 

@@ -2,6 +2,7 @@ package com.dmb.chantiertracker.data.sync
 
 import com.dmb.chantiertracker.data.local.db.PendingOp
 import com.dmb.chantiertracker.data.local.db.ProjectEntity
+import com.dmb.chantiertracker.data.local.db.SyncedRow
 import com.dmb.chantiertracker.data.local.db.ProjectMemberEntity
 import com.dmb.chantiertracker.data.local.db.SyncStatus
 import com.dmb.chantiertracker.data.remote.dto.CreateProjectRequestDto
@@ -14,7 +15,20 @@ object SyncError {
     const val PLAN_LIMIT = "PLAN_LIMIT"
     const val REJECTED = "REJECTED"
     const val DELETED_ON_SERVER = "DELETED_ON_SERVER"
+    const val UPDATE_REFUSED = "UPDATE_REFUSED"
+    const val FILE_REFUSED = "FILE_REFUSED"
+
+    val WAITING_FOR_THE_USER = setOf(DELETED_ON_SERVER, UPDATE_REFUSED, FILE_REFUSED)
 }
+
+fun SyncedRow?.keptDeleteRefusal(): String? =
+    SyncError.REJECTED.takeIf { this != null && holdsDeleteRefusal() }
+
+fun SyncedRow?.keptDeleteRefusalCode(): String? =
+    this?.serverErrorCode?.takeIf { holdsDeleteRefusal() }
+
+fun SyncedRow.holdsDeleteRefusal(): Boolean =
+    syncStatus == SyncStatus.SYNCED && pendingOp == PendingOp.NONE && lastSyncError == SyncError.REJECTED
 
 private const val FALLBACK_CURRENCY = "USD"
 private const val FALLBACK_TIMEZONE = "UTC"
@@ -37,7 +51,8 @@ fun ProjectDto.toSyncedEntity(localId: String, syncedAt: Long, previous: Project
         locallyModifiedAt = remoteMillis ?: syncedAt,
         lastSyncedAt = syncedAt,
         remoteUpdatedAt = remoteMillis,
-        lastSyncError = null,
+        lastSyncError = previous.keptDeleteRefusal(),
+        serverErrorCode = previous.keptDeleteRefusalCode(),
         // The list DTO carries no owner field — keep what the detail pull stored.
         ownerPlan = previous?.ownerPlan,
         ownerIsFounder = previous?.ownerIsFounder,
@@ -72,7 +87,8 @@ fun ProjectDetailDto.toSyncedEntity(localId: String, syncedAt: Long, previous: P
         locallyModifiedAt = remoteMillis ?: syncedAt,
         lastSyncedAt = syncedAt,
         remoteUpdatedAt = remoteMillis,
-        lastSyncError = null,
+        lastSyncError = previous.keptDeleteRefusal(),
+        serverErrorCode = previous.keptDeleteRefusalCode(),
         ownerPlan = ownerPlan ?: previous?.ownerPlan,
         ownerIsFounder = if (serverSentOwnerEntitlements) ownerIsFounder else previous?.ownerIsFounder,
         ownerCanExportPdf = if (serverSentOwnerEntitlements) ownerCanExportPdf else previous?.ownerCanExportPdf,

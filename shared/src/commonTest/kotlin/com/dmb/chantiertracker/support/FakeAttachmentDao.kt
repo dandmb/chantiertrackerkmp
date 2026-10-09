@@ -23,7 +23,11 @@ class FakeAttachmentDao(initial: List<AttachmentEntity> = emptyList()) : Attachm
         rows.value.values.firstOrNull { it.serverId == serverId }
 
     override suspend fun findPending(): List<AttachmentEntity> =
-        rows.value.values.filter { it.syncStatus != SyncStatus.SYNCED && it.lastSyncError != com.dmb.chantiertracker.data.sync.SyncError.DELETED_ON_SERVER }
+        rows.value.values.filter { it.syncStatus != SyncStatus.SYNCED && it.lastSyncError !in com.dmb.chantiertracker.data.sync.SyncError.WAITING_FOR_THE_USER }
+
+    val blockedByParent = kotlinx.coroutines.flow.MutableStateFlow<List<String>>(emptyList())
+
+    override fun observeBlockedByParent(): kotlinx.coroutines.flow.Flow<List<String>> = blockedByParent
 
     override suspend fun findForEntry(entryLocalId: String): List<AttachmentEntity> =
         rows.value.values.filter { it.entryLocalId == entryLocalId }

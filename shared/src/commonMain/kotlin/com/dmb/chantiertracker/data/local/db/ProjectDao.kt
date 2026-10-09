@@ -20,7 +20,7 @@ interface ProjectDao {
     @Query("SELECT * FROM projects WHERE serverId = :serverId")
     suspend fun findByServerId(serverId: Long): ProjectEntity?
 
-    @Query("SELECT * FROM projects WHERE syncStatus != 'SYNCED' AND (lastSyncError IS NULL OR lastSyncError != 'DELETED_ON_SERVER')")
+    @Query("SELECT * FROM projects WHERE syncStatus != 'SYNCED' AND (lastSyncError IS NULL OR lastSyncError NOT IN ('DELETED_ON_SERVER', 'UPDATE_REFUSED', 'FILE_REFUSED'))")
     suspend fun findPending(): List<ProjectEntity>
 
     // Active = IN_PROGRESS, mirrors the backend plan check (PlanLimitService /

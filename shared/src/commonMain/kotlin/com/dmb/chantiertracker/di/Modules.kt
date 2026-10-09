@@ -6,6 +6,7 @@ import com.dmb.chantiertracker.data.session.LocalDataEraser
 import com.dmb.chantiertracker.data.session.LocalDataOwnerStore
 import com.dmb.chantiertracker.data.session.LocalDataOwnership
 import com.dmb.chantiertracker.data.session.LocalDataWiper
+import com.dmb.chantiertracker.data.session.RoomUnsyncedWriteCounter
 import com.dmb.chantiertracker.data.session.UnsyncedWriteCounter
 import com.dmb.chantiertracker.data.repository.SignOutRepositoryImpl
 import com.dmb.chantiertracker.domain.repository.SignOutRepository
@@ -223,7 +224,7 @@ val syncModule: Module = module {
 
 val dataModule: Module = module {
     single { LocalDataOwnerStore(get()) }
-    single<UnsyncedWriteCounter> { UnsyncedWriteCounter { get<LocalDataDao>().countUnsynced() } }
+    single<UnsyncedWriteCounter> { RoomUnsyncedWriteCounter(get()) }
     single<LocalDataEraser> {
         LocalDataWiper(get(), get(), get()) {
             get<SyncStateHolder>().update(SyncState.Idle)

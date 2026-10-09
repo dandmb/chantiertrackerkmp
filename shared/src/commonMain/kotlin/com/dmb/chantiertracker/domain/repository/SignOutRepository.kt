@@ -1,13 +1,15 @@
 package com.dmb.chantiertracker.domain.repository
 
+import com.dmb.chantiertracker.domain.model.UnsentWrites
+
 sealed interface SignOutResult {
     data object SignedOut : SignOutResult
 
     /** Writes not sent yet, and the sync just attempted could not send them (offline, server down). */
-    data class Blocked(val unsentCount: Int) : SignOutResult
+    data class Blocked(val unsent: UnsentWrites) : SignOutResult
 
     /** The sync just succeeded and these still did not leave: refused by the server, or waiting on a refused parent. */
-    data class RefusedWritesLeft(val count: Int) : SignOutResult
+    data class RefusedWritesLeft(val unsent: UnsentWrites) : SignOutResult
 }
 
 interface SignOutRepository {

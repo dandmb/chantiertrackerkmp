@@ -641,7 +641,7 @@ class SyncEngineTest {
 
         val stage = f.stageDao.findByLocalId("st-1")!!
         assertEquals(SyncStatus.CONFLICTED, stage.syncStatus)
-        assertEquals(SyncError.REJECTED, stage.lastSyncError)
+        assertEquals(SyncError.UPDATE_REFUSED, stage.lastSyncError)
     }
 
     // ─── Step 4: daily-log hierarchy sync (ADR-30) ─────────────────────────
@@ -2821,5 +2821,239 @@ class SyncEngineTest {
 
         assertEquals(15.0, f.cementAvailable(), "last complete server counter (12) plus the unsent line (3), ADR-71")
         assertNotNull(f.purchaseLineDao.findByLocalId("pl-offline"))
+    }
+
+    // ─── refusals: what is sent again and what waits for the user (ADR-74) ──
+
+    private fun Fixture.sent(method: String, pathSuffix: String) =
+        backend.receivedMethods.count { it.startsWith("$method ") && it.endsWith(pathSuffix) }
+
+    @Test
+    fun a_refused_creation_is_sent_again_at_every_pass_and_leaves_once_the_refusal_is_lifted() = runTest {
+        val f = stockFixture()
+        f.siteWithCement(serverPurchase = 2.0)
+        f.consumptionLineDao.upsert(com.dmb.chantiertracker.support.localConsumptionLine("cl-too-much", entryLocalId = "e901", materialLocalId = "m7", quantity = 5.0))
+        f.backend.lineWriteConflict = true
+        val engine = f.engine(backgroundScope)
+
+        assertIs<SyncOutcome.Synced>(engine.syncNow())
+        assertIs<SyncOutcome.Synced>(engine.syncNow())
+
+        assertEquals(2, f.sent("POST", "/entries/901/consumption-lines"))
+        assertEquals(SyncStatus.CONFLICTED, f.consumptionLineDao.findByLocalId("cl-too-much")!!.syncStatus)
+
+        f.backend.lineWriteConflict = false
+        assertIs<SyncOutcome.Synced>(engine.syncNow())
+
+        assertEquals(SyncStatus.SYNCED, f.consumptionLineDao.findByLocalId("cl-too-much")!!.syncStatus)
+    }
+
+    @Test
+    fun a_refused_update_of_a_purchase_line_is_sent_once_and_then_waits_for_the_user() = runTest {
+        val f = stockFixture()
+        f.siteWithCement(serverPurchase = 12.0)
+        f.purchaseLineDao.upsert(
+            com.dmb.chantiertracker.support.localPurchaseLine("pl5000", entryLocalId = "e900", materialLocalId = "m7", quantity = 3.0, serverId = 5000, pendingOp = PendingOp.UPDATE)
+                .copy(serverQuantity = 12.0),
+        )
+        f.backend.updateStatus = io.ktor.http.HttpStatusCode.Conflict
+        f.backend.updateRefusalCode = "STOCK_CONSUMED"
+        val engine = f.engine(backgroundScope)
+
+        assertIs<SyncOutcome.Synced>(engine.syncNow())
+        assertIs<SyncOutcome.Synced>(engine.syncNow())
+        assertIs<SyncOutcome.Synced>(engine.syncLog("l800"))
+
+        assertEquals(1, f.sent("PATCH", "/purchase-lines/5000"), "sent once, not at every pass")
+        val line = f.purchaseLineDao.findByLocalId("pl5000")!!
+        assertEquals(SyncStatus.CONFLICTED, line.syncStatus)
+        assertEquals(PendingOp.UPDATE, line.pendingOp)
+        assertEquals(SyncError.UPDATE_REFUSED, line.lastSyncError)
+        assertEquals(3.0, line.quantity, "what the user typed is kept")
+        assertEquals("STOCK_CONSUMED", line.serverErrorCode)
+        assertEquals(12.0, f.cementAvailable(), "the stock follows the server, ADR-71")
+    }
+
+    @Test
+    fun a_refused_update_of_a_consumption_line_is_sent_once_and_then_waits_for_the_user() = runTest {
+        val f = stockFixture()
+        f.siteWithCement(serverPurchase = 12.0)
+        f.backend.seedConsumptionLine(com.dmb.chantiertracker.support.ServerConsumptionLine(id = 6000, entryId = 901, materialId = 7, quantity = 2.0))
+        f.consumptionLineDao.upsert(
+            com.dmb.chantiertracker.support.localConsumptionLine("cl6000", entryLocalId = "e901", materialLocalId = "m7", quantity = 50.0, serverId = 6000, pendingOp = PendingOp.UPDATE)
+                .copy(serverQuantity = 2.0),
+        )
+        f.backend.updateStatus = io.ktor.http.HttpStatusCode.Conflict
+        f.backend.updateRefusalCode = "INSUFFICIENT_STOCK"
+        val engine = f.engine(backgroundScope)
+
+        assertIs<SyncOutcome.Synced>(engine.syncNow())
+        assertIs<SyncOutcome.Synced>(engine.syncNow())
+
+        assertEquals(1, f.sent("PATCH", "/consumption-lines/6000"))
+        assertEquals(SyncError.UPDATE_REFUSED, f.consumptionLineDao.findByLocalId("cl6000")!!.lastSyncError)
+        assertEquals(50.0, f.consumptionLineDao.findByLocalId("cl6000")!!.quantity)
+    }
+
+    @Test
+    fun a_refused_update_of_a_project_a_stage_a_material_or_an_entry_is_sent_once_and_never_fails_the_pass() = runTest {
+        val f = stockFixture()
+        f.siteWithCement(serverPurchase = null)
+        f.dao.upsert(
+            f.dao.findByLocalId("p5")!!.copy(
+                name = "Renommé", pendingOp = PendingOp.UPDATE, syncStatus = SyncStatus.PENDING, remoteUpdatedAt = serverMillis("2026-01-01T09:00:00"),
+            ),
+        )
+        f.stageDao.upsert(f.stageDao.findByLocalId("st90")!!.copy(name = "Renommée", pendingOp = PendingOp.UPDATE, syncStatus = SyncStatus.PENDING))
+        f.materialDao.upsert(f.materialDao.findByLocalId("m7")!!.copy(name = "Ciment gris", pendingOp = PendingOp.UPDATE, syncStatus = SyncStatus.PENDING))
+        f.dailyEntryDao.upsert(f.dailyEntryDao.findByLocalId("e900")!!.copy(summary = "Résumé", pendingOp = PendingOp.UPDATE, syncStatus = SyncStatus.PENDING))
+        f.backend.updateStatus = io.ktor.http.HttpStatusCode.Forbidden
+        f.backend.updateRefusalCode = "PROJECT_INSUFFICIENT_ROLE"
+        val engine = f.engine(backgroundScope)
+
+        assertIs<SyncOutcome.Synced>(engine.syncNow())
+        assertIs<SyncOutcome.Synced>(engine.syncNow())
+
+        assertEquals(listOf(1, 1, 1, 1), listOf(f.sent("PATCH", "/projects/5"), f.sent("PATCH", "/stages/90"), f.sent("PATCH", "/materials/7"), f.sent("PATCH", "/entries/900")))
+        assertEquals(SyncError.UPDATE_REFUSED, f.dao.findByLocalId("p5")!!.lastSyncError)
+        assertEquals("Renommé", f.dao.findByLocalId("p5")!!.name)
+        assertEquals(SyncError.UPDATE_REFUSED, f.stageDao.findByLocalId("st90")!!.lastSyncError)
+        assertEquals(SyncError.UPDATE_REFUSED, f.materialDao.findByLocalId("m7")!!.lastSyncError)
+        assertEquals(SyncError.UPDATE_REFUSED, f.dailyEntryDao.findByLocalId("e900")!!.lastSyncError)
+        assertEquals(
+            List(4) { "PROJECT_INSUFFICIENT_ROLE" },
+            listOf(f.dao.findByLocalId("p5")!!.serverErrorCode, f.stageDao.findByLocalId("st90")!!.serverErrorCode, f.materialDao.findByLocalId("m7")!!.serverErrorCode, f.dailyEntryDao.findByLocalId("e900")!!.serverErrorCode),
+        )
+    }
+
+    @Test
+    fun a_refused_delete_is_never_sent_again_and_its_mention_survives_the_next_pulls() = runTest {
+        val f = stockFixture()
+        f.siteWithCement(serverPurchase = 12.0)
+        f.purchaseLineDao.upsert(
+            com.dmb.chantiertracker.support.localPurchaseLine("pl5000", entryLocalId = "e900", materialLocalId = "m7", quantity = 12.0, serverId = 5000, pendingOp = PendingOp.DELETE)
+                .copy(serverQuantity = 12.0),
+        )
+        f.dailyEntryDao.upsert(f.dailyEntryDao.findByLocalId("e901")!!.copy(pendingOp = PendingOp.DELETE, syncStatus = SyncStatus.PENDING))
+        f.backend.deleteStatus = io.ktor.http.HttpStatusCode.Conflict
+        f.backend.deleteRefusalCode = "STOCK_CONSUMED"
+        val engine = f.engine(backgroundScope)
+
+        assertIs<SyncOutcome.Synced>(engine.syncNow())
+        assertIs<SyncOutcome.Synced>(engine.syncNow())
+        assertIs<SyncOutcome.Synced>(engine.syncProject("p5"))
+        assertIs<SyncOutcome.Synced>(engine.syncLog("l800"))
+
+        assertEquals(1, f.sent("DELETE", "/purchase-lines/5000"))
+        assertEquals(1, f.sent("DELETE", "/entries/901"))
+        val line = f.purchaseLineDao.findByLocalId("pl5000")!!
+        assertEquals(SyncStatus.SYNCED, line.syncStatus)
+        assertEquals(PendingOp.NONE, line.pendingOp)
+        assertEquals(SyncError.REJECTED, line.lastSyncError, "the « deletion refused » mention is still there after a pull")
+        assertEquals("STOCK_CONSUMED", line.serverErrorCode, "and so is its reason")
+        assertEquals(SyncError.REJECTED, f.dailyEntryDao.findByLocalId("e901")!!.lastSyncError)
+    }
+
+    @Test
+    fun a_photo_the_server_finds_too_large_is_refused_once_never_uploaded_again_and_never_fails_the_pass() = runTest {
+        val f = stockFixture()
+        f.siteWithCement(serverPurchase = null)
+        val path = f.fileStore.save(ByteArray(8), "lourde.jpg")
+        f.attachmentDao.upsert(com.dmb.chantiertracker.support.localAttachment("a-heavy", entryLocalId = "e900", localPath = path))
+        f.backend.attachmentUploadRejection = io.ktor.http.HttpStatusCode.PayloadTooLarge to "Fichier trop volumineux."
+        f.backend.attachmentUploadRejectionCode = "ATTACHMENT_TOO_LARGE"
+        val engine = f.engine(backgroundScope)
+
+        assertIs<SyncOutcome.Synced>(engine.syncNow())
+        assertIs<SyncOutcome.Synced>(engine.syncNow())
+
+        assertEquals(1, f.sent("POST", "/entries/900/attachments"), "the file is not uploaded again at every pass")
+        val photo = f.attachmentDao.findByLocalId("a-heavy")!!
+        assertEquals(SyncStatus.CONFLICTED, photo.syncStatus)
+        assertEquals(SyncError.FILE_REFUSED, photo.lastSyncError)
+        assertEquals("ATTACHMENT_TOO_LARGE", photo.serverErrorCode)
+        assertTrue(path in f.fileStore.storedPaths, "the local file is kept")
+    }
+
+    @Test
+    fun a_server_error_on_an_upload_is_not_a_file_refusal_and_is_tried_again() = runTest {
+        val f = stockFixture()
+        f.siteWithCement(serverPurchase = null)
+        val path = f.fileStore.save(ByteArray(8), "photo.jpg")
+        f.attachmentDao.upsert(com.dmb.chantiertracker.support.localAttachment("a1", entryLocalId = "e900", localPath = path))
+        f.backend.attachmentUploadRejection = io.ktor.http.HttpStatusCode.InternalServerError to "Erreur."
+        val engine = f.engine(backgroundScope)
+
+        engine.syncNow()
+        engine.syncNow()
+
+        assertEquals(2, f.sent("POST", "/entries/900/attachments"))
+    }
+
+    @Test
+    fun a_file_too_large_refused_by_a_proxy_without_any_code_still_reads_as_a_file_refusal() = runTest {
+        val f = stockFixture()
+        f.siteWithCement(serverPurchase = null)
+        val path = f.fileStore.save(ByteArray(8), "lourde.jpg")
+        f.attachmentDao.upsert(com.dmb.chantiertracker.support.localAttachment("a-heavy", entryLocalId = "e900", localPath = path))
+        f.backend.attachmentUploadRejection = io.ktor.http.HttpStatusCode.PayloadTooLarge to "Request Entity Too Large"
+        val engine = f.engine(backgroundScope)
+
+        assertIs<SyncOutcome.Synced>(engine.syncNow())
+
+        val photo = f.attachmentDao.findByLocalId("a-heavy")!!
+        assertEquals(SyncError.FILE_REFUSED, photo.lastSyncError)
+        assertEquals("ATTACHMENT_TOO_LARGE", photo.serverErrorCode)
+    }
+
+    @Test
+    fun the_server_code_of_a_refused_creation_is_kept_and_cleared_once_the_row_is_accepted() = runTest {
+        val f = stockFixture()
+        f.siteWithCement(serverPurchase = 2.0)
+        f.dao.upsert(localProject("p-new", name = "Deuxième projet"))
+        f.consumptionLineDao.upsert(com.dmb.chantiertracker.support.localConsumptionLine("cl-too-much", entryLocalId = "e901", materialLocalId = "m7", quantity = 5.0))
+        f.backend.planLimitReached = true
+        f.backend.lineWriteConflict = true
+        val engine = f.engine(backgroundScope)
+
+        assertIs<SyncOutcome.Synced>(engine.syncNow())
+
+        val project = f.dao.findByLocalId("p-new")!!
+        assertEquals(SyncError.PLAN_LIMIT to "PLAN_LIMIT_EXCEEDED", project.lastSyncError to project.serverErrorCode)
+        val line = f.consumptionLineDao.findByLocalId("cl-too-much")!!
+        assertEquals(SyncError.REJECTED to "INSUFFICIENT_STOCK", line.lastSyncError to line.serverErrorCode)
+
+        f.backend.planLimitReached = false
+        f.backend.lineWriteConflict = false
+        assertIs<SyncOutcome.Synced>(engine.syncNow())
+
+        assertEquals(null to null, f.dao.findByLocalId("p-new")!!.let { it.lastSyncError to it.serverErrorCode })
+        assertEquals(null to null, f.consumptionLineDao.findByLocalId("cl-too-much")!!.let { it.lastSyncError to it.serverErrorCode })
+    }
+
+    @Test
+    fun a_refused_update_leaves_once_the_user_saves_it_again() = runTest {
+        val f = stockFixture()
+        f.siteWithCement(serverPurchase = 12.0)
+        f.purchaseLineDao.upsert(
+            com.dmb.chantiertracker.support.localPurchaseLine("pl5000", entryLocalId = "e900", materialLocalId = "m7", quantity = 3.0, serverId = 5000, pendingOp = PendingOp.UPDATE)
+                .copy(serverQuantity = 12.0),
+        )
+        f.backend.updateStatus = io.ktor.http.HttpStatusCode.Conflict
+        f.backend.updateRefusalCode = "STOCK_CONSUMED"
+        val engine = f.engine(backgroundScope)
+        assertIs<SyncOutcome.Synced>(engine.syncNow())
+        f.backend.updateStatus = null
+
+        assertIs<SyncOutcome.Synced>(engine.syncNow())
+        assertEquals(1, f.sent("PATCH", "/purchase-lines/5000"), "a lifted refusal does not send a refused edit again by itself")
+
+        f.purchaseLineDao.upsert(f.purchaseLineDao.findByLocalId("pl5000")!!.copy(quantity = 9.0, syncStatus = SyncStatus.PENDING, lastSyncError = null))
+        assertIs<SyncOutcome.Synced>(engine.syncNow())
+
+        val line = f.purchaseLineDao.findByLocalId("pl5000")!!
+        assertEquals(SyncStatus.SYNCED, line.syncStatus)
+        assertEquals(9.0, f.backend.purchaseLines.single { it.id == 5000L }.quantity)
+        assertNull(line.serverErrorCode)
     }
 }

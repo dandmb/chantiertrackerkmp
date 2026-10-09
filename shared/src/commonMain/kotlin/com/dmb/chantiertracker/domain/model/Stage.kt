@@ -6,6 +6,7 @@ data class Stage(
     val name: String,
     val estimatedBudget: Double?,
     val status: StageStatus,
+    val syncIssue: SyncIssue? = null,
 )
 
 enum class StageStatus { IN_PROGRESS, COMPLETED, UNKNOWN }

@@ -210,6 +210,14 @@ class StockIntegrationTest {
         val (app, server) = owner.compare("C modification refusée", project)
 
         assertEquals(server, app, "une modification refusée ne doit pas laisser un stock affiché différent du serveur")
+        val shown = owner.purchaseLines.observeLines(purchase).first().single()
+        println("C modification — ce que reçoit l'écran : ${shown.syncIssue}")
+        assertEquals(com.dmb.chantiertracker.domain.model.SyncIssueKind.UPDATE_REFUSED, shown.syncIssue?.kind, "la modification refusée est signalée")
+        assertEquals(com.dmb.chantiertracker.data.sync.SyncError.UPDATE_REFUSED, row?.lastSyncError, "elle n'est plus renvoyée à chaque passe")
+        assertEquals(emptyList(), owner.db.purchaseLineDao().findPending().map { it.localId }, "rien à renvoyer")
+        owner.sync.syncNow()
+        assertEquals(row, owner.db.purchaseLineDao().findByLocalId(line), "une passe de plus ne change rien à la ligne")
+        assertEquals(3.0, shown.quantity, "la saisie de l'utilisateur est gardée")
     }
 
     @Test
