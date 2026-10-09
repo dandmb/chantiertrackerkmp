@@ -24,8 +24,8 @@ class ProjectApi(private val client: HttpClient) {
     suspend fun get(id: Long): ProjectDetailDto =
         client.get(ApiRoutes.project(id)).body()
 
-    suspend fun members(id: Long): PageDto<MemberDto> =
-        client.get(ApiRoutes.projectMembers(id)).body()
+    suspend fun members(id: Long, page: Int, size: Int): PageDto<MemberDto> =
+        client.get(ApiRoutes.projectMembers(id)) { sortedByIdPage(page, size) }.body()
 
     suspend fun create(body: CreateProjectRequestDto): ProjectDto =
         client.post(ApiRoutes.PROJECTS) {

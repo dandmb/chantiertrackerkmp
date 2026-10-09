@@ -17,8 +17,8 @@ import io.ktor.http.contentType
 class InvitationApi(private val client: HttpClient) {
 
     // ADMIN-only server-side — a non-admin GET answers 403.
-    suspend fun list(projectId: Long): PageDto<InvitationDto> =
-        client.get(ApiRoutes.projectInvitations(projectId)).body()
+    suspend fun list(projectId: Long, page: Int, size: Int): PageDto<InvitationDto> =
+        client.get(ApiRoutes.projectInvitations(projectId)) { sortedByIdPage(page, size) }.body()
 
     suspend fun create(projectId: Long, body: CreateInvitationRequestDto): InvitationDto =
         client.post(ApiRoutes.projectInvitations(projectId)) {

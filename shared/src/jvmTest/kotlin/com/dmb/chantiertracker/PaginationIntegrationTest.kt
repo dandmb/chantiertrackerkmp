@@ -2,6 +2,7 @@ package com.dmb.chantiertracker
 
 import com.dmb.chantiertracker.data.remote.apiCall
 import com.dmb.chantiertracker.data.remote.dto.CreateConsumptionLineRequestDto
+import com.dmb.chantiertracker.data.remote.dto.CreateInvitationRequestDto
 import com.dmb.chantiertracker.data.remote.dto.CreateMaterialRequestDto
 import com.dmb.chantiertracker.data.remote.dto.CreateProjectRequestDto
 import com.dmb.chantiertracker.data.remote.dto.CreatePurchaseLineRequestDto
@@ -15,9 +16,16 @@ import com.dmb.chantiertracker.support.DisposableAccounts
 import com.dmb.chantiertracker.support.IntegrationBackend
 import com.dmb.chantiertracker.support.retryingOnRateLimit
 import com.dmb.chantiertracker.support.signInForTheFirstTime
+import io.ktor.client.request.get
+import io.ktor.client.statement.bodyAsText
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.io.Buffer
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.double
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import java.awt.image.BufferedImage
 import java.io.ByteArrayOutputStream
 import java.time.LocalDate
@@ -240,5 +248,71 @@ class PaginationIntegrationTest {
         assertEquals(photoIds.toSet() - photoIds[3], photos().mapNotNull { it.serverId }.toSet())
         assertEquals(1, supervisor.fileStore.deletedPaths.size)
         assertEquals(photos().map { it.localPath }.toSet(), supervisor.fileStore.storedPaths, "un fichier par justificatif, aucun orphelin")
+    }
+
+    private suspend fun DeviceStack.serverStock(projectServerId: Long): Map<String, Double> {
+        val page = Json.parseToJsonElement(client.get("projects/$projectServerId/stock?page=0&size=100&sort=id,asc").bodyAsText()).jsonObject
+        return page["content"]!!.jsonArray.associate {
+            it.jsonObject["materialName"]!!.jsonPrimitive.content to it.jsonObject["available"]!!.jsonPrimitive.double
+        }
+    }
+
+    @Test
+    fun c5_twenty_five_invitations_and_twenty_five_stock_counters_all_reach_a_second_device_and_stay_there() = runScenario {
+        val phone = device()
+        val account = phone.signedInAs("qa-c5-invitations-owner", "QA C5 Propriétaire invitations")
+        accounts.grantPlan(account.id, "LIBERTE")
+
+        val project = phone.projects.createProject(CreateProjectInput("QA C5 invitations", null, "Nîmes", "EUR", "Europe/Paris"))
+        phone.sync.syncNow()
+        val projectServerId = phone.db.projectDao().findByLocalId(project)!!.serverId!!
+        val stamp = System.currentTimeMillis()
+        val invitationIds = (1..25).map {
+            retryingOnRateLimit { apiCall { phone.invitationApi.create(projectServerId, CreateInvitationRequestDto("qa-c5-invite-$it-$stamp@local.dev", "SUPERVISOR")) } }.id
+        }
+        val stage = phone.stageApi.create(projectServerId, CreateStageRequestDto("Gros œuvre")).id
+        val today = LocalDate.now(ZoneId.of("Europe/Paris")).toString()
+        val purchaseEntry = phone.dailyLogApi.createPurchaseEntry(stage, today, EntryRequestDto("Achats du jour")).id
+        val purchaseIds = (1..25).map {
+            val material = phone.materialApi.create(projectServerId, CreateMaterialRequestDto("Matériau $it", "u")).id
+            phone.purchaseLineApi.create(purchaseEntry, CreatePurchaseLineRequestDto(material, it.toDouble(), 2.0, null)).id
+        }
+
+        val tablet = device()
+        retryingOnRateLimit { tablet.auth.login(account.email, "QaPassword1234!") }
+        tablet.sync.syncNow()
+        val tabletProject = tablet.projects.observeProjects().first().single().localId
+
+        suspend fun invitations() = tablet.db.invitationDao().findForProject(tabletProject).map { it.id }.toSet()
+        suspend fun appStock() = tablet.materials.observeStock(tabletProject).first().materials.associate { it.materialName to it.available }
+
+        assertIs<SyncOutcome.Synced>(tablet.sync.syncProject(tabletProject))
+        val firstPass = invitations() to appStock()
+        assertIs<SyncOutcome.Synced>(tablet.sync.syncProject(tabletProject))
+        val secondPass = invitations() to appStock()
+        val server = tablet.serverStock(projectServerId)
+        val members = tablet.projects.observeMembers(tabletProject).first().size
+        println(
+            "C5 invitations et stock — serveur 25 invitations, ${server.size} compteurs ; tablette 1re passe=${firstPass.first.size} invitations, " +
+                "${firstPass.second.size} compteurs ; 2e passe=${secondPass.first.size} invitations, ${secondPass.second.size} compteurs ; membres=$members",
+        )
+        assertEquals(invitationIds.toSet(), firstPass.first)
+        assertEquals(invitationIds.toSet(), secondPass.first)
+        assertEquals(25, server.size)
+        assertEquals(server, firstPass.second)
+        assertEquals(server, secondPass.second)
+        assertEquals(1, members)
+
+        phone.invitationApi.cancel(invitationIds[3])
+        phone.purchaseLineApi.delete(purchaseIds[24])
+        assertIs<SyncOutcome.Synced>(tablet.sync.syncProject(tabletProject))
+        val serverAfter = tablet.serverStock(projectServerId)
+        println(
+            "C5 invitations et stock — après annulation d'une invitation et suppression d'un achat côté serveur : ${invitations().size} invitations ; " +
+                "« Matériau 25 » app=${appStock()["Matériau 25"]}, serveur=${serverAfter["Matériau 25"]}",
+        )
+        assertEquals(invitationIds.toSet() - invitationIds[3], invitations())
+        assertEquals(serverAfter.filterValues { it != 0.0 }, appStock().filterValues { it != 0.0 })
+        assertEquals(0.0, appStock()["Matériau 25"] ?: 0.0)
     }
 }

@@ -38,7 +38,10 @@ import com.dmb.chantiertracker.data.remote.apiCall
 import com.dmb.chantiertracker.data.remote.dto.AttachmentDto
 import com.dmb.chantiertracker.data.remote.dto.ConsumptionLineDto
 import com.dmb.chantiertracker.data.remote.dto.DailyLogSummaryDto
+import com.dmb.chantiertracker.data.remote.dto.InvitationDto
 import com.dmb.chantiertracker.data.remote.dto.MaterialDto
+import com.dmb.chantiertracker.data.remote.dto.MaterialStockDto
+import com.dmb.chantiertracker.data.remote.dto.MemberDto
 import com.dmb.chantiertracker.data.remote.dto.ProjectDto
 import com.dmb.chantiertracker.data.remote.dto.PurchaseLineDto
 import com.dmb.chantiertracker.data.remote.dto.StageDto
@@ -131,6 +134,7 @@ class SyncEngine(
 
     private val mutex = Mutex()
     private val neverLoadedStocksTouchedThisPass = mutableSetOf<String>()
+    private val stocksReadIncompletelyThisPass = mutableSetOf<String>()
     private var started = false
 
     fun start() {
@@ -157,13 +161,18 @@ class SyncEngine(
     internal suspend fun syncNowOrDeferToOs(): SyncOutcome =
         syncNow().also { if (it != SyncOutcome.Synced) backgroundSync.requestExpeditedSync() }
 
-    override suspend fun syncNow(): SyncOutcome = mutex.withLock { runSync() }
+    override suspend fun syncNow(): SyncOutcome = onePass { runSync() }
 
-    override suspend fun syncProject(localId: String): SyncOutcome = mutex.withLock { runProjectSync(localId) }
+    override suspend fun syncProject(localId: String): SyncOutcome = onePass { runProjectSync(localId) }
 
-    override suspend fun syncStage(stageLocalId: String): SyncOutcome = mutex.withLock { runStageSync(stageLocalId) }
+    override suspend fun syncStage(stageLocalId: String): SyncOutcome = onePass { runStageSync(stageLocalId) }
 
-    override suspend fun syncLog(logLocalId: String): SyncOutcome = mutex.withLock { runLogSync(logLocalId) }
+    override suspend fun syncLog(logLocalId: String): SyncOutcome = onePass { runLogSync(logLocalId) }
+
+    private suspend fun onePass(pass: suspend () -> SyncOutcome): SyncOutcome = mutex.withLock {
+        stocksReadIncompletelyThisPass.clear()
+        pass()
+    }
 
     override suspend fun <T> runExclusive(block: suspend () -> T): T = mutex.withLock { block() }
 
@@ -347,10 +356,10 @@ class SyncEngine(
     }
 
     private suspend fun pullMembers(serverId: Long, localId: String) {
-        val members = apiCall { api.members(serverId) }.content
-        dao.clearMembers(localId)
-        if (members.isNotEmpty()) {
-            dao.upsertMembers(members.map { it.toEntity(localId) })
+        val read = readAllPages(MemberDto::userId) { page, size -> apiCall { api.members(serverId, page, size) } }
+        if (!skipsRemovalAfter(read, "members of project $serverId")) dao.clearMembers(localId)
+        if (read.items.isNotEmpty()) {
+            dao.upsertMembers(read.items.map { it.toEntity(localId) })
         }
     }
 
@@ -358,8 +367,8 @@ class SyncEngine(
     // local cache so a demoted user stops seeing stale invitations; any other
     // error is transient, leave the cache as-is.
     private suspend fun pullInvitations(serverId: Long, localId: String) {
-        val invitations = try {
-            apiCall { invitationApi.list(serverId) }.content
+        val read = try {
+            readAllPages(InvitationDto::id) { page, size -> apiCall { invitationApi.list(serverId, page, size) } }
         } catch (e: DomainException.Forbidden) {
             invitationDao.clearForProject(localId)
             return
@@ -367,9 +376,9 @@ class SyncEngine(
             invitationDao.clearForProject(localId)
             return
         }
-        invitationDao.clearForProject(localId)
-        if (invitations.isNotEmpty()) {
-            invitationDao.upsertAll(invitations.map { it.toEntity(localId) })
+        if (!skipsRemovalAfter(read, "invitations of project $serverId")) invitationDao.clearForProject(localId)
+        if (read.items.isNotEmpty()) {
+            invitationDao.upsertAll(read.items.map { it.toEntity(localId) })
         }
     }
 
@@ -910,20 +919,19 @@ class SyncEngine(
     // ─── pull: stock counters (ADR-71) ──────────────────────────────────────
 
     private suspend fun refreshStock(projectServerId: Long, projectLocalId: String) {
-        val counters = mutableListOf<MaterialStockEntity>()
-        var page = 0
-        while (true) {
-            val content = try {
-                apiCall { stockApi.list(projectServerId, page, STOCK_PAGE_SIZE) }.content
-            } catch (e: DomainException.NotFound) {
-                return
-            } catch (e: DomainException.Forbidden) {
-                return
-            }
-            content.mapTo(counters) { MaterialStockEntity(projectLocalId, it.materialId, it.quantityIn, it.quantityOut) }
-            if (content.size < STOCK_PAGE_SIZE) break
-            page++
+        val read = try {
+            readAllPages(MaterialStockDto::materialId) { page, size -> apiCall { stockApi.list(projectServerId, page, size) } }
+        } catch (e: DomainException.NotFound) {
+            return
+        } catch (e: DomainException.Forbidden) {
+            return
         }
+        if (skipsRemovalAfter(read, "stock of project $projectServerId")) {
+            stockDao.markNeedsRefresh(projectLocalId)
+            stocksReadIncompletelyThisPass += projectLocalId
+            return
+        }
+        val counters = read.items.map { MaterialStockEntity(projectLocalId, it.materialId, it.quantityIn, it.quantityOut) }
         stockDao.replaceCounters(projectLocalId, counters, clock.nowEpochMillis())
     }
 
@@ -948,7 +956,7 @@ class SyncEngine(
     private suspend fun refreshStocksMarkedForRefresh() {
         val projectLocalIds = stockDao.findProjectsNeedingRefresh() + neverLoadedStocksTouchedThisPass
         neverLoadedStocksTouchedThisPass.clear()
-        for (projectLocalId in projectLocalIds.distinct()) {
+        for (projectLocalId in projectLocalIds.distinct() - stocksReadIncompletelyThisPass) {
             val project = dao.findByLocalId(projectLocalId) ?: continue
             val projectServerId = project.serverId ?: continue
             if (project.lastSyncError == SyncError.DELETED_ON_SERVER) continue
@@ -1265,4 +1273,3 @@ class SyncEngine(
     }
 }
 
-private const val STOCK_PAGE_SIZE = 100
