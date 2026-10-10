@@ -27,6 +27,7 @@ import kotlin.io.path.absolutePathString
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 class MigrationTest {
 
@@ -1002,48 +1003,7 @@ class MigrationTest {
     @Test
     fun migrating_a_real_v14_database_keeps_every_row_and_adds_an_empty_server_error_code() = runTest {
         val v14Path = dir.resolve("migration-v14.db").absolutePathString()
-        BundledSQLiteDriver().open(v14Path).use { c ->
-            createFromExportedSchema(c, version = 14)
-            c.execSQL(
-                "INSERT INTO projects (localId, serverId, name, currency, timezone, status, syncStatus, pendingOp, locallyModifiedAt, lastSyncError) VALUES " +
-                    "('p-synced', 42, 'Chantier v14', 'EUR', 'Europe/Paris', 'IN_PROGRESS', 'SYNCED', 'NONE', 1000, NULL), " +
-                    "('p-over-limit', NULL, 'Au-delà de la limite', 'EUR', 'Europe/Paris', 'IN_PROGRESS', 'CONFLICTED', 'CREATE', 1000, 'PLAN_LIMIT')",
-            )
-            c.execSQL(
-                "INSERT INTO stages (localId, serverId, projectLocalId, name, status, syncStatus, pendingOp, locallyModifiedAt, lastSyncError) VALUES " +
-                    "('s-synced', 43, 'p-synced', 'Gros œuvre', 'IN_PROGRESS', 'SYNCED', 'NONE', 1000, NULL), " +
-                    "('s-edit-refused', 44, 'p-synced', 'Charpente', 'IN_PROGRESS', 'CONFLICTED', 'UPDATE', 1000, 'REJECTED'), " +
-                    "('s-delete-refused', 45, 'p-synced', 'Toiture', 'IN_PROGRESS', 'SYNCED', 'NONE', 1000, 'REJECTED')",
-            )
-            c.execSQL("INSERT INTO daily_logs (localId, serverId, stageLocalId, date, locallyCreatedAt) VALUES ('l-v14', 46, 's-synced', '2026-10-01', 1000)")
-            c.execSQL(
-                "INSERT INTO daily_entries (localId, serverId, dailyLogLocalId, type, syncStatus, pendingOp, locallyModifiedAt, lastSyncError) VALUES " +
-                    "('e-synced', 47, 'l-v14', 'PURCHASE', 'SYNCED', 'NONE', 1000, NULL), " +
-                    "('e-gone', 48, 'l-v14', 'WORK', 'CONFLICTED', 'UPDATE', 1000, 'DELETED_ON_SERVER')",
-            )
-            c.execSQL(
-                "INSERT INTO materials (localId, serverId, projectLocalId, name, unit, syncStatus, pendingOp, locallyModifiedAt) VALUES " +
-                    "('m-v14', 7, 'p-synced', 'Ciment', 'sac', 'SYNCED', 'NONE', 1000)",
-            )
-            c.execSQL(
-                "INSERT INTO purchase_lines (localId, serverId, entryLocalId, materialLocalId, quantity, unitPrice, totalPrice, syncStatus, pendingOp, " +
-                    "locallyModifiedAt, lastSyncError, serverQuantity) VALUES " +
-                    "('pl-synced', 60, 'e-synced', 'm-v14', 10.0, 2.0, 20.0, 'SYNCED', 'NONE', 1000, NULL, 10.0), " +
-                    "('pl-pending', NULL, 'e-synced', 'm-v14', 4.0, 2.0, 8.0, 'PENDING', 'CREATE', 1000, NULL, NULL), " +
-                    "('pl-rejected', NULL, 'e-synced', 'm-v14', 2.675, 2.0, 5.35, 'CONFLICTED', 'CREATE', 1000, 'REJECTED', NULL)",
-            )
-            c.execSQL(
-                "INSERT INTO consumption_lines (localId, serverId, entryLocalId, materialLocalId, quantity, syncStatus, pendingOp, locallyModifiedAt, lastSyncError, serverQuantity) VALUES " +
-                    "('cl-rejected', NULL, 'e-gone', 'm-v14', 99.0, 'CONFLICTED', 'CREATE', 1000, 'REJECTED', NULL)",
-            )
-            c.execSQL(
-                "INSERT INTO attachments (localId, serverId, entryLocalId, localPath, originalName, mimeType, sizeBytes, uploadedAt, syncStatus, pendingOp, " +
-                    "locallyModifiedAt, lastSyncError) VALUES " +
-                    "('a-rejected', NULL, 'e-synced', 'ticket.jpg', 'ticket.jpg', 'image/jpeg', 1024, 1000, 'CONFLICTED', 'CREATE', 1000, 'REJECTED')",
-            )
-            c.execSQL("INSERT INTO material_stock (projectLocalId, materialServerId, quantityIn, quantityOut) VALUES ('p-synced', 7, 10.0, 0.0)")
-            c.execSQL("INSERT INTO stock_snapshots (projectLocalId, refreshedAt, needsRefresh) VALUES ('p-synced', 2000, 0)")
-        }
+        BundledSQLiteDriver().open(v14Path).use { c -> seedARealV14Database(c) }
 
         val db = Room.databaseBuilder<AppDatabase>(name = v14Path).buildChantierDatabase()
         try {
@@ -1107,6 +1067,223 @@ class MigrationTest {
         added.forEach { (table, column) -> assertEquals("TEXT" to false, v15.getValue(table).getValue(column), "$table.$column is a nullable TEXT") }
         v14.forEach { (table, columns) -> columns.forEach { (name, type) -> assertEquals(type, v15.getValue(table).getValue(name), "$table.$name unchanged") } }
     }
+
+    @Test
+    fun migrating_a_real_v15_database_keeps_every_row_starts_the_local_version_at_zero_and_moves_the_awaited_note_to_its_own_column() = runTest {
+        val v15Path = dir.resolve("migration-v15.db").absolutePathString()
+        val awaitedTables = listOf("projects", "stages", "materials", "daily_entries", "purchase_lines", "consumption_lines")
+        BundledSQLiteDriver().open(v15Path).use { c ->
+            createFromExportedSchema(c, version = 15)
+            c.execSQL(
+                "INSERT INTO projects (localId, serverId, name, currency, timezone, status, syncStatus, pendingOp, locallyModifiedAt, lastSyncError, serverErrorCode) VALUES " +
+                    "('p-synced', 42, 'Chantier v15', 'EUR', 'Europe/Paris', 'IN_PROGRESS', 'SYNCED', 'NONE', 1000, NULL, NULL), " +
+                    "('p-awaiting', 49, 'Relu bientôt', 'EUR', 'Europe/Paris', 'IN_PROGRESS', 'SYNCED', 'NONE', 1000, 'AWAITING_SERVER_VERSION', NULL), " +
+                    "('p-over-limit', NULL, 'Au-delà de la limite', 'EUR', 'Europe/Paris', 'IN_PROGRESS', 'CONFLICTED', 'CREATE', 1000, 'PLAN_LIMIT', 'PLAN_LIMIT_EXCEEDED')",
+            )
+            c.execSQL(
+                "INSERT INTO stages (localId, serverId, projectLocalId, name, status, syncStatus, pendingOp, locallyModifiedAt, lastSyncError, serverErrorCode) VALUES " +
+                    "('s-synced', 43, 'p-synced', 'Gros œuvre', 'IN_PROGRESS', 'SYNCED', 'NONE', 1000, NULL, NULL), " +
+                    "('s-pending', NULL, 'p-synced', 'Peinture', 'IN_PROGRESS', 'PENDING', 'CREATE', 1000, NULL, NULL), " +
+                    "('s-edit-refused', 44, 'p-synced', 'Charpente', 'IN_PROGRESS', 'CONFLICTED', 'UPDATE', 1000, 'UPDATE_REFUSED', 'PROJECT_INSUFFICIENT_ROLE'), " +
+                    "('s-delete-refused', 45, 'p-synced', 'Toiture', 'IN_PROGRESS', 'SYNCED', 'NONE', 1000, 'REJECTED', 'PROJECT_INSUFFICIENT_ROLE'), " +
+                    "('s-awaiting', 46, 'p-synced', 'Isolation', 'IN_PROGRESS', 'SYNCED', 'NONE', 1000, 'AWAITING_SERVER_VERSION', NULL)",
+            )
+            c.execSQL("INSERT INTO daily_logs (localId, serverId, stageLocalId, date, locallyCreatedAt) VALUES ('l-v15', 47, 's-synced', '2026-10-01', 1000)")
+            c.execSQL(
+                "INSERT INTO daily_entries (localId, serverId, dailyLogLocalId, type, summary, syncStatus, pendingOp, locallyModifiedAt, lastSyncError, serverErrorCode) VALUES " +
+                    "('e-awaiting', 48, 'l-v15', 'PURCHASE', 'Dernière version connue', 'SYNCED', 'NONE', 1000, 'AWAITING_SERVER_VERSION', NULL), " +
+                    "('e-gone', 50, 'l-v15', 'WORK', NULL, 'CONFLICTED', 'UPDATE', 1000, 'DELETED_ON_SERVER', NULL)",
+            )
+            c.execSQL(
+                "INSERT INTO materials (localId, serverId, projectLocalId, name, unit, syncStatus, pendingOp, locallyModifiedAt, lastSyncError, serverErrorCode) VALUES " +
+                    "('m-synced', 7, 'p-synced', 'Ciment', 'sac', 'SYNCED', 'NONE', 1000, NULL, NULL), " +
+                    "('m-awaiting', 8, 'p-synced', 'Sable', 'kg', 'SYNCED', 'NONE', 1000, 'AWAITING_SERVER_VERSION', NULL), " +
+                    "('m-refused', NULL, 'p-synced', 'Gravier', 't', 'CONFLICTED', 'CREATE', 1000, 'REJECTED', 'DUPLICATE_MATERIAL')",
+            )
+            c.execSQL(
+                "INSERT INTO purchase_lines (localId, serverId, entryLocalId, materialLocalId, quantity, unitPrice, totalPrice, syncStatus, pendingOp, " +
+                    "locallyModifiedAt, lastSyncError, serverErrorCode, serverQuantity) VALUES " +
+                    "('pl-synced', 60, 'e-awaiting', 'm-synced', 10.0, 2.0, 20.0, 'SYNCED', 'NONE', 1000, NULL, NULL, 10.0), " +
+                    "('pl-pending', NULL, 'e-awaiting', 'm-synced', 4.0, 2.0, 8.0, 'PENDING', 'CREATE', 1000, NULL, NULL, NULL), " +
+                    "('pl-rejected', NULL, 'e-awaiting', 'm-synced', 2.675, 2.0, 5.35, 'CONFLICTED', 'CREATE', 1000, 'REJECTED', 'INVALID_AMOUNT', NULL), " +
+                    "('pl-awaiting', 61, 'e-awaiting', 'm-synced', 6.0, 2.0, 12.0, 'SYNCED', 'NONE', 1000, 'AWAITING_SERVER_VERSION', NULL, 6.0)",
+            )
+            c.execSQL(
+                "INSERT INTO consumption_lines (localId, serverId, entryLocalId, materialLocalId, quantity, syncStatus, pendingOp, locallyModifiedAt, lastSyncError, serverErrorCode, serverQuantity) VALUES " +
+                    "('cl-change-refused', 70, 'e-gone', 'm-synced', 99.0, 'CONFLICTED', 'UPDATE', 1000, 'UPDATE_REFUSED', 'INSUFFICIENT_STOCK', 2.0), " +
+                    "('cl-awaiting', 71, 'e-gone', 'm-synced', 3.0, 'SYNCED', 'NONE', 1000, 'AWAITING_SERVER_VERSION', NULL, 3.0)",
+            )
+            c.execSQL(
+                "INSERT INTO attachments (localId, serverId, entryLocalId, localPath, originalName, mimeType, sizeBytes, uploadedAt, syncStatus, pendingOp, " +
+                    "locallyModifiedAt, lastSyncError, serverErrorCode) VALUES " +
+                    "('a-refused', NULL, 'e-awaiting', 'ticket.jpg', 'ticket.jpg', 'image/jpeg', 1024, 1000, 'CONFLICTED', 'CREATE', 1000, 'FILE_REFUSED', 'ATTACHMENT_TOO_LARGE'), " +
+                    "('a-pending', NULL, 'e-awaiting', 'bon.jpg', 'bon.jpg', 'image/jpeg', 2048, 1000, 'PENDING', 'CREATE', 1000, NULL, NULL)",
+            )
+        }
+
+        val db = Room.databaseBuilder<AppDatabase>(name = v15Path).buildChantierDatabase()
+        try {
+            val projects = db.projectDao().findAll().associateBy { it.localId }
+            val stages = db.stageDao().findForProject("p-synced").associateBy { it.localId }
+            val materials = db.materialDao().findForProject("p-synced").associateBy { it.localId }
+            val entries = db.dailyEntryDao().findForLog("l-v15").associateBy { it.localId }
+            val purchaseLines = db.purchaseLineDao().findForEntry("e-awaiting").associateBy { it.localId }
+            val consumptionLines = db.consumptionLineDao().findForEntry("e-gone").associateBy { it.localId }
+            val attachments = db.attachmentDao().findForEntry("e-awaiting").associateBy { it.localId }
+            assertEquals(
+                listOf(3, 5, 3, 2, 4, 2, 2),
+                listOf(projects.size, stages.size, materials.size, entries.size, purchaseLines.size, consumptionLines.size, attachments.size),
+                "every v15 row survives",
+            )
+            val versioned = projects.values + stages.values + materials.values + entries.values + purchaseLines.values + consumptionLines.values + attachments.values
+            assertTrue(versioned.all { it.localVersion == 0L }, "the local version starts at zero on every existing row")
+
+            val awaited = listOf(
+                projects.getValue("p-awaiting"), stages.getValue("s-awaiting"), materials.getValue("m-awaiting"),
+                entries.getValue("e-awaiting"), purchaseLines.getValue("pl-awaiting"), consumptionLines.getValue("cl-awaiting"),
+            )
+            awaited.forEach { row ->
+                assertEquals(
+                    listOf<Any?>(true, null, SyncStatus.SYNCED, PendingOp.NONE), listOf(row.awaitsServerVersion, row.lastSyncError, row.syncStatus, row.pendingOp),
+                    "the note moves to its own column and leaves the error column: $row",
+                )
+            }
+            assertEquals("Dernière version connue", entries.getValue("e-awaiting").summary, "with the last known values")
+            assertEquals(
+                setOf("p-awaiting", "s-awaiting", "m-awaiting", "e-awaiting", "pl-awaiting", "cl-awaiting"),
+                db.syncIssueActionDao().rowsAwaitingServerVersion().map { it.localId }.toSet(),
+                "the engine still finds what it has to read again",
+            )
+            val others = (projects.values + stages.values + materials.values + entries.values + purchaseLines.values + consumptionLines.values).filter { row -> awaited.none { it === row } }
+            assertTrue(others.none { it.awaitsServerVersion }, "nothing else is noted")
+
+            assertEquals(listOf<Any?>(SyncStatus.CONFLICTED, "PLAN_LIMIT", "PLAN_LIMIT_EXCEEDED"), projects.getValue("p-over-limit").let { listOf(it.syncStatus, it.lastSyncError, it.serverErrorCode) })
+            assertEquals(listOf<Any?>(SyncStatus.CONFLICTED, "UPDATE_REFUSED", "PROJECT_INSUFFICIENT_ROLE"), stages.getValue("s-edit-refused").let { listOf(it.syncStatus, it.lastSyncError, it.serverErrorCode) })
+            assertEquals(SyncIssueKind.DELETE_REFUSED, stages.getValue("s-delete-refused").syncIssue()?.kind)
+            assertEquals(SyncIssueKind.DELETED_ON_SERVER, entries.getValue("e-gone").syncIssue()?.kind)
+            assertEquals(listOf<Any?>("REJECTED", "INVALID_AMOUNT", 2.675), purchaseLines.getValue("pl-rejected").let { listOf(it.lastSyncError, it.serverErrorCode, it.quantity) })
+            assertEquals(listOf<Any?>("UPDATE_REFUSED", "INSUFFICIENT_STOCK", 99.0, 2.0), consumptionLines.getValue("cl-change-refused").let { listOf(it.lastSyncError, it.serverErrorCode, it.quantity, it.serverQuantity) })
+            assertEquals(listOf<Any?>("FILE_REFUSED", "ATTACHMENT_TOO_LARGE"), attachments.getValue("a-refused").let { listOf(it.lastSyncError, it.serverErrorCode) })
+            assertEquals(null, awaited.firstNotNullOfOrNull { it.syncIssue() }, "an awaited row is not an issue")
+
+            assertEquals(listOf("pl-pending", "pl-rejected"), db.purchaseLineDao().findPending().map { it.localId }.sorted(), "what waited to be sent still does")
+            assertEquals(listOf("s-pending"), db.stageDao().findPending().map { it.localId })
+            assertEquals(listOf("a-pending"), db.attachmentDao().findPending().map { it.localId })
+            assertEquals(
+                setOf("p-over-limit", "s-edit-refused", "s-delete-refused", "e-gone", "m-refused", "pl-rejected", "cl-change-refused", "a-refused"),
+                db.syncIssueDao().observeUnsettled().first().filter { it.syncStatus != SyncStatus.PENDING }.map { it.localId }.toSet(),
+                "the entries to review are the same as before the migration",
+            )
+
+            db.stageDao().changeLocally("s-pending") { it.copy(name = "Peinture intérieure") }
+            assertEquals(listOf<Any?>("Peinture intérieure", 1L), db.stageDao().findByLocalId("s-pending")!!.let { listOf(it.name, it.localVersion) }, "the new column counts the next change")
+        } finally {
+            db.close()
+        }
+    }
+
+    @Test
+    fun migrating_a_real_v14_database_straight_to_v16_keeps_every_row_with_a_local_version_of_zero_and_nothing_awaited() = runTest {
+        val v14Path = dir.resolve("migration-v14-to-v16.db").absolutePathString()
+        BundledSQLiteDriver().open(v14Path).use { c -> seedARealV14Database(c) }
+
+        val db = Room.databaseBuilder<AppDatabase>(name = v14Path).buildChantierDatabase()
+        try {
+            val rows = listOf(
+                db.projectDao().findByLocalId("p-synced"), db.projectDao().findByLocalId("p-over-limit"),
+                db.stageDao().findByLocalId("s-synced"), db.stageDao().findByLocalId("s-edit-refused"), db.stageDao().findByLocalId("s-delete-refused"),
+                db.dailyEntryDao().findByLocalId("e-synced"), db.dailyEntryDao().findByLocalId("e-gone"), db.materialDao().findByLocalId("m-v14"),
+                db.purchaseLineDao().findByLocalId("pl-synced"), db.purchaseLineDao().findByLocalId("pl-pending"), db.purchaseLineDao().findByLocalId("pl-rejected"),
+                db.consumptionLineDao().findByLocalId("cl-rejected"),
+            ).map { it!! }
+            rows.forEach { row -> assertEquals(listOf<Any?>(false, null), listOf(row.awaitsServerVersion, row.serverErrorCode), "$row") }
+            assertEquals(0L, db.attachmentDao().findByLocalId("a-rejected")!!.localVersion)
+            assertEquals(
+                List(12) { 0L },
+                listOf(
+                    db.projectDao().findByLocalId("p-synced")!!.localVersion, db.projectDao().findByLocalId("p-over-limit")!!.localVersion,
+                    db.stageDao().findByLocalId("s-synced")!!.localVersion, db.stageDao().findByLocalId("s-edit-refused")!!.localVersion, db.stageDao().findByLocalId("s-delete-refused")!!.localVersion,
+                    db.dailyEntryDao().findByLocalId("e-synced")!!.localVersion, db.dailyEntryDao().findByLocalId("e-gone")!!.localVersion, db.materialDao().findByLocalId("m-v14")!!.localVersion,
+                    db.purchaseLineDao().findByLocalId("pl-synced")!!.localVersion, db.purchaseLineDao().findByLocalId("pl-pending")!!.localVersion, db.purchaseLineDao().findByLocalId("pl-rejected")!!.localVersion,
+                    db.consumptionLineDao().findByLocalId("cl-rejected")!!.localVersion,
+                ),
+            )
+            assertEquals(emptyList(), db.syncIssueActionDao().rowsAwaitingServerVersion())
+            assertEquals(listOf<Any?>(SyncStatus.CONFLICTED, "REJECTED", 2.675), db.purchaseLineDao().findByLocalId("pl-rejected")!!.let { listOf(it.syncStatus, it.lastSyncError, it.quantity) })
+            assertEquals(SyncIssueKind.DELETE_REFUSED, db.stageDao().findByLocalId("s-delete-refused")!!.syncIssue()?.kind)
+            assertEquals(listOf("pl-pending", "pl-rejected"), db.purchaseLineDao().findPending().map { it.localId }.sorted())
+            assertEquals(10.0, db.stockDao().findCounter("p-synced", 7)?.quantityIn)
+
+            assertTrue(db.purchaseLineDao().writeIfUnchanged(db.purchaseLineDao().findByLocalId("pl-pending")!!.copy(quantity = 5.0)))
+            db.purchaseLineDao().changeLocally("pl-pending") { it.copy(quantity = 6.0) }
+            assertEquals(listOf<Any?>(6.0, 1L), db.purchaseLineDao().findByLocalId("pl-pending")!!.let { listOf(it.quantity, it.localVersion) })
+        } finally {
+            db.close()
+        }
+    }
+
+    @Test
+    fun the_exported_v16_schema_adds_only_the_local_version_and_the_awaited_note_as_non_null_integers() {
+        fun columnsByTable(version: Int): Map<String, Map<String, Pair<String, Boolean>>> =
+            exportedSchema(version)["entities"]!!.jsonArray.associate { entity ->
+                entity.jsonObject["tableName"]!!.jsonPrimitive.content to entity.jsonObject["fields"]!!.jsonArray.associate { field ->
+                    val f = field.jsonObject
+                    f["columnName"]!!.jsonPrimitive.content to (f["affinity"]!!.jsonPrimitive.content to (f["notNull"]?.jsonPrimitive?.content == "true"))
+                }
+            }
+        val v15 = columnsByTable(15)
+        val v16 = columnsByTable(16)
+        val versioned = setOf("projects", "stages", "materials", "daily_entries", "purchase_lines", "consumption_lines", "attachments")
+
+        assertEquals(v15.keys, v16.keys, "no table added or removed")
+        val added = v16.flatMap { (table, columns) -> (columns.keys - v15.getValue(table).keys).map { table to it } }.toSet()
+        assertEquals(versioned.map { it to "localVersion" }.toSet() + (versioned - "attachments").map { it to "awaitsServerVersion" }, added)
+        added.forEach { (table, column) -> assertEquals("INTEGER" to true, v16.getValue(table).getValue(column), "$table.$column is a non-null INTEGER") }
+        v15.forEach { (table, columns) -> columns.forEach { (name, type) -> assertEquals(type, v16.getValue(table).getValue(name), "$table.$name unchanged") } }
+    }
+}
+
+private fun seedARealV14Database(c: androidx.sqlite.SQLiteConnection) {
+    createFromExportedSchema(c, version = 14)
+    c.execSQL(
+        "INSERT INTO projects (localId, serverId, name, currency, timezone, status, syncStatus, pendingOp, locallyModifiedAt, lastSyncError) VALUES " +
+            "('p-synced', 42, 'Chantier v14', 'EUR', 'Europe/Paris', 'IN_PROGRESS', 'SYNCED', 'NONE', 1000, NULL), " +
+            "('p-over-limit', NULL, 'Au-delà de la limite', 'EUR', 'Europe/Paris', 'IN_PROGRESS', 'CONFLICTED', 'CREATE', 1000, 'PLAN_LIMIT')",
+    )
+    c.execSQL(
+        "INSERT INTO stages (localId, serverId, projectLocalId, name, status, syncStatus, pendingOp, locallyModifiedAt, lastSyncError) VALUES " +
+            "('s-synced', 43, 'p-synced', 'Gros œuvre', 'IN_PROGRESS', 'SYNCED', 'NONE', 1000, NULL), " +
+            "('s-edit-refused', 44, 'p-synced', 'Charpente', 'IN_PROGRESS', 'CONFLICTED', 'UPDATE', 1000, 'REJECTED'), " +
+            "('s-delete-refused', 45, 'p-synced', 'Toiture', 'IN_PROGRESS', 'SYNCED', 'NONE', 1000, 'REJECTED')",
+    )
+    c.execSQL("INSERT INTO daily_logs (localId, serverId, stageLocalId, date, locallyCreatedAt) VALUES ('l-v14', 46, 's-synced', '2026-10-01', 1000)")
+    c.execSQL(
+        "INSERT INTO daily_entries (localId, serverId, dailyLogLocalId, type, syncStatus, pendingOp, locallyModifiedAt, lastSyncError) VALUES " +
+            "('e-synced', 47, 'l-v14', 'PURCHASE', 'SYNCED', 'NONE', 1000, NULL), " +
+            "('e-gone', 48, 'l-v14', 'WORK', 'CONFLICTED', 'UPDATE', 1000, 'DELETED_ON_SERVER')",
+    )
+    c.execSQL(
+        "INSERT INTO materials (localId, serverId, projectLocalId, name, unit, syncStatus, pendingOp, locallyModifiedAt) VALUES " +
+            "('m-v14', 7, 'p-synced', 'Ciment', 'sac', 'SYNCED', 'NONE', 1000)",
+    )
+    c.execSQL(
+        "INSERT INTO purchase_lines (localId, serverId, entryLocalId, materialLocalId, quantity, unitPrice, totalPrice, syncStatus, pendingOp, " +
+            "locallyModifiedAt, lastSyncError, serverQuantity) VALUES " +
+            "('pl-synced', 60, 'e-synced', 'm-v14', 10.0, 2.0, 20.0, 'SYNCED', 'NONE', 1000, NULL, 10.0), " +
+            "('pl-pending', NULL, 'e-synced', 'm-v14', 4.0, 2.0, 8.0, 'PENDING', 'CREATE', 1000, NULL, NULL), " +
+            "('pl-rejected', NULL, 'e-synced', 'm-v14', 2.675, 2.0, 5.35, 'CONFLICTED', 'CREATE', 1000, 'REJECTED', NULL)",
+    )
+    c.execSQL(
+        "INSERT INTO consumption_lines (localId, serverId, entryLocalId, materialLocalId, quantity, syncStatus, pendingOp, locallyModifiedAt, lastSyncError, serverQuantity) VALUES " +
+            "('cl-rejected', NULL, 'e-gone', 'm-v14', 99.0, 'CONFLICTED', 'CREATE', 1000, 'REJECTED', NULL)",
+    )
+    c.execSQL(
+        "INSERT INTO attachments (localId, serverId, entryLocalId, localPath, originalName, mimeType, sizeBytes, uploadedAt, syncStatus, pendingOp, " +
+            "locallyModifiedAt, lastSyncError) VALUES " +
+            "('a-rejected', NULL, 'e-synced', 'ticket.jpg', 'ticket.jpg', 'image/jpeg', 1024, 1000, 'CONFLICTED', 'CREATE', 1000, 'REJECTED')",
+    )
+    c.execSQL("INSERT INTO material_stock (projectLocalId, materialServerId, quantityIn, quantityOut) VALUES ('p-synced', 7, 10.0, 0.0)")
+    c.execSQL("INSERT INTO stock_snapshots (projectLocalId, refreshedAt, needsRefresh) VALUES ('p-synced', 2000, 0)")
 }
 
 private fun exportedSchema(version: Int): kotlinx.serialization.json.JsonObject {

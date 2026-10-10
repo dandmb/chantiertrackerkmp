@@ -553,7 +553,7 @@ class SyncAndRejectionsIntegrationTest {
         val visibleOffline = supervisorPhone.logs.observeLog(supervisorLog.localId).first()!!.entries
         println("ADR-74 tranche 3bis — j'ai compris hors ligne : ${purchaseOffline.syncStatus}/${purchaseOffline.pendingOp}/${purchaseOffline.lastSyncError} résumé=${purchaseOffline.summary} ; visibles=${visibleOffline.size}")
         assertEquals(before[1].summary, purchaseOffline.summary, "hors ligne : la dernière version connue reste affichée")
-        assertEquals(com.dmb.chantiertracker.data.sync.SyncError.AWAITING_SERVER_VERSION, purchaseOffline.lastSyncError, "le rafraîchissement est noté en base")
+        assertEquals(listOf<Any?>(true, null), listOf(purchaseOffline.awaitsServerVersion, purchaseOffline.lastSyncError), "le rafraîchissement est noté en base, hors de la colonne d'erreur")
         assertEquals(2, visibleOffline.size, "les deux saisies sont visibles")
         assertTrue(visibleOffline.all { it.syncIssue == null }, "sans mention")
         assertTrue(issues.observeIssues().first().isEmpty(), "plus rien à revoir")

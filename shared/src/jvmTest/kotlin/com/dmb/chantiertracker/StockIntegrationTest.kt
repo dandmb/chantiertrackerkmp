@@ -24,6 +24,8 @@ import com.dmb.chantiertracker.support.retryingOnRateLimit
 import com.dmb.chantiertracker.support.signInForTheFirstTime
 import io.ktor.client.request.get
 import io.ktor.client.statement.bodyAsText
+import io.ktor.client.plugins.HttpSend
+import io.ktor.client.plugins.plugin
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
@@ -269,6 +271,71 @@ class StockIntegrationTest {
         assertEquals(server, app)
         assertEquals(0.0, server.getValue("Ciment"), "2 achetés, 2 consommés : une seule consommation est arrivée, pas de doublon")
         assertTrue(issues.observeIssues().first().isEmpty())
+    }
+
+    private fun DeviceStack.whileSending(method: String, pathPart: String, userSaves: suspend () -> Unit): () -> Int {
+        var sent = 0
+        client.plugin(HttpSend).intercept { request ->
+            if (request.method.value == method && request.url.buildString().contains(pathPart) && sent++ == 0) userSaves()
+            execute(request)
+        }
+        return { sent }
+    }
+
+    @Test
+    fun adr75_a_line_saved_while_the_pass_is_sending_it_keeps_what_was_saved_after_a_refusal_and_after_an_acceptance() = runScenario {
+        val owner = device()
+        owner.signedInAs("qa-75", "QA 75 Course")
+        val (project, stage) = owner.newSite("QA 75 course")
+        val date = today().toString()
+        val purchase = owner.entryOf(owner.logs.createPurchaseEntry(stage, date), EntryType.PURCHASE)
+        val cement = owner.materials.createMaterial(project, "Ciment", "sac")
+        val bought = owner.purchaseLines.createLine(purchase, CreatePurchaseLineInput(cement.localId, 2.0, 5.0, null))
+        owner.sync.syncNow()
+
+        owner.goOffline()
+        val work = owner.entryOf(owner.logs.createWorkEntry(stage, date), EntryType.WORK)
+        val tooMuch = owner.consumptionLines.createLine(work, CreateConsumptionLineInput(cement.localId, 5.0))
+        owner.goOnline()
+        owner.sync.syncNow()
+        owner.waitForTheRunningSyncPass()
+        assertEquals(listOf(tooMuch), owner.syncIssues.observeIssues().first().map { it.localId }, "5 sacs consommés pour 2 achetés : refusé")
+
+        val consumptionsSent = owner.whileSending("POST", "/consumption-lines") {
+            owner.consumptionLines.updateLine(tooMuch, com.dmb.chantiertracker.domain.model.UpdateConsumptionLineInput(2.0))
+        }
+        owner.sync.syncNow()
+        val afterTheRefusedResend = owner.db.consumptionLineDao().findByLocalId(tooMuch)!!
+        println("ADR-75 — correction pendant le renvoi refusé : envois=${consumptionsSent()}, quantité=${afterTheRefusedResend.quantity}, version=${afterTheRefusedResend.localVersion}")
+        assertTrue(consumptionsSent() >= 1, "la correction a bien été enregistrée pendant l'envoi de l'ancienne valeur")
+        assertEquals(2.0, afterTheRefusedResend.quantity, "le refus de l'ancienne valeur n'écrase pas la correction")
+        owner.waitForTheRunningSyncPass()
+        owner.sync.syncNow()
+        val corrected = owner.db.consumptionLineDao().findByLocalId(tooMuch)!!
+        assertEquals(listOf<Any?>(SyncStatus.SYNCED, 2.0, null), listOf(corrected.syncStatus, corrected.quantity, corrected.lastSyncError), "la correction est partie et a été acceptée")
+        assertTrue(owner.syncIssues.observeIssues().first().isEmpty(), "plus rien à revoir")
+        assertEquals(0.0, owner.serverStock(project).getValue("Ciment"), "2 achetés, 2 consommés, une seule consommation sur le serveur")
+
+        owner.goOffline()
+        owner.waitForTheRunningSyncPass()
+        owner.purchaseLines.updateLine(bought, com.dmb.chantiertracker.domain.model.UpdatePurchaseLineInput(3.0, 5.0, null))
+        val purchasesSent = owner.whileSending("PATCH", "/purchase-lines/") {
+            owner.purchaseLines.updateLine(bought, com.dmb.chantiertracker.domain.model.UpdatePurchaseLineInput(4.0, 5.0, null))
+        }
+        owner.goOnline()
+        owner.sync.syncNow()
+        val afterTheAcceptedSend = owner.db.purchaseLineDao().findByLocalId(bought)!!
+        println("ADR-75 — modification pendant un envoi accepté : envois=${purchasesSent()}, quantité=${afterTheAcceptedSend.quantity}")
+        assertTrue(purchasesSent() >= 1)
+        assertEquals(4.0, afterTheAcceptedSend.quantity, "la valeur envoyée (3) ne remplace pas celle saisie pendant l'envoi (4)")
+        owner.waitForTheRunningSyncPass()
+        owner.sync.syncNow()
+        val sent = owner.db.purchaseLineDao().findByLocalId(bought)!!
+        val (app, server) = owner.compare("ADR-75 — après l'envoi de la dernière saisie", project)
+        assertEquals(listOf<Any?>(SyncStatus.SYNCED, 4.0), listOf(sent.syncStatus, sent.quantity))
+        assertEquals(2.0, server.getValue("Ciment"), "le serveur a reçu 4 : 4 achetés, 2 consommés")
+        assertEquals(server, app)
+        assertTrue(purchasesSent() >= 2, "deux envois : la valeur lue par la passe, puis celle saisie pendant l'envoi")
     }
 
     @Test

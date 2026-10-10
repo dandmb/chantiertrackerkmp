@@ -112,6 +112,16 @@ class AppDatabaseTest {
     }
 
     @Test
+    fun local_version_contract_holds_on_ios() = runTest {
+        val db = Room.inMemoryDatabaseBuilder<AppDatabase>().buildChantierDatabase()
+        try {
+            com.dmb.chantiertracker.support.verifyLocalVersionContract(db)
+        } finally {
+            db.close()
+        }
+    }
+
+    @Test
     fun sync_issue_actions_contract_holds_on_ios() = runTest {
         val db = Room.inMemoryDatabaseBuilder<AppDatabase>().buildChantierDatabase()
         try {

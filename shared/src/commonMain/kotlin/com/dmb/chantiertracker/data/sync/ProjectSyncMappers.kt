@@ -17,7 +17,6 @@ object SyncError {
     const val DELETED_ON_SERVER = "DELETED_ON_SERVER"
     const val UPDATE_REFUSED = "UPDATE_REFUSED"
     const val FILE_REFUSED = "FILE_REFUSED"
-    const val AWAITING_SERVER_VERSION = "AWAITING_SERVER_VERSION"
 
     val WAITING_FOR_THE_USER = setOf(DELETED_ON_SERVER, UPDATE_REFUSED, FILE_REFUSED)
 }
@@ -54,6 +53,7 @@ fun ProjectDto.toSyncedEntity(localId: String, syncedAt: Long, previous: Project
         remoteUpdatedAt = remoteMillis,
         lastSyncError = previous.keptDeleteRefusal(),
         serverErrorCode = previous.keptDeleteRefusalCode(),
+        localVersion = previous?.localVersion ?: 0,
         // The list DTO carries no owner field — keep what the detail pull stored.
         ownerPlan = previous?.ownerPlan,
         ownerIsFounder = previous?.ownerIsFounder,
@@ -90,6 +90,7 @@ fun ProjectDetailDto.toSyncedEntity(localId: String, syncedAt: Long, previous: P
         remoteUpdatedAt = remoteMillis,
         lastSyncError = previous.keptDeleteRefusal(),
         serverErrorCode = previous.keptDeleteRefusalCode(),
+        localVersion = previous?.localVersion ?: 0,
         ownerPlan = ownerPlan ?: previous?.ownerPlan,
         ownerIsFounder = if (serverSentOwnerEntitlements) ownerIsFounder else previous?.ownerIsFounder,
         ownerCanExportPdf = if (serverSentOwnerEntitlements) ownerCanExportPdf else previous?.ownerCanExportPdf,

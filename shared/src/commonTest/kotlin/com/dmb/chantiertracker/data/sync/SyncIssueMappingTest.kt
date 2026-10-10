@@ -32,7 +32,7 @@ class SyncIssueMappingTest {
 
     @Test
     fun a_row_awaiting_its_server_version_is_not_an_issue_and_holds_no_refusal() {
-        val awaiting = line(SyncStatus.SYNCED, PendingOp.NONE, SyncError.AWAITING_SERVER_VERSION, serverId = 1)
+        val awaiting = line(SyncStatus.SYNCED, PendingOp.NONE, serverId = 1).copy(awaitsServerVersion = true)
 
         assertNull(awaiting.syncIssue())
         assertNull(awaiting.syncIssue(blockedByParent = true))

@@ -39,6 +39,12 @@ abstract class StockDao {
     @Query("DELETE FROM purchase_lines WHERE localId = :localId")
     protected abstract suspend fun deletePurchaseLine(localId: String)
 
+    @Query("SELECT localVersion FROM purchase_lines WHERE localId = :localId")
+    protected abstract suspend fun purchaseLineVersion(localId: String): Long?
+
+    @Query("SELECT localVersion FROM consumption_lines WHERE localId = :localId")
+    protected abstract suspend fun consumptionLineVersion(localId: String): Long?
+
     @Query("DELETE FROM consumption_lines WHERE localId = :localId")
     protected abstract suspend fun deleteConsumptionLine(localId: String)
 
@@ -50,27 +56,35 @@ abstract class StockDao {
     }
 
     @Transaction
-    open suspend fun recordPurchaseLineSynced(projectLocalId: String, materialServerId: Long, line: PurchaseLineEntity, previousServerQuantity: Double?) {
+    open suspend fun recordPurchaseLineSynced(projectLocalId: String, materialServerId: Long, line: PurchaseLineEntity, previousServerQuantity: Double?): Boolean {
+        if (purchaseLineVersion(line.localId) != line.localVersion) return false
         upsertPurchaseLine(line)
         adjustCounter(projectLocalId, materialServerId, deltaIn = (line.serverQuantity ?: 0.0) - (previousServerQuantity ?: 0.0), deltaOut = 0.0)
+        return true
     }
 
     @Transaction
-    open suspend fun recordConsumptionLineSynced(projectLocalId: String, materialServerId: Long, line: ConsumptionLineEntity, previousServerQuantity: Double?) {
+    open suspend fun recordConsumptionLineSynced(projectLocalId: String, materialServerId: Long, line: ConsumptionLineEntity, previousServerQuantity: Double?): Boolean {
+        if (consumptionLineVersion(line.localId) != line.localVersion) return false
         upsertConsumptionLine(line)
         adjustCounter(projectLocalId, materialServerId, deltaIn = 0.0, deltaOut = (line.serverQuantity ?: 0.0) - (previousServerQuantity ?: 0.0))
+        return true
     }
 
     @Transaction
-    open suspend fun recordPurchaseLineDeleted(projectLocalId: String, materialServerId: Long, lineLocalId: String, serverQuantity: Double) {
-        deletePurchaseLine(lineLocalId)
+    open suspend fun recordPurchaseLineDeleted(projectLocalId: String, materialServerId: Long, line: PurchaseLineEntity, serverQuantity: Double): Boolean {
+        if (purchaseLineVersion(line.localId) != line.localVersion) return false
+        deletePurchaseLine(line.localId)
         adjustCounter(projectLocalId, materialServerId, deltaIn = -serverQuantity, deltaOut = 0.0)
+        return true
     }
 
     @Transaction
-    open suspend fun recordConsumptionLineDeleted(projectLocalId: String, materialServerId: Long, lineLocalId: String, serverQuantity: Double) {
-        deleteConsumptionLine(lineLocalId)
+    open suspend fun recordConsumptionLineDeleted(projectLocalId: String, materialServerId: Long, line: ConsumptionLineEntity, serverQuantity: Double): Boolean {
+        if (consumptionLineVersion(line.localId) != line.localVersion) return false
+        deleteConsumptionLine(line.localId)
         adjustCounter(projectLocalId, materialServerId, deltaIn = 0.0, deltaOut = -serverQuantity)
+        return true
     }
 
     private suspend fun adjustCounter(projectLocalId: String, materialServerId: Long, deltaIn: Double, deltaOut: Double) {

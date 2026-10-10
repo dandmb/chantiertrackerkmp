@@ -407,3 +407,15 @@ val MIGRATION_14_15 = object : Migration(14, 15) {
         }
     }
 }
+
+val MIGRATION_15_16 = object : Migration(15, 16) {
+    override fun migrate(connection: SQLiteConnection) {
+        listOf("projects", "stages", "materials", "daily_entries", "purchase_lines", "consumption_lines", "attachments").forEach { table ->
+            connection.execSQL("ALTER TABLE `$table` ADD COLUMN `localVersion` INTEGER NOT NULL DEFAULT 0")
+        }
+        listOf("projects", "stages", "materials", "daily_entries", "purchase_lines", "consumption_lines").forEach { table ->
+            connection.execSQL("ALTER TABLE `$table` ADD COLUMN `awaitsServerVersion` INTEGER NOT NULL DEFAULT 0")
+            connection.execSQL("UPDATE `$table` SET `awaitsServerVersion` = 1, `lastSyncError` = NULL WHERE `lastSyncError` = 'AWAITING_SERVER_VERSION'")
+        }
+    }
+}

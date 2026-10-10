@@ -497,7 +497,12 @@ suspend fun verifyStockDaoContract(db: AppDatabase) {
     db.materialDao().upsert(localMaterial("mat-s", projectLocalId = "proj-s", serverId = 7, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
     val synced = localPurchaseLine("pl-s", entryLocalId = "entry-s", materialLocalId = "mat-s", quantity = 5.0, serverId = 60, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED).copy(serverQuantity = 5.0)
 
-    dao.recordPurchaseLineSynced("proj-s", 7, synced, previousServerQuantity = null)
+    assertTrue(!dao.recordPurchaseLineSynced("proj-s", 7, synced, previousServerQuantity = null), "a line deleted on the device meanwhile is not written back")
+    assertNull(db.purchaseLineDao().findByLocalId("pl-s"))
+    db.purchaseLineDao().upsert(localPurchaseLine("pl-s", entryLocalId = "entry-s", materialLocalId = "mat-s", quantity = 5.0))
+    assertTrue(!dao.recordPurchaseLineSynced("proj-s", 7, synced.copy(localVersion = 3), previousServerQuantity = null), "nor a line changed on the device since it was read")
+    assertNull(db.purchaseLineDao().findByLocalId("pl-s")?.serverQuantity)
+    assertTrue(dao.recordPurchaseLineSynced("proj-s", 7, synced, previousServerQuantity = null))
     assertEquals(5.0, db.purchaseLineDao().findByLocalId("pl-s")?.serverQuantity, "the line is written even when no stock was loaded")
     assertTrue(dao.observeCounters("proj-s").first().isEmpty(), "nothing to correct before the first load")
 
@@ -506,7 +511,16 @@ suspend fun verifyStockDaoContract(db: AppDatabase) {
     dao.recordPurchaseLineSynced("proj-s", 7, synced.copy(quantity = 8.0, serverQuantity = 8.0), previousServerQuantity = 5.0)
     assertEquals(15.0, dao.findCounter("proj-s", 7)?.quantityIn, "the server's own +3 is mirrored in the same transaction")
     db.consumptionLineDao().upsert(localConsumptionLine("cl-s", entryLocalId = "entry-s", materialLocalId = "mat-s", quantity = 2.0, serverId = 61, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
-    dao.recordConsumptionLineDeleted("proj-s", 7, "cl-s", serverQuantity = 2.0)
+    val consumption = db.consumptionLineDao().findByLocalId("cl-s")!!
+    val outBefore = dao.findCounter("proj-s", 7)?.quantityOut
+    val inBefore = dao.findCounter("proj-s", 7)?.quantityIn
+    assertTrue(!dao.recordConsumptionLineSynced("proj-s", 7, consumption.copy(localVersion = 9, quantity = 1.0, serverQuantity = 1.0), previousServerQuantity = 2.0), "a consumption changed on the device since it was read is not written")
+    assertTrue(!dao.recordConsumptionLineDeleted("proj-s", 7, consumption.copy(localVersion = 9), serverQuantity = 2.0), "nor deleted")
+    assertTrue(!dao.recordPurchaseLineDeleted("proj-s", 7, db.purchaseLineDao().findByLocalId("pl-s")!!.copy(localVersion = 9), serverQuantity = 8.0), "nor is a purchase")
+    assertEquals(consumption, db.consumptionLineDao().findByLocalId("cl-s"))
+    assertNotNull(db.purchaseLineDao().findByLocalId("pl-s"))
+    assertEquals(listOf(inBefore, outBefore), dao.findCounter("proj-s", 7).let { listOf(it?.quantityIn, it?.quantityOut) }, "and the counters do not move")
+    dao.recordConsumptionLineDeleted("proj-s", 7, consumption, serverQuantity = 2.0)
     assertNull(db.consumptionLineDao().findByLocalId("cl-s"))
     assertEquals(0.0, dao.findCounter("proj-s", 7)?.quantityOut)
 
@@ -808,14 +822,13 @@ suspend fun verifySyncIssueActionsContract(db: AppDatabase) {
     )
     assertEquals(listOf("e-ok", "e-ok-work"), db.dailyEntryDao().findForLog("l-ok").map { it.localId }.sorted(), "the synced entries are untouched")
 
-    val awaiting = com.dmb.chantiertracker.data.sync.SyncError.AWAITING_SERVER_VERSION
     assertEquals(emptyList(), actions.rowsAwaitingServerVersion())
     actions.awaitServerVersion(SyncIssueTarget.PURCHASE_LINE, "pl-change")
     assertEquals(updateRefused, db.purchaseLineDao().findByLocalId("pl-change")!!.lastSyncError, "only a refused delete awaits its server version")
     actions.awaitServerVersion(SyncIssueTarget.STAGE, "s-delete-refused")
     actions.awaitServerVersion(SyncIssueTarget.STAGE, "s-delete-refused")
     val awaited = db.stageDao().findByLocalId("s-delete-refused")!!
-    assertEquals<List<Any?>>(listOf(synced, PendingOp.NONE, awaiting, null), listOf(awaited.syncStatus, awaited.pendingOp, awaited.lastSyncError, awaited.serverErrorCode))
+    assertEquals<List<Any?>>(listOf(synced, PendingOp.NONE, null, null, true), listOf(awaited.syncStatus, awaited.pendingOp, awaited.lastSyncError, awaited.serverErrorCode, awaited.awaitsServerVersion))
     assertEquals(listOf(com.dmb.chantiertracker.data.local.db.AwaitedRow(SyncIssueTarget.STAGE, "s-delete-refused")), actions.rowsAwaitingServerVersion())
     assertTrue("s-delete-refused" !in db.syncIssueDao().observeUnsettled().first().map { it.localId }, "what awaits its server version is no longer to review")
     assertEquals(emptyList(), db.stageDao().findPending().map { it.localId }, "and is never queued for a push")
@@ -840,7 +853,6 @@ suspend fun verifySyncIssueActionsContract(db: AppDatabase) {
 
 suspend fun verifyAwaitedServerVersionIsSilentContract(db: AppDatabase) {
     val rejected = com.dmb.chantiertracker.data.sync.SyncError.REJECTED
-    val awaiting = com.dmb.chantiertracker.data.sync.SyncError.AWAITING_SERVER_VERSION
     val synced = SyncStatus.SYNCED
     val none = PendingOp.NONE
     val code = "PROJECT_INSUFFICIENT_ROLE"
@@ -864,12 +876,21 @@ suspend fun verifyAwaitedServerVersionIsSilentContract(db: AppDatabase) {
 
     assertEquals(refusedDeletes.toSet(), actions.rowsAwaitingServerVersion().map { it.target to it.localId }.toSet())
     assertEquals(
-        listOf(awaiting, awaiting, awaiting, awaiting, awaiting, awaiting),
+        listOf<String?>(null, null, null, null, null, null),
         listOf(
             db.projectDao().findByLocalId("p")!!.lastSyncError, db.stageDao().findByLocalId("s")!!.lastSyncError, db.materialDao().findByLocalId("m")!!.lastSyncError,
             db.dailyEntryDao().findByLocalId("e-purchase")!!.lastSyncError, db.purchaseLineDao().findByLocalId("pl")!!.lastSyncError,
             db.consumptionLineDao().findByLocalId("cl")!!.lastSyncError,
         ),
+    )
+    assertEquals(
+        listOf(true, true, true, true, true, true),
+        listOf(
+            db.projectDao().findByLocalId("p")!!.awaitsServerVersion, db.stageDao().findByLocalId("s")!!.awaitsServerVersion, db.materialDao().findByLocalId("m")!!.awaitsServerVersion,
+            db.dailyEntryDao().findByLocalId("e-purchase")!!.awaitsServerVersion, db.purchaseLineDao().findByLocalId("pl")!!.awaitsServerVersion,
+            db.consumptionLineDao().findByLocalId("cl")!!.awaitsServerVersion,
+        ),
+        "the note lives in its own column, the error column is empty",
     )
     assertEquals(emptyList(), db.syncIssueDao().observeUnsettled().first().map { it.target to it.localId }, "nothing awaited is listed to review")
     assertEquals(0, db.localDataDao().countUnsynced(), "nor counted as unsent when signing out")
@@ -885,4 +906,66 @@ suspend fun verifyAwaitedServerVersionIsSilentContract(db: AppDatabase) {
     assertEquals(emptyList(), db.dailyEntryDao().observeBlockedByParent().first())
     assertEquals(emptyList(), db.purchaseLineDao().observeBlockedByParent().first())
     assertEquals(emptyList(), db.consumptionLineDao().observeBlockedByParent().first())
+}
+
+private suspend fun <E : com.dmb.chantiertracker.data.local.db.LocallyVersioned<E>> assertLocalVersionRule(
+    dao: com.dmb.chantiertracker.data.local.db.LocalChangesDao<E>,
+    localId: String,
+    what: String,
+    edit: (E) -> E,
+) {
+    val read = dao.findByLocalId(localId)!!
+    assertEquals(0L, read.localVersion, "$what: a new row starts at version zero")
+    assertTrue(dao.writeIfUnchanged(read), "$what: a row nobody touched takes what the sync pass writes")
+    assertEquals(0L, dao.findByLocalId(localId)!!.localVersion, "$what: a write of the sync pass does not count as a local change")
+
+    assertEquals(read, dao.changeLocally(localId, edit), "$what: the change is given the row as it was")
+    val edited = dao.findByLocalId(localId)!!
+    assertEquals(edit(read).withLocalVersion(1), edited, "$what: a local change is stored with the next version")
+    assertTrue(!dao.writeIfUnchanged(read), "$what: the copy read before the change is refused")
+    assertTrue(!dao.deleteIfUnchanged(read), "$what: and cannot delete the row either")
+    assertEquals(edited, dao.findByLocalId(localId), "$what: the local change is intact")
+
+    assertTrue(dao.keepLocalChange(localId) { it })
+    assertEquals(edited, dao.findByLocalId(localId), "$what: keeping the local change leaves its version alone")
+    dao.changeLocally(localId, edit)
+    assertEquals(2L, dao.findByLocalId(localId)!!.localVersion, "$what: every local change counts")
+    assertTrue(!dao.writeIfUnchanged(edited), "$what: version 1 is refused once version 2 exists")
+
+    val latest = dao.findByLocalId(localId)!!
+    assertTrue(dao.deleteIfUnchanged(latest), "$what: an untouched row can be deleted by the sync pass")
+    assertNull(dao.findByLocalId(localId))
+    assertTrue(!dao.writeIfUnchanged(latest), "$what: a row deleted meanwhile is never written back")
+    assertTrue(!dao.keepLocalChange(localId) { it })
+    assertNull(dao.findByLocalId(localId))
+    assertNull(dao.changeLocally(localId, edit), "$what: changing a missing row does nothing")
+
+    dao.upsert(latest)
+    assertEquals(latest, dao.changeLocally(localId) { null }, "$what: a local change can be a deletion")
+    assertNull(dao.findByLocalId(localId))
+}
+
+suspend fun verifyLocalVersionContract(db: AppDatabase) {
+    db.projectDao().upsert(localProject("p", serverId = 1, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+    db.projectDao().upsert(localProject("p-own"))
+    db.stageDao().upsert(localStage("s", projectLocalId = "p", serverId = 10, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+    db.stageDao().upsert(localStage("s-own", projectLocalId = "p"))
+    db.materialDao().upsert(localMaterial("m", projectLocalId = "p", name = "Ciment", serverId = 20, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+    db.materialDao().upsert(localMaterial("m-own", projectLocalId = "p", name = "Sable"))
+    db.dailyLogDao().upsert(localDailyLog("l", stageLocalId = "s", date = "2026-09-05", serverId = 800))
+    db.dailyLogDao().upsert(localDailyLog("l-own", stageLocalId = "s", date = "2026-09-06"))
+    db.dailyEntryDao().upsert(localDailyEntry("e", dailyLogLocalId = "l", type = "PURCHASE", serverId = 30, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+    db.dailyEntryDao().upsert(localDailyEntry("e-own", dailyLogLocalId = "l-own", type = "WORK"))
+    db.purchaseLineDao().upsert(localPurchaseLine("pl", entryLocalId = "e", materialLocalId = "m"))
+    db.consumptionLineDao().upsert(localConsumptionLine("cl", entryLocalId = "e", materialLocalId = "m"))
+    db.attachmentDao().upsert(localAttachment("a", entryLocalId = "e"))
+
+    assertLocalVersionRule(db.attachmentDao(), "a", "attachment") { it.copy(originalName = it.originalName + "+") }
+    assertLocalVersionRule(db.consumptionLineDao(), "cl", "consumption line") { it.copy(quantity = it.quantity + 1) }
+    assertLocalVersionRule(db.purchaseLineDao(), "pl", "purchase line") { it.copy(quantity = it.quantity + 1) }
+    assertLocalVersionRule(db.dailyEntryDao(), "e-own", "entry") { it.copy(summary = it.summary.orEmpty() + "+") }
+    assertLocalVersionRule(db.materialDao(), "m-own", "material") { it.copy(unit = it.unit + "+") }
+    assertLocalVersionRule(db.stageDao(), "s-own", "stage") { it.copy(name = it.name + "+") }
+    assertLocalVersionRule(db.projectDao(), "p-own", "project") { it.copy(name = it.name + "+") }
+    assertEquals(listOf("e"), db.dailyEntryDao().findForLog("l").map { it.localId }, "the rest of the site is untouched")
 }

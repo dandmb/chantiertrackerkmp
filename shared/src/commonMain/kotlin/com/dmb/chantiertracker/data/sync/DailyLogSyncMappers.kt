@@ -45,6 +45,7 @@ fun DailyEntryDto.toSyncedEntity(
         remoteUpdatedAt = remoteMillis,
         lastSyncError = previous.keptDeleteRefusal(),
         serverErrorCode = previous.keptDeleteRefusalCode(),
+        localVersion = previous?.localVersion ?: 0,
     )
 }
 
@@ -75,6 +76,7 @@ fun PurchaseLineDto.toSyncedEntity(
     remoteUpdatedAt = parseServerTimestampMillis(createdAt),
     lastSyncError = previous.keptDeleteRefusal(),
         serverErrorCode = previous.keptDeleteRefusalCode(),
+        localVersion = previous?.localVersion ?: 0,
     serverQuantity = quantity,
 )
 
@@ -113,6 +115,7 @@ fun ConsumptionLineDto.toSyncedEntity(
     remoteUpdatedAt = parseServerTimestampMillis(createdAt),
     lastSyncError = previous.keptDeleteRefusal(),
         serverErrorCode = previous.keptDeleteRefusalCode(),
+        localVersion = previous?.localVersion ?: 0,
     serverQuantity = quantity,
 )
 
@@ -148,4 +151,5 @@ fun AttachmentDto.toSyncedEntity(
     remoteUpdatedAt = parseServerTimestampMillis(uploadedAt),
     lastSyncError = previous.keptDeleteRefusal(),
         serverErrorCode = previous.keptDeleteRefusalCode(),
+        localVersion = previous?.localVersion ?: 0,
 )

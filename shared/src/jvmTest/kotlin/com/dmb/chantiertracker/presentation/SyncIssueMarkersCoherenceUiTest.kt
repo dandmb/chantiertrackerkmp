@@ -116,7 +116,7 @@ class SyncIssueMarkersCoherenceUiTest {
         db.projectDao().upsert(localProject("p", name = "Villa", serverId = 1, pendingOp = none, syncStatus = synced))
         db.projectDao().upsert(localProject("p-refused", name = "Refusé", syncStatus = refused, lastSyncError = SyncError.PLAN_LIMIT).copy(serverErrorCode = "PLAN_LIMIT_EXCEEDED"))
         db.projectDao().upsert(localProject("p-pending", name = "En cours d'envoi"))
-        db.projectDao().upsert(localProject("p-awaiting", name = "Relu bientôt", serverId = 2, pendingOp = none, syncStatus = synced, lastSyncError = SyncError.AWAITING_SERVER_VERSION))
+        db.projectDao().upsert(localProject("p-awaiting", name = "Relu bientôt", serverId = 2, pendingOp = none, syncStatus = synced).copy(awaitsServerVersion = true))
         db.projectDao().upsert(localProject("p-ghost", name = "Fantôme", serverId = 3, pendingOp = none, syncStatus = refused, lastSyncError = SyncError.DELETED_ON_SERVER))
         db.projectDao().upsert(localProject("p-delete-refused", name = "Suppression refusée", serverId = 4, pendingOp = none, syncStatus = synced, lastSyncError = SyncError.REJECTED).copy(serverErrorCode = code))
 
@@ -124,7 +124,7 @@ class SyncIssueMarkersCoherenceUiTest {
         db.stageDao().upsert(localStage("st-delete-refused", projectLocalId = "p", name = "Toiture", serverId = 11, pendingOp = none, syncStatus = synced, lastSyncError = SyncError.REJECTED).copy(serverErrorCode = code))
         db.stageDao().upsert(localStage("st-update-refused", projectLocalId = "p", name = "Bardage", serverId = 12, pendingOp = PendingOp.UPDATE, syncStatus = refused, lastSyncError = SyncError.UPDATE_REFUSED).copy(serverErrorCode = code))
         db.stageDao().upsert(localStage("st-pending", projectLocalId = "p", name = "Peinture"))
-        db.stageDao().upsert(localStage("st-awaiting", projectLocalId = "p", name = "Isolation", serverId = 13, pendingOp = none, syncStatus = synced, lastSyncError = SyncError.AWAITING_SERVER_VERSION))
+        db.stageDao().upsert(localStage("st-awaiting", projectLocalId = "p", name = "Isolation", serverId = 13, pendingOp = none, syncStatus = synced).copy(awaitsServerVersion = true))
         db.stageDao().upsert(localStage("st-ghost", projectLocalId = "p", name = "Démolition", serverId = 14, pendingOp = none, syncStatus = refused, lastSyncError = SyncError.DELETED_ON_SERVER))
         db.stageDao().upsert(localStage("st-waiting", projectLocalId = "p-refused", name = "Sous un projet refusé"))
 
@@ -138,7 +138,7 @@ class SyncIssueMarkersCoherenceUiTest {
         db.purchaseLineDao().upsert(localPurchaseLine("pl-gone", entryLocalId = "e-purchase", materialLocalId = "m", serverId = 41, pendingOp = PendingOp.UPDATE, syncStatus = refused).copy(lastSyncError = SyncError.DELETED_ON_SERVER))
         db.purchaseLineDao().upsert(localPurchaseLine("pl-waiting", entryLocalId = "e-purchase", materialLocalId = "m-refused"))
         db.purchaseLineDao().upsert(localPurchaseLine("pl-pending", entryLocalId = "e-purchase", materialLocalId = "m"))
-        db.purchaseLineDao().upsert(localPurchaseLine("pl-awaiting", entryLocalId = "e-purchase", materialLocalId = "m", serverId = 42, pendingOp = none, syncStatus = synced).copy(lastSyncError = SyncError.AWAITING_SERVER_VERSION))
+        db.purchaseLineDao().upsert(localPurchaseLine("pl-awaiting", entryLocalId = "e-purchase", materialLocalId = "m", serverId = 42, pendingOp = none, syncStatus = synced).copy(awaitsServerVersion = true))
         db.consumptionLineDao().upsert(localConsumptionLine("cl-ok", entryLocalId = "e-work", materialLocalId = "m", serverId = 50, pendingOp = none, syncStatus = synced))
         db.consumptionLineDao().upsert(
             localConsumptionLine("cl-change", entryLocalId = "e-work", materialLocalId = "m", quantity = 9.0, serverId = 51, pendingOp = PendingOp.UPDATE, syncStatus = refused)
@@ -258,7 +258,7 @@ class SyncIssueMarkersCoherenceUiTest {
             runBlocking { issues.acknowledge(listed.single { it.localId == "st-delete-refused" }) }
             assertEquals(tags(STAGE to "st-update-refused"), assertMarkedIfAndOnlyIfListed(shownOnProject, "project after got it on the refused delete"))
             assertEquals(
-                SyncError.AWAITING_SERVER_VERSION, runBlocking { db.stageDao().findByLocalId("st-delete-refused")!!.lastSyncError },
+                true, runBlocking { db.stageDao().findByLocalId("st-delete-refused")!!.awaitsServerVersion },
                 "offline the stage now awaits its server version, and carries no marker",
             )
             assertTrue(markerTags().none { it.endsWith(":st-awaiting") || it.endsWith(":st-ghost") || it.endsWith(":st-pending") })
