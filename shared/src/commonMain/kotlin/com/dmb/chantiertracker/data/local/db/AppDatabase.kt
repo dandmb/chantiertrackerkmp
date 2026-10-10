@@ -22,6 +22,7 @@ import androidx.sqlite.driver.bundled.BundledSQLiteDriver
         EditorIdentityEntity::class,
         MaterialStockEntity::class,
         StockSnapshotEntity::class,
+        MaterialMergeEntity::class,
     ],
     version = 16,
     exportSchema = true,

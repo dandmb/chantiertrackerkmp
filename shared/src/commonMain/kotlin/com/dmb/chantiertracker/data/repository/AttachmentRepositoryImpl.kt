@@ -78,7 +78,7 @@ class AttachmentRepositoryImpl(
             remoteUpdatedAt = null,
             lastSyncError = null,
         )
-        dao.upsert(entity)
+        dao.insertNew(entity)
         syncer.requestSync()
         return toAttachment(entity)
     }
@@ -127,7 +127,7 @@ class AttachmentRepositoryImpl(
             remoteUpdatedAt = parseServerTimestampMillis(dto.uploadedAt),
             lastSyncError = null,
         )
-        dao.upsert(entity)
+        dao.insertNew(entity)
         return toAttachment(entity)
     }
 

@@ -442,3 +442,20 @@ data class EditorIdentityEntity(
     val hostingProviderAddress: String? = null,
     val refreshedAt: Long,
 )
+
+@Entity(
+    tableName = "material_merges",
+    foreignKeys = [
+        ForeignKey(
+            entity = MaterialEntity::class,
+            parentColumns = ["localId"],
+            childColumns = ["keptLocalId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+    ],
+    indices = [Index("keptLocalId")],
+)
+data class MaterialMergeEntity(
+    @PrimaryKey val mergedLocalId: String,
+    val keptLocalId: String,
+)

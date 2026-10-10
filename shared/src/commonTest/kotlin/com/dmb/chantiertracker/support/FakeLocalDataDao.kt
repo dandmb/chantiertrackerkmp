@@ -22,6 +22,7 @@ class FakeLocalDataDao(var unsynced: Int = 0) : LocalDataDao() {
     override suspend fun deleteEntries() = Unit
     override suspend fun deleteLogs() = Unit
     override suspend fun deleteMaterials() = Unit
+    override suspend fun deleteMaterialMerges() = Unit
     override suspend fun deleteInvitations() = Unit
     override suspend fun deleteMembers() = Unit
     override suspend fun deleteStages() = Unit

@@ -2,6 +2,7 @@ package com.dmb.chantiertracker.data.local.db
 
 import androidx.room.Dao
 import androidx.room.Query
+import androidx.room.Transaction
 import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
 
@@ -47,4 +48,11 @@ interface PurchaseLineDao : LocalChangesDao<PurchaseLineEntity> {
 
     @Query("DELETE FROM purchase_lines WHERE localId = :localId")
     override suspend fun deleteByLocalId(localId: String)
+
+    @Query("SELECT keptLocalId FROM material_merges WHERE mergedLocalId = :materialLocalId")
+    suspend fun survivorOfMergedMaterial(materialLocalId: String): String?
+
+    @Transaction
+    override suspend fun insertNew(row: PurchaseLineEntity): Boolean =
+        super.insertNew(row.copy(materialLocalId = survivorOfMergedMaterial(row.materialLocalId) ?: row.materialLocalId))
 }

@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 16,
-    "identityHash": "f4cf7187fb3035de1c6fa21aa71bef0d",
+    "identityHash": "71591fec1a1701468421761115176219",
     "entities": [
       {
         "tableName": "projects",
@@ -1480,11 +1480,59 @@
             ]
           }
         ]
+      },
+      {
+        "tableName": "material_merges",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`mergedLocalId` TEXT NOT NULL, `keptLocalId` TEXT NOT NULL, PRIMARY KEY(`mergedLocalId`), FOREIGN KEY(`keptLocalId`) REFERENCES `materials`(`localId`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "mergedLocalId",
+            "columnName": "mergedLocalId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "keptLocalId",
+            "columnName": "keptLocalId",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "mergedLocalId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_material_merges_keptLocalId",
+            "unique": false,
+            "columnNames": [
+              "keptLocalId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_material_merges_keptLocalId` ON `${TABLE_NAME}` (`keptLocalId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "materials",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "keptLocalId"
+            ],
+            "referencedColumns": [
+              "localId"
+            ]
+          }
+        ]
       }
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'f4cf7187fb3035de1c6fa21aa71bef0d')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '71591fec1a1701468421761115176219')"
     ]
   }
 }

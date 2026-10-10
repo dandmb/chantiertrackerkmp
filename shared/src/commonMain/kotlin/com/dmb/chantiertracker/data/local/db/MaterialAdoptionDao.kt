@@ -20,11 +20,19 @@ abstract class MaterialAdoptionDao {
     @Upsert
     protected abstract suspend fun upsertMaterial(material: MaterialEntity)
 
+    @Query("UPDATE material_merges SET keptLocalId = :keptLocalId WHERE keptLocalId = :duplicateLocalId")
+    protected abstract suspend fun followEarlierMerges(duplicateLocalId: String, keptLocalId: String)
+
+    @Upsert
+    protected abstract suspend fun rememberMerge(merge: MaterialMergeEntity)
+
     @Transaction
     open suspend fun mergeInto(duplicateLocalId: String, kept: MaterialEntity) {
         movePurchaseLines(duplicateLocalId, kept.localId)
         moveConsumptionLines(duplicateLocalId, kept.localId)
+        followEarlierMerges(duplicateLocalId, kept.localId)
         deleteMaterial(duplicateLocalId)
         upsertMaterial(kept)
+        rememberMerge(MaterialMergeEntity(mergedLocalId = duplicateLocalId, keptLocalId = kept.localId))
     }
 }

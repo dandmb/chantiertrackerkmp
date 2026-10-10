@@ -1175,6 +1175,11 @@ class MigrationTest {
                 "the entries to review are the same as before the migration",
             )
 
+            db.materialAdoptionDao().mergeInto("m-refused", materials.getValue("m-synced"))
+            assertEquals("m-synced", db.purchaseLineDao().survivorOfMergedMaterial("m-refused"), "the table of merged materials exists and is usable")
+            assertTrue(db.purchaseLineDao().insertNew(purchaseLines.getValue("pl-pending").copy(localId = "pl-after-merge", materialLocalId = "m-refused")))
+            assertEquals("m-synced", db.purchaseLineDao().findByLocalId("pl-after-merge")!!.materialLocalId)
+
             db.stageDao().changeLocally("s-pending") { it.copy(name = "Peinture intérieure") }
             assertEquals(listOf<Any?>("Peinture intérieure", 1L), db.stageDao().findByLocalId("s-pending")!!.let { listOf(it.name, it.localVersion) }, "the new column counts the next change")
         } finally {
@@ -1214,6 +1219,7 @@ class MigrationTest {
             assertEquals(listOf("pl-pending", "pl-rejected"), db.purchaseLineDao().findPending().map { it.localId }.sorted())
             assertEquals(10.0, db.stockDao().findCounter("p-synced", 7)?.quantityIn)
 
+            assertEquals(null, db.purchaseLineDao().survivorOfMergedMaterial("m-v14"), "the table of merged materials exists, empty")
             assertTrue(db.purchaseLineDao().writeIfUnchanged(db.purchaseLineDao().findByLocalId("pl-pending")!!.copy(quantity = 5.0)))
             db.purchaseLineDao().changeLocally("pl-pending") { it.copy(quantity = 6.0) }
             assertEquals(listOf<Any?>(6.0, 1L), db.purchaseLineDao().findByLocalId("pl-pending")!!.let { listOf(it.quantity, it.localVersion) })
@@ -1223,7 +1229,7 @@ class MigrationTest {
     }
 
     @Test
-    fun the_exported_v16_schema_adds_only_the_local_version_and_the_awaited_note_as_non_null_integers() {
+    fun the_exported_v16_schema_adds_only_the_local_version_the_awaited_note_and_the_table_of_merged_materials() {
         fun columnsByTable(version: Int): Map<String, Map<String, Pair<String, Boolean>>> =
             exportedSchema(version)["entities"]!!.jsonArray.associate { entity ->
                 entity.jsonObject["tableName"]!!.jsonPrimitive.content to entity.jsonObject["fields"]!!.jsonArray.associate { field ->
@@ -1235,8 +1241,9 @@ class MigrationTest {
         val v16 = columnsByTable(16)
         val versioned = setOf("projects", "stages", "materials", "daily_entries", "purchase_lines", "consumption_lines", "attachments")
 
-        assertEquals(v15.keys, v16.keys, "no table added or removed")
-        val added = v16.flatMap { (table, columns) -> (columns.keys - v15.getValue(table).keys).map { table to it } }.toSet()
+        assertEquals(v15.keys + "material_merges", v16.keys, "one table added, none removed")
+        assertEquals(mapOf("mergedLocalId" to ("TEXT" to true), "keptLocalId" to ("TEXT" to true)), v16.getValue("material_merges"))
+        val added = (v16 - "material_merges").flatMap { (table, columns) -> (columns.keys - v15.getValue(table).keys).map { table to it } }.toSet()
         assertEquals(versioned.map { it to "localVersion" }.toSet() + (versioned - "attachments").map { it to "awaitsServerVersion" }, added)
         added.forEach { (table, column) -> assertEquals("INTEGER" to true, v16.getValue(table).getValue(column), "$table.$column is a non-null INTEGER") }
         v15.forEach { (table, columns) -> columns.forEach { (name, type) -> assertEquals(type, v16.getValue(table).getValue(name), "$table.$name unchanged") } }

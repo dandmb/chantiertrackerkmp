@@ -11,6 +11,13 @@ interface LocalChangesDao<E : LocallyVersioned<E>> {
     suspend fun deleteByLocalId(localId: String)
 
     @Transaction
+    suspend fun insertNew(row: E): Boolean {
+        if (findByLocalId(row.localId) != null) return false
+        upsert(row)
+        return true
+    }
+
+    @Transaction
     suspend fun changeLocally(localId: String, change: (E) -> E?): E? {
         val current = findByLocalId(localId) ?: return null
         val changed = change(current)
