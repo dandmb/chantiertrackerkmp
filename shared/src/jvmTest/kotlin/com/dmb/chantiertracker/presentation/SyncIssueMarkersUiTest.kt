@@ -477,6 +477,25 @@ class SyncIssueMarkersUiTest {
         assertEquals(onDay.map { it.key }, opened.items.map { it.key })
     }
 
+    @Test
+    fun under_a_thumbnail_on_the_day_screen_the_icon_alone_is_read_out_with_its_state_and_its_action() {
+        val refusedFile = onDay.single { it.target == SyncIssueTarget.ATTACHMENT }
+        listOf("fr" to listOf("Refusé par le serveur", "Voir dans Saisies à revoir"), "en" to listOf("Refused by the server", "See in Entries to review")).forEach { (locale, expected) ->
+            runDesktopComposeUiTest(width = 412, height = 1600) {
+                val repo = FakeSyncIssueRepository(listOf(refusedFile))
+                val dayViewModel = dayViewModel()
+                setContent { Environment(locale, 1f, repo, Opened()) { DailyLogScreen(dailyLogLocalId = "log-1", viewModel = dayViewModel) } }
+                awaitMarker(tag(refusedFile))
+                val node = onNodeWithTag(tag(refusedFile)).performScrollTo().assertIsDisplayed().fetchSemanticsNode()
+
+                assertEquals(null, node.config.getOrNull(SemanticsProperties.Text), "$locale: the marker under a thumbnail shows no text")
+                assertEquals(listOf(expected[0]), node.config.getOrNull(SemanticsProperties.ContentDescription), "$locale: so its state is its accessible description")
+                assertEquals(expected[1], node.config.getOrNull(SemanticsActions.OnClick)?.label, locale)
+                assertEquals(Role.Button, node.config.getOrNull(SemanticsProperties.Role))
+            }
+        }
+    }
+
     private fun ComposeUiTest.assertMarkerIsWholeAndAlone(tag: String, width: Int, context: String) {
         onNodeWithTag(tag).performScrollTo()
         waitForIdle()

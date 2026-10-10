@@ -193,6 +193,7 @@ class FakeProjectBackend {
     val receivedAuthorizations = mutableListOf<Pair<String, String?>>()
     /** Runs before a request is answered — lets a test hold a sync pass mid-flight. */
     var beforeHandle: (suspend (HttpRequestData) -> Unit)? = null
+    var refuseOnce: ((HttpRequestData) -> Boolean)? = null
 
     fun seed(project: ServerProject) = project.also { projects += it }
 
@@ -225,6 +226,10 @@ class FakeProjectBackend {
         receivedMethods += "${request.method.value} $path"
         receivedAuthorizations += "${request.method.value} $path" to request.headers[io.ktor.http.HttpHeaders.Authorization]
         beforeHandle?.invoke(request)
+        if (refuseOnce?.invoke(request) == true) {
+            refuseOnce = null
+            return respondProblem(HttpStatusCode.Forbidden, "Accès refusé.", code = "PROJECT_INSUFFICIENT_ROLE")
+        }
         if (goneOnServer.any { it.containsMatchIn(path) }) return respondProblem(HttpStatusCode.NotFound, "Introuvable.")
         if (forbiddenOnServer.any { it.containsMatchIn(path) }) return respondProblem(HttpStatusCode.Forbidden, "Accès refusé.", code = "PROJECT_INSUFFICIENT_ROLE")
         if (request.method == HttpMethod.Patch) {

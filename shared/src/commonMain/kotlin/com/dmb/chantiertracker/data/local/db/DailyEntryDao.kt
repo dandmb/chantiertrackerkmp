@@ -6,7 +6,7 @@ import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
 
 @Dao
-interface DailyEntryDao {
+interface DailyEntryDao : LocalChangesDao<DailyEntryEntity> {
 
     @Query("SELECT * FROM daily_entries WHERE dailyLogLocalId = :dailyLogLocalId AND pendingOp != 'DELETE'")
     fun observeEntriesForLog(dailyLogLocalId: String): Flow<List<DailyEntryEntity>>
@@ -24,7 +24,7 @@ interface DailyEntryDao {
     fun observeEntry(localId: String): Flow<DailyEntryEntity?>
 
     @Query("SELECT * FROM daily_entries WHERE localId = :localId")
-    suspend fun findByLocalId(localId: String): DailyEntryEntity?
+    override suspend fun findByLocalId(localId: String): DailyEntryEntity?
 
     @Query("SELECT * FROM daily_entries WHERE serverId = :serverId")
     suspend fun findByServerId(serverId: Long): DailyEntryEntity?
@@ -46,8 +46,8 @@ interface DailyEntryDao {
     suspend fun findForLog(dailyLogLocalId: String): List<DailyEntryEntity>
 
     @Upsert
-    suspend fun upsert(entry: DailyEntryEntity)
+    override suspend fun upsert(row: DailyEntryEntity)
 
     @Query("DELETE FROM daily_entries WHERE localId = :localId")
-    suspend fun deleteByLocalId(localId: String)
+    override suspend fun deleteByLocalId(localId: String)
 }

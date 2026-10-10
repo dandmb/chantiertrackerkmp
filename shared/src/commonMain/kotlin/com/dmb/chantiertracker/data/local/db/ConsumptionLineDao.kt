@@ -6,7 +6,7 @@ import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
 
 @Dao
-interface ConsumptionLineDao {
+interface ConsumptionLineDao : LocalChangesDao<ConsumptionLineEntity> {
 
     @Query("SELECT * FROM consumption_lines WHERE entryLocalId = :entryLocalId AND pendingOp != 'DELETE' ORDER BY locallyModifiedAt")
     fun observeLinesForEntry(entryLocalId: String): Flow<List<ConsumptionLineEntity>>
@@ -24,7 +24,7 @@ interface ConsumptionLineDao {
     fun observeStockMovements(projectLocalId: String): Flow<List<StockMovementRow>>
 
     @Query("SELECT * FROM consumption_lines WHERE localId = :localId")
-    suspend fun findByLocalId(localId: String): ConsumptionLineEntity?
+    override suspend fun findByLocalId(localId: String): ConsumptionLineEntity?
 
     @Query("SELECT * FROM consumption_lines WHERE serverId = :serverId")
     suspend fun findByServerId(serverId: Long): ConsumptionLineEntity?
@@ -43,8 +43,8 @@ interface ConsumptionLineDao {
     suspend fun findForEntry(entryLocalId: String): List<ConsumptionLineEntity>
 
     @Upsert
-    suspend fun upsert(line: ConsumptionLineEntity)
+    override suspend fun upsert(row: ConsumptionLineEntity)
 
     @Query("DELETE FROM consumption_lines WHERE localId = :localId")
-    suspend fun deleteByLocalId(localId: String)
+    override suspend fun deleteByLocalId(localId: String)
 }

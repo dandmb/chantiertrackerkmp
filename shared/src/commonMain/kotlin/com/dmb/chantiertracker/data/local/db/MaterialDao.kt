@@ -6,13 +6,13 @@ import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
 
 @Dao
-interface MaterialDao {
+interface MaterialDao : LocalChangesDao<MaterialEntity> {
 
     @Query("SELECT * FROM materials WHERE projectLocalId = :projectLocalId ORDER BY name")
     fun observeMaterialsForProject(projectLocalId: String): Flow<List<MaterialEntity>>
 
     @Query("SELECT * FROM materials WHERE localId = :localId")
-    suspend fun findByLocalId(localId: String): MaterialEntity?
+    override suspend fun findByLocalId(localId: String): MaterialEntity?
 
     @Query("SELECT * FROM materials WHERE projectLocalId = :projectLocalId AND name = :name COLLATE NOCASE")
     suspend fun findByProjectAndName(projectLocalId: String, name: String): MaterialEntity?
@@ -37,5 +37,8 @@ interface MaterialDao {
     suspend fun findForProject(projectLocalId: String): List<MaterialEntity>
 
     @Upsert
-    suspend fun upsert(material: MaterialEntity)
+    override suspend fun upsert(row: MaterialEntity)
+
+    @Query("DELETE FROM materials WHERE localId = :localId")
+    override suspend fun deleteByLocalId(localId: String)
 }

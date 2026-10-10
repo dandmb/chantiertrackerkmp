@@ -76,8 +76,7 @@ class ProjectRepositoryImpl(
     }
 
     override suspend fun updateProject(localId: String, input: UpdateProjectInput) {
-        val existing = dao.findByLocalId(localId) ?: return
-        dao.upsert(
+        dao.changeLocally(localId) { existing ->
             existing.copy(
                 name = input.name,
                 description = input.description?.ifBlank { null },
@@ -89,25 +88,23 @@ class ProjectRepositoryImpl(
                 pendingOp = if (existing.pendingOp == PendingOp.CREATE) PendingOp.CREATE else PendingOp.UPDATE,
                 locallyModifiedAt = clock.nowEpochMillis(),
                 lastSyncError = null,
-            ),
-        )
+                serverErrorCode = null,
+            )
+        } ?: return
         syncer.requestSync()
     }
 
     override suspend fun deleteProject(localId: String) {
-        val existing = dao.findByLocalId(localId) ?: return
-        if (existing.serverId == null) {
-            dao.deleteByLocalId(localId)
-            return
-        }
-        dao.upsert(
-            existing.copy(
+        val existing = dao.changeLocally(localId) { existing ->
+            if (existing.serverId == null) null else existing.copy(
                 syncStatus = SyncStatus.PENDING,
                 pendingOp = PendingOp.DELETE,
                 locallyModifiedAt = clock.nowEpochMillis(),
                 lastSyncError = null,
-            ),
-        )
+                serverErrorCode = null,
+            )
+        } ?: return
+        if (existing.serverId == null) return
         syncer.requestSync()
     }
 

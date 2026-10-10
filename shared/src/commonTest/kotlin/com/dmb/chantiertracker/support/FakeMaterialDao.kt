@@ -56,4 +56,8 @@ class FakeMaterialDao(initial: List<MaterialEntity> = emptyList()) : MaterialDao
     fun delete(localId: String) {
         materials.value = materials.value - localId
     }
+
+    override suspend fun deleteByLocalId(localId: String) {
+        materials.value = materials.value - localId
+    }
 }

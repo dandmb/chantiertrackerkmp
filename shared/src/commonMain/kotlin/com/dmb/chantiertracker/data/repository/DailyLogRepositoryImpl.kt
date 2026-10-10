@@ -116,16 +116,16 @@ class DailyLogRepositoryImpl(
     }
 
     override suspend fun updateEntry(entryLocalId: String, summary: String) {
-        val existing = entryDao.findByLocalId(entryLocalId) ?: return
-        entryDao.upsert(
+        entryDao.changeLocally(entryLocalId) { existing ->
             existing.copy(
                 summary = summary.ifBlank { null },
                 syncStatus = SyncStatus.PENDING,
                 pendingOp = if (existing.pendingOp == PendingOp.CREATE) PendingOp.CREATE else PendingOp.UPDATE,
                 locallyModifiedAt = clock.nowEpochMillis(),
                 lastSyncError = null,
-            ),
-        )
+                serverErrorCode = null,
+            )
+        } ?: return
         syncer.requestSync()
     }
 

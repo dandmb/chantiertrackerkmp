@@ -6,7 +6,7 @@ import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
 
 @Dao
-interface ProjectDao {
+interface ProjectDao : LocalChangesDao<ProjectEntity> {
 
     @Query("SELECT * FROM projects WHERE pendingOp != 'DELETE'")
     fun observeProjects(): Flow<List<ProjectEntity>>
@@ -15,7 +15,7 @@ interface ProjectDao {
     fun observeProject(localId: String): Flow<ProjectEntity?>
 
     @Query("SELECT * FROM projects WHERE localId = :localId")
-    suspend fun findByLocalId(localId: String): ProjectEntity?
+    override suspend fun findByLocalId(localId: String): ProjectEntity?
 
     @Query("SELECT * FROM projects WHERE serverId = :serverId")
     suspend fun findByServerId(serverId: Long): ProjectEntity?
@@ -36,13 +36,13 @@ interface ProjectDao {
     suspend fun findAll(): List<ProjectEntity>
 
     @Upsert
-    suspend fun upsert(project: ProjectEntity)
+    override suspend fun upsert(row: ProjectEntity)
 
     @Upsert
     suspend fun upsertAll(projects: List<ProjectEntity>)
 
     @Query("DELETE FROM projects WHERE localId = :localId")
-    suspend fun deleteByLocalId(localId: String)
+    override suspend fun deleteByLocalId(localId: String)
 
     @Query("SELECT * FROM project_members WHERE projectLocalId = :projectLocalId")
     fun observeMembers(projectLocalId: String): Flow<List<ProjectMemberEntity>>

@@ -61,8 +61,7 @@ class PurchaseLineRepositoryImpl(
     }
 
     override suspend fun updateLine(lineLocalId: String, input: UpdatePurchaseLineInput) {
-        val existing = dao.findByLocalId(lineLocalId) ?: return
-        dao.upsert(
+        dao.changeLocally(lineLocalId) { existing ->
             existing.copy(
                 quantity = input.quantity,
                 unitPrice = input.unitPrice,
@@ -72,25 +71,23 @@ class PurchaseLineRepositoryImpl(
                 pendingOp = if (existing.pendingOp == PendingOp.CREATE) PendingOp.CREATE else PendingOp.UPDATE,
                 locallyModifiedAt = clock.nowEpochMillis(),
                 lastSyncError = null,
-            ),
-        )
+                serverErrorCode = null,
+            )
+        } ?: return
         syncer.requestSync()
     }
 
     override suspend fun deleteLine(lineLocalId: String) {
-        val existing = dao.findByLocalId(lineLocalId) ?: return
-        if (existing.serverId == null) {
-            dao.deleteByLocalId(lineLocalId)
-            return
-        }
-        dao.upsert(
-            existing.copy(
+        val existing = dao.changeLocally(lineLocalId) { existing ->
+            if (existing.serverId == null) null else existing.copy(
                 syncStatus = SyncStatus.PENDING,
                 pendingOp = PendingOp.DELETE,
                 locallyModifiedAt = clock.nowEpochMillis(),
                 lastSyncError = null,
-            ),
-        )
+                serverErrorCode = null,
+            )
+        } ?: return
+        if (existing.serverId == null) return
         syncer.requestSync()
     }
 }

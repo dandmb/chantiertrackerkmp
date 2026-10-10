@@ -17,11 +17,18 @@ interface SyncedRow {
     val pendingOp: PendingOp
     val lastSyncError: String?
     val serverErrorCode: String?
+    val awaitsServerVersion: Boolean get() = false
+}
+
+interface LocallyVersioned<E> {
+    val localId: String
+    val localVersion: Long
+    fun withLocalVersion(version: Long): E
 }
 
 @Entity(tableName = "projects")
 data class ProjectEntity(
-    @PrimaryKey val localId: String,
+    @PrimaryKey override val localId: String,
     override val serverId: Long?,
     val name: String,
     val description: String?,
@@ -52,7 +59,11 @@ data class ProjectEntity(
     val ownerMaxVideos: Int? = null,
     val ownerMaxVideoDurationSeconds: Int? = null,
     val ownerMaxSupervisorsPerProject: Int? = null,
-) : SyncedRow
+    override val localVersion: Long = 0,
+    override val awaitsServerVersion: Boolean = false,
+) : SyncedRow, LocallyVersioned<ProjectEntity> {
+    override fun withLocalVersion(version: Long): ProjectEntity = copy(localVersion = version)
+}
 
 @Entity(tableName = "project_members", primaryKeys = ["projectLocalId", "userId"])
 data class ProjectMemberEntity(
@@ -129,7 +140,7 @@ data class PlanUsageEntity(
     indices = [Index("projectLocalId")],
 )
 data class StageEntity(
-    @PrimaryKey val localId: String,
+    @PrimaryKey override val localId: String,
     override val serverId: Long?,
     val projectLocalId: String,
     val name: String,
@@ -145,7 +156,11 @@ data class StageEntity(
     val remoteUpdatedAt: Long?,
     override val lastSyncError: String?,
     override val serverErrorCode: String? = null,
-) : SyncedRow
+    override val localVersion: Long = 0,
+    override val awaitsServerVersion: Boolean = false,
+) : SyncedRow, LocallyVersioned<StageEntity> {
+    override fun withLocalVersion(version: Long): StageEntity = copy(localVersion = version)
+}
 
 // A daily log is never created/updated/deleted through its own endpoint — the
 // backend creates it as a side effect of the first entry posted for a
@@ -186,7 +201,7 @@ data class DailyLogEntity(
     indices = [Index("dailyLogLocalId"), Index(value = ["dailyLogLocalId", "type"], unique = true)],
 )
 data class DailyEntryEntity(
-    @PrimaryKey val localId: String,
+    @PrimaryKey override val localId: String,
     override val serverId: Long?,
     val dailyLogLocalId: String,
     val type: String,
@@ -202,7 +217,11 @@ data class DailyEntryEntity(
     val remoteUpdatedAt: Long?,
     override val lastSyncError: String?,
     override val serverErrorCode: String? = null,
-) : SyncedRow
+    override val localVersion: Long = 0,
+    override val awaitsServerVersion: Boolean = false,
+) : SyncedRow, LocallyVersioned<DailyEntryEntity> {
+    override fun withLocalVersion(version: Long): DailyEntryEntity = copy(localVersion = version)
+}
 
 // Referential, scoped to the project (not the stage) — "le ciment restant des
 // fondations sert forcément à l'élévation". Never deleted by the backend
@@ -221,7 +240,7 @@ data class DailyEntryEntity(
     indices = [Index("projectLocalId"), Index(value = ["projectLocalId", "name"], unique = true)],
 )
 data class MaterialEntity(
-    @PrimaryKey val localId: String,
+    @PrimaryKey override val localId: String,
     override val serverId: Long?,
     val projectLocalId: String,
     val name: String,
@@ -233,7 +252,11 @@ data class MaterialEntity(
     val remoteUpdatedAt: Long?,
     override val lastSyncError: String?,
     override val serverErrorCode: String? = null,
-) : SyncedRow
+    override val localVersion: Long = 0,
+    override val awaitsServerVersion: Boolean = false,
+) : SyncedRow, LocallyVersioned<MaterialEntity> {
+    override fun withLocalVersion(version: Long): MaterialEntity = copy(localVersion = version)
+}
 
 @Entity(
     tableName = "purchase_lines",
@@ -253,7 +276,7 @@ data class MaterialEntity(
     indices = [Index("entryLocalId"), Index("materialLocalId")],
 )
 data class PurchaseLineEntity(
-    @PrimaryKey val localId: String,
+    @PrimaryKey override val localId: String,
     override val serverId: Long?,
     val entryLocalId: String,
     val materialLocalId: String,
@@ -270,7 +293,11 @@ data class PurchaseLineEntity(
     override val lastSyncError: String?,
     override val serverErrorCode: String? = null,
     val serverQuantity: Double? = null,
-) : SyncedRow
+    override val localVersion: Long = 0,
+    override val awaitsServerVersion: Boolean = false,
+) : SyncedRow, LocallyVersioned<PurchaseLineEntity> {
+    override fun withLocalVersion(version: Long): PurchaseLineEntity = copy(localVersion = version)
+}
 
 @Entity(
     tableName = "consumption_lines",
@@ -290,7 +317,7 @@ data class PurchaseLineEntity(
     indices = [Index("entryLocalId"), Index("materialLocalId")],
 )
 data class ConsumptionLineEntity(
-    @PrimaryKey val localId: String,
+    @PrimaryKey override val localId: String,
     override val serverId: Long?,
     val entryLocalId: String,
     val materialLocalId: String,
@@ -304,7 +331,11 @@ data class ConsumptionLineEntity(
     override val lastSyncError: String?,
     override val serverErrorCode: String? = null,
     val serverQuantity: Double? = null,
-) : SyncedRow
+    override val localVersion: Long = 0,
+    override val awaitsServerVersion: Boolean = false,
+) : SyncedRow, LocallyVersioned<ConsumptionLineEntity> {
+    override fun withLocalVersion(version: Long): ConsumptionLineEntity = copy(localVersion = version)
+}
 
 @Entity(
     tableName = "material_stock",
@@ -371,7 +402,7 @@ data class StockMovementRow(
     indices = [Index("entryLocalId")],
 )
 data class AttachmentEntity(
-    @PrimaryKey val localId: String,
+    @PrimaryKey override val localId: String,
     override val serverId: Long?,
     val entryLocalId: String,
     val localPath: String,
@@ -388,7 +419,10 @@ data class AttachmentEntity(
     val remoteUpdatedAt: Long?,
     override val lastSyncError: String?,
     override val serverErrorCode: String? = null,
-) : SyncedRow
+    override val localVersion: Long = 0,
+) : SyncedRow, LocallyVersioned<AttachmentEntity> {
+    override fun withLocalVersion(version: Long): AttachmentEntity = copy(localVersion = version)
+}
 
 // Last-known publisher identity for the legal pages (GET /editor-identity),
 // one row (id = 0) like plan_usage, so the legal notice stays right offline and

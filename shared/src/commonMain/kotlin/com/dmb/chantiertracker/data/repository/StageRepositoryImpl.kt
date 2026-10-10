@@ -66,8 +66,7 @@ class StageRepositoryImpl(
     }
 
     override suspend fun updateStage(stageLocalId: String, input: UpdateStageInput) {
-        val existing = dao.findByLocalId(stageLocalId) ?: return
-        dao.upsert(
+        dao.changeLocally(stageLocalId) { existing ->
             existing.copy(
                 name = input.name,
                 description = input.description?.ifBlank { null },
@@ -79,25 +78,23 @@ class StageRepositoryImpl(
                 pendingOp = if (existing.pendingOp == PendingOp.CREATE) PendingOp.CREATE else PendingOp.UPDATE,
                 locallyModifiedAt = clock.nowEpochMillis(),
                 lastSyncError = null,
-            ),
-        )
+                serverErrorCode = null,
+            )
+        } ?: return
         syncer.requestSync()
     }
 
     override suspend fun deleteStage(stageLocalId: String) {
-        val existing = dao.findByLocalId(stageLocalId) ?: return
-        if (existing.serverId == null) {
-            dao.deleteByLocalId(stageLocalId)
-            return
-        }
-        dao.upsert(
-            existing.copy(
+        val existing = dao.changeLocally(stageLocalId) { existing ->
+            if (existing.serverId == null) null else existing.copy(
                 syncStatus = SyncStatus.PENDING,
                 pendingOp = PendingOp.DELETE,
                 locallyModifiedAt = clock.nowEpochMillis(),
                 lastSyncError = null,
-            ),
-        )
+                serverErrorCode = null,
+            )
+        } ?: return
+        if (existing.serverId == null) return
         syncer.requestSync()
     }
 

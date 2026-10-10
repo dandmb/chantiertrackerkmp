@@ -135,20 +135,17 @@ class AttachmentRepositoryImpl(
     // is already hidden from observeAttachments (see AttachmentDao), so
     // nothing reads the bytes again before the deletion itself is pushed.
     override suspend fun deleteAttachment(attachmentLocalId: String) {
-        val existing = dao.findByLocalId(attachmentLocalId) ?: return
-        fileStore.delete(existing.localPath)
-        if (existing.serverId == null) {
-            dao.deleteByLocalId(attachmentLocalId)
-            return
-        }
-        dao.upsert(
-            existing.copy(
+        val existing = dao.changeLocally(attachmentLocalId) { existing ->
+            if (existing.serverId == null) null else existing.copy(
                 syncStatus = SyncStatus.PENDING,
                 pendingOp = PendingOp.DELETE,
                 locallyModifiedAt = clock.nowEpochMillis(),
                 lastSyncError = null,
-            ),
-        )
+                serverErrorCode = null,
+            )
+        } ?: return
+        fileStore.delete(existing.localPath)
+        if (existing.serverId == null) return
         syncer.requestSync()
     }
 }

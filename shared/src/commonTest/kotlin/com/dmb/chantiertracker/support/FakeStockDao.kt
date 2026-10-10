@@ -57,5 +57,9 @@ class FakeStockDao(
 
     override suspend fun deletePurchaseLine(localId: String) = purchaseLineDao.deleteByLocalId(localId)
 
+    override suspend fun purchaseLineVersion(localId: String): Long? = purchaseLineDao.findByLocalId(localId)?.localVersion
+
+    override suspend fun consumptionLineVersion(localId: String): Long? = consumptionLineDao.findByLocalId(localId)?.localVersion
+
     override suspend fun deleteConsumptionLine(localId: String) = consumptionLineDao.deleteByLocalId(localId)
 }

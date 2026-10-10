@@ -28,6 +28,7 @@ fun MaterialDto.toSyncedEntity(
     remoteUpdatedAt = null,
     lastSyncError = previous.keptDeleteRefusal(),
         serverErrorCode = previous.keptDeleteRefusalCode(),
+        localVersion = previous?.localVersion ?: 0,
 )
 
 fun MaterialEntity.toCreateRequest() = CreateMaterialRequestDto(name = name, unit = unit)
