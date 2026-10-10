@@ -254,18 +254,41 @@ class SyncIssuesViewModelTest {
         assertEquals(SyncIssueActionNotice.ACKNOWLEDGED, vm.state.value.actionNotice)
         assertNull(vm.state.value.confirmation)
 
-        val unknown = issueItem(SyncIssueTarget.STAGE, "st-unknown", refusedIssue(RefusalReason.UNKNOWN), stageLocalId = "st-unknown", stageName = "Bardage")
-        repo.items.value = repo.items.value + unknown
+        val goneStage = issueItem(SyncIssueTarget.STAGE, "st-gone", SyncIssue(SyncIssueKind.DELETED_ON_SERVER), stageLocalId = "st-gone", stageName = "Bardage")
+        repo.items.value = repo.items.value + goneStage
         repo.linked = 2
         advanceUntilIdle()
-        vm.acknowledge(unknown)
+        vm.acknowledge(goneStage)
         advanceUntilIdle()
-        assertEquals(SyncIssueConfirmation(unknown, SyncIssueAction.ACKNOWLEDGE, linkedCount = 2), vm.state.value.confirmation)
+        assertEquals(SyncIssueConfirmation(goneStage, SyncIssueAction.ACKNOWLEDGE, linkedCount = 2), vm.state.value.confirmation)
         assertEquals(1, repo.actions.size)
 
         vm.confirm()
         advanceUntilIdle()
-        assertEquals("acknowledge ${unknown.key}", repo.actions.last())
+        assertEquals("acknowledge ${goneStage.key}", repo.actions.last())
+    }
+
+    @Test
+    fun a_creation_refused_for_an_unknown_reason_is_discarded_after_the_same_confirmation_and_never_acknowledged() = runTest {
+        val unknown = issueItem(SyncIssueTarget.STAGE, "st-unknown", refusedIssue(RefusalReason.UNKNOWN), stageLocalId = "st-unknown", stageName = "Bardage")
+        val repo = FakeSyncIssueRepository(listOf(unknown)).apply { linked = 2 }
+        val vm = SyncIssuesViewModel(repo)
+        advanceUntilIdle()
+
+        vm.acknowledge(unknown)
+        advanceUntilIdle()
+        assertNull(vm.state.value.confirmation, "got it is not an action of a refused creation")
+        assertTrue(repo.actions.isEmpty())
+
+        vm.discard(unknown)
+        advanceUntilIdle()
+        assertEquals(SyncIssueConfirmation(unknown, SyncIssueAction.DISCARD, linkedCount = 2), vm.state.value.confirmation)
+        assertTrue(repo.actions.isEmpty(), "nothing is removed before the confirmation")
+
+        vm.confirm()
+        advanceUntilIdle()
+        assertEquals(listOf("discard ${unknown.key}"), repo.actions)
+        assertEquals(SyncIssueActionNotice.DISCARDED, vm.state.value.actionNotice)
     }
 
     @Test

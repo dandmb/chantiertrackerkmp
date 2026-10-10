@@ -7,10 +7,12 @@ import io.github.vinceglb.filekit.delete
 import io.github.vinceglb.filekit.div
 import io.github.vinceglb.filekit.exists
 import io.github.vinceglb.filekit.filesDir
+import io.github.vinceglb.filekit.lastModified
 import io.github.vinceglb.filekit.name
 import io.github.vinceglb.filekit.path
 import io.github.vinceglb.filekit.readBytes
 import io.github.vinceglb.filekit.write
+import kotlin.time.ExperimentalTime
 
 // Attachments are the first entity in this app whose payload is a binary
 // blob, not JSON — Room stores only a reference, never the bytes (see
@@ -23,12 +25,14 @@ import io.github.vinceglb.filekit.write
 // installs/updates, so a stored absolute path goes stale and the file (video
 // or image) becomes unreachable. The key is resolved against
 // `FileKit.filesDir` — always current — at the point of use.
+data class StoredAttachmentFile(val key: String, val lastModifiedEpochMillis: Long)
+
 interface AttachmentFileStore {
     /** Writes the bytes and returns the stable key to store in Room. */
     suspend fun save(bytes: ByteArray, originalName: String): String
     suspend fun readBytes(key: String): ByteArray
     suspend fun delete(key: String)
-    suspend fun storedKeys(): List<String>
+    suspend fun storedFiles(): List<StoredAttachmentFile>
 
     /** Every stored file — the account's whole local copy (ADR-69, another account signing in). */
     suspend fun deleteAll()
@@ -62,7 +66,9 @@ class FileKitAttachmentFileStore(private val newFileName: () -> String) : Attach
         if (file.exists()) file.delete()
     }
 
-    override suspend fun storedKeys(): List<String> = if (dir.exists()) dir.list().map { it.name } else emptyList()
+    @OptIn(ExperimentalTime::class)
+    override suspend fun storedFiles(): List<StoredAttachmentFile> =
+        if (dir.exists()) dir.list().map { StoredAttachmentFile(it.name, it.lastModified().toEpochMilliseconds()) } else emptyList()
 
     override suspend fun deleteAll() {
         if (dir.exists()) dir.list().forEach { it.delete(mustExist = false) }

@@ -9,6 +9,7 @@ import com.dmb.chantiertracker.domain.model.refusalReasonOf
 import com.dmb.chantiertracker.support.localPurchaseLine
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 
 class SyncIssueMappingTest {
@@ -27,6 +28,17 @@ class SyncIssueMappingTest {
         assertNull(line(SyncStatus.SYNCED, PendingOp.NONE, serverId = 1).syncIssue())
         assertNull(line(SyncStatus.PENDING, PendingOp.CREATE).syncIssue())
         assertNull(line(SyncStatus.PENDING, PendingOp.UPDATE, serverId = 1).syncIssue())
+    }
+
+    @Test
+    fun a_row_awaiting_its_server_version_is_not_an_issue_and_holds_no_refusal() {
+        val awaiting = line(SyncStatus.SYNCED, PendingOp.NONE, SyncError.AWAITING_SERVER_VERSION, serverId = 1)
+
+        assertNull(awaiting.syncIssue())
+        assertNull(awaiting.syncIssue(blockedByParent = true))
+        assertFalse(awaiting.holdsDeleteRefusal())
+        assertNull(awaiting.keptDeleteRefusal(), "the next pull clears the note instead of carrying it as a refusal")
+        assertNull(awaiting.copy(serverErrorCode = "PROJECT_INSUFFICIENT_ROLE").keptDeleteRefusalCode())
     }
 
     @Test

@@ -383,15 +383,23 @@ class SyncIssueActionsThroughTheEngineTest {
     }
 
     @Test
-    fun acknowledging_a_creation_refused_for_an_unknown_reason_purges_it_and_it_is_never_sent_again() = runTest {
+    fun discarding_a_creation_refused_for_an_unknown_reason_removes_it_with_what_waited_under_it_and_it_is_never_sent_again() = runTest {
         aSyncedSite()
         db.stageDao().upsert(localStage("st-unknown", projectLocalId = "p5", name = "Bardage", syncStatus = SyncStatus.CONFLICTED, lastSyncError = SyncError.REJECTED).copy(serverErrorCode = "A_CODE_FROM_A_NEWER_SERVER"))
+        db.dailyLogDao().upsert(localDailyLog("l-under", stageLocalId = "st-unknown", date = "2026-09-07"))
+        db.dailyEntryDao().upsert(localDailyEntry("e-under", dailyLogLocalId = "l-under", type = "WORK"))
         val unknown = item("st-unknown")
         assertEquals(RefusalReason.UNKNOWN, unknown.issue.reason)
+        assertEquals(listOf(SyncIssueAction.FIX, SyncIssueAction.DISCARD), unknown.actions)
+        assertEquals(1, issues.linkedCount(unknown), "the confirmation announces the entry waiting under the stage")
 
         issues.acknowledge(unknown)
+        assertNotNull(db.stageDao().findByLocalId("st-unknown"), "got it is not offered and removes nothing")
+
+        issues.discard(unknown)
 
         assertNull(db.stageDao().findByLocalId("st-unknown"))
+        assertNull(db.dailyEntryDao().findByLocalId("e-under"))
         assertEquals(SyncOutcome.Synced, engine.syncNow())
         assertEquals(0, sent("POST", "/projects/5/stages"))
         assertEquals(0, issues.observeIssueCount().first())

@@ -12,6 +12,7 @@ import com.dmb.chantiertracker.data.repository.MaterialRepositoryImpl
 import com.dmb.chantiertracker.data.repository.ProjectRepositoryImpl
 import com.dmb.chantiertracker.data.repository.PurchaseLineRepositoryImpl
 import com.dmb.chantiertracker.data.repository.StageRepositoryImpl
+import com.dmb.chantiertracker.data.repository.SyncIssueRepositoryImpl
 import com.dmb.chantiertracker.data.session.RoomUnsyncedWriteCounter
 import com.dmb.chantiertracker.data.sync.AppCoroutineScope
 import com.dmb.chantiertracker.data.sync.SyncError
@@ -20,6 +21,7 @@ import com.dmb.chantiertracker.domain.model.SyncIssue
 import com.dmb.chantiertracker.domain.model.SyncIssueKind
 import com.dmb.chantiertracker.domain.model.UnsentWrites
 import com.dmb.chantiertracker.support.FakeAttachmentFileStore
+import com.dmb.chantiertracker.support.FakeConnectivityObserver
 import com.dmb.chantiertracker.support.FakeProjectBackend
 import com.dmb.chantiertracker.support.FakeSyncer
 import com.dmb.chantiertracker.support.localAttachment
@@ -129,6 +131,42 @@ class SyncIssuesReachTheDomainTest {
             SyncIssue(SyncIssueKind.REFUSED, RefusalReason.FILE_REFUSED, "ATTACHMENT_TOO_LARGE"),
             attachments.observeAttachments("e").first().single().syncIssue,
         )
+    }
+
+    @Test
+    fun what_awaits_its_server_version_is_no_error_anywhere_and_is_counted_nowhere() = runTest {
+        val code = "PROJECT_INSUFFICIENT_ROLE"
+        db.projectDao().upsert(localProject("p", serverId = 1, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED, lastSyncError = SyncError.REJECTED).copy(serverErrorCode = code))
+        db.stageDao().upsert(localStage("st", projectLocalId = "p", serverId = 2, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED, lastSyncError = SyncError.REJECTED).copy(serverErrorCode = code))
+        db.dailyLogDao().upsert(localDailyLog("l", stageLocalId = "st", serverId = 800))
+        db.materialDao().upsert(localMaterial("m", projectLocalId = "p", serverId = 7, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED).copy(lastSyncError = SyncError.REJECTED, serverErrorCode = code))
+        db.dailyEntryDao().upsert(localDailyEntry("e", dailyLogLocalId = "l", serverId = 3, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED, lastSyncError = SyncError.REJECTED).copy(serverErrorCode = code))
+        db.dailyEntryDao().upsert(localDailyEntry("e-work", dailyLogLocalId = "l", type = "WORK", serverId = 4, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+        db.purchaseLineDao().upsert(localPurchaseLine("pl", entryLocalId = "e", materialLocalId = "m", serverId = 60, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED).copy(lastSyncError = SyncError.REJECTED, serverErrorCode = code))
+        db.consumptionLineDao().upsert(localConsumptionLine("cl", entryLocalId = "e-work", materialLocalId = "m", serverId = 61, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED).copy(lastSyncError = SyncError.REJECTED, serverErrorCode = code))
+        val issues = SyncIssueRepositoryImpl(
+            db.syncIssueDao(), db.stageDao(), db.materialDao(), db.dailyEntryDao(), db.purchaseLineDao(), db.consumptionLineDao(), db.attachmentDao(),
+            syncer, db.syncIssueActionDao(), FakeAttachmentFileStore(), FakeConnectivityObserver(initiallyOnline = false),
+        )
+        val counter = RoomUnsyncedWriteCounter(db.localDataDao())
+        val refusedDeletes = issues.observeIssues().first()
+        assertEquals(6, refusedDeletes.size)
+        assertEquals(6, issues.observeIssueCount().first())
+
+        refusedDeletes.forEach { issues.acknowledge(it) }
+
+        assertEquals(6, db.syncIssueActionDao().rowsAwaitingServerVersion().size, "offline, each one awaits its server version")
+        assertNull(projects.observeProjects().first().single().syncIssue)
+        assertNull(stages.observeStages("p").first().single().syncIssue)
+        assertNull(materials.observeMaterials("p").first().single().syncIssue)
+        assertEquals(listOf(null, null), logs.observeLog("l").first()!!.entries.map { it.syncIssue })
+        assertNull(logs.observeEntry("e").first()!!.syncIssue)
+        assertNull(purchaseLines.observeLines("e").first().single().syncIssue)
+        assertNull(consumptionLines.observeLines("e-work").first().single().syncIssue)
+        assertEquals(emptyList(), issues.observeIssues().first(), "nothing on the screen of entries to review")
+        assertEquals(0, issues.observeIssueCount().first(), "nothing in the badge, the banner or the title")
+        assertEquals(UnsentWrites(), counter.unsentByKind(), "nothing in the sign-out count")
+        assertEquals(0, counter.countUnsynced())
     }
 
     @Test

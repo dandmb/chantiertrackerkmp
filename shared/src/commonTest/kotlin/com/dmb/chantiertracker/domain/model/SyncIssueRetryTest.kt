@@ -10,7 +10,6 @@ class SyncIssueRetryTest {
     private val dependingOnSomethingElse = setOf(
         RefusalReason.PLAN_LIMIT,
         RefusalReason.PROJECT_OR_STAGE_INACTIVE,
-        RefusalReason.ENTRY_DATE_RESTRICTED,
         RefusalReason.INSUFFICIENT_ROLE,
     )
 
@@ -28,6 +27,13 @@ class SyncIssueRetryTest {
         assertFalse(SyncIssue(SyncIssueKind.REFUSED, RefusalReason.INSUFFICIENT_STOCK).canBeRetried)
         assertFalse(SyncIssue(SyncIssueKind.REFUSED, RefusalReason.UNKNOWN).canBeRetried)
         assertFalse(SyncIssue(SyncIssueKind.REFUSED, RefusalReason.FILE_REFUSED).canBeRetried)
+    }
+
+    @Test
+    fun a_day_that_is_past_stays_past_so_its_refusal_is_never_retried() {
+        assertFalse(RefusalReason.ENTRY_DATE_RESTRICTED.dependsOnSomethingElse)
+        assertFalse(SyncIssue(SyncIssueKind.REFUSED, RefusalReason.ENTRY_DATE_RESTRICTED).canBeRetried, "creation")
+        assertFalse(SyncIssue(SyncIssueKind.UPDATE_REFUSED, RefusalReason.ENTRY_DATE_RESTRICTED).canBeRetried, "update")
     }
 
     @Test

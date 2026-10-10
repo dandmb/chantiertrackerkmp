@@ -324,24 +324,52 @@ class SyncIssueRepositoryImplTest {
     }
 
     @Test
-    fun acknowledging_what_was_deleted_on_the_server_or_refused_for_an_unknown_reason_purges_it_locally() = runTest {
-        dao.rows.value = listOf(
-            syncIssueRow(SyncIssueTarget.ENTRY, "e-gone", lastSyncError = SyncError.DELETED_ON_SERVER, serverId = 7),
-            syncIssueRow(SyncIssueTarget.STAGE, "st-unknown", serverErrorCode = "A_CODE_THE_APP_DOES_NOT_KNOW"),
-            syncIssueRow(SyncIssueTarget.MATERIAL, "m-no-code", serverErrorCode = null),
-        )
+    fun acknowledging_what_was_deleted_on_the_server_purges_it_locally() = runTest {
+        dao.rows.value = listOf(syncIssueRow(SyncIssueTarget.ENTRY, "e-gone", lastSyncError = SyncError.DELETED_ON_SERVER, serverId = 7))
         removeTheRowLikeRoomWould()
         val path = fileStore.save(ByteArray(4), "photo.jpg")
         localActions.pathsOfRemoved = listOf(path)
 
         repository.acknowledge(listed("e-gone"))
-        repository.acknowledge(listed("st-unknown"))
-        repository.acknowledge(listed("m-no-code"))
 
-        assertEquals(listOf("remove ENTRY e-gone", "remove STAGE st-unknown", "remove MATERIAL m-no-code"), localActions.calls)
+        assertEquals(listOf("remove ENTRY e-gone"), localActions.calls)
         assertTrue(fileStore.storedPaths.isEmpty())
         assertTrue(repository.observeIssues().first().isEmpty())
         assertEquals(0, repository.observeIssueCount().first())
+    }
+
+    @Test
+    fun a_creation_refused_for_an_unknown_reason_is_discarded_and_got_it_does_nothing_to_it() = runTest {
+        dao.rows.value = listOf(
+            syncIssueRow(SyncIssueTarget.STAGE, "st-unknown", serverErrorCode = "A_CODE_THE_APP_DOES_NOT_KNOW"),
+            syncIssueRow(SyncIssueTarget.MATERIAL, "m-no-code", serverErrorCode = null),
+        )
+        removeTheRowLikeRoomWould()
+
+        repository.acknowledge(listed("st-unknown"))
+        repository.acknowledge(listed("m-no-code"))
+        assertEquals(emptyList(), localActions.calls, "got it is not offered, so it removes nothing")
+        assertEquals(2, repository.observeIssueCount().first())
+
+        repository.discard(listed("st-unknown"))
+        repository.discard(listed("m-no-code"))
+
+        assertEquals(listOf("remove STAGE st-unknown", "remove MATERIAL m-no-code"), localActions.calls)
+        assertEquals(0, repository.observeIssueCount().first())
+    }
+
+    @Test
+    fun an_entry_refused_for_a_past_day_is_never_sent_again() = runTest {
+        dao.rows.value = listOf(
+            refusedEntry.copy(serverErrorCode = "ENTRY_DATE_RESTRICTED"),
+            refusedLineUpdate.copy(serverErrorCode = "ENTRY_DATE_RESTRICTED"),
+        )
+
+        assertEquals(RetryOutcome.STILL_REFUSED, repository.retry(listed("e1")))
+        assertEquals(RetryOutcome.STILL_REFUSED, repository.retry(listed("pl-edit")))
+
+        assertEquals(0, syncer.syncCount)
+        assertEquals(SyncError.UPDATE_REFUSED, dao.rows.value.single { it.localId == "pl-edit" }.lastSyncError, "the refused change is not put back in the queue")
     }
 
     @Test

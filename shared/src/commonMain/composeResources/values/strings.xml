@@ -596,7 +596,6 @@
     <string name="sync_typed_versus_server">You entered %1$s; the server kept %2$s.</string>
     <string name="sync_hint_plan_limit">Change your plan or delete a project, then retry.</string>
     <string name="sync_hint_project_or_stage_inactive">Ask a project administrator to reopen the project or the stage, then retry.</string>
-    <string name="sync_hint_entry_date_restricted">Ask a project administrator to make this entry, or to give you administrator rights, then retry.</string>
     <string name="sync_hint_insufficient_role">Ask a project administrator to do it, or to give you administrator rights, then retry.</string>
     <string name="sync_issue_retry">Retry</string>
     <string name="sync_issue_retrying">Sending…</string>

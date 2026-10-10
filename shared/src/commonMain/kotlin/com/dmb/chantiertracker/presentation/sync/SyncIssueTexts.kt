@@ -25,7 +25,6 @@ import com.dmb.chantiertracker.resources.sync_notice_revert_failed
 import com.dmb.chantiertracker.resources.sync_notice_revert_gone_on_server
 import com.dmb.chantiertracker.resources.sync_notice_revert_needs_connection
 import com.dmb.chantiertracker.resources.sync_notice_reverted
-import com.dmb.chantiertracker.resources.sync_hint_entry_date_restricted
 import com.dmb.chantiertracker.resources.sync_hint_insufficient_role
 import com.dmb.chantiertracker.resources.sync_hint_plan_limit
 import com.dmb.chantiertracker.resources.sync_hint_project_or_stage_inactive
@@ -90,7 +89,6 @@ fun RefusalReason?.sentenceRes(): StringResource = when (this) {
 fun RefusalReason?.instructionRes(): StringResource? = when (this) {
     RefusalReason.PLAN_LIMIT -> Res.string.sync_hint_plan_limit
     RefusalReason.PROJECT_OR_STAGE_INACTIVE -> Res.string.sync_hint_project_or_stage_inactive
-    RefusalReason.ENTRY_DATE_RESTRICTED -> Res.string.sync_hint_entry_date_restricted
     RefusalReason.INSUFFICIENT_ROLE -> Res.string.sync_hint_insufficient_role
     else -> null
 }
