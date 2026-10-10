@@ -4,6 +4,7 @@ package com.dmb.chantiertracker.data.sync
 
 import com.dmb.chantiertracker.data.local.db.SyncedRow
 import com.dmb.chantiertracker.domain.model.SyncIssueTarget
+import com.dmb.chantiertracker.domain.model.waitsForACorrection
 import com.dmb.chantiertracker.data.local.AttachmentFileStore
 import com.dmb.chantiertracker.data.local.db.AttachmentDao
 import com.dmb.chantiertracker.data.local.db.AttachmentEntity
@@ -262,6 +263,8 @@ class SyncEngine(
             Unit
         }
     }
+
+    private fun SyncedRow.waitsForACorrection(): Boolean = syncIssue()?.waitsForACorrection == true
 
     private fun SyncedRow.holdsARefusedUpdate(): Boolean =
         syncStatus == SyncStatus.CONFLICTED && pendingOp == PendingOp.UPDATE && serverId != null && lastSyncError != SyncError.DELETED_ON_SERVER
@@ -528,7 +531,7 @@ class SyncEngine(
     private suspend fun pushPending() {
         // Projects first: a pending stage's parent project may still be local-only,
         // and it needs a server id before the stage (its child) can be created.
-        for (entity in dao.findPending()) {
+        for (entity in dao.findPending().filterNot { it.waitsForACorrection() }) {
             when (entity.pendingOp) {
                 PendingOp.CREATE -> pushCreate(entity)
                 PendingOp.UPDATE -> pushUpdate(entity)
@@ -536,7 +539,7 @@ class SyncEngine(
                 PendingOp.NONE -> Unit
             }
         }
-        for (stage in stageDao.findPending()) {
+        for (stage in stageDao.findPending().filterNot { it.waitsForACorrection() }) {
             when (stage.pendingOp) {
                 PendingOp.CREATE -> pushStageCreate(stage)
                 PendingOp.UPDATE -> pushStageUpdate(stage)
@@ -549,14 +552,14 @@ class SyncEngine(
         // server ids), then photos (need the entry's server id). A row whose
         // parent isn't on the server yet stays PENDING and the next pass, after
         // the parent pushes, picks it up — same as pushStageCreate.
-        for (material in materialDao.findPending()) {
+        for (material in materialDao.findPending().filterNot { it.waitsForACorrection() }) {
             when (material.pendingOp) {
                 PendingOp.CREATE -> pushMaterialCreate(material)
                 PendingOp.UPDATE -> pushMaterialUpdate(material)
                 PendingOp.DELETE, PendingOp.NONE -> Unit
             }
         }
-        for (entry in dailyEntryDao.findPending()) {
+        for (entry in dailyEntryDao.findPending().filterNot { it.waitsForACorrection() }) {
             when (entry.pendingOp) {
                 PendingOp.CREATE -> pushEntryCreate(entry)
                 PendingOp.UPDATE -> pushEntryUpdate(entry)
@@ -564,7 +567,7 @@ class SyncEngine(
                 PendingOp.NONE -> Unit
             }
         }
-        for (line in purchaseLineDao.findPending()) {
+        for (line in purchaseLineDao.findPending().filterNot { it.waitsForACorrection() }) {
             when (line.pendingOp) {
                 PendingOp.CREATE -> pushPurchaseLineCreate(line)
                 PendingOp.UPDATE -> pushPurchaseLineUpdate(line)
@@ -572,7 +575,7 @@ class SyncEngine(
                 PendingOp.NONE -> Unit
             }
         }
-        for (line in consumptionLineDao.findPending()) {
+        for (line in consumptionLineDao.findPending().filterNot { it.waitsForACorrection() }) {
             when (line.pendingOp) {
                 PendingOp.CREATE -> pushConsumptionLineCreate(line)
                 PendingOp.UPDATE -> pushConsumptionLineUpdate(line)

@@ -19,6 +19,7 @@ import com.dmb.chantiertracker.support.DisposableAccounts
 import com.dmb.chantiertracker.support.IntegrationBackend
 import com.dmb.chantiertracker.support.retryingOnRateLimit
 import com.dmb.chantiertracker.support.signInForTheFirstTime
+import io.ktor.client.plugins.plugin
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import java.awt.image.BufferedImage
@@ -634,6 +635,58 @@ class SyncAndRejectionsIntegrationTest {
         assertEquals(listOf(null, null, null), after, "une passe de synchro suffit : plus aucun marqueur")
         assertEquals(SyncStatus.SYNCED, supervisorPhone.db.attachmentDao().findByLocalId(photo.localId)?.syncStatus)
         assertEquals(0, supervisorPhone.syncIssues.observeIssueCount().first())
+    }
+
+    private fun DeviceStack.countingSends(method: String, pathPart: String): () -> Int {
+        var sent = 0
+        client.plugin(io.ktor.client.plugins.HttpSend).intercept { request ->
+            if (request.method.value == method && request.url.buildString().contains(pathPart)) sent++
+            execute(request)
+        }
+        return { sent }
+    }
+
+    @Test
+    fun a5_an_entry_refused_for_a_past_day_is_sent_once_over_three_passes_then_once_more_when_it_is_corrected() = runScenario {
+        val ownerPhone = device()
+        ownerPhone.signedInAs("qa-a5-owner", "QA A5 Propriétaire")
+        val supervisorPhone = device()
+        val supervisor = supervisorPhone.signedInAs("qa-a5-super", "QA A5 Superviseur")
+        val projectId = ownerPhone.newProject("QA A5 refus définitif")
+        ownerPhone.newStage(projectId, "Charpente")
+        ownerPhone.sync.syncNow()
+        ownerPhone.invitations.invite(projectId, supervisor.email)
+        supervisorPhone.invitations.acceptInvitation(supervisorPhone.invitationApi.listMine().single().token)
+        supervisorPhone.sync.syncNow()
+        val supervisorProject = supervisorPhone.projects.observeProjects().first().single()
+        supervisorPhone.sync.syncProject(supervisorProject.localId)
+        val supervisorStage = supervisorPhone.stages.observeStages(supervisorProject.localId).first().single()
+        val yesterday = LocalDate.now(ZoneId.of("Europe/Paris")).minusDays(1).toString()
+        val entrySends = supervisorPhone.countingSends("POST", "/logs/$yesterday/purchases")
+
+        supervisorPhone.goOffline()
+        val entry = supervisorPhone.logs.createPurchaseEntry(supervisorStage.localId, yesterday).entryLocalId
+        supervisorPhone.goOnline()
+        repeat(3) { supervisorPhone.sync.syncNow() }
+        supervisorPhone.waitForTheRunningSyncPass()
+
+        val refused = supervisorPhone.syncIssues.observeIssues().first().single()
+        println("A-5 tranche 2 — journée passée : ${refused.issue.reason}, envois après trois passes = ${entrySends()}")
+        assertEquals(com.dmb.chantiertracker.domain.model.RefusalReason.ENTRY_DATE_RESTRICTED, refused.issue.reason)
+        assertEquals(1, entrySends(), "trois passes et plus : la saisie refusée pour de bon n'est envoyée qu'une fois")
+        assertEquals(1, supervisorPhone.syncIssues.observeIssueCount().first(), "elle reste à revoir")
+
+        supervisorPhone.logs.updateEntry(entry, "Résumé corrigé")
+        supervisorPhone.waitForTheRunningSyncPass()
+        repeat(3) { supervisorPhone.sync.syncNow() }
+        supervisorPhone.waitForTheRunningSyncPass()
+
+        println("A-5 tranche 2 — après correction : envois = ${entrySends()}")
+        assertEquals(2, entrySends(), "la correction repart une fois ; toujours un jour passé, donc refusée et figée de nouveau")
+        val again = supervisorPhone.syncIssues.observeIssues().first().single()
+        assertEquals(listOf<Any?>(entry, com.dmb.chantiertracker.domain.model.RefusalReason.ENTRY_DATE_RESTRICTED), listOf(again.localId, again.issue.reason))
+        supervisorPhone.syncIssues.discard(again)
+        assertTrue(supervisorPhone.syncIssues.observeIssues().first().isEmpty())
     }
 
     @Test

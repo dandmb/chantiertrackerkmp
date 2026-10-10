@@ -27,6 +27,26 @@ val RefusalReason.dependsOnSomethingElse: Boolean
         this == RefusalReason.PROJECT_OR_STAGE_INACTIVE ||
         this == RefusalReason.INSUFFICIENT_ROLE
 
+val RefusalReason.creationIsSentAgainByEachPass: Boolean
+    get() = when (this) {
+        RefusalReason.PLAN_LIMIT,
+        RefusalReason.PROJECT_OR_STAGE_INACTIVE,
+        RefusalReason.INSUFFICIENT_ROLE,
+        RefusalReason.INSUFFICIENT_STOCK,
+        -> true
+        RefusalReason.INVALID_VALUE,
+        RefusalReason.DUPLICATE_ENTRY,
+        RefusalReason.DUPLICATE_MATERIAL,
+        RefusalReason.ENTRY_DATE_RESTRICTED,
+        RefusalReason.STOCK_CONSUMED,
+        RefusalReason.FILE_REFUSED,
+        RefusalReason.UNKNOWN,
+        -> false
+    }
+
+val SyncIssue.waitsForACorrection: Boolean
+    get() = kind == SyncIssueKind.REFUSED && !(reason ?: RefusalReason.UNKNOWN).creationIsSentAgainByEachPass
+
 val SyncIssue.canBeRetried: Boolean
     get() = (kind == SyncIssueKind.REFUSED || kind == SyncIssueKind.UPDATE_REFUSED) && reason?.dependsOnSomethingElse == true
 
@@ -105,21 +125,30 @@ val SyncIssueItem.removesLocalDataWhenAcknowledged: Boolean
 val SyncIssueItem.serverValueKnownLocally: Boolean
     get() = issue.kind == SyncIssueKind.UPDATE_REFUSED && target == SyncIssueTarget.CONSUMPTION_LINE && serverQuantity != null
 
-fun refusalReasonOf(serverCode: String?): RefusalReason = when (serverCode) {
-    "PLAN_LIMIT_EXCEEDED" -> RefusalReason.PLAN_LIMIT
-    "PROJECT_OR_STAGE_INACTIVE" -> RefusalReason.PROJECT_OR_STAGE_INACTIVE
-    "ENTRY_DATE_RESTRICTED" -> RefusalReason.ENTRY_DATE_RESTRICTED
-    "PROJECT_INSUFFICIENT_ROLE" -> RefusalReason.INSUFFICIENT_ROLE
-    "INSUFFICIENT_STOCK" -> RefusalReason.INSUFFICIENT_STOCK
-    "STOCK_CONSUMED", "STOCK_RELEASE_BLOCKED" -> RefusalReason.STOCK_CONSUMED
-    "DUPLICATE_ENTRY" -> RefusalReason.DUPLICATE_ENTRY
-    "DUPLICATE_MATERIAL" -> RefusalReason.DUPLICATE_MATERIAL
-    "VALIDATION_FAILED", "INVALID_AMOUNT", "MATERIAL_PROJECT_MISMATCH", "ENTRY_TYPE_MISMATCH" -> RefusalReason.INVALID_VALUE
-    "ATTACHMENT_TOO_LARGE", "INVALID_ATTACHMENT_TYPE", "INVALID_ATTACHMENT_NAME", "UNSUPPORTED_IMAGE", "UNREADABLE_VIDEO", "VIDEO_TOO_LONG",
-    "LOCAL_FILE_MISSING",
-    -> RefusalReason.FILE_REFUSED
-    else -> RefusalReason.UNKNOWN
-}
+val knownRefusalCodes: Map<String, RefusalReason> = mapOf(
+    "PLAN_LIMIT_EXCEEDED" to RefusalReason.PLAN_LIMIT,
+    "PROJECT_OR_STAGE_INACTIVE" to RefusalReason.PROJECT_OR_STAGE_INACTIVE,
+    "ENTRY_DATE_RESTRICTED" to RefusalReason.ENTRY_DATE_RESTRICTED,
+    "PROJECT_INSUFFICIENT_ROLE" to RefusalReason.INSUFFICIENT_ROLE,
+    "INSUFFICIENT_STOCK" to RefusalReason.INSUFFICIENT_STOCK,
+    "STOCK_CONSUMED" to RefusalReason.STOCK_CONSUMED,
+    "STOCK_RELEASE_BLOCKED" to RefusalReason.STOCK_CONSUMED,
+    "DUPLICATE_ENTRY" to RefusalReason.DUPLICATE_ENTRY,
+    "DUPLICATE_MATERIAL" to RefusalReason.DUPLICATE_MATERIAL,
+    "VALIDATION_FAILED" to RefusalReason.INVALID_VALUE,
+    "INVALID_AMOUNT" to RefusalReason.INVALID_VALUE,
+    "MATERIAL_PROJECT_MISMATCH" to RefusalReason.INVALID_VALUE,
+    "ENTRY_TYPE_MISMATCH" to RefusalReason.INVALID_VALUE,
+    "ATTACHMENT_TOO_LARGE" to RefusalReason.FILE_REFUSED,
+    "INVALID_ATTACHMENT_TYPE" to RefusalReason.FILE_REFUSED,
+    "INVALID_ATTACHMENT_NAME" to RefusalReason.FILE_REFUSED,
+    "UNSUPPORTED_IMAGE" to RefusalReason.FILE_REFUSED,
+    "UNREADABLE_VIDEO" to RefusalReason.FILE_REFUSED,
+    "VIDEO_TOO_LONG" to RefusalReason.FILE_REFUSED,
+    "LOCAL_FILE_MISSING" to RefusalReason.FILE_REFUSED,
+)
+
+fun refusalReasonOf(serverCode: String?): RefusalReason = knownRefusalCodes[serverCode] ?: RefusalReason.UNKNOWN
 
 data class UnsentWrites(
     val projects: Int = 0,
