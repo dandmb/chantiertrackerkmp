@@ -1,5 +1,8 @@
 package com.dmb.chantiertracker.presentation.logs
 
+import com.dmb.chantiertracker.domain.model.SyncIssueTarget
+import com.dmb.chantiertracker.presentation.sync.SyncIssueMarker
+import com.dmb.chantiertracker.presentation.sync.SyncIssueMarkerStyle
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -362,6 +365,7 @@ private fun EntrySection(
             }
             DetailEmptyHint(emptyHint)
         } else {
+            SyncIssueMarker(SyncIssueTarget.ENTRY, entry.localId)
             val summary = entry.summary?.takeIf { it.isNotBlank() }
             Text(
                 text = summary ?: stringResource(
@@ -448,6 +452,8 @@ private fun PurchaseLinesSubSection(
                     isAdmin = isAdmin,
                     onEdit = { onEdit(line) },
                     onDelete = { pendingDelete = line },
+                    target = SyncIssueTarget.PURCHASE_LINE,
+                    localId = line.localId,
                 )
             }
         }
@@ -500,6 +506,8 @@ private fun ConsumptionLinesSubSection(
                     isAdmin = isAdmin,
                     onEdit = { onEdit(line) },
                     onDelete = { pendingDelete = line },
+                    target = SyncIssueTarget.CONSUMPTION_LINE,
+                    localId = line.localId,
                 )
             }
         }
@@ -528,11 +536,14 @@ private fun LineRow(
     isAdmin: Boolean,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
+    target: SyncIssueTarget,
+    localId: String,
 ) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(title, style = MaterialTheme.typography.bodyMedium)
             Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            SyncIssueMarker(target, localId)
         }
         if (canEdit) {
             IconButton(onClick = onEdit) { Icon(EditIcon, contentDescription = stringResource(Res.string.entry_edit), modifier = Modifier.size(18.dp)) }
@@ -713,6 +724,20 @@ private fun AttachmentsSection(
 
 @Composable
 private fun AttachmentThumbnail(
+    attachment: Attachment,
+    bitmap: ImageBitmap?,
+    canEdit: Boolean,
+    onClick: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        AttachmentThumbnailFace(attachment, bitmap, canEdit, onClick, onDelete)
+        SyncIssueMarker(SyncIssueTarget.ATTACHMENT, attachment.localId, style = SyncIssueMarkerStyle.ICON_ONLY)
+    }
+}
+
+@Composable
+private fun AttachmentThumbnailFace(
     attachment: Attachment,
     bitmap: ImageBitmap?,
     canEdit: Boolean,

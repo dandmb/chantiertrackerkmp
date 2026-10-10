@@ -42,6 +42,28 @@ class SyncIssuesViewModelTest {
     private val line = onDay(SyncIssueTarget.PURCHASE_LINE, "pl1", blocked, "2026-10-09", "l1")
 
     @Test
+    fun the_markers_are_the_very_list_of_the_screen_and_follow_it() = runTest {
+        val repo = FakeSyncIssueRepository(listOf(entry, line))
+        val vm = SyncIssueMarkersViewModel(repo)
+        val collecting = backgroundScope.launch { vm.items.collect {} }
+        advanceUntilIdle()
+
+        assertEquals(listOf(entry, line), vm.items.value)
+        val markers = SyncIssueMarkers(vm.items.value)
+        assertEquals(entry, markers.of(SyncIssueTarget.ENTRY, "e1"))
+        assertEquals(line, markers.of(SyncIssueTarget.PURCHASE_LINE, "pl1"), "a child waiting on a refused parent is marked although the badge does not count it")
+        assertNull(markers.of(SyncIssueTarget.PURCHASE_LINE, "e1"), "an id is only looked up for its own kind of element")
+        assertNull(markers.of(SyncIssueTarget.ENTRY, "e-fine"))
+        assertEquals(1, SyncIssueCountViewModel(repo).let { count -> backgroundScope.launch { count.count.collect {} }; advanceUntilIdle(); count.count.value })
+
+        repo.items.value = listOf(line)
+        advanceUntilIdle()
+        assertEquals(listOf(line), vm.items.value)
+        assertNull(SyncIssueMarkers(vm.items.value).of(SyncIssueTarget.ENTRY, "e1"))
+        collecting.cancel()
+    }
+
+    @Test
     fun nothing_to_review_is_an_empty_state_not_a_loading_one() = runTest {
         val vm = SyncIssuesViewModel(FakeSyncIssueRepository())
         assertTrue(vm.state.value.isLoading)

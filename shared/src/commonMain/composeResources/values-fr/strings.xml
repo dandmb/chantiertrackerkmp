@@ -570,6 +570,7 @@
     <string name="sync_status_delete_refused">Suppression refusée</string>
     <string name="sync_status_deleted_on_server">Supprimé sur le serveur</string>
     <string name="sync_status_blocked">En attente</string>
+    <string name="sync_marker_open">Voir dans Saisies à revoir</string>
     <string name="sync_reason_plan_limit">La limite de votre formule est atteinte.</string>
     <string name="sync_reason_project_or_stage_inactive">Le projet est suspendu ou terminé, ou l'étape est terminée.</string>
     <string name="sync_reason_entry_date_restricted">Un superviseur ne peut saisir que sur la journée en cours.</string>

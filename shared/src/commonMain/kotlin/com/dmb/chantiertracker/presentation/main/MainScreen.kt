@@ -1,5 +1,7 @@
 package com.dmb.chantiertracker.presentation.main
 
+import com.dmb.chantiertracker.domain.model.SyncIssueItem
+import com.dmb.chantiertracker.presentation.sync.SyncIssueMarkersProvider
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -64,6 +66,7 @@ import com.dmb.chantiertracker.presentation.navigation.ReportEntryRoute
 import com.dmb.chantiertracker.presentation.navigation.SettingsRoute
 import com.dmb.chantiertracker.presentation.navigation.StageDetailRoute
 import com.dmb.chantiertracker.presentation.navigation.SyncIssuesRoute
+import com.dmb.chantiertracker.presentation.navigation.reviewRoute
 import com.dmb.chantiertracker.presentation.navigation.fixRoute
 import com.dmb.chantiertracker.presentation.sync.SyncIssueCountViewModel
 import com.dmb.chantiertracker.presentation.sync.SyncIssuesScreen
@@ -145,7 +148,8 @@ fun MainScreen(
     val account by viewModel.state.collectAsStateWithLifecycle()
     val syncIssueCount by syncIssueCountViewModel.count.collectAsStateWithLifecycle()
     val startDestination = remember(globalRole) { startDestinationFor(globalRole) }
-    val openSyncIssues: () -> Unit = { navController.navigate(SyncIssuesRoute) { launchSingleTop = true } }
+    val openSyncIssues: () -> Unit = { navController.navigate(SyncIssuesRoute()) { launchSingleTop = true } }
+    val openSyncIssue: (SyncIssueItem) -> Unit = remember(navController) { { item -> navController.navigate(item.reviewRoute()) { launchSingleTop = true } } }
 
     account.logoutPrompt?.let { prompt ->
         LogoutPromptDialog(
@@ -381,6 +385,7 @@ fun MainScreen(
     // serves both branches of the width-based layout further down, with no
     // duplication of the ~25-destination graph.
     val navHostContent: @Composable (PaddingValues) -> Unit = { padding ->
+        SyncIssueMarkersProvider(onOpen = openSyncIssue) {
         NavHost(
             navController = navController,
             startDestination = startDestination,
@@ -393,8 +398,11 @@ fun MainScreen(
                     onOpenSyncIssues = openSyncIssues,
                 )
             }
-            composable<SyncIssuesRoute> {
-                SyncIssuesScreen(onFix = { item -> item.fixRoute()?.let { route -> navController.navigate(route) } })
+            composable<SyncIssuesRoute> { entry ->
+                SyncIssuesScreen(
+                    onFix = { item -> item.fixRoute()?.let { route -> navController.navigate(route) } },
+                    focusKey = entry.toRoute<SyncIssuesRoute>().focusKey,
+                )
             }
             composable<AdminStatsRoute> {
                 AdminStatsScreen(
@@ -543,6 +551,7 @@ fun MainScreen(
                     onTitleResolved = { formTitle = it },
                 )
             }
+        }
         }
     }
 

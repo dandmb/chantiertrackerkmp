@@ -1,5 +1,7 @@
 package com.dmb.chantiertracker.presentation.projects.detail
 
+import com.dmb.chantiertracker.domain.model.SyncIssueTarget
+import com.dmb.chantiertracker.presentation.sync.SyncIssueMarker
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -483,7 +485,7 @@ private fun DangerZone(projectName: String, isDeleting: Boolean, onDeleteConfirm
 
 @Composable
 private fun StageRow(stage: Stage, currency: String, onClick: () -> Unit) {
-    ClickableListRow(onClick = onClick) {
+    ClickableListRow(onClick = onClick, footer = { SyncIssueMarker(SyncIssueTarget.STAGE, stage.localId) }) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(
                 text = stage.name,

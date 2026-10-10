@@ -1,5 +1,12 @@
 package com.dmb.chantiertracker.presentation.sync
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.semantics.selected
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.material3.AlertDialog
@@ -85,6 +92,7 @@ fun SyncIssuesScreen(
     modifier: Modifier = Modifier,
     viewModel: SyncIssuesViewModel = koinViewModel(),
     onFix: (SyncIssueItem) -> Unit = {},
+    focusKey: String? = null,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val actions = IssueActions(
@@ -95,6 +103,16 @@ fun SyncIssuesScreen(
         onAcknowledge = viewModel::acknowledge,
     )
 
+    val listState = rememberLazyListState()
+    val focusIndex = focusKey?.let { key -> state.rowKeys().indexOf("issue:$key") } ?: -1
+    var focusShown by rememberSaveable(focusKey) { mutableStateOf(false) }
+    LaunchedEffect(focusKey, focusIndex >= 0) {
+        if (!focusShown && focusIndex >= 0) {
+            listState.scrollToItem(focusIndex)
+            focusShown = true
+        }
+    }
+
     state.confirmation?.let { confirmation ->
         ConfirmRemovalDialog(confirmation, onConfirm = viewModel::confirm, onDismiss = viewModel::dismissConfirmation)
     }
@@ -104,6 +122,7 @@ fun SyncIssuesScreen(
             state.isLoading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
             state.isEmpty -> NothingToReview(state, onDismissNotice = viewModel::dismissNotice)
             else -> LazyColumn(
+                state = listState,
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -112,7 +131,7 @@ fun SyncIssuesScreen(
                     item(key = "notice") { Notice(state, onDismiss = viewModel::dismissNotice) }
                 }
                 item(key = "summary") { Summary(state.total) }
-                state.projects.forEach { project -> projectGroup(project, state, actions) }
+                state.projects.forEach { project -> projectGroup(project, state, actions, focusKey) }
             }
         }
     }
@@ -134,31 +153,48 @@ private class IssueActions(
     }
 }
 
-private fun LazyListScope.projectGroup(project: SyncIssueProjectGroup, state: SyncIssuesUiState, actions: IssueActions) {
+private fun SyncIssuesUiState.rowKeys(): List<String> = buildList {
+    if (notice != null || actionNotice != null) add("notice")
+    add("summary")
+    projects.forEach { project ->
+        add("project:${project.projectLocalId}")
+        project.items.forEach { add("issue:${it.key}") }
+        project.stages.forEach { stage ->
+            add("stage:${stage.stageLocalId}")
+            stage.items.forEach { add("issue:${it.key}") }
+            stage.days.forEach { day ->
+                add("day:${day.dailyLogLocalId}")
+                day.items.forEach { add("issue:${it.key}") }
+            }
+        }
+    }
+}
+
+private fun LazyListScope.projectGroup(project: SyncIssueProjectGroup, state: SyncIssuesUiState, actions: IssueActions, focusKey: String?) {
     item(key = "project:${project.projectLocalId}") {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             GroupTitle(project.projectName, ProjectsIcon, emphasis = GroupEmphasis.PROJECT)
         }
     }
-    issueCards(project.items, state, actions)
+    issueCards(project.items, state, actions, focusKey)
     project.stages.forEach { stage ->
         item(key = "stage:${stage.stageLocalId}") {
             GroupTitle(stringResource(Res.string.sync_group_stage, stage.stageName), ConstructionIcon, emphasis = GroupEmphasis.STAGE)
         }
-        issueCards(stage.items, state, actions)
+        issueCards(stage.items, state, actions, focusKey)
         stage.days.forEach { day ->
             item(key = "day:${day.dailyLogLocalId}") {
                 GroupTitle(stringResource(Res.string.sync_group_day, formatIsoDate(day.date)), CalendarIcon, emphasis = GroupEmphasis.DAY)
             }
-            issueCards(day.items, state, actions)
+            issueCards(day.items, state, actions, focusKey)
         }
     }
 }
 
-private fun LazyListScope.issueCards(items: List<SyncIssueItem>, state: SyncIssuesUiState, actions: IssueActions) {
+private fun LazyListScope.issueCards(items: List<SyncIssueItem>, state: SyncIssuesUiState, actions: IssueActions, focusKey: String?) {
     items.forEach { item ->
-        item(key = "issue:${item.key}") { IssueCard(item, state, actions) }
+        item(key = "issue:${item.key}") { IssueCard(item, state, actions, singledOut = item.key == focusKey) }
     }
 }
 
@@ -207,14 +243,14 @@ private fun GroupTitle(text: String, icon: ImageVector, emphasis: GroupEmphasis)
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun IssueCard(item: SyncIssueItem, state: SyncIssuesUiState, actions: IssueActions) {
+private fun IssueCard(item: SyncIssueItem, state: SyncIssuesUiState, actions: IssueActions, singledOut: Boolean) {
     val offered = item.actions
     val revertUnavailable = SyncIssueAction.REVERT in offered && !state.canRevert(item)
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = if (singledOut) Modifier.fillMaxWidth().semantics { selected = true } else Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.large,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = CardDefaults.outlinedCardBorder(),
+        border = if (singledOut) BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else CardDefaults.outlinedCardBorder(),
     ) {
         Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             StatusLabel(item.issue.kind)

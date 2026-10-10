@@ -190,6 +190,10 @@ class SyncIssuesViewModel(private val repository: SyncIssueRepository) : ViewMod
     }
 }
 
+class SyncIssueMarkersViewModel(repository: SyncIssueRepository) : ViewModel() {
+    val items: StateFlow<List<SyncIssueItem>> = repository.observeIssues().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+}
+
 class SyncIssueCountViewModel(repository: SyncIssueRepository) : ViewModel() {
     val count: StateFlow<Int> = repository.observeIssueCount().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 }

@@ -1,6 +1,7 @@
 package com.dmb.chantiertracker.presentation.navigation
 
 import com.dmb.chantiertracker.domain.model.RefusalReason
+import com.dmb.chantiertracker.domain.model.SyncIssue
 import com.dmb.chantiertracker.domain.model.SyncIssueKind
 import com.dmb.chantiertracker.domain.model.SyncIssueTarget
 import com.dmb.chantiertracker.support.issueItem
@@ -34,5 +35,15 @@ class SyncIssueFixRouteTest {
         assertNull(issueItem(SyncIssueTarget.ATTACHMENT, "a1", refusedIssue(RefusalReason.FILE_REFUSED)).fixRoute())
         assertNull(issueItem(SyncIssueTarget.PURCHASE_LINE, "pl1", invalid, entryLocalId = null).fixRoute(), "a line whose entry is unknown cannot open its form")
         assertNull(issueItem(SyncIssueTarget.PROJECT, "p1", refusedIssue(RefusalReason.PLAN_LIMIT)).fixRoute(), "editing a project does not lift a plan limit")
+    }
+
+    @Test
+    fun a_marker_leads_to_the_review_screen_opened_on_its_own_entry() {
+        val line = issueItem(SyncIssueTarget.PURCHASE_LINE, "pl1", SyncIssue(SyncIssueKind.BLOCKED_BY_PARENT))
+        val entry = issueItem(SyncIssueTarget.ENTRY, "pl1", SyncIssue(SyncIssueKind.DELETED_ON_SERVER))
+
+        assertEquals(SyncIssuesRoute(focusKey = "PURCHASE_LINE:pl1"), line.reviewRoute())
+        assertEquals(SyncIssuesRoute(focusKey = "ENTRY:pl1"), entry.reviewRoute())
+        assertEquals(SyncIssuesRoute(focusKey = null), SyncIssuesRoute(), "the badge and the banner still open the list from its top")
     }
 }
