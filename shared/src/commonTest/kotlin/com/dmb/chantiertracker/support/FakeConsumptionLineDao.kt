@@ -50,4 +50,8 @@ class FakeConsumptionLineDao(
     override suspend fun deleteByLocalId(localId: String) {
         lines.value = lines.value - localId
     }
+
+    val mergedMaterials = mutableMapOf<String, String>()
+
+    override suspend fun survivorOfMergedMaterial(materialLocalId: String): String? = mergedMaterials[materialLocalId]
 }

@@ -51,7 +51,7 @@ class ProjectRepositoryImpl(
     override suspend fun createProject(input: CreateProjectInput): String {
         val localId = newLocalId()
         val now = clock.nowEpochMillis()
-        dao.upsert(
+        dao.insertNew(
             ProjectEntity(
                 localId = localId,
                 serverId = null,

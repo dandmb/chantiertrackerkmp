@@ -37,7 +37,7 @@ class ConsumptionLineRepositoryImpl(
     override suspend fun createLine(entryLocalId: String, input: CreateConsumptionLineInput): String {
         val localId = newLocalId()
         val now = clock.nowEpochMillis()
-        dao.upsert(
+        dao.insertNew(
             ConsumptionLineEntity(
                 localId = localId,
                 serverId = null,

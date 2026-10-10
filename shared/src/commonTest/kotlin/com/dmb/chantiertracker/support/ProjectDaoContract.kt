@@ -969,3 +969,51 @@ suspend fun verifyLocalVersionContract(db: AppDatabase) {
     assertLocalVersionRule(db.projectDao(), "p-own", "project") { it.copy(name = it.name + "+") }
     assertEquals(listOf("e"), db.dailyEntryDao().findForLog("l").map { it.localId }, "the rest of the site is untouched")
 }
+
+suspend fun verifyMaterialMergeContract(db: AppDatabase) {
+    val synced = SyncStatus.SYNCED
+    val none = PendingOp.NONE
+    db.projectDao().upsert(localProject("p", serverId = 1, pendingOp = none, syncStatus = synced))
+    db.stageDao().upsert(localStage("s", projectLocalId = "p", serverId = 10, pendingOp = none, syncStatus = synced))
+    db.dailyLogDao().upsert(localDailyLog("l", stageLocalId = "s", date = "2026-09-05", serverId = 800))
+    db.dailyEntryDao().upsert(localDailyEntry("e", dailyLogLocalId = "l", type = "PURCHASE", serverId = 30, pendingOp = none, syncStatus = synced))
+    db.dailyEntryDao().upsert(localDailyEntry("e-work", dailyLogLocalId = "l", type = "WORK", serverId = 31, pendingOp = none, syncStatus = synced))
+    db.materialDao().upsert(localMaterial("m-first", projectLocalId = "p", name = "Sable"))
+    db.materialDao().upsert(localMaterial("m-second", projectLocalId = "p", name = "sable", serverId = 20, pendingOp = none, syncStatus = synced))
+    db.materialDao().upsert(localMaterial("m-third", projectLocalId = "p", name = "Sable fin", serverId = 21, pendingOp = none, syncStatus = synced))
+    db.purchaseLineDao().upsert(localPurchaseLine("pl-before", entryLocalId = "e", materialLocalId = "m-first"))
+    assertNull(db.purchaseLineDao().survivorOfMergedMaterial("m-first"), "nothing merged yet")
+
+    db.materialAdoptionDao().mergeInto("m-first", db.materialDao().findByLocalId("m-second")!!.copy(name = "Sable"))
+
+    assertNull(db.materialDao().findByLocalId("m-first"))
+    assertEquals("m-second", db.purchaseLineDao().findByLocalId("pl-before")!!.materialLocalId, "the lines of the duplicate follow")
+    assertEquals(listOf("m-second", "m-second"), listOf(db.purchaseLineDao().survivorOfMergedMaterial("m-first"), db.consumptionLineDao().survivorOfMergedMaterial("m-first")))
+    assertTrue(db.purchaseLineDao().insertNew(localPurchaseLine("pl-late", entryLocalId = "e", materialLocalId = "m-first", quantity = 4.0)), "a line still naming the merged material is stored")
+    assertTrue(db.consumptionLineDao().insertNew(localConsumptionLine("cl-late", entryLocalId = "e-work", materialLocalId = "m-first")))
+    assertEquals(
+        listOf("m-second", "m-second"),
+        listOf(db.purchaseLineDao().findByLocalId("pl-late")!!.materialLocalId, db.consumptionLineDao().findByLocalId("cl-late")!!.materialLocalId),
+        "under the material that survived",
+    )
+    assertEquals(4.0, db.purchaseLineDao().findByLocalId("pl-late")!!.quantity)
+    assertTrue(!db.purchaseLineDao().insertNew(localPurchaseLine("pl-late", entryLocalId = "e", materialLocalId = "m-second", quantity = 9.0)), "inserting never replaces an existing row")
+    assertEquals(4.0, db.purchaseLineDao().findByLocalId("pl-late")!!.quantity)
+    assertTrue(db.purchaseLineDao().insertNew(localPurchaseLine("pl-plain", entryLocalId = "e", materialLocalId = "m-third")))
+    assertEquals("m-third", db.purchaseLineDao().findByLocalId("pl-plain")!!.materialLocalId, "a material that was never merged is left alone")
+
+    db.materialAdoptionDao().mergeInto("m-second", db.materialDao().findByLocalId("m-third")!!)
+
+    assertEquals(
+        listOf("m-third", "m-third"), listOf(db.purchaseLineDao().survivorOfMergedMaterial("m-first"), db.purchaseLineDao().survivorOfMergedMaterial("m-second")),
+        "an earlier merge follows the next one",
+    )
+    assertTrue(db.purchaseLineDao().insertNew(localPurchaseLine("pl-later", entryLocalId = "e", materialLocalId = "m-first")))
+    assertEquals(
+        listOf("m-third", "m-third", "m-third", "m-third"),
+        listOf("pl-before", "pl-late", "pl-later", "pl-plain").map { db.purchaseLineDao().findByLocalId(it)!!.materialLocalId },
+    )
+
+    db.localDataDao().eraseAll()
+    assertNull(db.purchaseLineDao().survivorOfMergedMaterial("m-first"), "erasing the account erases the trace of the merges")
+}

@@ -420,6 +420,93 @@ class SyncPassKeepsLocalChangesTest {
         assertEquals(listOf<Any?>(40.0, 40.0), db.purchaseLineDao().findByLocalId("pl5000")!!.let { listOf(it.quantity, it.serverQuantity) })
     }
 
+    private suspend fun aDuplicateOfAMaterialTheServerRenamed() {
+        backend.seedMaterial(ServerMaterial(id = 8, projectId = 5, name = "Sable", unit = "t"))
+        db.materialDao().upsert(localMaterial("m8", projectLocalId = "p5", name = "sable", unit = "t", serverId = 8, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+        db.materialDao().upsert(localMaterial("m-dup", projectLocalId = "p5", name = "Sable", unit = "t"))
+    }
+
+    @Test
+    fun lines_saved_edited_and_deleted_while_a_duplicate_material_is_being_merged_all_follow_the_surviving_material() = runTest {
+        aSyncedSite()
+        aDuplicateOfAMaterialTheServerRenamed()
+        val before = purchaseLines.createLine("e900", CreatePurchaseLineInput("m-dup", 1.0, 6.0, null))
+        val removed = purchaseLines.createLine("e900", CreatePurchaseLineInput("m-dup", 9.0, 6.0, null))
+        var duringThePost = ""
+        var duringTheRead = ""
+        var steps = 0
+        backend.beforeHandle = { request ->
+            when {
+                request.isA("POST", "/projects/5/materials") && steps == 0 -> {
+                    steps = 1
+                    duringThePost = purchaseLines.createLine("e900", CreatePurchaseLineInput("m-dup", 3.0, 6.0, null))
+                    purchaseLines.updateLine(before, UpdatePurchaseLineInput(2.0, 6.0, null))
+                    purchaseLines.deleteLine(removed)
+                }
+                request.isA("GET", "/projects/5/materials") && steps == 1 -> {
+                    steps = 2
+                    duringTheRead = consumptionLines.createLine("e901", CreateConsumptionLineInput("m-dup", 4.0))
+                }
+            }
+        }
+
+        assertEquals(SyncOutcome.Synced, engine.syncNow())
+        backend.beforeHandle = null
+        assertEquals(SyncOutcome.Synced, engine.syncNow())
+
+        assertEquals(2, steps, "the saves happened during the refused creation and during the read of the namesake")
+        assertEquals(listOf("m7" to "Ciment", "m8" to "Sable"), db.materialDao().findForProject("p5").map { it.localId to it.name }.sortedBy { it.first }, "one material left, the server one")
+        assertNull(db.purchaseLineDao().findByLocalId(removed), "the line deleted meanwhile stays deleted")
+        assertEquals(
+            listOf<Any?>("m8" to 2.0, "m8" to 3.0, "m8" to 4.0),
+            listOf(
+                db.purchaseLineDao().findByLocalId(before)!!.let { it.materialLocalId to it.quantity },
+                db.purchaseLineDao().findByLocalId(duringThePost)!!.let { it.materialLocalId to it.quantity },
+                db.consumptionLineDao().findByLocalId(duringTheRead)!!.let { it.materialLocalId to it.quantity },
+            ),
+            "every line saved meanwhile now belongs to the surviving material, with what was typed",
+        )
+        assertEquals(listOf(100.0, 2.0, 3.0), backend.purchaseLines.map { it.quantity }, "and reached the server once each")
+        assertEquals(listOf(8L, 8L), backend.purchaseLines.drop(1).map { it.materialId })
+        assertEquals(listOf(10.0 to 7L, 4.0 to 8L), backend.consumptionLines.map { it.quantity to it.materialId })
+    }
+
+    @Test
+    fun a_line_saved_right_after_the_merge_with_the_material_that_was_merged_away_is_kept_under_the_surviving_material() = runTest {
+        aSyncedSite()
+        aDuplicateOfAMaterialTheServerRenamed()
+        assertEquals(SyncOutcome.Synced, engine.syncNow())
+        assertNull(db.materialDao().findByLocalId("m-dup"), "the duplicate was merged into the server material")
+
+        val purchase = runCatching { purchaseLines.createLine("e900", CreatePurchaseLineInput("m-dup", 4.0, 6.0, null)) }
+        val consumption = runCatching { consumptionLines.createLine("e901", CreateConsumptionLineInput("m-dup", 1.0)) }
+
+        assertNull(purchase.exceptionOrNull(), "the form still held the merged material: its save must not fail")
+        assertNull(consumption.exceptionOrNull())
+        assertEquals(listOf<Any?>("m8", 4.0, SyncStatus.PENDING), db.purchaseLineDao().findByLocalId(purchase.getOrThrow())!!.let { listOf(it.materialLocalId, it.quantity, it.syncStatus) })
+        assertEquals("m8", db.consumptionLineDao().findByLocalId(consumption.getOrThrow())!!.materialLocalId)
+        assertEquals(SyncOutcome.Synced, engine.syncNow())
+        assertEquals(listOf(100.0 to 7L, 4.0 to 8L), backend.purchaseLines.map { it.quantity to it.materialId }, "the line reaches the server under the surviving material")
+    }
+
+    @Test
+    fun a_material_merged_twice_in_a_row_still_leads_a_late_line_to_the_last_survivor() = runTest {
+        aSyncedSite()
+        aDuplicateOfAMaterialTheServerRenamed()
+        assertEquals(SyncOutcome.Synced, engine.syncNow())
+        backend.seedMaterial(ServerMaterial(id = 9, projectId = 5, name = "Sable fin", unit = "t"))
+        db.materialDao().upsert(localMaterial("m9", projectLocalId = "p5", name = "sable fin", unit = "t", serverId = 9, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+        backend.materials.first { it.id == 8L }.name = "Gravier"
+        backend.materials.first { it.id == 9L }.name = "Sable"
+        assertEquals(SyncOutcome.Synced, engine.syncProject("p5"))
+
+        val late = runCatching { purchaseLines.createLine("e900", CreatePurchaseLineInput("m-dup", 4.0, 6.0, null)) }
+
+        assertNull(late.exceptionOrNull())
+        val material = db.purchaseLineDao().findByLocalId(late.getOrThrow())!!.materialLocalId
+        assertNotNull(db.materialDao().findByLocalId(material), "whatever happened to the materials since, the line points at one that exists")
+    }
+
     @Test
     fun a_photo_deleted_while_it_is_uploaded_does_not_come_back_and_leaves_neither_file_nor_server_copy() = runTest {
         aSyncedSite()

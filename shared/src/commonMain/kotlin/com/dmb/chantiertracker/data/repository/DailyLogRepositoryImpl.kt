@@ -92,7 +92,7 @@ class DailyLogRepositoryImpl(
         val existing = entryDao.findByLogAndType(log.localId, type.name)
         if (existing != null && existing.pendingOp != PendingOp.DELETE) return log.localId
 
-        entryDao.upsert(
+        entryDao.insertNew(
             DailyEntryEntity(
                 localId = newLocalId(),
                 serverId = null,

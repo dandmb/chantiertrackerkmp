@@ -37,7 +37,7 @@ class PurchaseLineRepositoryImpl(
     override suspend fun createLine(entryLocalId: String, input: CreatePurchaseLineInput): String {
         val localId = newLocalId()
         val now = clock.nowEpochMillis()
-        dao.upsert(
+        dao.insertNew(
             PurchaseLineEntity(
                 localId = localId,
                 serverId = null,

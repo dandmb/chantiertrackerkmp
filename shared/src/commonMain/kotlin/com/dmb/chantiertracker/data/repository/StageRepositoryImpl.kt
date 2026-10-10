@@ -42,7 +42,7 @@ class StageRepositoryImpl(
     override suspend fun createStage(input: CreateStageInput): String {
         val localId = newLocalId()
         val now = clock.nowEpochMillis()
-        dao.upsert(
+        dao.insertNew(
             StageEntity(
                 localId = localId,
                 serverId = null,

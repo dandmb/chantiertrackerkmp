@@ -479,7 +479,7 @@ class SyncEngine(
             val local = byServerId[dto.id]
             when {
                 local == null ->
-                    stageDao.upsert(dto.toSyncedEntity(newLocalId(), projectLocalId, syncedAt))
+                    stageDao.insertNew(dto.toSyncedEntity(newLocalId(), projectLocalId, syncedAt))
 
                 local.pendingOp == PendingOp.NONE ->
                     stageDao.writeIfUnchanged(dto.toSyncedEntity(local.localId, projectLocalId, syncedAt, local))
@@ -1096,7 +1096,7 @@ class SyncEngine(
         val sameName = materialDao.findByProjectAndNameExactly(projectLocalId, dto.name)
         when {
             sameName == null || sameName.localId == byServerId?.localId -> when {
-                byServerId == null -> materialDao.upsert(dto.toSyncedEntity(newLocalId(), projectLocalId, syncedAt))
+                byServerId == null -> materialDao.insertNew(dto.toSyncedEntity(newLocalId(), projectLocalId, syncedAt))
                 byServerId.pendingOp == PendingOp.NONE -> materialDao.writeIfUnchanged(dto.toSyncedEntity(byServerId.localId, projectLocalId, syncedAt, byServerId))
                 // else: a pending local rename — it wins on its next push (LWW).
                 else -> Unit
@@ -1204,7 +1204,7 @@ class SyncEngine(
         for (dto in remote) {
             val existing = byServerId[dto.id] ?: byType[dto.type.uppercase()]
             when {
-                existing == null -> dailyEntryDao.upsert(dto.toSyncedEntity(newLocalId(), logLocalId, syncedAt))
+                existing == null -> dailyEntryDao.insertNew(dto.toSyncedEntity(newLocalId(), logLocalId, syncedAt))
                 existing.pendingOp == PendingOp.NONE -> dailyEntryDao.writeIfUnchanged(dto.toSyncedEntity(existing.localId, logLocalId, syncedAt, existing))
                 else -> Unit
             }
@@ -1230,7 +1230,7 @@ class SyncEngine(
             val materialLocalId = materialDao.findByServerId(dto.materialId)?.localId ?: continue
             val local = byServerId[dto.id]
             when {
-                local == null -> purchaseLineDao.upsert(dto.toSyncedEntity(newLocalId(), entryLocalId, materialLocalId, syncedAt))
+                local == null -> purchaseLineDao.insertNew(dto.toSyncedEntity(newLocalId(), entryLocalId, materialLocalId, syncedAt))
                 local.pendingOp == PendingOp.NONE -> purchaseLineDao.writeIfUnchanged(dto.toSyncedEntity(local.localId, entryLocalId, materialLocalId, syncedAt, local))
                 else -> Unit
             }
@@ -1255,7 +1255,7 @@ class SyncEngine(
             val materialLocalId = materialDao.findByServerId(dto.materialId)?.localId ?: continue
             val local = byServerId[dto.id]
             when {
-                local == null -> consumptionLineDao.upsert(dto.toSyncedEntity(newLocalId(), entryLocalId, materialLocalId, syncedAt))
+                local == null -> consumptionLineDao.insertNew(dto.toSyncedEntity(newLocalId(), entryLocalId, materialLocalId, syncedAt))
                 local.pendingOp == PendingOp.NONE -> consumptionLineDao.writeIfUnchanged(dto.toSyncedEntity(local.localId, entryLocalId, materialLocalId, syncedAt, local))
                 else -> Unit
             }
@@ -1288,7 +1288,7 @@ class SyncEngine(
             // added here. Videos are already transcoded server-side (ADR-35).
             val bytes = serverCall { attachmentApi.download(dto.id) }
             val path = attachmentFileStore.save(bytes, dto.originalName ?: defaultAttachmentName(dto.mimeType))
-            attachmentDao.upsert(dto.toSyncedEntity(newLocalId(), entryLocalId, path, syncedAt))
+            attachmentDao.insertNew(dto.toSyncedEntity(newLocalId(), entryLocalId, path, syncedAt))
         }
 
         if (skipsRemovalAfter(read, "attachments of entry $entryServerId")) return
@@ -1439,7 +1439,7 @@ class SyncEngine(
             val local = byServerId[dto.id]
             when {
                 local == null ->
-                    dao.upsert(dto.toSyncedEntity(localId = newLocalId(), syncedAt = syncedAt))
+                    dao.insertNew(dto.toSyncedEntity(localId = newLocalId(), syncedAt = syncedAt))
 
                 local.pendingOp == PendingOp.NONE ->
                     dao.writeIfUnchanged(dto.toSyncedEntity(localId = local.localId, syncedAt = syncedAt, previous = local))

@@ -55,7 +55,7 @@ class MaterialRepositoryImpl(
         if (existing != null) return existing.toMaterial()
 
         val localId = newLocalId()
-        materialDao.upsert(
+        materialDao.insertNew(
             MaterialEntity(
                 localId = localId,
                 serverId = null,

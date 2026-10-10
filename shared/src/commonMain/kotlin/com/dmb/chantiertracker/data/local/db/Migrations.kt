@@ -417,5 +417,10 @@ val MIGRATION_15_16 = object : Migration(15, 16) {
             connection.execSQL("ALTER TABLE `$table` ADD COLUMN `awaitsServerVersion` INTEGER NOT NULL DEFAULT 0")
             connection.execSQL("UPDATE `$table` SET `awaitsServerVersion` = 1, `lastSyncError` = NULL WHERE `lastSyncError` = 'AWAITING_SERVER_VERSION'")
         }
+        connection.execSQL(
+            "CREATE TABLE IF NOT EXISTS `material_merges` (`mergedLocalId` TEXT NOT NULL, `keptLocalId` TEXT NOT NULL, PRIMARY KEY(`mergedLocalId`), " +
+                "FOREIGN KEY(`keptLocalId`) REFERENCES `materials`(`localId`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        )
+        connection.execSQL("CREATE INDEX IF NOT EXISTS `index_material_merges_keptLocalId` ON `material_merges` (`keptLocalId`)")
     }
 }
