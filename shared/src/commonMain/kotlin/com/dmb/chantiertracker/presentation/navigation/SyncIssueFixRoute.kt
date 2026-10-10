@@ -4,6 +4,8 @@ import com.dmb.chantiertracker.domain.model.SyncIssueItem
 import com.dmb.chantiertracker.domain.model.SyncIssueTarget
 import com.dmb.chantiertracker.domain.model.canBeFixed
 
+fun SyncIssueItem.reviewRoute(): SyncIssuesRoute = SyncIssuesRoute(focusKey = key)
+
 fun SyncIssueItem.fixRoute(): Any? {
     if (!canBeFixed) return null
     return when (target) {

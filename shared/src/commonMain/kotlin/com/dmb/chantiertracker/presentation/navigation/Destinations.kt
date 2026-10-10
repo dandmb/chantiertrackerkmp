@@ -71,7 +71,7 @@ data object ProjectsRoute
 data object SettingsRoute
 
 @Serializable
-data object SyncIssuesRoute
+data class SyncIssuesRoute(val focusKey: String? = null)
 
 /**
  * Bannière affichée sur l'écran de facturation après un retour de checkout

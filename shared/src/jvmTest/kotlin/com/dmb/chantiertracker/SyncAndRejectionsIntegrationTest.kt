@@ -574,6 +574,75 @@ class SyncAndRejectionsIntegrationTest {
     // ─── P8 — session expired / another account on the same device ───────────
 
     @Test
+    fun adr74_markers_show_the_refused_entry_and_its_waiting_children_then_leave_once_the_server_accepts_them() = runScenario {
+        val ownerPhone = device()
+        ownerPhone.signedInAs("qa-74m-owner", "QA 74 marqueurs Propriétaire")
+        val supervisorPhone = device()
+        val supervisor = supervisorPhone.signedInAs("qa-74m-super", "QA 74 marqueurs Superviseur")
+
+        val projectId = ownerPhone.newProject("QA 74 marqueurs")
+        ownerPhone.newStage(projectId, "Charpente")
+        ownerPhone.sync.syncNow()
+        ownerPhone.invitations.invite(projectId, supervisor.email)
+        val token = supervisorPhone.invitationApi.listMine().single().token
+        supervisorPhone.invitations.acceptInvitation(token)
+        supervisorPhone.sync.syncNow()
+        val supervisorProject = supervisorPhone.projects.observeProjects().first().single()
+        supervisorPhone.sync.syncProject(supervisorProject.localId)
+        val supervisorStage = supervisorPhone.stages.observeStages(supervisorProject.localId).first().single()
+
+        suspend fun ownerSetsStatus(status: ProjectStatus) {
+            val detail = ownerPhone.projects.observeProject(projectId).first()!!
+            ownerPhone.projects.updateProject(projectId, UpdateProjectInput(detail.name, detail.description, detail.location, detail.currency, detail.timezone, status))
+            assertEquals(SyncOutcome.Synced, ownerPhone.sync.syncNow())
+        }
+        suspend fun markers() = com.dmb.chantiertracker.presentation.sync.SyncIssueMarkers(supervisorPhone.syncIssues.observeIssues().first())
+        suspend fun markerOf(target: com.dmb.chantiertracker.domain.model.SyncIssueTarget, localId: String) = markers().of(target, localId)?.issue?.kind
+        val entryTarget = com.dmb.chantiertracker.domain.model.SyncIssueTarget.ENTRY
+        val lineTarget = com.dmb.chantiertracker.domain.model.SyncIssueTarget.PURCHASE_LINE
+        val photoTarget = com.dmb.chantiertracker.domain.model.SyncIssueTarget.ATTACHMENT
+        val refused = com.dmb.chantiertracker.domain.model.SyncIssueKind.REFUSED
+        val waiting = com.dmb.chantiertracker.domain.model.SyncIssueKind.BLOCKED_BY_PARENT
+
+        val cement = supervisorPhone.materials.createMaterial(supervisorProject.localId, "Ciment", "sac")
+        assertEquals(SyncOutcome.Synced, supervisorPhone.sync.syncNow())
+        ownerSetsStatus(ProjectStatus.SUSPENDED)
+
+        supervisorPhone.goOffline()
+        val entry = supervisorPhone.entryOf(supervisorPhone.logs.createPurchaseEntry(supervisorStage.localId, todayInParis()), EntryType.PURCHASE)
+        val line = supervisorPhone.purchaseLines.createLine(entry, CreatePurchaseLineInput(cement.localId, 3.0, 5.0, null))
+        val photo = supervisorPhone.attachments.addAttachment(entry, aSmallJpeg(), "bon.jpg", "image/jpeg")
+        assertEquals(listOf(null, null, null), listOf(markerOf(entryTarget, entry), markerOf(lineTarget, line), markerOf(photoTarget, photo.localId)), "simplement en attente d'envoi : aucun marqueur")
+        supervisorPhone.goOnline()
+        supervisorPhone.sync.syncNow()
+        supervisorPhone.sync.syncNow()
+
+        val marked = listOf(markerOf(entryTarget, entry), markerOf(lineTarget, line), markerOf(photoTarget, photo.localId))
+        println("ADR-74 tranche 4 — marqueurs, projet suspendu : saisie=${marked[0]}, ligne=${marked[1]}, photo=${marked[2]}")
+        assertEquals(listOf(refused, waiting, waiting), marked)
+        assertEquals(
+            listOf(null, null, null),
+            listOf(
+                markerOf(com.dmb.chantiertracker.domain.model.SyncIssueTarget.PROJECT, supervisorProject.localId),
+                markerOf(com.dmb.chantiertracker.domain.model.SyncIssueTarget.STAGE, supervisorStage.localId),
+                markerOf(com.dmb.chantiertracker.domain.model.SyncIssueTarget.MATERIAL, cement.localId),
+            ),
+            "le projet, l'étape et le matériau, acceptés, ne portent rien",
+        )
+        assertEquals(1, supervisorPhone.syncIssues.observeIssueCount().first(), "la pastille compte la saisie, pas ses deux enfants marqués")
+
+        ownerSetsStatus(ProjectStatus.IN_PROGRESS)
+        assertEquals(SyncOutcome.Synced, supervisorPhone.sync.syncNow())
+        supervisorPhone.sync.syncNow()
+
+        val after = listOf(markerOf(entryTarget, entry), markerOf(lineTarget, line), markerOf(photoTarget, photo.localId))
+        println("ADR-74 tranche 4 — marqueurs après réouverture et synchro : $after")
+        assertEquals(listOf(null, null, null), after, "une passe de synchro suffit : plus aucun marqueur")
+        assertEquals(SyncStatus.SYNCED, supervisorPhone.db.attachmentDao().findByLocalId(photo.localId)?.syncStatus)
+        assertEquals(0, supervisorPhone.syncIssues.observeIssueCount().first())
+    }
+
+    @Test
     fun adr74_an_entry_refused_for_a_past_day_offers_no_retry_and_leaves_with_discard() = runScenario {
         val ownerPhone = device()
         ownerPhone.signedInAs("qa-74t-owner", "QA 74 ter Propriétaire")

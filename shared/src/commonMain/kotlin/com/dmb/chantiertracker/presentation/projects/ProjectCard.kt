@@ -1,5 +1,7 @@
 package com.dmb.chantiertracker.presentation.projects
 
+import com.dmb.chantiertracker.domain.model.SyncIssueTarget
+import com.dmb.chantiertracker.presentation.sync.SyncIssueMarker
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -52,6 +54,7 @@ fun ProjectCard(project: Project, onClick: () -> Unit, modifier: Modifier = Modi
                     style = MaterialTheme.typography.bodySmall,
                 )
                 ProjectStatusBadge(project.status)
+                SyncIssueMarker(SyncIssueTarget.PROJECT, project.localId)
             }
             Icon(
                 imageVector = ChevronRightIcon,

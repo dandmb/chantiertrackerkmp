@@ -541,4 +541,74 @@ class SyncIssuesScreenUiTest {
         val card = onNodeWithText("Le projet est suspendu ou terminé, ou l'étape est terminée.").getUnclippedBoundsInRoot()
         assertTrue(card.left >= 400.dp && card.right <= 1040.dp, "content band of 640 dp centered in 1440 dp: $card")
     }
+
+    private val manyDays = (1..24).map { day ->
+        val date = "2026-09-" + day.toString().padStart(2, '0')
+        issueItem(
+            SyncIssueTarget.ENTRY, "e$day", refusedIssue(RefusalReason.DUPLICATE_ENTRY), stageLocalId = "st1", stageName = "Charpente",
+            dailyLogLocalId = "l$day", date = date, entryType = EntryType.PURCHASE,
+        )
+    }
+
+    private fun onFocusedScreen(focusKey: String?, items: List<SyncIssueItem> = manyDays, block: ComposeUiTest.(FakeSyncIssueRepository) -> Unit) =
+        runDesktopComposeUiTest(width = 412, height = 700) {
+            val repo = FakeSyncIssueRepository(items)
+            val vm = SyncIssuesViewModel(repo)
+            setContent {
+                customAppLocale = "fr"
+                AppEnvironment { AppTheme { Surface { SyncIssuesScreen(viewModel = vm, focusKey = focusKey) } } }
+            }
+            waitForIdle()
+            block(repo)
+        }
+
+    private fun ComposeUiTest.selectedCards() = onAllNodes(androidx.compose.ui.test.isSelected()).fetchSemanticsNodes().size
+
+    @Test
+    fun opened_from_a_marker_the_screen_shows_that_entry_and_singles_it_out() {
+        val oldest = manyDays.first()
+        onFocusedScreen(focusKey = null) {
+            onNodeWithText("24 éléments à revoir").assertIsDisplayed()
+            onAllNodesWithText("Journée du 01-09-2026").assertCountEquals(0)
+            assertEquals(0, selectedCards())
+        }
+        onFocusedScreen(focusKey = oldest.key) {
+            runCatching { waitUntil(timeoutMillis = 3_000L) { selectedCards() > 0 } }
+            assertEquals(1, selectedCards(), "the entry the marker pointed at is singled out")
+            onNode(androidx.compose.ui.test.isSelected()).assertIsDisplayed()
+            onNode(androidx.compose.ui.test.isSelected().and(androidx.compose.ui.test.hasAnyDescendant(hasText("Abandonner")))).assertExists()
+            onAllNodesWithText("24 éléments à revoir").assertCountEquals(0)
+        }
+    }
+
+    @Test
+    fun the_entry_a_marker_pointed_at_is_brought_to_the_top_of_the_screen_not_merely_somewhere_on_it() {
+        val inTheMiddle = manyDays[12]
+        onFocusedScreen(focusKey = inTheMiddle.key) {
+            runCatching { waitUntil(timeoutMillis = 3_000L) { selectedCards() == 1 } }
+            val top = onNode(androidx.compose.ui.test.isSelected()).assertIsDisplayed().getUnclippedBoundsInRoot().top
+            assertTrue(top < 48.dp, "the focused card starts at the top of the list, it started at $top")
+        }
+    }
+
+    @Test
+    fun a_focus_on_an_entry_that_left_the_list_meanwhile_opens_the_list_from_the_top_and_singles_nothing_out() =
+        onFocusedScreen(focusKey = "ENTRY:no-longer-there") {
+            onNodeWithText("24 éléments à revoir").assertIsDisplayed()
+            assertEquals(0, selectedCards())
+        }
+
+    @Test
+    fun the_focused_entry_stays_singled_out_only_while_it_is_listed() {
+        val focused = manyDays[20]
+        onFocusedScreen(focusKey = focused.key) { repo ->
+            runCatching { waitUntil(timeoutMillis = 3_000L) { selectedCards() == 1 } }
+            assertEquals(1, selectedCards())
+            repo.items.value = repo.items.value - focused
+            runCatching { waitUntil(timeoutMillis = 3_000L) { selectedCards() == 0 } }
+            assertEquals(0, selectedCards())
+            onNode(hasScrollAction()).performScrollToNode(hasText("23 éléments à revoir"))
+            onNodeWithText("23 éléments à revoir").assertIsDisplayed()
+        }
+    }
 }

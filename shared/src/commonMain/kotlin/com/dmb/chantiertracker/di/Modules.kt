@@ -14,6 +14,7 @@ import com.dmb.chantiertracker.data.local.db.SyncIssueDao
 import com.dmb.chantiertracker.data.local.db.SyncIssueLocalActions
 import com.dmb.chantiertracker.domain.repository.SyncIssueRepository
 import com.dmb.chantiertracker.presentation.sync.SyncIssueCountViewModel
+import com.dmb.chantiertracker.presentation.sync.SyncIssueMarkersViewModel
 import com.dmb.chantiertracker.presentation.sync.SyncIssuesViewModel
 import com.dmb.chantiertracker.domain.repository.SignOutRepository
 import com.dmb.chantiertracker.data.remote.EditorIdentityApi
@@ -280,6 +281,7 @@ val presentationModule: Module = module {
     viewModelOf(::MainViewModel)
     viewModelOf(::SyncIssuesViewModel)
     viewModelOf(::SyncIssueCountViewModel)
+    viewModelOf(::SyncIssueMarkersViewModel)
     viewModelOf(::ProjectsViewModel)
     viewModelOf(::CreateProjectViewModel)
     viewModelOf(::ProjectDetailViewModel)

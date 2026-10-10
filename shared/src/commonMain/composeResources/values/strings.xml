@@ -570,6 +570,7 @@
     <string name="sync_status_delete_refused">Deletion refused</string>
     <string name="sync_status_deleted_on_server">Deleted on the server</string>
     <string name="sync_status_blocked">Waiting</string>
+    <string name="sync_marker_open">See in Entries to review</string>
     <string name="sync_reason_plan_limit">Your plan's limit has been reached.</string>
     <string name="sync_reason_project_or_stage_inactive">The project is suspended or completed, or the stage is completed.</string>
     <string name="sync_reason_entry_date_restricted">A supervisor can only enter data for the current day.</string>
