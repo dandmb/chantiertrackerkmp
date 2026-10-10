@@ -280,6 +280,46 @@ class StockIntegrationTest {
     }
 
     @Test
+    fun a5_a_consumption_above_the_stock_is_still_sent_at_every_pass_and_leaves_by_itself_once_the_stock_is_there() = runScenario {
+        val owner = device()
+        owner.signedInAs("qa-a5-stock", "QA A5 Stock")
+        val (project, stage) = owner.newSite("QA A5 stock")
+        val date = today().toString()
+        val purchase = owner.logs.createPurchaseEntry(stage, date).entryLocalId
+        val cement = owner.materials.createMaterial(project, "Ciment", "sac")
+        owner.purchaseLines.createLine(purchase, CreatePurchaseLineInput(cement.localId, 2.0, 5.0, null))
+        owner.sync.syncNow()
+        var consumptionSends = 0
+        owner.client.plugin(HttpSend).intercept { request ->
+            if (request.method.value == "POST" && request.url.buildString().contains("/consumption-lines")) consumptionSends++
+            execute(request)
+        }
+
+        owner.goOffline()
+        val work = owner.logs.createWorkEntry(stage, date).entryLocalId
+        val tooMuch = owner.consumptionLines.createLine(work, CreateConsumptionLineInput(cement.localId, 5.0))
+        owner.goOnline()
+        repeat(3) { owner.sync.syncNow() }
+        owner.waitForTheRunningSyncPass()
+
+        println("A-5 tranche 2 — stock insuffisant : envois après trois passes = $consumptionSends")
+        assertTrue(consumptionSends >= 3, "un refus qui dépend d'autre chose repart à chaque passe, comme avant : $consumptionSends")
+        assertEquals(listOf(tooMuch), owner.syncIssues.observeIssues().first().map { it.localId })
+
+        owner.purchaseLines.createLine(purchase, CreatePurchaseLineInput(cement.localId, 5.0, 5.0, null))
+        owner.waitForTheRunningSyncPass()
+        owner.sync.syncNow()
+        owner.sync.syncNow()
+
+        val sent = owner.db.consumptionLineDao().findByLocalId(tooMuch)!!
+        val (app, server) = owner.compare("A-5 tranche 2 — après l'achat", project)
+        assertEquals(SyncStatus.SYNCED, sent.syncStatus, "le stock est arrivé : la consommation part seule, sans action de l'utilisateur")
+        assertEquals(2.0, server.getValue("Ciment"), "7 achetés, 5 consommés")
+        assertEquals(server, app)
+        assertTrue(owner.syncIssues.observeIssues().first().isEmpty())
+    }
+
+    @Test
     fun adr75_a_line_saved_while_the_pass_is_sending_it_keeps_what_was_saved_after_a_refusal_and_after_an_acceptance() = runScenario {
         val owner = device()
         owner.signedInAs("qa-75", "QA 75 Course")

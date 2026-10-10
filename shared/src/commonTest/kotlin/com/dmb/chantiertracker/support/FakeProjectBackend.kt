@@ -194,6 +194,7 @@ class FakeProjectBackend {
     /** Runs before a request is answered — lets a test hold a sync pass mid-flight. */
     var beforeHandle: (suspend (HttpRequestData) -> Unit)? = null
     var refuseOnce: ((HttpRequestData) -> Boolean)? = null
+    var refuseWith: ((HttpRequestData) -> ServerRefusal?)? = null
 
     fun seed(project: ServerProject) = project.also { projects += it }
 
@@ -226,6 +227,9 @@ class FakeProjectBackend {
         receivedMethods += "${request.method.value} $path"
         receivedAuthorizations += "${request.method.value} $path" to request.headers[io.ktor.http.HttpHeaders.Authorization]
         beforeHandle?.invoke(request)
+        refuseWith?.invoke(request)?.let { refusal ->
+            return respondProblem(refusal.status, refusal.detail, errors = if (refusal.withFieldErrors) mapOf("champ" to "invalide") else null, code = refusal.code)
+        }
         if (refuseOnce?.invoke(request) == true) {
             refuseOnce = null
             return respondProblem(HttpStatusCode.Forbidden, "Accès refusé.", code = "PROJECT_INSUFFICIENT_ROLE")
@@ -734,3 +738,6 @@ private fun JsonObject.string(key: String): String? = this[key]?.jsonPrimitive?.
 private fun JsonObject.number(key: String): Double? = this[key]?.jsonPrimitive?.contentOrNull?.toDoubleOrNull()
 
 private fun String?.q(): String = if (this == null) "null" else "\"" + replace("\"", "\\\"") + "\""
+
+class ServerRefusal(val status: HttpStatusCode, val code: String?, val withFieldErrors: Boolean = false, val detail: String = "Refusé.")
+

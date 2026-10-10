@@ -1614,7 +1614,7 @@ class SyncEngineTest {
     }
 
     @Test
-    fun a_material_refused_before_this_fix_is_adopted_on_the_next_pass() = runTest {
+    fun a_material_refused_before_codes_were_kept_is_not_sent_again_and_is_adopted_when_its_project_is_read() = runTest {
         val f = stockFixture()
         f.siteWithCement(serverPurchase = null)
         f.backend.seedMaterial(com.dmb.chantiertracker.support.ServerMaterial(id = 9, projectId = 5, name = "Sable", unit = "t"))
@@ -1626,7 +1626,13 @@ class SyncEngineTest {
 
         engine.syncNow()
 
-        assertEquals(9L, f.materialDao.findByLocalId("m-sand")?.serverId)
+        assertEquals(0, f.backend.receivedMethods.count { it == "POST /projects/5/materials" }, "refused with no code: an unknown reason, frozen (A-5)")
+        assertEquals(null, f.materialDao.findByLocalId("m-sand")?.serverId)
+
+        engine.syncProject("p5")
+
+        assertEquals(9L, f.materialDao.findByLocalId("m-sand")?.serverId, "reading the materials of its project adopts the server namesake")
+        assertEquals(SyncStatus.SYNCED, f.materialDao.findByLocalId("m-sand")?.syncStatus)
     }
 
     @Test
