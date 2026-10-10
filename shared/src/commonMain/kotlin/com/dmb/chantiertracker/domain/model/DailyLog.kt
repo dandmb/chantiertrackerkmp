@@ -18,6 +18,11 @@ data class DailyEntry(
     val syncIssue: SyncIssue? = null,
 )
 
+data class CreatedDailyEntry(
+    val dailyLogLocalId: String,
+    val entryLocalId: String,
+)
+
 data class DailyLogDetail(
     val localId: String,
     val stageLocalId: String,

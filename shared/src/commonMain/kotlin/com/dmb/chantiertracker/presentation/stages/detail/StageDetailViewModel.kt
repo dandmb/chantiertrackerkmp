@@ -138,8 +138,8 @@ class StageDetailViewModel(
         val stageId = localId ?: return null
         val date = _state.value.todayDate ?: return null
         return when (type) {
-            EntryType.PURCHASE -> dailyLogRepository.createPurchaseEntry(stageId, date)
-            EntryType.WORK -> dailyLogRepository.createWorkEntry(stageId, date)
+            EntryType.PURCHASE -> dailyLogRepository.createPurchaseEntry(stageId, date).dailyLogLocalId
+            EntryType.WORK -> dailyLogRepository.createWorkEntry(stageId, date).dailyLogLocalId
             EntryType.UNKNOWN -> null
         }
     }

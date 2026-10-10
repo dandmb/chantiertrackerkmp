@@ -13,6 +13,7 @@ import com.dmb.chantiertracker.data.sync.Clock
 import com.dmb.chantiertracker.data.sync.Syncer
 import com.dmb.chantiertracker.data.sync.SystemClock
 import com.dmb.chantiertracker.data.sync.syncIssue
+import com.dmb.chantiertracker.domain.model.CreatedDailyEntry
 import com.dmb.chantiertracker.domain.model.DailyEntry
 import com.dmb.chantiertracker.domain.model.DailyLog
 import com.dmb.chantiertracker.domain.model.DailyLogDetail
@@ -72,13 +73,13 @@ class DailyLogRepositoryImpl(
             entry?.toDailyEntry(blockedByParent = entry.localId in blocked)
         }
 
-    override suspend fun createPurchaseEntry(stageLocalId: String, date: String): String =
+    override suspend fun createPurchaseEntry(stageLocalId: String, date: String): CreatedDailyEntry =
         createEntry(stageLocalId, date, EntryType.PURCHASE)
 
-    override suspend fun createWorkEntry(stageLocalId: String, date: String): String =
+    override suspend fun createWorkEntry(stageLocalId: String, date: String): CreatedDailyEntry =
         createEntry(stageLocalId, date, EntryType.WORK)
 
-    private suspend fun createEntry(stageLocalId: String, date: String, type: EntryType): String {
+    private suspend fun createEntry(stageLocalId: String, date: String, type: EntryType): CreatedDailyEntry {
         val now = clock.nowEpochMillis()
         val log = logDao.findByStageAndDate(stageLocalId, date) ?: DailyLogEntity(
             localId = newLocalId(),
@@ -90,11 +91,12 @@ class DailyLogRepositoryImpl(
         ).also { logDao.upsert(it) }
 
         val existing = entryDao.findByLogAndType(log.localId, type.name)
-        if (existing != null && existing.pendingOp != PendingOp.DELETE) return log.localId
+        if (existing != null && existing.pendingOp != PendingOp.DELETE) return CreatedDailyEntry(log.localId, existing.localId)
 
+        val entryLocalId = newLocalId()
         entryDao.insertNew(
             DailyEntryEntity(
-                localId = newLocalId(),
+                localId = entryLocalId,
                 serverId = null,
                 dailyLogLocalId = log.localId,
                 type = type.name,
@@ -112,7 +114,7 @@ class DailyLogRepositoryImpl(
             ),
         )
         syncer.requestSync()
-        return log.localId
+        return CreatedDailyEntry(log.localId, entryLocalId)
     }
 
     override suspend fun updateEntry(entryLocalId: String, summary: String) {

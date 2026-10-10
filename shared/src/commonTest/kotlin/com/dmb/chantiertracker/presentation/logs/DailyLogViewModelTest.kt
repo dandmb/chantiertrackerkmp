@@ -257,6 +257,26 @@ class DailyLogViewModelTest {
         assertEquals("createWorkEntry:s1:2026-03-10", logs.log.last())
     }
 
+    @Test
+    fun adding_an_entry_keeps_showing_the_same_day_whatever_ids_the_repository_returns() = runTest {
+        val logs = FakeDailyLogRepository(detail = logDetail(date = "2026-03-10")).apply {
+            createdPurchaseDayId = "another-day"
+            createdPurchaseEntryId = "the-purchase-entry"
+        }
+        val v = vm(logs)
+        v.load("log-1")
+        advanceUntilIdle()
+        val before = v.state.value
+
+        v.addEntry(EntryType.PURCHASE)
+        v.addEntry(EntryType.UNKNOWN)
+        advanceUntilIdle()
+
+        assertEquals(listOf("createPurchaseEntry:s1:2026-03-10"), logs.log.filter { it.startsWith("create") }, "one creation, on the day shown")
+        assertEquals(before.detail, v.state.value.detail, "the screen follows the repository flow, not the returned ids")
+        assertEquals(before.isMissing, v.state.value.isMissing)
+    }
+
     // ─── isAdmin / materials / stock / lines exposure ───────────────────────
 
     @Test

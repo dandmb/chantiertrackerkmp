@@ -300,14 +300,17 @@ class FakeDailyLogRepository(
 
     override fun observeEntry(entryLocalId: String) = entryFlow
 
-    override suspend fun createPurchaseEntry(stageLocalId: String, date: String): String {
+    var createdPurchaseEntryId = "entry-purchase-created"
+    var createdWorkEntryId = "entry-work-created"
+
+    override suspend fun createPurchaseEntry(stageLocalId: String, date: String): com.dmb.chantiertracker.domain.model.CreatedDailyEntry {
         log += "createPurchaseEntry:$stageLocalId:$date"
-        return createdPurchaseDayId
+        return com.dmb.chantiertracker.domain.model.CreatedDailyEntry(createdPurchaseDayId, createdPurchaseEntryId)
     }
 
-    override suspend fun createWorkEntry(stageLocalId: String, date: String): String {
+    override suspend fun createWorkEntry(stageLocalId: String, date: String): com.dmb.chantiertracker.domain.model.CreatedDailyEntry {
         log += "createWorkEntry:$stageLocalId:$date"
-        return createdWorkDayId
+        return com.dmb.chantiertracker.domain.model.CreatedDailyEntry(createdWorkDayId, createdWorkEntryId)
     }
 
     override suspend fun updateEntry(entryLocalId: String, summary: String) {
