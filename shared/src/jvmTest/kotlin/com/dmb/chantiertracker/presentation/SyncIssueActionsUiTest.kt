@@ -307,6 +307,16 @@ class SyncIssueActionsUiTest {
             await("Annulation impossible pour le moment. Réessayez plus tard.")
             onNodeWithText("Modification refusée").assertExists()
         }
+        val gone = FakeSyncIssueRepository(listOf(refusedChange)).apply { revertOutcome = RevertOutcome.GONE_ON_SERVER }
+        onScreen(emptyList(), repo = gone) {
+            onNodeWithText("Annuler ma modification").performClick()
+            await("Cet élément a été supprimé sur le serveur. Votre modification ne peut plus être annulée.")
+        }
+        val goneInEnglish = FakeSyncIssueRepository(listOf(refusedChange)).apply { revertOutcome = RevertOutcome.GONE_ON_SERVER }
+        onScreen(emptyList(), locale = "en", repo = goneInEnglish) {
+            onNodeWithText("Undo my change").performClick()
+            await("This item was deleted on the server. Your change can no longer be undone.")
+        }
         val lostConnection = FakeSyncIssueRepository(listOf(refusedChange)).apply { revertOutcome = RevertOutcome.NEEDS_CONNECTION }
         onScreen(emptyList(), repo = lostConnection) {
             onNodeWithText("Annuler ma modification").performClick()

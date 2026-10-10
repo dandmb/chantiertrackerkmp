@@ -29,6 +29,8 @@ class FakeAttachmentFileStore(newPath: (() -> String)? = null) : AttachmentFileS
         deletedPaths += key
     }
 
+    override suspend fun storedKeys(): List<String> = files.keys.toList()
+
     var deleteAllCount = 0
         private set
 

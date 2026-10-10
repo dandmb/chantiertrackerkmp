@@ -168,6 +168,7 @@ class FakeProjectBackend {
     var invitationsForbidden = false
 
     val goneOnServer = mutableListOf<Regex>()
+    val forbiddenOnServer = mutableListOf<Regex>()
 
     var stockStatus: HttpStatusCode? = null
 
@@ -225,6 +226,7 @@ class FakeProjectBackend {
         receivedAuthorizations += "${request.method.value} $path" to request.headers[io.ktor.http.HttpHeaders.Authorization]
         beforeHandle?.invoke(request)
         if (goneOnServer.any { it.containsMatchIn(path) }) return respondProblem(HttpStatusCode.NotFound, "Introuvable.")
+        if (forbiddenOnServer.any { it.containsMatchIn(path) }) return respondProblem(HttpStatusCode.Forbidden, "Accès refusé.", code = "PROJECT_INSUFFICIENT_ROLE")
         if (request.method == HttpMethod.Patch) {
             updateStatus?.let { return respondProblem(it, "Modification refusée.", code = updateRefusalCode) }
         }

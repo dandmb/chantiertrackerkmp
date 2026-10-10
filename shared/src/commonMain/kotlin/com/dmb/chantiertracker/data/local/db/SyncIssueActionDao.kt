@@ -5,12 +5,20 @@ import androidx.room.Query
 import androidx.room.Transaction
 import com.dmb.chantiertracker.domain.model.SyncIssueTarget
 
-interface SyncIssueLocalActions {
+data class AwaitedRow(val target: SyncIssueTarget, val localId: String)
+
+interface AwaitedServerVersions {
+    suspend fun rowsAwaitingServerVersion(): List<AwaitedRow>
+
+    suspend fun stopAwaitingServerVersion(target: SyncIssueTarget, localId: String)
+}
+
+interface SyncIssueLocalActions : AwaitedServerVersions {
+    suspend fun awaitServerVersion(target: SyncIssueTarget, localId: String)
+
     suspend fun countLinked(target: SyncIssueTarget, localId: String): Int
 
     suspend fun removeLocally(target: SyncIssueTarget, localId: String): List<String>
-
-    suspend fun forgetRefusedDelete(target: SyncIssueTarget, localId: String)
 
     suspend fun restoreKnownServerValue(target: SyncIssueTarget, localId: String): Boolean
 }
@@ -86,15 +94,38 @@ abstract class SyncIssueActionDao : SyncIssueLocalActions {
     }
 
     @Transaction
-    override suspend fun forgetRefusedDelete(target: SyncIssueTarget, localId: String) = when (target) {
-        SyncIssueTarget.PROJECT -> forgetProjectRefusedDelete(localId)
-        SyncIssueTarget.STAGE -> forgetStageRefusedDelete(localId)
-        SyncIssueTarget.MATERIAL -> forgetMaterialRefusedDelete(localId)
-        SyncIssueTarget.ENTRY -> forgetEntryRefusedDelete(localId)
-        SyncIssueTarget.PURCHASE_LINE -> forgetPurchaseLineRefusedDelete(localId)
-        SyncIssueTarget.CONSUMPTION_LINE -> forgetConsumptionLineRefusedDelete(localId)
+    override suspend fun awaitServerVersion(target: SyncIssueTarget, localId: String) = when (target) {
+        SyncIssueTarget.PROJECT -> awaitProjectServerVersion(localId)
+        SyncIssueTarget.STAGE -> awaitStageServerVersion(localId)
+        SyncIssueTarget.MATERIAL -> awaitMaterialServerVersion(localId)
+        SyncIssueTarget.ENTRY -> awaitEntryServerVersion(localId)
+        SyncIssueTarget.PURCHASE_LINE -> awaitPurchaseLineServerVersion(localId)
+        SyncIssueTarget.CONSUMPTION_LINE -> awaitConsumptionLineServerVersion(localId)
         SyncIssueTarget.ATTACHMENT -> forgetAttachmentRefusedDelete(localId)
     }
+
+    @Transaction
+    override suspend fun stopAwaitingServerVersion(target: SyncIssueTarget, localId: String) = when (target) {
+        SyncIssueTarget.PROJECT -> stopAwaitingProjectServerVersion(localId)
+        SyncIssueTarget.STAGE -> stopAwaitingStageServerVersion(localId)
+        SyncIssueTarget.MATERIAL -> stopAwaitingMaterialServerVersion(localId)
+        SyncIssueTarget.ENTRY -> stopAwaitingEntryServerVersion(localId)
+        SyncIssueTarget.PURCHASE_LINE -> stopAwaitingPurchaseLineServerVersion(localId)
+        SyncIssueTarget.CONSUMPTION_LINE -> stopAwaitingConsumptionLineServerVersion(localId)
+        SyncIssueTarget.ATTACHMENT -> Unit
+    }
+
+    @Query(
+        """
+        SELECT 'PROJECT' AS target, localId FROM projects WHERE lastSyncError = 'AWAITING_SERVER_VERSION'
+        UNION ALL SELECT 'STAGE', localId FROM stages WHERE lastSyncError = 'AWAITING_SERVER_VERSION'
+        UNION ALL SELECT 'MATERIAL', localId FROM materials WHERE lastSyncError = 'AWAITING_SERVER_VERSION'
+        UNION ALL SELECT 'ENTRY', localId FROM daily_entries WHERE lastSyncError = 'AWAITING_SERVER_VERSION'
+        UNION ALL SELECT 'PURCHASE_LINE', localId FROM purchase_lines WHERE lastSyncError = 'AWAITING_SERVER_VERSION'
+        UNION ALL SELECT 'CONSUMPTION_LINE', localId FROM consumption_lines WHERE lastSyncError = 'AWAITING_SERVER_VERSION'
+        """,
+    )
+    abstract override suspend fun rowsAwaitingServerVersion(): List<AwaitedRow>
 
     @Transaction
     override suspend fun restoreKnownServerValue(target: SyncIssueTarget, localId: String): Boolean =
@@ -208,24 +239,42 @@ abstract class SyncIssueActionDao : SyncIssueLocalActions {
     @Query("SELECT COUNT(*) FROM attachments WHERE localId = :localId AND syncStatus = 'CONFLICTED' AND (serverId IS NULL OR COALESCE(lastSyncError, '') = 'DELETED_ON_SERVER')")
     protected abstract suspend fun isRemovableAttachment(localId: String): Int
 
-    @Query("UPDATE projects SET lastSyncError = NULL, serverErrorCode = NULL WHERE localId = :localId AND syncStatus = 'SYNCED' AND pendingOp = 'NONE' AND lastSyncError = 'REJECTED'")
-    protected abstract suspend fun forgetProjectRefusedDelete(localId: String)
-
-    @Query("UPDATE stages SET lastSyncError = NULL, serverErrorCode = NULL WHERE localId = :localId AND syncStatus = 'SYNCED' AND pendingOp = 'NONE' AND lastSyncError = 'REJECTED'")
-    protected abstract suspend fun forgetStageRefusedDelete(localId: String)
-
-    @Query("UPDATE materials SET lastSyncError = NULL, serverErrorCode = NULL WHERE localId = :localId AND syncStatus = 'SYNCED' AND pendingOp = 'NONE' AND lastSyncError = 'REJECTED'")
-    protected abstract suspend fun forgetMaterialRefusedDelete(localId: String)
-
-    @Query("UPDATE daily_entries SET lastSyncError = NULL, serverErrorCode = NULL WHERE localId = :localId AND syncStatus = 'SYNCED' AND pendingOp = 'NONE' AND lastSyncError = 'REJECTED'")
-    protected abstract suspend fun forgetEntryRefusedDelete(localId: String)
-
-    @Query("UPDATE purchase_lines SET lastSyncError = NULL, serverErrorCode = NULL WHERE localId = :localId AND syncStatus = 'SYNCED' AND pendingOp = 'NONE' AND lastSyncError = 'REJECTED'")
-    protected abstract suspend fun forgetPurchaseLineRefusedDelete(localId: String)
-
-    @Query("UPDATE consumption_lines SET lastSyncError = NULL, serverErrorCode = NULL WHERE localId = :localId AND syncStatus = 'SYNCED' AND pendingOp = 'NONE' AND lastSyncError = 'REJECTED'")
-    protected abstract suspend fun forgetConsumptionLineRefusedDelete(localId: String)
-
     @Query("UPDATE attachments SET lastSyncError = NULL, serverErrorCode = NULL WHERE localId = :localId AND syncStatus = 'SYNCED' AND pendingOp = 'NONE' AND lastSyncError = 'REJECTED'")
     protected abstract suspend fun forgetAttachmentRefusedDelete(localId: String)
+
+    @Query("UPDATE projects SET lastSyncError = 'AWAITING_SERVER_VERSION', serverErrorCode = NULL WHERE localId = :localId AND syncStatus = 'SYNCED' AND pendingOp = 'NONE' AND lastSyncError = 'REJECTED'")
+    protected abstract suspend fun awaitProjectServerVersion(localId: String)
+
+    @Query("UPDATE projects SET lastSyncError = NULL WHERE localId = :localId AND lastSyncError = 'AWAITING_SERVER_VERSION'")
+    protected abstract suspend fun stopAwaitingProjectServerVersion(localId: String)
+
+    @Query("UPDATE stages SET lastSyncError = 'AWAITING_SERVER_VERSION', serverErrorCode = NULL WHERE localId = :localId AND syncStatus = 'SYNCED' AND pendingOp = 'NONE' AND lastSyncError = 'REJECTED'")
+    protected abstract suspend fun awaitStageServerVersion(localId: String)
+
+    @Query("UPDATE stages SET lastSyncError = NULL WHERE localId = :localId AND lastSyncError = 'AWAITING_SERVER_VERSION'")
+    protected abstract suspend fun stopAwaitingStageServerVersion(localId: String)
+
+    @Query("UPDATE materials SET lastSyncError = 'AWAITING_SERVER_VERSION', serverErrorCode = NULL WHERE localId = :localId AND syncStatus = 'SYNCED' AND pendingOp = 'NONE' AND lastSyncError = 'REJECTED'")
+    protected abstract suspend fun awaitMaterialServerVersion(localId: String)
+
+    @Query("UPDATE materials SET lastSyncError = NULL WHERE localId = :localId AND lastSyncError = 'AWAITING_SERVER_VERSION'")
+    protected abstract suspend fun stopAwaitingMaterialServerVersion(localId: String)
+
+    @Query("UPDATE daily_entries SET lastSyncError = 'AWAITING_SERVER_VERSION', serverErrorCode = NULL WHERE localId = :localId AND syncStatus = 'SYNCED' AND pendingOp = 'NONE' AND lastSyncError = 'REJECTED'")
+    protected abstract suspend fun awaitEntryServerVersion(localId: String)
+
+    @Query("UPDATE daily_entries SET lastSyncError = NULL WHERE localId = :localId AND lastSyncError = 'AWAITING_SERVER_VERSION'")
+    protected abstract suspend fun stopAwaitingEntryServerVersion(localId: String)
+
+    @Query("UPDATE purchase_lines SET lastSyncError = 'AWAITING_SERVER_VERSION', serverErrorCode = NULL WHERE localId = :localId AND syncStatus = 'SYNCED' AND pendingOp = 'NONE' AND lastSyncError = 'REJECTED'")
+    protected abstract suspend fun awaitPurchaseLineServerVersion(localId: String)
+
+    @Query("UPDATE purchase_lines SET lastSyncError = NULL WHERE localId = :localId AND lastSyncError = 'AWAITING_SERVER_VERSION'")
+    protected abstract suspend fun stopAwaitingPurchaseLineServerVersion(localId: String)
+
+    @Query("UPDATE consumption_lines SET lastSyncError = 'AWAITING_SERVER_VERSION', serverErrorCode = NULL WHERE localId = :localId AND syncStatus = 'SYNCED' AND pendingOp = 'NONE' AND lastSyncError = 'REJECTED'")
+    protected abstract suspend fun awaitConsumptionLineServerVersion(localId: String)
+
+    @Query("UPDATE consumption_lines SET lastSyncError = NULL WHERE localId = :localId AND lastSyncError = 'AWAITING_SERVER_VERSION'")
+    protected abstract suspend fun stopAwaitingConsumptionLineServerVersion(localId: String)
 }

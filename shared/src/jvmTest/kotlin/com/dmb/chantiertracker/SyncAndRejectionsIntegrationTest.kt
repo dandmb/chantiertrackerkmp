@@ -496,6 +496,81 @@ class SyncAndRejectionsIntegrationTest {
         entry.let { }
     }
 
+    @Test
+    fun adr74_got_it_on_a_refused_delete_brings_the_entry_back_with_the_server_version_online_and_after_reconnection_offline() = runScenario {
+        val ownerPhone = device()
+        ownerPhone.signedInAs("qa-74g-owner", "QA 74 Compris Propriétaire")
+        val supervisorPhone = device()
+        val supervisor = supervisorPhone.signedInAs("qa-74g-super", "QA 74 Compris Superviseur")
+
+        val projectId = ownerPhone.newProject("QA 74 compris")
+        val stageId = ownerPhone.newStage(projectId, "Électricité")
+        val ownerDay = ownerPhone.logs.createWorkEntry(stageId, todayInParis())
+        ownerPhone.logs.createPurchaseEntry(stageId, todayInParis())
+        ownerPhone.sync.syncNow()
+        ownerPhone.invitations.invite(projectId, supervisor.email)
+        supervisorPhone.invitations.acceptInvitation(supervisorPhone.invitationApi.listMine().single().token)
+        supervisorPhone.sync.syncNow()
+        val supervisorProject = supervisorPhone.projects.observeProjects().first().single()
+        supervisorPhone.sync.syncProject(supervisorProject.localId)
+        val supervisorStage = supervisorPhone.stages.observeStages(supervisorProject.localId).first().single()
+        supervisorPhone.sync.syncStage(supervisorStage.localId)
+        val supervisorLog = supervisorPhone.logs.observeLogs(supervisorStage.localId).first().single()
+        supervisorPhone.sync.syncLog(supervisorLog.localId)
+        val entryDao = supervisorPhone.db.dailyEntryDao()
+        supervisorPhone.logs.observeLog(supervisorLog.localId).first()!!.entries.forEach { entry ->
+            entryDao.upsert(entryDao.findByLocalId(entry.localId)!!.copy(pendingOp = PendingOp.DELETE, syncStatus = SyncStatus.PENDING))
+        }
+        supervisorPhone.sync.syncNow()
+
+        val issues = supervisorPhone.syncIssues
+        val refused = issues.observeIssues().first()
+        println("ADR-74 tranche 3bis — j'ai compris : ${refused.map { "${it.entryType} ${it.issue.kind} ${it.issue.reason} actions=${it.actions}" }}")
+        assertEquals(2, refused.size)
+        refused.forEach {
+            assertEquals(com.dmb.chantiertracker.domain.model.SyncIssueKind.DELETE_REFUSED, it.issue.kind)
+            assertEquals(listOf(com.dmb.chantiertracker.domain.model.SyncIssueAction.ACKNOWLEDGE), it.actions)
+        }
+        val work = refused.single { it.entryType == com.dmb.chantiertracker.domain.model.EntryType.WORK }
+        val purchase = refused.single { it.entryType == com.dmb.chantiertracker.domain.model.EntryType.PURCHASE }
+        val before = listOf(work, purchase).map { entryDao.findByLocalId(it.localId)!! }
+        println("ADR-74 tranche 3bis — état local après le refus, avant l'action : ${before.map { "${it.type} ${it.syncStatus}/${it.pendingOp}/${it.lastSyncError} résumé=${it.summary}" }}")
+
+        ownerPhone.waitForTheRunningSyncPass()
+        val ownerEntries = ownerPhone.logs.observeLog(ownerDay).first()!!.entries
+        ownerPhone.logs.updateEntry(ownerEntries.single { it.type == com.dmb.chantiertracker.domain.model.EntryType.WORK }.localId, "Câblage du tableau")
+        ownerPhone.logs.updateEntry(ownerEntries.single { it.type == com.dmb.chantiertracker.domain.model.EntryType.PURCHASE }.localId, "Achat de gaines")
+        ownerPhone.sync.syncNow()
+
+        issues.acknowledge(work)
+        val workOnline = entryDao.findByLocalId(work.localId)!!
+        println("ADR-74 tranche 3bis — j'ai compris en ligne : ${workOnline.syncStatus}/${workOnline.pendingOp}/${workOnline.lastSyncError} résumé=${workOnline.summary}")
+        assertEquals<List<Any?>>(listOf("Câblage du tableau", SyncStatus.SYNCED, PendingOp.NONE, null), listOf(workOnline.summary, workOnline.syncStatus, workOnline.pendingOp, workOnline.lastSyncError), "en ligne : la version du serveur est là tout de suite")
+
+        supervisorPhone.goOffline()
+        issues.acknowledge(purchase)
+        val purchaseOffline = entryDao.findByLocalId(purchase.localId)!!
+        val visibleOffline = supervisorPhone.logs.observeLog(supervisorLog.localId).first()!!.entries
+        println("ADR-74 tranche 3bis — j'ai compris hors ligne : ${purchaseOffline.syncStatus}/${purchaseOffline.pendingOp}/${purchaseOffline.lastSyncError} résumé=${purchaseOffline.summary} ; visibles=${visibleOffline.size}")
+        assertEquals(before[1].summary, purchaseOffline.summary, "hors ligne : la dernière version connue reste affichée")
+        assertEquals(com.dmb.chantiertracker.data.sync.SyncError.AWAITING_SERVER_VERSION, purchaseOffline.lastSyncError, "le rafraîchissement est noté en base")
+        assertEquals(2, visibleOffline.size, "les deux saisies sont visibles")
+        assertTrue(visibleOffline.all { it.syncIssue == null }, "sans mention")
+        assertTrue(issues.observeIssues().first().isEmpty(), "plus rien à revoir")
+        assertEquals(0, issues.observeIssueCount().first())
+
+        supervisorPhone.goOnline()
+        supervisorPhone.sync.syncNow()
+        val purchaseRefreshed = entryDao.findByLocalId(purchase.localId)!!
+        println("ADR-74 tranche 3bis — après reconnexion : ${purchaseRefreshed.syncStatus}/${purchaseRefreshed.lastSyncError} résumé=${purchaseRefreshed.summary}")
+        assertEquals<List<Any?>>(listOf("Achat de gaines", SyncStatus.SYNCED, null), listOf(purchaseRefreshed.summary, purchaseRefreshed.syncStatus, purchaseRefreshed.lastSyncError), "au retour du réseau : la version du serveur")
+        assertTrue(issues.observeIssues().first().isEmpty())
+
+        val ownerLog = ownerPhone.logs.observeLogs(stageId).first().single()
+        ownerPhone.sync.syncLog(ownerLog.localId)
+        assertEquals(2, ownerPhone.logs.observeLog(ownerLog.localId).first()!!.entries.size, "le serveur a toujours les deux saisies")
+    }
+
     // ─── P8 — session expired / another account on the same device ───────────
 
     @Test

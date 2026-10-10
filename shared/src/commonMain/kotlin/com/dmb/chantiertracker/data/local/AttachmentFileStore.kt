@@ -7,6 +7,7 @@ import io.github.vinceglb.filekit.delete
 import io.github.vinceglb.filekit.div
 import io.github.vinceglb.filekit.exists
 import io.github.vinceglb.filekit.filesDir
+import io.github.vinceglb.filekit.name
 import io.github.vinceglb.filekit.path
 import io.github.vinceglb.filekit.readBytes
 import io.github.vinceglb.filekit.write
@@ -27,6 +28,7 @@ interface AttachmentFileStore {
     suspend fun save(bytes: ByteArray, originalName: String): String
     suspend fun readBytes(key: String): ByteArray
     suspend fun delete(key: String)
+    suspend fun storedKeys(): List<String>
 
     /** Every stored file — the account's whole local copy (ADR-69, another account signing in). */
     suspend fun deleteAll()
@@ -59,6 +61,8 @@ class FileKitAttachmentFileStore(private val newFileName: () -> String) : Attach
         val file = dir / key
         if (file.exists()) file.delete()
     }
+
+    override suspend fun storedKeys(): List<String> = if (dir.exists()) dir.list().map { it.name } else emptyList()
 
     override suspend fun deleteAll() {
         if (dir.exists()) dir.list().forEach { it.delete(mustExist = false) }

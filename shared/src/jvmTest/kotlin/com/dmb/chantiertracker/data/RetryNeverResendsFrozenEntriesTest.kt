@@ -65,6 +65,7 @@ class RetryNeverResendsFrozenEntriesTest {
         stockApi = backend.stockApi(),
         stockDao = db.stockDao(),
         connectivity = connectivity,
+        awaitedServerVersions = com.dmb.chantiertracker.support.NoAwaitedServerVersion,
         syncState = SyncStateHolder(),
         scope = AppCoroutineScope(),
     )

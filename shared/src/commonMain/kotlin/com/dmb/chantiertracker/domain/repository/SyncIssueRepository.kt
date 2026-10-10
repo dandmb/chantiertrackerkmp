@@ -5,7 +5,7 @@ import kotlinx.coroutines.flow.Flow
 
 enum class RetryOutcome { ACCEPTED, STILL_REFUSED, NOT_SENT }
 
-enum class RevertOutcome { RESTORED, NEEDS_CONNECTION, FAILED }
+enum class RevertOutcome { RESTORED, NEEDS_CONNECTION, GONE_ON_SERVER, FAILED }
 
 interface SyncIssueRepository {
     fun observeIssues(): Flow<List<SyncIssueItem>>

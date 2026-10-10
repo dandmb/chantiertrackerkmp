@@ -27,6 +27,9 @@ interface AttachmentDao {
     )
     fun observeBlockedByParent(): Flow<List<String>>
 
+    @Query("SELECT localPath FROM attachments")
+    suspend fun referencedPaths(): List<String>
+
     @Query("SELECT * FROM attachments WHERE entryLocalId = :entryLocalId")
     suspend fun findForEntry(entryLocalId: String): List<AttachmentEntity>
 

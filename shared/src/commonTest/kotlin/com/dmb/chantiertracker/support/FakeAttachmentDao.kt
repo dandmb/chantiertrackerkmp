@@ -29,6 +29,8 @@ class FakeAttachmentDao(initial: List<AttachmentEntity> = emptyList()) : Attachm
 
     override fun observeBlockedByParent(): kotlinx.coroutines.flow.Flow<List<String>> = blockedByParent
 
+    override suspend fun referencedPaths(): List<String> = rows.value.values.map { it.localPath }
+
     override suspend fun findForEntry(entryLocalId: String): List<AttachmentEntity> =
         rows.value.values.filter { it.entryLocalId == entryLocalId }
 

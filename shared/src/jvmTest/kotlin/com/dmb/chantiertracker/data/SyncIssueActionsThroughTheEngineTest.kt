@@ -14,12 +14,16 @@ import com.dmb.chantiertracker.data.sync.SyncEngine
 import com.dmb.chantiertracker.data.sync.SyncError
 import com.dmb.chantiertracker.data.sync.SyncOutcome
 import com.dmb.chantiertracker.domain.model.RefusalReason
+import com.dmb.chantiertracker.domain.model.SyncIssueAction
 import com.dmb.chantiertracker.domain.model.SyncIssueKind
+import com.dmb.chantiertracker.domain.model.actions
 import com.dmb.chantiertracker.domain.model.SyncIssueTarget
 import com.dmb.chantiertracker.domain.model.UpdateConsumptionLineInput
 import com.dmb.chantiertracker.domain.repository.RevertOutcome
 import com.dmb.chantiertracker.presentation.sync.SyncStateHolder
+import com.dmb.chantiertracker.data.local.db.AwaitedRow
 import com.dmb.chantiertracker.support.FakeAttachmentFileStore
+import com.dmb.chantiertracker.support.FakeBackgroundSync
 import com.dmb.chantiertracker.support.FakeConnectivityObserver
 import com.dmb.chantiertracker.support.FakeProjectBackend
 import com.dmb.chantiertracker.support.ServerConsumptionLine
@@ -58,6 +62,7 @@ class SyncIssueActionsThroughTheEngineTest {
     private val connectivity = FakeConnectivityObserver(initiallyOnline = true)
     private val fileStore = FakeAttachmentFileStore()
     private val scope = AppCoroutineScope()
+    private val backgroundSync = FakeBackgroundSync()
     private val engine = SyncEngine(
         dao = db.projectDao(),
         api = backend.api(),
@@ -83,6 +88,8 @@ class SyncIssueActionsThroughTheEngineTest {
         connectivity = connectivity,
         syncState = SyncStateHolder(),
         scope = scope,
+        backgroundSync = backgroundSync,
+        awaitedServerVersions = db.syncIssueActionDao(),
     )
     private val issues = SyncIssueRepositoryImpl(
         db.syncIssueDao(), db.stageDao(), db.materialDao(), db.dailyEntryDao(), db.purchaseLineDao(), db.consumptionLineDao(), db.attachmentDao(),
@@ -390,22 +397,242 @@ class SyncIssueActionsThroughTheEngineTest {
         assertEquals(0, issues.observeIssueCount().first())
     }
 
+    private suspend fun aRefusedDeleteOfTheStageStillHoldingAnOldName() {
+        db.stageDao().upsert(db.stageDao().findByLocalId("st90")!!.copy(name = "Ancien nom", lastSyncError = SyncError.REJECTED, serverErrorCode = "PROJECT_INSUFFICIENT_ROLE"))
+    }
+
+    private suspend fun stage() = db.stageDao().findByLocalId("st90")
+
+    private suspend fun awaitedRows() = db.syncIssueActionDao().rowsAwaitingServerVersion()
+
     @Test
-    fun acknowledging_a_refused_delete_keeps_the_element_and_only_drops_the_mention_for_good() = runTest {
+    fun acknowledging_a_refused_delete_online_brings_the_element_back_with_the_server_version() = runTest {
         aSyncedSite()
-        db.stageDao().upsert(db.stageDao().findByLocalId("st90")!!.copy(lastSyncError = SyncError.REJECTED, serverErrorCode = "PROJECT_INSUFFICIENT_ROLE"))
+        aRefusedDeleteOfTheStageStillHoldingAnOldName()
         val refusedDelete = item("st90")
         assertEquals(SyncIssueKind.DELETE_REFUSED, refusedDelete.issue.kind)
 
         issues.acknowledge(refusedDelete)
-        issues.acknowledge(refusedDelete)
 
-        val stage = db.stageDao().findByLocalId("st90")!!
-        assertEquals<List<Any?>>(listOf(SyncStatus.SYNCED, null, null, 90L), listOf(stage.syncStatus, stage.lastSyncError, stage.serverErrorCode, stage.serverId))
+        val stage = stage()!!
+        assertEquals<List<Any?>>(listOf("Gros œuvre", SyncStatus.SYNCED, PendingOp.NONE, null, null, 90L), listOf(stage.name, stage.syncStatus, stage.pendingOp, stage.lastSyncError, stage.serverErrorCode, stage.serverId))
+        assertEquals(1, sent("GET", "/stages/90"), "the server version is read at once")
+        assertEquals(emptyList(), awaitedRows())
+        assertTrue(issues.observeIssues().first().isEmpty())
+        assertEquals(emptyList(), writesSent())
+
+        issues.acknowledge(refusedDelete)
+        assertEquals(1, sent("GET", "/stages/90"), "a second tap asks the server nothing more")
         assertEquals(SyncOutcome.Synced, engine.syncNow())
         assertTrue(issues.observeIssues().first().isEmpty(), "the mention does not come back with the next pull")
-        assertEquals(emptyList(), writesSent())
         assertNotNull(db.dailyEntryDao().findByLocalId("e900"))
+    }
+
+    @Test
+    fun acknowledging_a_refused_delete_offline_keeps_the_last_known_version_and_refreshes_it_when_the_network_returns() = runTest {
+        aSyncedSite()
+        aRefusedDeleteOfTheStageStillHoldingAnOldName()
+        connectivity.setOnline(false)
+
+        val refusedDelete = item("st90")
+        issues.acknowledge(refusedDelete)
+        scope.coroutineContext[kotlinx.coroutines.Job]!!.children.toList().forEach { it.join() }
+        assertEquals(1, backgroundSync.expeditedCount, "the refresh is handed to the system scheduler")
+        issues.acknowledge(refusedDelete)
+
+        assertEquals<List<Any?>>(listOf("Ancien nom", SyncStatus.SYNCED, PendingOp.NONE, 90L), stage()!!.let { listOf(it.name, it.syncStatus, it.pendingOp, it.serverId) }, "the last known version stays visible")
+        assertTrue(issues.observeIssues().first().isEmpty(), "the mention is dropped")
+        assertEquals(emptyList(), backend.receivedMethods)
+        assertEquals(listOf(AwaitedRow(SyncIssueTarget.STAGE, "st90")), awaitedRows(), "the refresh is written down, so it survives the death of the process")
+
+        backend.stages.single { it.id == 90L }.name = "Renommée sur le serveur"
+        connectivity.setOnline(true)
+        assertEquals(SyncOutcome.Synced, engine.syncNow())
+
+        assertEquals<List<Any?>>(listOf("Renommée sur le serveur", null), stage()!!.let { listOf(it.name, it.lastSyncError) })
+        assertEquals(emptyList(), awaitedRows())
+        assertEquals(emptyList(), writesSent())
+        assertTrue(issues.observeIssues().first().isEmpty())
+    }
+
+    @Test
+    fun a_refused_delete_of_each_kind_of_element_comes_back_with_what_the_server_holds() = runTest {
+        aSyncedSite()
+        val rejected = SyncError.REJECTED
+        db.projectDao().upsert(db.projectDao().findByLocalId("p5")!!.copy(name = "Vieux", lastSyncError = rejected, serverErrorCode = "PROJECT_INSUFFICIENT_ROLE"))
+        db.materialDao().upsert(db.materialDao().findByLocalId("m7")!!.copy(name = "Vieux", lastSyncError = rejected, serverErrorCode = "STOCK_CONSUMED"))
+        db.dailyEntryDao().upsert(db.dailyEntryDao().findByLocalId("e900")!!.copy(summary = "Vieux", lastSyncError = rejected, serverErrorCode = "PROJECT_INSUFFICIENT_ROLE"))
+        db.purchaseLineDao().upsert(db.purchaseLineDao().findByLocalId("pl5000")!!.copy(quantity = 1.0, lastSyncError = rejected, serverErrorCode = "STOCK_CONSUMED"))
+        db.consumptionLineDao().upsert(db.consumptionLineDao().findByLocalId("cl6000")!!.copy(quantity = 1.0, lastSyncError = rejected, serverErrorCode = "PROJECT_INSUFFICIENT_ROLE"))
+        val path = fileStore.save(ByteArray(8), "facture.jpg")
+        db.attachmentDao().upsert(localAttachment("a-kept", entryLocalId = "e900", localPath = path, serverId = 70, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED).copy(lastSyncError = rejected, serverErrorCode = "PROJECT_INSUFFICIENT_ROLE"))
+        val listed = issues.observeIssues().first()
+        assertEquals(6, listed.size)
+
+        listed.forEach { issues.acknowledge(it) }
+
+        assertEquals<List<Any?>>(
+            listOf("Villa", "Ciment", "Résumé du serveur", 12.0, 2.0),
+            listOf(
+                db.projectDao().findByLocalId("p5")!!.name, db.materialDao().findByLocalId("m7")!!.name, db.dailyEntryDao().findByLocalId("e900")!!.summary,
+                db.purchaseLineDao().findByLocalId("pl5000")!!.quantity, db.consumptionLineDao().findByLocalId("cl6000")!!.quantity,
+            ),
+        )
+        assertNull(db.attachmentDao().findByLocalId("a-kept")!!.lastSyncError)
+        assertTrue(path in fileStore.storedPaths, "the file the server refused to delete stays on the device")
+        assertEquals(emptyList(), awaitedRows())
+        assertTrue(issues.observeIssues().first().isEmpty())
+        assertEquals(emptyList(), writesSent())
+    }
+
+    @Test
+    fun an_element_edited_while_its_server_version_is_awaited_keeps_the_edit() = runTest {
+        aSyncedSite()
+        aRefusedDeleteOfTheStageStillHoldingAnOldName()
+        connectivity.setOnline(false)
+        issues.acknowledge(item("st90"))
+        db.stageDao().upsert(stage()!!.copy(name = "Saisi hors ligne", pendingOp = PendingOp.UPDATE, syncStatus = SyncStatus.PENDING))
+        connectivity.setOnline(true)
+
+        assertEquals(SyncOutcome.Synced, engine.restoreServerVersion(SyncIssueTarget.STAGE, "st90"))
+        assertEquals("Saisi hors ligne", stage()!!.name, "the server version never replaces an unsent edit")
+        assertEquals(SyncOutcome.Synced, engine.syncNow())
+
+        assertEquals("Saisi hors ligne", stage()!!.name)
+        assertEquals("Saisi hors ligne", backend.stages.single { it.id == 90L }.name, "the edit is what reaches the server")
+        assertEquals(emptyList(), awaitedRows())
+    }
+
+    @Test
+    fun an_awaited_element_gone_from_the_server_meanwhile_leaves_the_device() = runTest {
+        aSyncedSite()
+        aRefusedDeleteOfTheStageStillHoldingAnOldName()
+        backend.stages.removeAll { it.id == 90L }
+
+        issues.acknowledge(item("st90"))
+
+        assertNull(stage(), "nothing local was unsent under it")
+        assertEquals(emptyList(), awaitedRows())
+        assertTrue(issues.observeIssues().first().isEmpty())
+    }
+
+    @Test
+    fun a_refresh_the_server_cannot_answer_stays_awaited_and_does_not_stop_the_pass() = runTest {
+        aSyncedSite()
+        aRefusedDeleteOfTheStageStillHoldingAnOldName()
+        connectivity.setOnline(false)
+        issues.acknowledge(item("st90"))
+        backend.seed(ServerProject(id = 6, name = "Immeuble"))
+        connectivity.setOnline(true)
+        var stageUnreachable = true
+        backend.beforeHandle = { request -> if (stageUnreachable && request.url.encodedPath.endsWith("/stages/90")) throw java.io.IOException("coupure") }
+
+        engine.syncNow()
+
+        assertEquals(listOf(AwaitedRow(SyncIssueTarget.STAGE, "st90")), awaitedRows())
+        assertEquals("Ancien nom", stage()!!.name)
+        assertNotNull(db.projectDao().findByServerId(6), "the rest of the pass went on")
+
+        stageUnreachable = false
+        engine.syncNow()
+        assertEquals("Gros œuvre", stage()!!.name)
+        assertEquals(emptyList(), awaitedRows())
+    }
+
+    @Test
+    fun an_awaited_element_the_account_may_no_longer_read_stops_being_awaited_and_keeps_its_last_known_version() = runTest {
+        aSyncedSite()
+        aRefusedDeleteOfTheStageStillHoldingAnOldName()
+        connectivity.setOnline(false)
+        issues.acknowledge(item("st90"))
+        connectivity.setOnline(true)
+        backend.forbiddenOnServer += Regex("/stages/90$")
+
+        assertEquals(SyncOutcome.Synced, engine.syncNow())
+
+        assertEquals(emptyList(), awaitedRows(), "it is not asked for at every pass for ever")
+        assertEquals<List<Any?>>(listOf("Ancien nom", null), stage()!!.let { listOf(it.name, it.lastSyncError) })
+    }
+
+    @Test
+    fun reverting_a_change_of_an_element_gone_from_the_server_turns_it_into_deleted_on_the_server_with_got_it() = runTest {
+        aSyncedSite()
+        aRefusedChangeOfThePurchaseLine()
+        backend.purchaseLines.removeAll { it.id == 5000L }
+
+        assertEquals(RevertOutcome.GONE_ON_SERVER, issues.revert(item("pl5000")))
+
+        val gone = item("pl5000")
+        assertEquals(SyncIssueKind.DELETED_ON_SERVER, gone.issue.kind)
+        assertEquals(listOf(SyncIssueAction.ACKNOWLEDGE), gone.actions)
+        assertNull(gone.issue.serverCode)
+        assertEquals(3.0, db.purchaseLineDao().findByLocalId("pl5000")!!.quantity, "what the user typed is still there to read")
+        assertEquals(emptyList(), db.purchaseLineDao().findPending().map { it.localId }, "it is never sent again")
+        assertEquals(1, issues.observeIssueCount().first())
+        assertEquals(emptyList(), writesSent())
+
+        issues.acknowledge(gone)
+        issues.acknowledge(gone)
+        assertNull(db.purchaseLineDao().findByLocalId("pl5000"))
+        assertTrue(issues.observeIssues().first().isEmpty())
+        assertEquals(SyncOutcome.Synced, engine.syncNow())
+        assertEquals(emptyList(), writesSent())
+    }
+
+    @Test
+    fun reverting_a_change_of_a_project_a_stage_a_material_and_an_entry_gone_from_the_server_marks_each_as_deleted_there() = runTest {
+        aSyncedSite()
+        val refused = { code: String -> Triple(SyncStatus.CONFLICTED, SyncError.UPDATE_REFUSED, code) }
+        val (status, error, code) = refused("PROJECT_INSUFFICIENT_ROLE")
+        db.materialDao().upsert(db.materialDao().findByLocalId("m7")!!.copy(name = "Ciment gris", pendingOp = PendingOp.UPDATE, syncStatus = status, lastSyncError = error, serverErrorCode = code))
+        db.dailyEntryDao().upsert(db.dailyEntryDao().findByLocalId("e900")!!.copy(summary = "Résumé local", pendingOp = PendingOp.UPDATE, syncStatus = status, lastSyncError = error, serverErrorCode = code))
+        db.stageDao().upsert(db.stageDao().findByLocalId("st90")!!.copy(name = "Renommée", pendingOp = PendingOp.UPDATE, syncStatus = status, lastSyncError = error, serverErrorCode = code))
+        db.projectDao().upsert(db.projectDao().findByLocalId("p5")!!.copy(name = "Renommé", pendingOp = PendingOp.UPDATE, syncStatus = status, lastSyncError = error, serverErrorCode = code))
+        backend.materials.removeAll { it.id == 7L }
+        backend.entries.removeAll { it.id == 900L }
+        assertEquals(RevertOutcome.GONE_ON_SERVER, issues.revert(item("m7")))
+        assertEquals(RevertOutcome.GONE_ON_SERVER, issues.revert(item("e900")))
+        backend.stages.removeAll { it.id == 90L }
+        assertEquals(RevertOutcome.GONE_ON_SERVER, issues.revert(item("st90")))
+        backend.projects.removeAll { it.id == 5L }
+        assertEquals(RevertOutcome.GONE_ON_SERVER, issues.revert(item("p5")))
+
+        listOf("m7", "e900", "st90", "p5").forEach {
+            assertEquals(SyncIssueKind.DELETED_ON_SERVER, item(it).issue.kind, it)
+            assertEquals(listOf(SyncIssueAction.ACKNOWLEDGE), item(it).actions, it)
+        }
+        assertEquals("Renommé", db.projectDao().findByLocalId("p5")!!.name)
+        assertEquals(emptyList(), writesSent())
+    }
+
+    @Test
+    fun reverting_a_change_of_a_line_whose_whole_entry_is_gone_from_the_server_marks_the_line_as_deleted_there() = runTest {
+        aSyncedSite()
+        aRefusedChangeOfThePurchaseLine()
+        db.consumptionLineDao().upsert(
+            db.consumptionLineDao().findByLocalId("cl6000")!!.copy(quantity = 9.0, pendingOp = PendingOp.UPDATE, syncStatus = SyncStatus.CONFLICTED, lastSyncError = SyncError.UPDATE_REFUSED, serverErrorCode = "INSUFFICIENT_STOCK"),
+        )
+        db.materialDao().upsert(db.materialDao().findByLocalId("m7")!!.copy(name = "Ciment gris", pendingOp = PendingOp.UPDATE, syncStatus = SyncStatus.CONFLICTED, lastSyncError = SyncError.UPDATE_REFUSED, serverErrorCode = "PROJECT_INSUFFICIENT_ROLE"))
+        backend.goneOnServer += Regex("/entries/90[01]/")
+        backend.goneOnServer += Regex("/projects/5")
+
+        listOf("pl5000", "cl6000", "m7").forEach { assertEquals(RevertOutcome.GONE_ON_SERVER, issues.revert(item(it)), it) }
+
+        listOf("pl5000", "cl6000", "m7").forEach { assertEquals(SyncIssueKind.DELETED_ON_SERVER, item(it).issue.kind, it) }
+        assertEquals(emptyList(), writesSent())
+    }
+
+    @Test
+    fun a_revert_reading_only_part_of_the_server_list_never_concludes_the_element_is_gone() = runTest {
+        aSyncedSite()
+        aRefusedChangeOfThePurchaseLine()
+        backend.purchaseLines.removeAll { it.id == 5000L }
+        repeat(250) { backend.seedPurchaseLine(ServerPurchaseLine(id = 7000L + it, entryId = 900, materialId = 7, quantity = 1.0, unitPrice = 1.0)) }
+        backend.listPageFailure = 1 to HttpStatusCode.InternalServerError
+
+        assertEquals(RevertOutcome.FAILED, issues.revert(item("pl5000")))
+
+        assertEquals(SyncIssueKind.UPDATE_REFUSED, item("pl5000").issue.kind)
     }
 
     @Test

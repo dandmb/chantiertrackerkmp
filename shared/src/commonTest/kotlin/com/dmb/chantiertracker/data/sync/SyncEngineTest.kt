@@ -78,6 +78,7 @@ class SyncEngineTest {
             stockApi = backend.stockApi(),
             stockDao = stockDao,
             connectivity = connectivity,
+            awaitedServerVersions = com.dmb.chantiertracker.support.NoAwaitedServerVersion,
             syncState = syncState,
             scope = scope,
             clock = clock,
