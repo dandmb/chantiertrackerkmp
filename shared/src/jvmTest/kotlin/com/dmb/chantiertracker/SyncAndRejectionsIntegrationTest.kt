@@ -82,10 +82,6 @@ class SyncAndRejectionsIntegrationTest {
     private suspend fun DeviceStack.newProject(name: String) =
         projects.createProject(CreateProjectInput(name, null, "Nîmes", "EUR", "Europe/Paris"))
 
-    // createPurchaseEntry / createWorkEntry return the DAY's local id; the entry is looked up in it.
-    private suspend fun DeviceStack.entryOf(logLocalId: String, type: EntryType): String =
-        logs.observeLog(logLocalId).first()!!.entries.single { it.type == type }.localId
-
     private suspend fun DeviceStack.newStage(projectLocalId: String, name: String) =
         stages.createStage(CreateStageInput(projectLocalId, name, null, null, null, null))
 
@@ -100,10 +96,8 @@ class SyncAndRejectionsIntegrationTest {
         val today = todayInParis()
         val projectId = phone.newProject("QA P2 chantier")
         val stageId = phone.newStage(projectId, "Gros œuvre")
-        val dayId = phone.logs.createPurchaseEntry(stageId, today)
-        phone.logs.createWorkEntry(stageId, today)
-        val purchaseEntryId = phone.entryOf(dayId, EntryType.PURCHASE)
-        val workEntryId = phone.entryOf(dayId, EntryType.WORK)
+        val purchaseEntryId = phone.logs.createPurchaseEntry(stageId, today).entryLocalId
+        val workEntryId = phone.logs.createWorkEntry(stageId, today).entryLocalId
         val cement = phone.materials.createMaterial(projectId, "Ciment", "sac")
         val purchaseLineId = phone.purchaseLines.createLine(purchaseEntryId, CreatePurchaseLineInput(cement.localId, 10.0, 5.5, "Brico"))
         val consumptionLineId = phone.consumptionLines.createLine(workEntryId, CreateConsumptionLineInput(cement.localId, 4.0))
@@ -199,12 +193,12 @@ class SyncAndRejectionsIntegrationTest {
         val projectId = phone.newProject("QA P3 stock")
         val stageId = phone.newStage(projectId, "Maçonnerie")
         val cement = phone.materials.createMaterial(projectId, "Ciment", "sac")
-        val purchase = phone.entryOf(phone.logs.createPurchaseEntry(stageId, today), EntryType.PURCHASE)
+        val purchase = phone.logs.createPurchaseEntry(stageId, today).entryLocalId
         phone.purchaseLines.createLine(purchase, CreatePurchaseLineInput(cement.localId, 2.0, 5.0, null))
         phone.sync.syncNow()
 
         phone.goOffline()
-        val work = phone.entryOf(phone.logs.createWorkEntry(stageId, today), EntryType.WORK)
+        val work = phone.logs.createWorkEntry(stageId, today).entryLocalId
         val tooMuch = phone.consumptionLines.createLine(work, CreateConsumptionLineInput(cement.localId, 5.0))
         val stockOffline = phone.materials.observeStock(projectId).first().materials.single { it.materialLocalId == cement.localId }
         println("P3-stock — stock affiché hors ligne avant synchro : dispo=${stockOffline.available}")
@@ -252,7 +246,7 @@ class SyncAndRejectionsIntegrationTest {
         ownerPhone.sync.syncNow()
 
         supervisorPhone.goOffline()
-        val entry = supervisorPhone.entryOf(supervisorPhone.logs.createPurchaseEntry(supervisorStage.localId, todayInParis()), EntryType.PURCHASE)
+        val entry = supervisorPhone.logs.createPurchaseEntry(supervisorStage.localId, todayInParis()).entryLocalId
         val cement = supervisorPhone.materials.createMaterial(supervisorProject.localId, "Ciment", "sac")
         val line = supervisorPhone.purchaseLines.createLine(entry, CreatePurchaseLineInput(cement.localId, 3.0, 5.0, null))
         supervisorPhone.goOnline()
@@ -313,7 +307,7 @@ class SyncAndRejectionsIntegrationTest {
 
         supervisorPhone.goOffline()
         val today = todayInParis()
-        val entry = supervisorPhone.entryOf(supervisorPhone.logs.createPurchaseEntry(supervisorStage.localId, today), EntryType.PURCHASE)
+        val entry = supervisorPhone.logs.createPurchaseEntry(supervisorStage.localId, today).entryLocalId
         val cement = supervisorPhone.materials.createMaterial(supervisorProject.localId, "Ciment", "sac")
         val line = supervisorPhone.purchaseLines.createLine(entry, CreatePurchaseLineInput(cement.localId, 3.0, 5.0, null))
         supervisorPhone.goOnline()
@@ -400,8 +394,9 @@ class SyncAndRejectionsIntegrationTest {
         ownerSetsStatus(ProjectStatus.SUSPENDED)
 
         supervisorPhone.goOffline()
-        val day = supervisorPhone.logs.createPurchaseEntry(supervisorStage.localId, todayInParis())
-        val entry = supervisorPhone.entryOf(day, EntryType.PURCHASE)
+        val created = supervisorPhone.logs.createPurchaseEntry(supervisorStage.localId, todayInParis())
+        val day = created.dailyLogLocalId
+        val entry = created.entryLocalId
         val firstLine = supervisorPhone.purchaseLines.createLine(entry, CreatePurchaseLineInput(cement.localId, 3.0, 5.0, null))
         val secondLine = supervisorPhone.purchaseLines.createLine(entry, CreatePurchaseLineInput(cement.localId, 2.0, 5.0, null))
         val photo = supervisorPhone.attachments.addAttachment(entry, aSmallJpeg(), "bon.jpg", "image/jpeg")
@@ -459,7 +454,7 @@ class SyncAndRejectionsIntegrationTest {
 
         val projectId = ownerPhone.newProject("QA P3 suppression")
         val stageId = ownerPhone.newStage(projectId, "Électricité")
-        val entry = ownerPhone.logs.createWorkEntry(stageId, todayInParis())
+        ownerPhone.logs.createWorkEntry(stageId, todayInParis())
         ownerPhone.sync.syncNow()
         ownerPhone.invitations.invite(projectId, supervisor.email)
         supervisorPhone.invitations.acceptInvitation(supervisorPhone.invitationApi.listMine().single().token)
@@ -493,7 +488,6 @@ class SyncAndRejectionsIntegrationTest {
         val afterPulls = supervisorPhone.logs.observeLog(supervisorLog.localId).first()!!.entries.single()
         println("P3-suppression — après deux nouvelles synchros : ${afterPulls.syncIssue}")
         assertEquals(visible.single().syncIssue, afterPulls.syncIssue, "la mention reste tant que l'utilisateur ne l'a pas acquittée")
-        entry.let { }
     }
 
     @Test
@@ -505,7 +499,7 @@ class SyncAndRejectionsIntegrationTest {
 
         val projectId = ownerPhone.newProject("QA 74 compris")
         val stageId = ownerPhone.newStage(projectId, "Électricité")
-        val ownerDay = ownerPhone.logs.createWorkEntry(stageId, todayInParis())
+        val ownerDay = ownerPhone.logs.createWorkEntry(stageId, todayInParis()).dailyLogLocalId
         ownerPhone.logs.createPurchaseEntry(stageId, todayInParis())
         ownerPhone.sync.syncNow()
         ownerPhone.invitations.invite(projectId, supervisor.email)
@@ -609,7 +603,7 @@ class SyncAndRejectionsIntegrationTest {
         ownerSetsStatus(ProjectStatus.SUSPENDED)
 
         supervisorPhone.goOffline()
-        val entry = supervisorPhone.entryOf(supervisorPhone.logs.createPurchaseEntry(supervisorStage.localId, todayInParis()), EntryType.PURCHASE)
+        val entry = supervisorPhone.logs.createPurchaseEntry(supervisorStage.localId, todayInParis()).entryLocalId
         val line = supervisorPhone.purchaseLines.createLine(entry, CreatePurchaseLineInput(cement.localId, 3.0, 5.0, null))
         val photo = supervisorPhone.attachments.addAttachment(entry, aSmallJpeg(), "bon.jpg", "image/jpeg")
         assertEquals(listOf(null, null, null), listOf(markerOf(entryTarget, entry), markerOf(lineTarget, line), markerOf(photoTarget, photo.localId)), "simplement en attente d'envoi : aucun marqueur")
@@ -662,7 +656,7 @@ class SyncAndRejectionsIntegrationTest {
 
         supervisorPhone.goOffline()
         val yesterday = LocalDate.now(ZoneId.of("Europe/Paris")).minusDays(1).toString()
-        val entry = supervisorPhone.entryOf(supervisorPhone.logs.createPurchaseEntry(supervisorStage.localId, yesterday), EntryType.PURCHASE)
+        val entry = supervisorPhone.logs.createPurchaseEntry(supervisorStage.localId, yesterday).entryLocalId
         val cement = supervisorPhone.materials.createMaterial(supervisorProject.localId, "Ciment", "sac")
         val line = supervisorPhone.purchaseLines.createLine(entry, CreatePurchaseLineInput(cement.localId, 3.0, 5.0, null))
         supervisorPhone.goOnline()
@@ -704,7 +698,7 @@ class SyncAndRejectionsIntegrationTest {
         phone.signedInAs("qa-74t-clean", "QA 74 ter Nettoyage")
         val projectId = phone.newProject("QA 74 ter nettoyage")
         val stageId = phone.newStage(projectId, "Gros œuvre")
-        val entry = phone.entryOf(phone.logs.createPurchaseEntry(stageId, todayInParis()), EntryType.PURCHASE)
+        val entry = phone.logs.createPurchaseEntry(stageId, todayInParis()).entryLocalId
         assertEquals(SyncOutcome.Synced, phone.sync.syncNow())
 
         var now = 1_000_000_000L

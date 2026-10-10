@@ -73,9 +73,6 @@ class StockIntegrationTest {
         return account
     }
 
-    private suspend fun DeviceStack.entryOf(dayLocalId: String, type: EntryType): String =
-        logs.observeLog(dayLocalId).first()!!.entries.single { it.type == type }.localId
-
     private suspend fun DeviceStack.appStock(projectLocalId: String): Map<String, Double> =
         materials.observeStock(projectLocalId).first().materials.associate { it.materialName to it.available }
 
@@ -128,7 +125,7 @@ class StockIntegrationTest {
         val (project, stage) = owner.newSite("QA C P5")
         val date = today().toString()
 
-        val purchase = owner.entryOf(owner.logs.createPurchaseEntry(stage, date), EntryType.PURCHASE)
+        val purchase = owner.logs.createPurchaseEntry(stage, date).entryLocalId
         val cement = owner.materials.createMaterial(project, "Ciment", "sac")
         val sand = owner.materials.createMaterial(project, "Sable", "t")
         owner.purchaseLines.createLine(purchase, CreatePurchaseLineInput(cement.localId, 10.0, 6.5, "Négoce"))
@@ -137,7 +134,7 @@ class StockIntegrationTest {
         val (afterPurchase, serverAfterPurchase) = owner.compare("P5 achat", project)
         assertEquals(serverAfterPurchase, afterPurchase)
 
-        val work = owner.entryOf(owner.logs.createWorkEntry(stage, date), EntryType.WORK)
+        val work = owner.logs.createWorkEntry(stage, date).entryLocalId
         val consumption = owner.consumptionLines.createLine(work, CreateConsumptionLineInput(cement.localId, 4.0))
         owner.consumptionLines.createLine(work, CreateConsumptionLineInput(sand.localId, 0.75))
         owner.sync.syncNow()
@@ -159,7 +156,7 @@ class StockIntegrationTest {
     fun c_stock_bought_on_a_day_this_device_never_opened_is_still_counted() = runScenario {
         val site = aSiteWithASupervisor("seen")
         val yesterday = today().minusDays(1).toString()
-        val purchase = site.owner.entryOf(site.owner.logs.createPurchaseEntry(site.ownerStage, yesterday), EntryType.PURCHASE)
+        val purchase = site.owner.logs.createPurchaseEntry(site.ownerStage, yesterday).entryLocalId
         val cement = site.owner.materials.createMaterial(site.ownerProject, "Ciment", "sac")
         site.owner.purchaseLines.createLine(purchase, CreatePurchaseLineInput(cement.localId, 12.0, 6.5, "Négoce"))
         site.owner.sync.syncNow()
@@ -183,7 +180,7 @@ class StockIntegrationTest {
         val phone = device()
         val account = phone.signedInAs("qa-c-second", "QA C Deux appareils")
         val (project, stage) = phone.newSite("QA C deux appareils")
-        val purchase = phone.entryOf(phone.logs.createPurchaseEntry(stage, today().toString()), EntryType.PURCHASE)
+        val purchase = phone.logs.createPurchaseEntry(stage, today().toString()).entryLocalId
         val cement = phone.materials.createMaterial(project, "Ciment", "sac")
         phone.purchaseLines.createLine(purchase, CreatePurchaseLineInput(cement.localId, 8.0, 6.5, null))
         phone.sync.syncNow()
@@ -204,10 +201,10 @@ class StockIntegrationTest {
         owner.signedInAs("qa-c-edit", "QA C Modification")
         val (project, stage) = owner.newSite("QA C modification")
         val date = today().toString()
-        val purchase = owner.entryOf(owner.logs.createPurchaseEntry(stage, date), EntryType.PURCHASE)
+        val purchase = owner.logs.createPurchaseEntry(stage, date).entryLocalId
         val cement = owner.materials.createMaterial(project, "Ciment", "sac")
         val line = owner.purchaseLines.createLine(purchase, CreatePurchaseLineInput(cement.localId, 10.0, 6.5, null))
-        val work = owner.entryOf(owner.logs.createWorkEntry(stage, date), EntryType.WORK)
+        val work = owner.logs.createWorkEntry(stage, date).entryLocalId
         owner.consumptionLines.createLine(work, CreateConsumptionLineInput(cement.localId, 4.0))
         owner.sync.syncNow()
 
@@ -234,13 +231,13 @@ class StockIntegrationTest {
         owner.signedInAs("qa-74f", "QA 74 Corriger")
         val (project, stage) = owner.newSite("QA 74 corriger")
         val date = today().toString()
-        val purchase = owner.entryOf(owner.logs.createPurchaseEntry(stage, date), EntryType.PURCHASE)
+        val purchase = owner.logs.createPurchaseEntry(stage, date).entryLocalId
         val cement = owner.materials.createMaterial(project, "Ciment", "sac")
         owner.purchaseLines.createLine(purchase, CreatePurchaseLineInput(cement.localId, 2.0, 5.0, null))
         owner.sync.syncNow()
 
         owner.goOffline()
-        val work = owner.entryOf(owner.logs.createWorkEntry(stage, date), EntryType.WORK)
+        val work = owner.logs.createWorkEntry(stage, date).entryLocalId
         val tooMuch = owner.consumptionLines.createLine(work, CreateConsumptionLineInput(cement.localId, 5.0))
         owner.goOnline()
         owner.sync.syncNow()
@@ -288,13 +285,13 @@ class StockIntegrationTest {
         owner.signedInAs("qa-75", "QA 75 Course")
         val (project, stage) = owner.newSite("QA 75 course")
         val date = today().toString()
-        val purchase = owner.entryOf(owner.logs.createPurchaseEntry(stage, date), EntryType.PURCHASE)
+        val purchase = owner.logs.createPurchaseEntry(stage, date).entryLocalId
         val cement = owner.materials.createMaterial(project, "Ciment", "sac")
         val bought = owner.purchaseLines.createLine(purchase, CreatePurchaseLineInput(cement.localId, 2.0, 5.0, null))
         owner.sync.syncNow()
 
         owner.goOffline()
-        val work = owner.entryOf(owner.logs.createWorkEntry(stage, date), EntryType.WORK)
+        val work = owner.logs.createWorkEntry(stage, date).entryLocalId
         val tooMuch = owner.consumptionLines.createLine(work, CreateConsumptionLineInput(cement.localId, 5.0))
         owner.goOnline()
         owner.sync.syncNow()
@@ -344,10 +341,10 @@ class StockIntegrationTest {
         owner.signedInAs("qa-74r", "QA 74 Annuler")
         val (project, stage) = owner.newSite("QA 74 annuler")
         val date = today().toString()
-        val purchase = owner.entryOf(owner.logs.createPurchaseEntry(stage, date), EntryType.PURCHASE)
+        val purchase = owner.logs.createPurchaseEntry(stage, date).entryLocalId
         val cement = owner.materials.createMaterial(project, "Ciment", "sac")
         val line = owner.purchaseLines.createLine(purchase, CreatePurchaseLineInput(cement.localId, 10.0, 6.5, "Point P"))
-        val work = owner.entryOf(owner.logs.createWorkEntry(stage, date), EntryType.WORK)
+        val work = owner.logs.createWorkEntry(stage, date).entryLocalId
         owner.consumptionLines.createLine(work, CreateConsumptionLineInput(cement.localId, 4.0))
         owner.sync.syncNow()
 
@@ -391,10 +388,10 @@ class StockIntegrationTest {
         owner.signedInAs("qa-74d", "QA 74 Disparu")
         val (project, stage) = owner.newSite("QA 74 disparu")
         val date = today().toString()
-        val purchase = owner.entryOf(owner.logs.createPurchaseEntry(stage, date), EntryType.PURCHASE)
+        val purchase = owner.logs.createPurchaseEntry(stage, date).entryLocalId
         val cement = owner.materials.createMaterial(project, "Ciment", "sac")
         val line = owner.purchaseLines.createLine(purchase, CreatePurchaseLineInput(cement.localId, 10.0, 6.5, "Point P"))
-        val work = owner.entryOf(owner.logs.createWorkEntry(stage, date), EntryType.WORK)
+        val work = owner.logs.createWorkEntry(stage, date).entryLocalId
         owner.consumptionLines.createLine(work, CreateConsumptionLineInput(cement.localId, 4.0))
         owner.sync.syncNow()
 
@@ -435,10 +432,10 @@ class StockIntegrationTest {
         owner.signedInAs("qa-c-delete", "QA C Suppression")
         val (project, stage) = owner.newSite("QA C suppression")
         val date = today().toString()
-        val purchase = owner.entryOf(owner.logs.createPurchaseEntry(stage, date), EntryType.PURCHASE)
+        val purchase = owner.logs.createPurchaseEntry(stage, date).entryLocalId
         val cement = owner.materials.createMaterial(project, "Ciment", "sac")
         val line = owner.purchaseLines.createLine(purchase, CreatePurchaseLineInput(cement.localId, 10.0, 6.5, null))
-        val work = owner.entryOf(owner.logs.createWorkEntry(stage, date), EntryType.WORK)
+        val work = owner.logs.createWorkEntry(stage, date).entryLocalId
         owner.consumptionLines.createLine(work, CreateConsumptionLineInput(cement.localId, 4.0))
         owner.sync.syncNow()
 
@@ -458,10 +455,10 @@ class StockIntegrationTest {
         val secondStage = site.owner.stages.createStage(CreateStageInput(site.ownerProject, "Second œuvre", null, null, null, null))
         site.owner.sync.syncNow()
         val date = today().toString()
-        val purchase = site.owner.entryOf(site.owner.logs.createPurchaseEntry(secondStage, date), EntryType.PURCHASE)
+        val purchase = site.owner.logs.createPurchaseEntry(secondStage, date).entryLocalId
         val cement = site.owner.materials.createMaterial(site.ownerProject, "Ciment", "sac")
         site.owner.purchaseLines.createLine(purchase, CreatePurchaseLineInput(cement.localId, 5.0, 6.5, null))
-        val firstPurchase = site.owner.entryOf(site.owner.logs.createPurchaseEntry(site.ownerStage, date), EntryType.PURCHASE)
+        val firstPurchase = site.owner.logs.createPurchaseEntry(site.ownerStage, date).entryLocalId
         site.owner.purchaseLines.createLine(firstPurchase, CreatePurchaseLineInput(cement.localId, 3.0, 6.5, null))
         site.owner.sync.syncNow()
 
@@ -491,10 +488,10 @@ class StockIntegrationTest {
 
         site.owner.goOffline()
         site.supervisor.goOffline()
-        val ownerEntry = site.owner.entryOf(site.owner.logs.createPurchaseEntry(ownerSecondStage, date), EntryType.PURCHASE)
+        val ownerEntry = site.owner.logs.createPurchaseEntry(ownerSecondStage, date).entryLocalId
         val ownerSand = site.owner.materials.createMaterial(site.ownerProject, "Sable", "t")
         site.owner.purchaseLines.createLine(ownerEntry, CreatePurchaseLineInput(ownerSand.localId, 2.0, 40.0, null))
-        val supervisorEntry = site.supervisor.entryOf(site.supervisor.logs.createPurchaseEntry(site.supervisorStage, date), EntryType.PURCHASE)
+        val supervisorEntry = site.supervisor.logs.createPurchaseEntry(site.supervisorStage, date).entryLocalId
         val supervisorSand = site.supervisor.materials.createMaterial(site.supervisorProject, "Sable", "t")
         val supervisorLine = site.supervisor.purchaseLines.createLine(supervisorEntry, CreatePurchaseLineInput(supervisorSand.localId, 3.0, 40.0, null))
 
@@ -525,7 +522,7 @@ class StockIntegrationTest {
         val owner = device()
         owner.signedInAs("qa-c-decimals", "QA C Décimales")
         val (project, stage) = owner.newSite("QA C décimales")
-        val purchase = owner.entryOf(owner.logs.createPurchaseEntry(stage, today().toString()), EntryType.PURCHASE)
+        val purchase = owner.logs.createPurchaseEntry(stage, today().toString()).entryLocalId
         val sand = owner.materials.createMaterial(project, "Sable", "t")
         val line = owner.purchaseLines.createLine(purchase, CreatePurchaseLineInput(sand.localId, 2.67, 40.5, null))
         owner.sync.syncNow()

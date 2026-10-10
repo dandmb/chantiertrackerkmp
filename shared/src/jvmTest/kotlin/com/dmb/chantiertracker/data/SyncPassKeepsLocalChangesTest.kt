@@ -185,8 +185,7 @@ class SyncPassKeepsLocalChangesTest {
         Kind(
             "entry", SyncIssueTarget.ENTRY, "/stages/90/logs/2026-09-07/works", "/entries/900", "e900", "Envoyé", "Saisi pendant l'envoi",
             create = { summary ->
-                val day = logs.createWorkEntry("st90", "2026-09-07")
-                db.dailyEntryDao().findForLog(day).single().localId.also { logs.updateEntry(it, summary as String) }
+                logs.createWorkEntry("st90", "2026-09-07").entryLocalId.also { logs.updateEntry(it, summary as String) }
             },
             save = { id, value -> logs.updateEntry(id, value as String) },
             delete = null,

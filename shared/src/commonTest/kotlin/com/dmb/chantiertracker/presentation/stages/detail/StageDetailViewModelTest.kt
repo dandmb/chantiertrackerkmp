@@ -298,6 +298,24 @@ class StageDetailViewModelTest {
     }
 
     @Test
+    fun add_today_entry_gives_the_day_to_open_never_the_entry_for_a_purchase_and_for_works() = runTest {
+        val logs = FakeDailyLogRepository().apply {
+            createdPurchaseDayId = "day-of-the-purchase"
+            createdPurchaseEntryId = "the-purchase-entry"
+            createdWorkDayId = "day-of-the-works"
+            createdWorkEntryId = "the-work-entry"
+        }
+        val v = vm(FakeStageRepository(detail = detail()), projectRepo(timezone = "Europe/Paris"), logs)
+        v.load("s1")
+        advanceUntilIdle()
+
+        assertEquals("day-of-the-purchase", v.addTodayEntry(EntryType.PURCHASE), "the screen navigates to a day")
+        assertEquals("day-of-the-works", v.addTodayEntry(EntryType.WORK))
+        assertEquals(null, v.addTodayEntry(EntryType.UNKNOWN))
+        assertEquals(listOf("createPurchaseEntry", "createWorkEntry"), logs.log.takeLast(2).map { it.substringBefore(':') })
+    }
+
+    @Test
     fun add_today_entry_returns_null_before_the_stage_has_loaded() = runTest {
         val v = vm(FakeStageRepository(detail = null))
         assertNull(v.addTodayEntry(EntryType.PURCHASE))

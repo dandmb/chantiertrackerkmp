@@ -81,9 +81,6 @@ class RolesAndInvitationsIntegrationTest {
         return account
     }
 
-    private suspend fun DeviceStack.entryOf(dayLocalId: String, type: EntryType): String =
-        logs.observeLog(dayLocalId).first()!!.entries.single { it.type == type }.localId
-
     /** The invitation link exactly as the e-mail carries it (MailDev). */
     private suspend fun invitationLinkSentTo(email: String): String {
         repeat(30) {
@@ -158,8 +155,7 @@ class RolesAndInvitationsIntegrationTest {
         assertTrue(members.any { it.email.equals(supervisorAccount.email, ignoreCase = true) && it.role == ProjectRole.SUPERVISOR })
 
         val stage = supervisor.stages.observeStages(supervisorProject.localId).first().single()
-        val day = supervisor.logs.createPurchaseEntry(stage.localId, today())
-        val entry = supervisor.entryOf(day, EntryType.PURCHASE)
+        val entry = supervisor.logs.createPurchaseEntry(stage.localId, today()).entryLocalId
         val cement = supervisor.materials.createMaterial(supervisorProject.localId, "Ciment", "sac")
         supervisor.purchaseLines.createLine(entry, CreatePurchaseLineInput(cement.localId, 8.0, 6.0, "Négoce"))
         supervisor.attachments.addAttachment(entry, aSmallJpeg(), "bon.jpg", "image/jpeg")
@@ -266,7 +262,7 @@ class RolesAndInvitationsIntegrationTest {
         assertEquals(ProjectStatus.SUSPENDED, seen, "l'écran du superviseur peut bloquer la saisie (canEdit)")
 
         // A write that slipped through anyway (queued offline before the status arrived).
-        val entry = site.supervisor.entryOf(site.supervisor.logs.createWorkEntry(site.supervisorStage, today()), EntryType.WORK)
+        val entry = site.supervisor.logs.createWorkEntry(site.supervisorStage, today()).entryLocalId
         site.supervisor.sync.syncNow()
         println("P9-suspendu — saisie pendant la suspension : ${site.supervisor.db.dailyEntryDao().findByLocalId(entry)?.syncStatus}")
         assertEquals(SyncStatus.CONFLICTED, site.supervisor.db.dailyEntryDao().findByLocalId(entry)?.syncStatus)
@@ -295,7 +291,7 @@ class RolesAndInvitationsIntegrationTest {
         println("P9-étape — statut d'étape vu par le superviseur : $seen")
         assertEquals(StageStatus.COMPLETED, seen)
 
-        val entry = site.supervisor.entryOf(site.supervisor.logs.createWorkEntry(site.supervisorStage, today()), EntryType.WORK)
+        val entry = site.supervisor.logs.createWorkEntry(site.supervisorStage, today()).entryLocalId
         site.supervisor.sync.syncNow()
         println("P9-étape — saisie sur étape terminée : ${site.supervisor.db.dailyEntryDao().findByLocalId(entry)?.syncStatus}")
         assertEquals(SyncStatus.CONFLICTED, site.supervisor.db.dailyEntryDao().findByLocalId(entry)?.syncStatus)
@@ -306,7 +302,7 @@ class RolesAndInvitationsIntegrationTest {
         val site = aSiteWithASupervisor("past")
         val yesterday = LocalDate.now(ZoneId.of("Europe/Paris")).minusDays(1).toString()
 
-        val entry = site.supervisor.entryOf(site.supervisor.logs.createWorkEntry(site.supervisorStage, yesterday), EntryType.WORK)
+        val entry = site.supervisor.logs.createWorkEntry(site.supervisorStage, yesterday).entryLocalId
         site.supervisor.sync.syncNow()
         val row = site.supervisor.db.dailyEntryDao().findByLocalId(entry)
         println("P9-veille — saisie d'un superviseur sur la veille : ${row?.syncStatus} / ${row?.lastSyncError}")
@@ -317,7 +313,7 @@ class RolesAndInvitationsIntegrationTest {
     fun p9_a_project_deleted_by_the_owner_keeps_the_supervisor_pending_entry_and_never_blocks_the_sync_or_the_sign_out() = runScenario {
         val site = aSiteWithASupervisor("deleted")
         site.supervisor.goOffline()
-        val entry = site.supervisor.entryOf(site.supervisor.logs.createWorkEntry(site.supervisorStage, today()), EntryType.WORK)
+        val entry = site.supervisor.logs.createWorkEntry(site.supervisorStage, today()).entryLocalId
 
         site.owner.projects.deleteProject(site.ownerProject)
         site.owner.sync.syncNow()
@@ -363,7 +359,7 @@ class RolesAndInvitationsIntegrationTest {
     fun b1_a_stage_deleted_by_the_owner_while_a_supervisor_entry_waits() = runScenario {
         val site = aSiteWithASupervisor("b1stage")
         site.supervisor.goOffline()
-        val entry = site.supervisor.entryOf(site.supervisor.logs.createWorkEntry(site.supervisorStage, today()), EntryType.WORK)
+        val entry = site.supervisor.logs.createWorkEntry(site.supervisorStage, today()).entryLocalId
 
         site.owner.stages.deleteStage(site.ownerStage)
         site.owner.sync.syncNow()
@@ -384,8 +380,9 @@ class RolesAndInvitationsIntegrationTest {
     @Test
     fun b1_an_entry_deleted_by_the_owner_while_the_supervisor_adds_to_it() = runScenario {
         val site = aSiteWithASupervisor("b1entry")
-        val day = site.supervisor.logs.createPurchaseEntry(site.supervisorStage, today())
-        val entry = site.supervisor.entryOf(day, EntryType.PURCHASE)
+        val created = site.supervisor.logs.createPurchaseEntry(site.supervisorStage, today())
+        val day = created.dailyLogLocalId
+        val entry = created.entryLocalId
         val cement = site.supervisor.materials.createMaterial(site.supervisorProject, "Ciment", "sac")
         site.supervisor.sync.syncNow()
         val entryServerId = site.supervisor.db.dailyEntryDao().findByLocalId(entry)!!.serverId!!
@@ -418,7 +415,7 @@ class RolesAndInvitationsIntegrationTest {
     fun b1_a_supervisor_removed_from_the_project_while_an_entry_waits() = runScenario {
         val site = aSiteWithASupervisor("b1member")
         site.supervisor.goOffline()
-        val entry = site.supervisor.entryOf(site.supervisor.logs.createWorkEntry(site.supervisorStage, today()), EntryType.WORK)
+        val entry = site.supervisor.logs.createWorkEntry(site.supervisorStage, today()).entryLocalId
 
         site.owner.sync.syncProject(site.ownerProject)
         val supervisorId = site.owner.projects.observeMembers(site.ownerProject).first().single { it.role == ProjectRole.SUPERVISOR }.userId
@@ -441,7 +438,7 @@ class RolesAndInvitationsIntegrationTest {
     fun b1_a_reinvited_supervisor_gets_the_ghost_project_back_and_the_orphan_entry_stays_deleted_on_server() = runScenario {
         val site = aSiteWithASupervisor("b1reinvite")
         site.supervisor.goOffline()
-        val entry = site.supervisor.entryOf(site.supervisor.logs.createWorkEntry(site.supervisorStage, today()), EntryType.WORK)
+        val entry = site.supervisor.logs.createWorkEntry(site.supervisorStage, today()).entryLocalId
         site.owner.sync.syncProject(site.ownerProject)
         val supervisorId = site.owner.projects.observeMembers(site.ownerProject).first().single { it.role == ProjectRole.SUPERVISOR }.userId
         val projectServerId = site.owner.db.projectDao().findByLocalId(site.ownerProject)!!.serverId!!
