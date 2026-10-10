@@ -102,6 +102,16 @@ class AppDatabaseTest {
     }
 
     @Test
+    fun awaited_server_version_is_silent_contract_holds_on_ios() = runTest {
+        val db = Room.inMemoryDatabaseBuilder<AppDatabase>().buildChantierDatabase()
+        try {
+            com.dmb.chantiertracker.support.verifyAwaitedServerVersionIsSilentContract(db)
+        } finally {
+            db.close()
+        }
+    }
+
+    @Test
     fun sync_issue_actions_contract_holds_on_ios() = runTest {
         val db = Room.inMemoryDatabaseBuilder<AppDatabase>().buildChantierDatabase()
         try {

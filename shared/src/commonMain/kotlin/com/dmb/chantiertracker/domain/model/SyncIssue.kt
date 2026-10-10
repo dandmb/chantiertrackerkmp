@@ -25,7 +25,6 @@ data class SyncIssue(
 val RefusalReason.dependsOnSomethingElse: Boolean
     get() = this == RefusalReason.PLAN_LIMIT ||
         this == RefusalReason.PROJECT_OR_STAGE_INACTIVE ||
-        this == RefusalReason.ENTRY_DATE_RESTRICTED ||
         this == RefusalReason.INSUFFICIENT_ROLE
 
 val SyncIssue.canBeRetried: Boolean
@@ -96,7 +95,7 @@ val SyncIssueItem.actions: List<SyncIssueAction>
         SyncIssueKind.REFUSED -> buildList {
             if (canBeFixed) add(SyncIssueAction.FIX)
             if (issue.canBeRetried) add(SyncIssueAction.RETRY)
-            add(if (issue.reason == null || issue.reason == RefusalReason.UNKNOWN) SyncIssueAction.ACKNOWLEDGE else SyncIssueAction.DISCARD)
+            add(SyncIssueAction.DISCARD)
         }
     }
 

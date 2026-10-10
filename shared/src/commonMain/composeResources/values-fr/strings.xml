@@ -596,7 +596,6 @@
     <string name="sync_typed_versus_server">Vous avez saisi %1$s ; le serveur a gardé %2$s.</string>
     <string name="sync_hint_plan_limit">Changez de formule ou supprimez un projet, puis réessayez.</string>
     <string name="sync_hint_project_or_stage_inactive">Demandez à un administrateur du projet de rouvrir le projet ou l'étape, puis réessayez.</string>
-    <string name="sync_hint_entry_date_restricted">Demandez à un administrateur du projet de faire cette saisie, ou de vous donner ses droits, puis réessayez.</string>
     <string name="sync_hint_insufficient_role">Demandez à un administrateur du projet de le faire, ou de vous donner ses droits, puis réessayez.</string>
     <string name="sync_issue_retry">Réessayer</string>
     <string name="sync_issue_retrying">Envoi en cours…</string>

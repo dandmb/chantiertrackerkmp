@@ -233,21 +233,41 @@ class SyncIssuesScreenUiTest {
 
     @Test
     fun each_retryable_reason_has_its_own_instruction_in_both_languages() {
-        val retryable = listOf(RefusalReason.PLAN_LIMIT, RefusalReason.PROJECT_OR_STAGE_INACTIVE, RefusalReason.ENTRY_DATE_RESTRICTED, RefusalReason.INSUFFICIENT_ROLE)
+        val retryable = listOf(RefusalReason.PLAN_LIMIT, RefusalReason.PROJECT_OR_STAGE_INACTIVE, RefusalReason.INSUFFICIENT_ROLE)
         val items = retryable.mapIndexed { index, reason -> issueItem(SyncIssueTarget.MATERIAL, "m$index", refusedIssue(reason), label = "M$index") }
         onScreen(items, height = 2400) {
             onNodeWithText("Changez de formule ou supprimez un projet, puis réessayez.").assertExists()
             onNodeWithText("Demandez à un administrateur du projet de rouvrir le projet ou l'étape, puis réessayez.").assertExists()
-            onNodeWithText("Demandez à un administrateur du projet de faire cette saisie, ou de vous donner ses droits, puis réessayez.").assertExists()
             onNodeWithText("Demandez à un administrateur du projet de le faire, ou de vous donner ses droits, puis réessayez.").assertExists()
-            onAllNodesWithText("Réessayer").assertCountEquals(4)
+            onAllNodesWithText("Réessayer").assertCountEquals(3)
         }
         onScreen(items, locale = "en", height = 2400) {
             onNodeWithText("Change your plan or delete a project, then retry.").assertExists()
             onNodeWithText("Ask a project administrator to reopen the project or the stage, then retry.").assertExists()
-            onNodeWithText("Ask a project administrator to make this entry, or to give you administrator rights, then retry.").assertExists()
             onNodeWithText("Ask a project administrator to do it, or to give you administrator rights, then retry.").assertExists()
-            onAllNodesWithText("Retry").assertCountEquals(4)
+            onAllNodesWithText("Retry").assertCountEquals(3)
+        }
+    }
+
+    @Test
+    fun an_entry_refused_for_a_past_day_says_why_offers_no_retry_and_never_tells_to_retry() {
+        val pastDay = listOf(
+            onDay(SyncIssueTarget.ENTRY, "e-past", refusedIssue(RefusalReason.ENTRY_DATE_RESTRICTED)),
+            onDay(SyncIssueTarget.PURCHASE_LINE, "pl-past", refusedIssue(RefusalReason.ENTRY_DATE_RESTRICTED, kind = SyncIssueKind.UPDATE_REFUSED), label = "Ciment", unit = "sac", quantity = 3.0),
+        )
+        onScreen(pastDay, height = 1600) {
+            onAllNodesWithText("Un superviseur ne peut saisir que sur la journée en cours.").assertCountEquals(2)
+            onAllNodesWithText("Réessayer").assertCountEquals(0)
+            onAllNodes(hasText("réessayez", substring = true)).assertCountEquals(0)
+            onAllNodesWithText("Abandonner").assertCountEquals(1)
+            onAllNodesWithText("Annuler ma modification").assertCountEquals(1)
+        }
+        onScreen(pastDay, locale = "en", height = 1600) {
+            onAllNodesWithText("A supervisor can only enter data for the current day.").assertCountEquals(2)
+            onAllNodesWithText("Retry").assertCountEquals(0)
+            onAllNodes(hasText("then retry", substring = true)).assertCountEquals(0)
+            onAllNodesWithText("Discard").assertCountEquals(1)
+            onAllNodesWithText("Undo my change").assertCountEquals(1)
         }
     }
 

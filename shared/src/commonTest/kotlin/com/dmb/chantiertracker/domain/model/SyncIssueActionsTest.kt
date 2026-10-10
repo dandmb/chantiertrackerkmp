@@ -16,7 +16,7 @@ class SyncIssueActionsTest {
     private val everyTarget = SyncIssueTarget.entries
     private val withAForm = setOf(SyncIssueTarget.PROJECT, SyncIssueTarget.STAGE, SyncIssueTarget.ENTRY, SyncIssueTarget.PURCHASE_LINE, SyncIssueTarget.CONSUMPTION_LINE)
     private val dependingOnSomethingElse =
-        setOf(RefusalReason.PLAN_LIMIT, RefusalReason.PROJECT_OR_STAGE_INACTIVE, RefusalReason.ENTRY_DATE_RESTRICTED, RefusalReason.INSUFFICIENT_ROLE)
+        setOf(RefusalReason.PLAN_LIMIT, RefusalReason.PROJECT_OR_STAGE_INACTIVE, RefusalReason.INSUFFICIENT_ROLE)
     private val liftedByACorrection = setOf(RefusalReason.INSUFFICIENT_STOCK, RefusalReason.STOCK_CONSUMED, RefusalReason.INVALID_VALUE)
 
     private fun actionsOf(target: SyncIssueTarget, kind: SyncIssueKind, reason: RefusalReason? = null) =
@@ -57,20 +57,39 @@ class SyncIssueActionsTest {
     }
 
     @Test
-    fun a_duplicate_and_a_refused_file_can_only_be_discarded() {
+    fun a_duplicate_a_refused_file_and_an_entry_for_a_past_day_can_only_be_discarded() {
         everyTarget.forEach { target ->
-            listOf(RefusalReason.DUPLICATE_ENTRY, RefusalReason.DUPLICATE_MATERIAL, RefusalReason.FILE_REFUSED).forEach { reason ->
+            listOf(RefusalReason.DUPLICATE_ENTRY, RefusalReason.DUPLICATE_MATERIAL, RefusalReason.FILE_REFUSED, RefusalReason.ENTRY_DATE_RESTRICTED).forEach { reason ->
                 assertEquals(listOf(DISCARD), actionsOf(target, SyncIssueKind.REFUSED, reason), "$target, $reason")
             }
         }
     }
 
     @Test
-    fun a_creation_refused_for_an_unknown_reason_can_always_be_acknowledged_and_fixed_where_a_form_exists() {
+    fun a_creation_refused_for_an_unknown_reason_can_always_be_discarded_and_fixed_where_a_form_exists() {
         everyTarget.forEach { target ->
-            val expected = if (target in withAForm) listOf(FIX, ACKNOWLEDGE) else listOf(ACKNOWLEDGE)
+            val expected = if (target in withAForm) listOf(FIX, DISCARD) else listOf(DISCARD)
             assertEquals(expected, actionsOf(target, SyncIssueKind.REFUSED, RefusalReason.UNKNOWN), "$target, unknown")
             assertEquals(expected, actionsOf(target, SyncIssueKind.REFUSED, null), "$target, no reason")
+        }
+    }
+
+    @Test
+    fun a_refused_creation_always_ends_with_discard_and_is_never_acknowledged() {
+        everyTarget.forEach { target ->
+            (RefusalReason.entries + null).forEach { reason ->
+                val actions = actionsOf(target, SyncIssueKind.REFUSED, reason)
+                assertEquals(DISCARD, actions.last(), "$target, $reason")
+                assertFalse(ACKNOWLEDGE in actions, "$target, $reason: got it is for what the server holds or held")
+            }
+        }
+    }
+
+    @Test
+    fun a_refusal_for_a_past_day_is_never_retried() {
+        everyTarget.forEach { target ->
+            assertFalse(RETRY in actionsOf(target, SyncIssueKind.REFUSED, RefusalReason.ENTRY_DATE_RESTRICTED), "$target, creation")
+            assertEquals(listOf(REVERT), actionsOf(target, SyncIssueKind.UPDATE_REFUSED, RefusalReason.ENTRY_DATE_RESTRICTED), "$target, change")
         }
     }
 

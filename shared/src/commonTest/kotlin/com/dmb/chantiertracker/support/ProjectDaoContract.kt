@@ -837,3 +837,52 @@ suspend fun verifySyncIssueActionsContract(db: AppDatabase) {
     assertEquals(setOf("pl-change", "cl-change-unknown"), db.syncIssueDao().observeUnsettled().first().map { it.localId }.toSet())
 }
 
+
+suspend fun verifyAwaitedServerVersionIsSilentContract(db: AppDatabase) {
+    val rejected = com.dmb.chantiertracker.data.sync.SyncError.REJECTED
+    val awaiting = com.dmb.chantiertracker.data.sync.SyncError.AWAITING_SERVER_VERSION
+    val synced = SyncStatus.SYNCED
+    val none = PendingOp.NONE
+    val code = "PROJECT_INSUFFICIENT_ROLE"
+    val actions = db.syncIssueActionDao()
+
+    db.projectDao().upsert(localProject("p", serverId = 1, pendingOp = none, syncStatus = synced, lastSyncError = rejected).copy(serverErrorCode = code))
+    db.stageDao().upsert(localStage("s", projectLocalId = "p", serverId = 10, pendingOp = none, syncStatus = synced, lastSyncError = rejected).copy(serverErrorCode = code))
+    db.materialDao().upsert(localMaterial("m", projectLocalId = "p", name = "Ciment", serverId = 20, pendingOp = none, syncStatus = synced).copy(lastSyncError = rejected, serverErrorCode = code))
+    db.dailyLogDao().upsert(localDailyLog("l", stageLocalId = "s", date = "2026-09-05", serverId = 800))
+    db.dailyEntryDao().upsert(localDailyEntry("e-purchase", dailyLogLocalId = "l", type = "PURCHASE", serverId = 30, pendingOp = none, syncStatus = synced, lastSyncError = rejected).copy(serverErrorCode = code))
+    db.dailyEntryDao().upsert(localDailyEntry("e-work", dailyLogLocalId = "l", type = "WORK", serverId = 31, pendingOp = none, syncStatus = synced))
+    db.purchaseLineDao().upsert(localPurchaseLine("pl", entryLocalId = "e-purchase", materialLocalId = "m", serverId = 40, pendingOp = none, syncStatus = synced).copy(lastSyncError = rejected, serverErrorCode = code))
+    db.consumptionLineDao().upsert(localConsumptionLine("cl", entryLocalId = "e-work", materialLocalId = "m", serverId = 50, pendingOp = none, syncStatus = synced).copy(lastSyncError = rejected, serverErrorCode = code))
+    val refusedDeletes = listOf(
+        SyncIssueTarget.PROJECT to "p", SyncIssueTarget.STAGE to "s", SyncIssueTarget.MATERIAL to "m",
+        SyncIssueTarget.ENTRY to "e-purchase", SyncIssueTarget.PURCHASE_LINE to "pl", SyncIssueTarget.CONSUMPTION_LINE to "cl",
+    )
+    assertEquals(refusedDeletes.map { it.second }.toSet(), db.syncIssueDao().observeUnsettled().first().map { it.localId }.toSet(), "all six are to review before got it")
+
+    refusedDeletes.forEach { (target, localId) -> actions.awaitServerVersion(target, localId) }
+
+    assertEquals(refusedDeletes.toSet(), actions.rowsAwaitingServerVersion().map { it.target to it.localId }.toSet())
+    assertEquals(
+        listOf(awaiting, awaiting, awaiting, awaiting, awaiting, awaiting),
+        listOf(
+            db.projectDao().findByLocalId("p")!!.lastSyncError, db.stageDao().findByLocalId("s")!!.lastSyncError, db.materialDao().findByLocalId("m")!!.lastSyncError,
+            db.dailyEntryDao().findByLocalId("e-purchase")!!.lastSyncError, db.purchaseLineDao().findByLocalId("pl")!!.lastSyncError,
+            db.consumptionLineDao().findByLocalId("cl")!!.lastSyncError,
+        ),
+    )
+    assertEquals(emptyList(), db.syncIssueDao().observeUnsettled().first().map { it.target to it.localId }, "nothing awaited is listed to review")
+    assertEquals(0, db.localDataDao().countUnsynced(), "nor counted as unsent when signing out")
+    assertEquals(com.dmb.chantiertracker.data.local.db.UnsentCounts(0, 0, 0, 0, 0, 0), db.localDataDao().countUnsentByKind())
+    assertEquals(emptyList(), db.projectDao().findPending().map { it.localId }, "nor queued for a push")
+    assertEquals(emptyList(), db.stageDao().findPending().map { it.localId })
+    assertEquals(emptyList(), db.materialDao().findPending().map { it.localId })
+    assertEquals(emptyList(), db.dailyEntryDao().findPending().map { it.localId })
+    assertEquals(emptyList(), db.purchaseLineDao().findPending().map { it.localId })
+    assertEquals(emptyList(), db.consumptionLineDao().findPending().map { it.localId })
+    assertEquals(emptyList(), db.stageDao().observeBlockedByParent().first(), "nor seen as a refused parent holding its children back")
+    assertEquals(emptyList(), db.materialDao().observeBlockedByParent().first())
+    assertEquals(emptyList(), db.dailyEntryDao().observeBlockedByParent().first())
+    assertEquals(emptyList(), db.purchaseLineDao().observeBlockedByParent().first())
+    assertEquals(emptyList(), db.consumptionLineDao().observeBlockedByParent().first())
+}

@@ -80,6 +80,9 @@ class SyncIssueActionsUiTest {
     private val suspended = onDay(SyncIssueTarget.ENTRY, "e-susp", refusedIssue(RefusalReason.PROJECT_OR_STAGE_INACTIVE))
     private val unknownStage = issueItem(SyncIssueTarget.STAGE, "st-unknown", refusedIssue(RefusalReason.UNKNOWN, serverCode = "A_CODE_FROM_A_NEWER_SERVER"), stageLocalId = "st-unknown", stageName = "Bardage")
     private val unknownMaterial = issueItem(SyncIssueTarget.MATERIAL, "m-unknown", refusedIssue(RefusalReason.UNKNOWN, serverCode = null), label = "Gravier")
+    private val goneStage = issueItem(SyncIssueTarget.STAGE, "st-gone", SyncIssue(SyncIssueKind.DELETED_ON_SERVER), stageLocalId = "st-gone", stageName = "Bardage")
+    private val pastDay = onDay(SyncIssueTarget.ENTRY, "e-past", refusedIssue(RefusalReason.ENTRY_DATE_RESTRICTED))
+    private val changeOnAPastDay = onDay(SyncIssueTarget.ENTRY, "e-past-edit", refusedIssue(RefusalReason.ENTRY_DATE_RESTRICTED, kind = SyncIssueKind.UPDATE_REFUSED))
     private val goneEntry = onDay(SyncIssueTarget.ENTRY, "e-gone", SyncIssue(SyncIssueKind.DELETED_ON_SERVER), type = EntryType.WORK)
     private val refusedDelete = issueItem(SyncIssueTarget.STAGE, "st-del", refusedIssue(RefusalReason.INSUFFICIENT_ROLE, kind = SyncIssueKind.DELETE_REFUSED), stageLocalId = "st-del", stageName = "Toiture")
     private val refusedChange = onDay(SyncIssueTarget.PURCHASE_LINE, "pl-edit", refusedIssue(RefusalReason.STOCK_CONSUMED, kind = SyncIssueKind.UPDATE_REFUSED), label = "Ciment", quantity = 3.0, serverQuantity = 10.0)
@@ -141,8 +144,10 @@ class SyncIssueActionsUiTest {
             refusedFile to listOf("Abandonner"),
             tooMuch to listOf("Corriger", "Abandonner"),
             suspended to listOf("Réessayer", "Abandonner"),
-            unknownStage to listOf("Corriger", "J'ai compris"),
-            unknownMaterial to listOf("J'ai compris"),
+            unknownStage to listOf("Corriger", "Abandonner"),
+            unknownMaterial to listOf("Abandonner"),
+            pastDay to listOf("Abandonner"),
+            changeOnAPastDay to listOf("Annuler ma modification"),
             goneEntry to listOf("J'ai compris"),
             refusedDelete to listOf("J'ai compris"),
             refusedChange to listOf("Corriger", "Annuler ma modification"),
@@ -249,8 +254,27 @@ class SyncIssueActionsUiTest {
     }
 
     @Test
-    fun got_it_on_a_parent_with_linked_entries_asks_first() {
+    fun discarding_a_creation_refused_for_an_unknown_reason_asks_first_and_announces_the_linked_entries() {
         val repo = FakeSyncIssueRepository(listOf(unknownStage)).apply { linked = 2 }
+        onScreen(emptyList(), repo = repo) { screen ->
+            onNodeWithText("Le serveur a refusé cet élément.").assertExists()
+            onAllNodes(hasText("J'ai compris").and(hasClickAction())).assertCountEquals(0)
+            onNodeWithText("Abandonner").assertHeightIsAtLeast(48.dp).performClick()
+            await("Abandonner cet élément ?")
+            onNodeWithText("Il n'a jamais été enregistré sur le serveur. Il sera supprimé de cet appareil.").assertExists()
+            onNodeWithText("2 saisies liées seront aussi supprimées.").assertExists()
+            assertTrue(screen.repo.actions.isEmpty())
+
+            onNode(hasText("Abandonner").and(hasClickAction()).and(androidx.compose.ui.test.hasAnyAncestor(isDialog()))).performClick()
+            waitUntil(timeoutMillis = 5_000L) { screen.repo.actions.isNotEmpty() }
+            assertEquals(listOf("discard ${unknownStage.key}"), screen.repo.actions)
+            await("Rien à revoir")
+        }
+    }
+
+    @Test
+    fun got_it_on_a_parent_with_linked_entries_asks_first() {
+        val repo = FakeSyncIssueRepository(listOf(goneStage)).apply { linked = 2 }
         onScreen(emptyList(), repo = repo) { screen ->
             onNodeWithText("J'ai compris").performClick()
             await("Retirer cet élément de la liste ?")
@@ -260,7 +284,7 @@ class SyncIssueActionsUiTest {
 
             onNode(hasText("J'ai compris").and(hasClickAction()).and(androidx.compose.ui.test.hasAnyAncestor(isDialog()))).performClick()
             waitUntil(timeoutMillis = 5_000L) { screen.repo.actions.isNotEmpty() }
-            assertEquals(listOf("acknowledge ${unknownStage.key}"), screen.repo.actions)
+            assertEquals(listOf("acknowledge ${goneStage.key}"), screen.repo.actions)
             await("Rien à revoir")
         }
     }
@@ -352,7 +376,7 @@ class SyncIssueActionsUiTest {
         listOf("fr", "en").forEach { locale ->
             val repo = FakeSyncIssueRepository(listOf(unknownStage, refusedChange, goneEntry)).apply { linked = 2 }
             onScreen(emptyList(), locale = locale, repo = repo, height = 2000) {
-                onAllNodes(hasText(if (locale == "fr") "J'ai compris" else "Got it").and(hasClickAction())).onFirst().performClick()
+                onAllNodes(hasText(if (locale == "fr") "Abandonner" else "Discard").and(hasClickAction())).onFirst().performClick()
                 waitUntil(timeoutMillis = 5_000L) { onAllNodes(isDialog()).fetchSemanticsNodes().isNotEmpty() }
                 val shown = everythingShown()
                 assertTrue(shown.size > 10)
@@ -403,7 +427,7 @@ class SyncIssueActionsUiTest {
 
     @Test
     fun at_200_percent_font_the_got_it_confirmation_stays_usable_on_an_iphone_se() {
-        val repo = FakeSyncIssueRepository(listOf(unknownStage)).apply { linked = 2 }
+        val repo = FakeSyncIssueRepository(listOf(goneStage)).apply { linked = 2 }
         onScreen(emptyList(), width = 320, height = 568, fontScale = 2f, repo = repo) { screen ->
             onNode(hasScrollAction()).performScrollToNode(hasText("J'ai compris"))
             onNodeWithText("J'ai compris").performClick()

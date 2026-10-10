@@ -574,6 +574,101 @@ class SyncAndRejectionsIntegrationTest {
     // ─── P8 — session expired / another account on the same device ───────────
 
     @Test
+    fun adr74_an_entry_refused_for_a_past_day_offers_no_retry_and_leaves_with_discard() = runScenario {
+        val ownerPhone = device()
+        ownerPhone.signedInAs("qa-74t-owner", "QA 74 ter Propriétaire")
+        val supervisorPhone = device()
+        val supervisor = supervisorPhone.signedInAs("qa-74t-super", "QA 74 ter Superviseur")
+
+        val projectId = ownerPhone.newProject("QA 74 ter journée passée")
+        ownerPhone.newStage(projectId, "Charpente")
+        ownerPhone.sync.syncNow()
+        ownerPhone.invitations.invite(projectId, supervisor.email)
+        val token = supervisorPhone.invitationApi.listMine().single().token
+        supervisorPhone.invitations.acceptInvitation(token)
+        supervisorPhone.sync.syncNow()
+        val supervisorProject = supervisorPhone.projects.observeProjects().first().single()
+        supervisorPhone.sync.syncProject(supervisorProject.localId)
+        val supervisorStage = supervisorPhone.stages.observeStages(supervisorProject.localId).first().single()
+
+        supervisorPhone.goOffline()
+        val yesterday = LocalDate.now(ZoneId.of("Europe/Paris")).minusDays(1).toString()
+        val entry = supervisorPhone.entryOf(supervisorPhone.logs.createPurchaseEntry(supervisorStage.localId, yesterday), EntryType.PURCHASE)
+        val cement = supervisorPhone.materials.createMaterial(supervisorProject.localId, "Ciment", "sac")
+        val line = supervisorPhone.purchaseLines.createLine(entry, CreatePurchaseLineInput(cement.localId, 3.0, 5.0, null))
+        supervisorPhone.goOnline()
+        supervisorPhone.sync.syncNow()
+        supervisorPhone.sync.syncNow()
+
+        val issues = supervisorPhone.syncIssues
+        val listed = issues.observeIssues().first()
+        println("ADR-74 tranche 3ter — à revoir, journée passée : " + listed.joinToString { "${it.target} ${it.issue.kind} ${it.issue.reason} ${it.actions}" })
+        val refusedEntry = listed.single { it.target == com.dmb.chantiertracker.domain.model.SyncIssueTarget.ENTRY }
+        assertEquals(entry, refusedEntry.localId)
+        assertEquals(com.dmb.chantiertracker.domain.model.SyncIssueKind.REFUSED, refusedEntry.issue.kind)
+        assertEquals(com.dmb.chantiertracker.domain.model.RefusalReason.ENTRY_DATE_RESTRICTED, refusedEntry.issue.reason)
+        assertEquals(yesterday, refusedEntry.date)
+        assertTrue(!refusedEntry.issue.canBeRetried, "une journée passée le reste : pas de « Réessayer »")
+        assertEquals(listOf(com.dmb.chantiertracker.domain.model.SyncIssueAction.DISCARD), refusedEntry.actions, "il reste « Abandonner »")
+
+        val daysOnServerBefore = ownerPhone.dailyLogApi.listLogs(ownerPhone.db.stageDao().findForProject(projectId).single().serverId!!, page = 0, size = 100).content
+        assertEquals(com.dmb.chantiertracker.domain.repository.RetryOutcome.STILL_REFUSED, issues.retry(refusedEntry), "même appelé de force, rien ne repart")
+        assertEquals(SyncStatus.CONFLICTED, supervisorPhone.db.dailyEntryDao().findByLocalId(entry)?.syncStatus)
+
+        assertEquals(1, issues.linkedCount(refusedEntry), "la confirmation annonce la ligne qui attendait sous la saisie")
+        issues.discard(refusedEntry)
+
+        println("ADR-74 tranche 3ter — après « Abandonner » : à revoir=${issues.observeIssues().first().size}")
+        assertTrue(issues.observeIssues().first().isEmpty())
+        assertEquals(0, issues.observeIssueCount().first())
+        assertEquals(null, supervisorPhone.db.dailyEntryDao().findByLocalId(entry))
+        assertEquals(null, supervisorPhone.db.purchaseLineDao().findByLocalId(line))
+        assertEquals(SyncOutcome.Synced, supervisorPhone.sync.syncNow())
+        val daysOnServerAfter = ownerPhone.dailyLogApi.listLogs(ownerPhone.db.stageDao().findForProject(projectId).single().serverId!!, page = 0, size = 100).content
+        assertEquals(daysOnServerBefore, daysOnServerAfter, "le serveur n'a rien reçu de cette saisie")
+        assertTrue(daysOnServerAfter.none { it.date == yesterday }, "aucune journée d'hier côté serveur")
+    }
+
+    @Test
+    fun adr74_a_photo_waiting_to_be_sent_survives_the_startup_cleanup_and_reaches_the_server_while_an_old_orphan_file_is_removed() = runScenario {
+        val phone = device()
+        phone.signedInAs("qa-74t-clean", "QA 74 ter Nettoyage")
+        val projectId = phone.newProject("QA 74 ter nettoyage")
+        val stageId = phone.newStage(projectId, "Gros œuvre")
+        val entry = phone.entryOf(phone.logs.createPurchaseEntry(stageId, todayInParis()), EntryType.PURCHASE)
+        assertEquals(SyncOutcome.Synced, phone.sync.syncNow())
+
+        var now = 1_000_000_000L
+        phone.fileStore.now = now
+        val cleaner = com.dmb.chantiertracker.data.local.OrphanAttachmentFileCleaner(phone.fileStore, phone.db.attachmentDao(), phone.sync, kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Default), clock = { now })
+
+        phone.goOffline()
+        val oldOrphan = phone.fileStore.save(aSmallJpeg(), "orpheline.jpg")
+        now += 11 * 60_000L
+        phone.fileStore.now = now
+        val savedButNotYetRecorded = phone.fileStore.save(aSmallJpeg(), "en-cours-d-ajout.jpg")
+        val photo = phone.attachments.addAttachment(entry, aSmallJpeg(), "bon.jpg", "image/jpeg")
+        val photoFile = phone.db.attachmentDao().findByLocalId(photo.localId)!!.localPath
+
+        val removedAtStart = cleaner.removeOrphans()
+        println("ADR-74 tranche 3ter — nettoyage au démarrage : retiré=$removedAtStart, gardé=${phone.fileStore.storedPaths}")
+        assertEquals(listOf(oldOrphan), removedAtStart, "seul le vieux fichier sans ligne part")
+        assertEquals(setOf(savedButNotYetRecorded, photoFile), phone.fileStore.storedPaths, "la photo en attente et le fichier tout juste écrit restent")
+
+        phone.goOnline()
+        assertEquals(SyncOutcome.Synced, phone.sync.syncNow())
+        val sent = phone.db.attachmentDao().findByLocalId(photo.localId)!!
+        assertEquals(SyncStatus.SYNCED, sent.syncStatus)
+        val serverPhotos = phone.attachmentApi.list(phone.db.dailyEntryDao().findByLocalId(entry)!!.serverId!!, page = 0, size = 100).content
+        println("ADR-74 tranche 3ter — côté serveur : ${serverPhotos.size} photo(s)")
+        assertEquals(listOf(sent.serverId), serverPhotos.map { it.id })
+
+        now += 11 * 60_000L
+        assertEquals(listOf(savedButNotYetRecorded), cleaner.removeOrphans(), "dix minutes plus tard, le fichier resté sans ligne part à son tour")
+        assertEquals(setOf(sent.localPath), phone.fileStore.storedPaths, "le fichier de la photo envoyée est toujours là")
+    }
+
+    @Test
     fun p8_writes_pending_when_the_session_is_revoked_are_pushed_after_signing_back_in() = runScenario {
         val phone = device()
         val account = phone.signedInAs("qa-p8-session", "QA P8 Session")
