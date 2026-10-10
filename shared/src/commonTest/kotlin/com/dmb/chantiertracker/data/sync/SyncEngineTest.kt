@@ -75,6 +75,7 @@ class SyncEngineTest {
             attachmentFileStore = fileStore,
             invitationDao = invitationDao,
             invitationApi = backend.invitationApi(),
+            accountApi = backend.accountApi(),
             stockApi = backend.stockApi(),
             stockDao = stockDao,
             connectivity = connectivity,
@@ -2836,7 +2837,7 @@ class SyncEngineTest {
         backend.receivedMethods.count { it.startsWith("$method ") && it.endsWith(pathSuffix) }
 
     @Test
-    fun a_refused_creation_is_sent_again_at_every_pass_and_leaves_once_the_refusal_is_lifted() = runTest {
+    fun a_refused_creation_that_can_lift_is_sent_again_when_its_time_comes_and_leaves_once_the_refusal_is_lifted() = runTest {
         val f = stockFixture()
         f.siteWithCement(serverPurchase = 2.0)
         f.consumptionLineDao.upsert(com.dmb.chantiertracker.support.localConsumptionLine("cl-too-much", entryLocalId = "e901", materialLocalId = "m7", quantity = 5.0))
@@ -2846,10 +2847,14 @@ class SyncEngineTest {
         assertIs<SyncOutcome.Synced>(engine.syncNow())
         assertIs<SyncOutcome.Synced>(engine.syncNow())
 
-        assertEquals(2, f.sent("POST", "/entries/901/consumption-lines"))
+        assertEquals(1, f.sent("POST", "/entries/901/consumption-lines"), "not sent again by the pass that follows")
+        f.clock.advanceBy(15 * 60_000)
+        assertIs<SyncOutcome.Synced>(engine.syncNow())
+        assertEquals(2, f.sent("POST", "/entries/901/consumption-lines"), "sent again fifteen minutes later")
         assertEquals(SyncStatus.CONFLICTED, f.consumptionLineDao.findByLocalId("cl-too-much")!!.syncStatus)
 
         f.backend.lineWriteConflict = false
+        f.clock.advanceBy(60 * 60_000)
         assertIs<SyncOutcome.Synced>(engine.syncNow())
 
         assertEquals(SyncStatus.SYNCED, f.consumptionLineDao.findByLocalId("cl-too-much")!!.syncStatus)
@@ -3063,6 +3068,7 @@ class SyncEngineTest {
 
         f.backend.planLimitReached = false
         f.backend.lineWriteConflict = false
+        f.clock.advanceBy(15 * 60_000)
         assertIs<SyncOutcome.Synced>(engine.syncNow())
 
         assertEquals(null to null, f.dao.findByLocalId("p-new")!!.let { it.lastSyncError to it.serverErrorCode })

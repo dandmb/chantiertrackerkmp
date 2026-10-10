@@ -91,6 +91,7 @@ class RefusedCreationsWaitForACorrectionTest {
         attachmentFileStore = fileStore,
         invitationDao = db.invitationDao(),
         invitationApi = backend.invitationApi(),
+        accountApi = backend.accountApi(),
         stockApi = backend.stockApi(),
         stockDao = db.stockDao(),
         connectivity = connectivity,
@@ -144,8 +145,6 @@ class RefusedCreationsWaitForACorrectionTest {
         val status: HttpStatusCode,
         val withFieldErrors: Boolean = false,
         val detail: String = "Refusé.",
-        val keptCode: String? = code,
-        val shownReason: RefusalReason = reason,
     ) {
         override fun toString() = "$reason ($code, ${status.value})"
     }
@@ -154,18 +153,12 @@ class RefusedCreationsWaitForACorrectionTest {
     private val unknownCode = Refusal(RefusalReason.UNKNOWN, "A_CODE_FROM_A_NEWER_SERVER", HttpStatusCode.BadRequest, withFieldErrors = true)
     private val noCode = Refusal(RefusalReason.UNKNOWN, null, HttpStatusCode.BadRequest, withFieldErrors = true)
     private val inactive = Refusal(RefusalReason.PROJECT_OR_STAGE_INACTIVE, "PROJECT_OR_STAGE_INACTIVE", HttpStatusCode.Forbidden)
-    private val notAllowed = Refusal(RefusalReason.INSUFFICIENT_ROLE, "PROJECT_INSUFFICIENT_ROLE", HttpStatusCode.Forbidden)
     private val pastDay = Refusal(RefusalReason.ENTRY_DATE_RESTRICTED, "ENTRY_DATE_RESTRICTED", HttpStatusCode.Forbidden)
-    private val planLimit = Refusal(RefusalReason.PLAN_LIMIT, "PLAN_LIMIT_EXCEEDED", HttpStatusCode.Forbidden, detail = "Vous avez atteint la limite de projets de votre formule.")
     private val duplicateEntry = Refusal(RefusalReason.DUPLICATE_ENTRY, "DUPLICATE_ENTRY", HttpStatusCode.Conflict)
-    private val duplicateMaterial = Refusal(
-        RefusalReason.DUPLICATE_MATERIAL, "DUPLICATE_MATERIAL", HttpStatusCode.Conflict,
-        keptCode = null, shownReason = RefusalReason.UNKNOWN,
-    )
+    private val duplicateMaterial = Refusal(RefusalReason.DUPLICATE_MATERIAL, "DUPLICATE_MATERIAL", HttpStatusCode.Conflict)
     private val invalidAmount = Refusal(RefusalReason.INVALID_VALUE, "INVALID_AMOUNT", HttpStatusCode.BadRequest)
     private val wrongMaterial = Refusal(RefusalReason.INVALID_VALUE, "MATERIAL_PROJECT_MISMATCH", HttpStatusCode.BadRequest)
     private val wrongEntryType = Refusal(RefusalReason.INVALID_VALUE, "ENTRY_TYPE_MISMATCH", HttpStatusCode.BadRequest)
-    private val notEnoughStock = Refusal(RefusalReason.INSUFFICIENT_STOCK, "INSUFFICIENT_STOCK", HttpStatusCode.Conflict)
 
     private inner class Table(
         val name: String,
@@ -176,7 +169,6 @@ class RefusedCreationsWaitForACorrectionTest {
         val row: suspend (String) -> SyncedRow?,
         val remove: suspend (String) -> Unit,
         val frozen: List<Refusal>,
-        val sentAgain: List<Refusal>,
     )
 
     private var counter = 0
@@ -188,21 +180,21 @@ class RefusedCreationsWaitForACorrectionTest {
             create = { projects.createProject(CreateProjectInput("Chantier ${counter++}", null, null, "EUR", "Europe/Paris")) },
             correct = { projects.updateProject(it, UpdateProjectInput("Chantier corrigé ${counter++}", null, null, "EUR", "Europe/Paris", ProjectStatus.IN_PROGRESS)) },
             row = { db.projectDao().findByLocalId(it) }, remove = { db.projectDao().deleteByLocalId(it) },
-            frozen = listOf(invalid, unknownCode, noCode), sentAgain = listOf(planLimit),
+            frozen = listOf(invalid, unknownCode, noCode),
         ),
         Table(
             "stage", SyncIssueTarget.STAGE, { "/projects/5/stages" },
             create = { stages.createStage(CreateStageInput("p5", "Étape ${counter++}", null, null, null, null)) },
             correct = { stages.updateStage(it, UpdateStageInput("Étape corrigée ${counter++}", null, null, null, null, StageStatus.IN_PROGRESS)) },
             row = { db.stageDao().findByLocalId(it) }, remove = { db.stageDao().deleteByLocalId(it) },
-            frozen = listOf(invalid, unknownCode, noCode), sentAgain = listOf(inactive, notAllowed),
+            frozen = listOf(invalid, unknownCode, noCode),
         ),
         Table(
             "material", SyncIssueTarget.MATERIAL, { "/projects/5/materials" },
             create = { materials.createMaterial("p5", "Matériau ${counter++}", "kg").localId },
             correct = null,
             row = { db.materialDao().findByLocalId(it) }, remove = { db.materialDao().deleteByLocalId(it) },
-            frozen = listOf(duplicateMaterial, invalidAmount, unknownCode), sentAgain = listOf(inactive, notAllowed),
+            frozen = listOf(duplicateMaterial, invalidAmount, unknownCode),
         ),
         Table(
             "entry", SyncIssueTarget.ENTRY, { "/stages/90/logs/$entryDay/works" },
@@ -212,21 +204,21 @@ class RefusedCreationsWaitForACorrectionTest {
             },
             correct = { logs.updateEntry(it, "Résumé corrigé ${counter++}") },
             row = { db.dailyEntryDao().findByLocalId(it) }, remove = { db.dailyEntryDao().deleteByLocalId(it) },
-            frozen = listOf(duplicateEntry, pastDay, wrongEntryType, unknownCode), sentAgain = listOf(inactive, notAllowed),
+            frozen = listOf(duplicateEntry, pastDay, wrongEntryType, unknownCode),
         ),
         Table(
             "purchase line", SyncIssueTarget.PURCHASE_LINE, { "/entries/900/purchase-lines" },
             create = { purchaseLines.createLine("e900", CreatePurchaseLineInput("m7", 5.0, 6.0, null)) },
             correct = { purchaseLines.updateLine(it, UpdatePurchaseLineInput(2.0, 6.0, null)) },
             row = { db.purchaseLineDao().findByLocalId(it) }, remove = { db.purchaseLineDao().deleteByLocalId(it) },
-            frozen = listOf(invalidAmount, wrongMaterial, wrongEntryType, pastDay, unknownCode), sentAgain = listOf(inactive, notAllowed),
+            frozen = listOf(invalidAmount, wrongMaterial, wrongEntryType, pastDay, unknownCode),
         ),
         Table(
             "consumption line", SyncIssueTarget.CONSUMPTION_LINE, { "/entries/901/consumption-lines" },
             create = { consumptionLines.createLine("e901", CreateConsumptionLineInput("m7", 5.0)) },
             correct = { consumptionLines.updateLine(it, UpdateConsumptionLineInput(2.0)) },
             row = { db.consumptionLineDao().findByLocalId(it) }, remove = { db.consumptionLineDao().deleteByLocalId(it) },
-            frozen = listOf(invalidAmount, wrongMaterial, wrongEntryType, pastDay, unknownCode), sentAgain = listOf(notEnoughStock, inactive, notAllowed),
+            frozen = listOf(invalidAmount, wrongMaterial, wrongEntryType, pastDay, unknownCode),
         ),
     )
 
@@ -263,34 +255,10 @@ class RefusedCreationsWaitForACorrectionTest {
                 val context = "${table.name}, $refusal"
                 assertEquals(1, posts(path) - before, "$context: three passes, one request")
                 val row = table.row(id)!!
-                assertEquals(listOf<Any?>(SyncStatus.CONFLICTED, PendingOp.CREATE, refusal.keptCode), listOf(row.syncStatus, row.pendingOp, row.serverErrorCode), context)
-                assertEquals(listOf<Any?>(SyncIssueKind.REFUSED, refusal.shownReason), listed(table.target, id)?.issue?.let { listOf<Any?>(it.kind, it.reason) }, "$context: still listed to review")
+                assertEquals(listOf<Any?>(SyncStatus.CONFLICTED, PendingOp.CREATE, refusal.code), listOf(row.syncStatus, row.pendingOp, row.serverErrorCode), context)
+                assertEquals(listOf<Any?>(SyncIssueKind.REFUSED, refusal.reason), listed(table.target, id)?.issue?.let { listOf<Any?>(it.kind, it.reason) }, "$context: still listed to review")
                 backend.refuseWith = null
                 table.remove(id)
-            }
-        }
-    }
-
-    @Test
-    fun a_creation_refused_for_a_reason_that_depends_on_something_else_is_still_sent_at_every_pass_and_leaves_by_itself() = runTest {
-        aSyncedSite()
-        for (table in tables) {
-            for (refusal in table.sentAgain) {
-                val id = table.create()
-                val path = table.createPath()
-                val before = posts(path)
-                theServerRefuses(path, refusal)
-
-                threePasses()
-
-                val context = "${table.name}, $refusal"
-                assertEquals(3, posts(path) - before, "$context: three passes, three requests, as before")
-                assertEquals(refusal.reason, listed(table.target, id)?.issue?.reason, context)
-
-                backend.refuseWith = null
-                assertEquals(SyncOutcome.Synced, engine.syncNow(), context)
-                assertEquals(4, posts(path) - before, context)
-                assertEquals(SyncStatus.SYNCED, table.row(id)!!.syncStatus, "$context: once the cause is lifted the entry leaves without any action")
             }
         }
     }
@@ -433,7 +401,7 @@ class RefusedCreationsWaitForACorrectionTest {
             ),
             afterOnePass,
         )
-        assertEquals(listOf(1, 3), listOf(posts("/stages/90/logs/2026-10-04/purchases"), posts("/entries/901/consumption-lines")), "the frozen entry once, the other at every pass")
+        assertEquals(listOf(1, 1), listOf(posts("/stages/90/logs/2026-10-04/purchases"), posts("/entries/901/consumption-lines")), "the frozen entry once, the other once too until its time comes")
     }
 
     @Test
@@ -471,19 +439,5 @@ class RefusedCreationsWaitForACorrectionTest {
 
         assertTrue(writes().containsAll(listOf("PATCH /stages/90", "DELETE /purchase-lines/5000")), "${writes()}")
         assertEquals("Gros œuvre et fondations", backend.stages.single().name)
-    }
-
-    @Test
-    fun current_behaviour_not_a_rule_a_duplicate_material_with_no_namesake_loses_its_code_and_reads_as_an_unknown_reason() = runTest {
-        aSyncedSite()
-        val material = materials.createMaterial("p5", "Gravier", "t").localId
-        theServerRefuses("/projects/5/materials", duplicateMaterial)
-
-        threePasses()
-
-        val row = db.materialDao().findByLocalId(material)!!
-        assertEquals(listOf<Any?>(SyncStatus.CONFLICTED, null), listOf(row.syncStatus, row.serverErrorCode), "the read of the namesakes that follows the refusal clears the code just received")
-        assertEquals(RefusalReason.UNKNOWN, listed(SyncIssueTarget.MATERIAL, material)?.issue?.reason)
-        assertEquals(1, posts("/projects/5/materials"), "frozen either way: a duplicate and an unknown reason both wait for the user")
     }
 }

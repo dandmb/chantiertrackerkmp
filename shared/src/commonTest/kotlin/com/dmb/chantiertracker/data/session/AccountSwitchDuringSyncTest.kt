@@ -75,6 +75,7 @@ class AccountSwitchDuringSyncTest {
             attachmentDao = FakeAttachmentDao(), attachmentApi = backend.attachmentApi(),
             attachmentFileStore = FakeAttachmentFileStore(),
             invitationDao = FakeInvitationDao(), invitationApi = backend.invitationApi(),
+            accountApi = backend.accountApi(),
             stockApi = backend.stockApi(), stockDao = com.dmb.chantiertracker.support.FakeStockDao(),
             connectivity = FakeConnectivityObserver(initiallyOnline = true),
             awaitedServerVersions = com.dmb.chantiertracker.support.NoAwaitedServerVersion,

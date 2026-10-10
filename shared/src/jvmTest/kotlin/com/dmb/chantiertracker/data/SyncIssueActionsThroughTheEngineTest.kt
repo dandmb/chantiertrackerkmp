@@ -83,6 +83,7 @@ class SyncIssueActionsThroughTheEngineTest {
         attachmentFileStore = fileStore,
         invitationDao = db.invitationDao(),
         invitationApi = backend.invitationApi(),
+        accountApi = backend.accountApi(),
         stockApi = backend.stockApi(),
         stockDao = db.stockDao(),
         connectivity = connectivity,

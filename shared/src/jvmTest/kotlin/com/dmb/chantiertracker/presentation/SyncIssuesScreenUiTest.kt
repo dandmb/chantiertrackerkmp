@@ -274,15 +274,23 @@ class SyncIssuesScreenUiTest {
     @Test
     fun a_refusal_only_a_correction_can_lift_offers_no_retry() = onScreen(
         listOf(
-            onDay(SyncIssueTarget.CONSUMPTION_LINE, "cl1", refusedIssue(RefusalReason.INSUFFICIENT_STOCK), label = "Ciment", unit = "sac", quantity = 50.0),
+            onDay(SyncIssueTarget.CONSUMPTION_LINE, "cl1", refusedIssue(RefusalReason.INVALID_VALUE), label = "Ciment", unit = "sac", quantity = 50.0),
             issueItem(SyncIssueTarget.ATTACHMENT, "a1", refusedIssue(RefusalReason.FILE_REFUSED), stageLocalId = "st1", stageName = "Charpente", dailyLogLocalId = "l1", date = "2026-10-09", label = "facture.jpg"),
         ),
     ) {
         onNodeWithText("Consommation : Ciment, 50 sac").assertExists()
-        onNodeWithText("Le stock disponible est insuffisant.").assertExists()
+        onNodeWithText("Une valeur saisie n'est pas acceptée.").assertExists()
         onNodeWithText("Justificatif : facture.jpg").assertExists()
         onNodeWithText("Le fichier n'est pas accepté (durée, format ou taille).").assertExists()
         onAllNodesWithText("Réessayer").assertCountEquals(0)
+    }
+
+    @Test
+    fun a_consumption_refused_for_lack_of_stock_offers_retry_since_stock_can_arrive() = onScreen(
+        listOf(onDay(SyncIssueTarget.CONSUMPTION_LINE, "cl1", refusedIssue(RefusalReason.INSUFFICIENT_STOCK), label = "Ciment", unit = "sac", quantity = 50.0)),
+    ) {
+        onNodeWithText("Le stock disponible est insuffisant.").assertExists()
+        onAllNodesWithText("Réessayer").assertCountEquals(1)
     }
 
     @Test

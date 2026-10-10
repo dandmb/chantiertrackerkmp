@@ -27,7 +27,7 @@ val RefusalReason.dependsOnSomethingElse: Boolean
         this == RefusalReason.PROJECT_OR_STAGE_INACTIVE ||
         this == RefusalReason.INSUFFICIENT_ROLE
 
-val RefusalReason.creationIsSentAgainByEachPass: Boolean
+val RefusalReason.creationCanLeaveWithoutACorrection: Boolean
     get() = when (this) {
         RefusalReason.PLAN_LIMIT,
         RefusalReason.PROJECT_OR_STAGE_INACTIVE,
@@ -45,10 +45,13 @@ val RefusalReason.creationIsSentAgainByEachPass: Boolean
     }
 
 val SyncIssue.waitsForACorrection: Boolean
-    get() = kind == SyncIssueKind.REFUSED && !(reason ?: RefusalReason.UNKNOWN).creationIsSentAgainByEachPass
+    get() = kind == SyncIssueKind.REFUSED && !(reason ?: RefusalReason.UNKNOWN).creationCanLeaveWithoutACorrection
+
+val SyncIssue.isACreationThatCanLeaveWithoutACorrection: Boolean
+    get() = kind == SyncIssueKind.REFUSED && reason?.creationCanLeaveWithoutACorrection == true
 
 val SyncIssue.canBeRetried: Boolean
-    get() = (kind == SyncIssueKind.REFUSED || kind == SyncIssueKind.UPDATE_REFUSED) && reason?.dependsOnSomethingElse == true
+    get() = isACreationThatCanLeaveWithoutACorrection || (kind == SyncIssueKind.UPDATE_REFUSED && reason?.dependsOnSomethingElse == true)
 
 val SyncIssue.countsToReview: Boolean
     get() = kind != SyncIssueKind.BLOCKED_BY_PARENT
