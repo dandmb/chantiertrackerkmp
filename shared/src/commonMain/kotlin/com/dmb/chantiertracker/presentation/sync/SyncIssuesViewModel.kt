@@ -55,7 +55,7 @@ data class SyncIssuesUiState(
     val isBusy: Boolean get() = retryingKey != null || busyKey != null
 }
 
-enum class SyncIssueActionNotice { DISCARDED, ACKNOWLEDGED, REVERTED, REVERT_NEEDS_CONNECTION, REVERT_FAILED }
+enum class SyncIssueActionNotice { DISCARDED, ACKNOWLEDGED, REVERTED, REVERT_NEEDS_CONNECTION, REVERT_GONE_ON_SERVER, REVERT_FAILED }
 
 data class SyncIssueConfirmation(val item: SyncIssueItem, val action: SyncIssueAction, val linkedCount: Int)
 
@@ -167,6 +167,7 @@ class SyncIssuesViewModel(private val repository: SyncIssueRepository) : ViewMod
             when (repository.revert(item)) {
                 RevertOutcome.RESTORED -> SyncIssueActionNotice.REVERTED
                 RevertOutcome.NEEDS_CONNECTION -> SyncIssueActionNotice.REVERT_NEEDS_CONNECTION
+                RevertOutcome.GONE_ON_SERVER -> SyncIssueActionNotice.REVERT_GONE_ON_SERVER
                 RevertOutcome.FAILED -> SyncIssueActionNotice.REVERT_FAILED
             }
         }

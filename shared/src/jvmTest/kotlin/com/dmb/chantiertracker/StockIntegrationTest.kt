@@ -36,6 +36,7 @@ import java.time.ZoneId
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
@@ -315,6 +316,50 @@ class StockIntegrationTest {
         assertEquals(server, app)
         assertEquals(6.0, server.getValue("Ciment"), "le serveur n'a jamais reçu la modification : 10 achetés, 4 consommés")
         assertEquals(10.0, owner.db.purchaseLineDao().findByLocalId(line)!!.quantity)
+    }
+
+    @Test
+    fun adr74_undoing_a_refused_change_of_a_line_gone_from_the_server_turns_it_into_deleted_on_the_server_then_got_it_clears_it() = runScenario {
+        val owner = device()
+        owner.signedInAs("qa-74d", "QA 74 Disparu")
+        val (project, stage) = owner.newSite("QA 74 disparu")
+        val date = today().toString()
+        val purchase = owner.entryOf(owner.logs.createPurchaseEntry(stage, date), EntryType.PURCHASE)
+        val cement = owner.materials.createMaterial(project, "Ciment", "sac")
+        val line = owner.purchaseLines.createLine(purchase, CreatePurchaseLineInput(cement.localId, 10.0, 6.5, "Point P"))
+        val work = owner.entryOf(owner.logs.createWorkEntry(stage, date), EntryType.WORK)
+        owner.consumptionLines.createLine(work, CreateConsumptionLineInput(cement.localId, 4.0))
+        owner.sync.syncNow()
+
+        owner.waitForTheRunningSyncPass()
+        owner.purchaseLines.updateLine(line, UpdatePurchaseLineInput(3.0, 9.0, "Autre"))
+        owner.sync.syncNow()
+        val issues = owner.syncIssues
+        val refused = issues.observeIssues().first().single()
+        assertEquals(SyncIssueKind.UPDATE_REFUSED, refused.issue.kind)
+
+        owner.stageApi.delete(owner.db.stageDao().findByLocalId(stage)!!.serverId!!)
+
+        val outcome = issues.revert(refused)
+        val gone = issues.observeIssues().first().single()
+        val row = owner.db.purchaseLineDao().findByLocalId(line)!!
+        println("ADR-74 tranche 3bis — annuler sur un élément disparu : résultat=$outcome, saisie=${gone.issue.kind}, actions=${gone.actions}, ligne=${row.quantity} ${row.syncStatus}/${row.lastSyncError}")
+        assertEquals(RevertOutcome.GONE_ON_SERVER, outcome)
+        assertEquals(SyncIssueKind.DELETED_ON_SERVER, gone.issue.kind)
+        assertEquals(listOf(SyncIssueAction.ACKNOWLEDGE), gone.actions)
+        assertEquals(3.0, row.quantity, "ce que l'utilisateur avait saisi reste lisible")
+        assertEquals(1, issues.observeIssueCount().first())
+
+        issues.acknowledge(gone)
+        assertNull(owner.db.purchaseLineDao().findByLocalId(line), "j'ai compris : la ligne quitte l'appareil")
+        assertTrue(issues.observeIssues().first().isEmpty())
+
+        owner.sync.syncNow()
+        owner.sync.syncProject(project)
+        val (app, server) = owner.compare("ADR-74 tranche 3bis — après j'ai compris", project)
+        assertEquals(server, app)
+        assertTrue(owner.stages.observeStages(project).first().isEmpty(), "l'étape supprimée sur le serveur a quitté l'appareil")
+        assertTrue(issues.observeIssues().first().isEmpty(), "rien d'autre à revoir")
     }
 
     @Test

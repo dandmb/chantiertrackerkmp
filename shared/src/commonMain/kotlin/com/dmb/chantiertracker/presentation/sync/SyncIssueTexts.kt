@@ -22,6 +22,7 @@ import com.dmb.chantiertracker.resources.sync_issue_retry
 import com.dmb.chantiertracker.resources.sync_notice_acknowledged
 import com.dmb.chantiertracker.resources.sync_notice_discarded
 import com.dmb.chantiertracker.resources.sync_notice_revert_failed
+import com.dmb.chantiertracker.resources.sync_notice_revert_gone_on_server
 import com.dmb.chantiertracker.resources.sync_notice_revert_needs_connection
 import com.dmb.chantiertracker.resources.sync_notice_reverted
 import com.dmb.chantiertracker.resources.sync_hint_entry_date_restricted
@@ -115,6 +116,7 @@ fun SyncIssueActionNotice.noticeRes(): StringResource = when (this) {
     SyncIssueActionNotice.ACKNOWLEDGED -> Res.string.sync_notice_acknowledged
     SyncIssueActionNotice.REVERTED -> Res.string.sync_notice_reverted
     SyncIssueActionNotice.REVERT_NEEDS_CONNECTION -> Res.string.sync_notice_revert_needs_connection
+    SyncIssueActionNotice.REVERT_GONE_ON_SERVER -> Res.string.sync_notice_revert_gone_on_server
     SyncIssueActionNotice.REVERT_FAILED -> Res.string.sync_notice_revert_failed
 }
 

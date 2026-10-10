@@ -294,6 +294,11 @@ class SyncIssuesViewModelTest {
         advanceUntilIdle()
         assertEquals(SyncIssueActionNotice.REVERT_FAILED, vm.state.value.actionNotice)
 
+        repo.revertOutcome = RevertOutcome.GONE_ON_SERVER
+        vm.revert(refusedChange)
+        advanceUntilIdle()
+        assertEquals(SyncIssueActionNotice.REVERT_GONE_ON_SERVER, vm.state.value.actionNotice)
+
         repo.revertOutcome = RevertOutcome.NEEDS_CONNECTION
         vm.revert(refusedChange)
         advanceUntilIdle()
@@ -305,7 +310,7 @@ class SyncIssuesViewModelTest {
         advanceUntilIdle()
         assertEquals(SyncIssueActionNotice.REVERTED, vm.state.value.actionNotice)
         assertTrue(vm.state.value.isEmpty)
-        assertEquals(3, repo.actions.size)
+        assertEquals(4, repo.actions.size)
 
         vm.dismissNotice()
         assertNull(vm.state.value.actionNotice)

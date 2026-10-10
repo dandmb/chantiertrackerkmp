@@ -111,6 +111,7 @@ class FoundersLaunchModeIntegrationTest {
         stockApi = com.dmb.chantiertracker.data.remote.StockApi(client),
         stockDao = db.stockDao(),
         connectivity = FakeConnectivityObserver(initiallyOnline = true),
+        awaitedServerVersions = com.dmb.chantiertracker.support.NoAwaitedServerVersion,
         syncState = SyncStateHolder(),
         scope = appScope,
     )

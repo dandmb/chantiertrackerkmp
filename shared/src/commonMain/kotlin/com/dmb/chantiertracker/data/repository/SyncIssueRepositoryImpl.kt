@@ -16,6 +16,7 @@ import com.dmb.chantiertracker.data.local.db.SyncStatus
 import com.dmb.chantiertracker.data.sync.SyncOutcome
 import com.dmb.chantiertracker.data.sync.Syncer
 import com.dmb.chantiertracker.data.sync.syncIssue
+import com.dmb.chantiertracker.domain.model.DomainException
 import com.dmb.chantiertracker.domain.model.EntryType
 import com.dmb.chantiertracker.domain.model.SyncIssue
 import com.dmb.chantiertracker.domain.model.SyncIssueAction
@@ -95,8 +96,13 @@ class SyncIssueRepositoryImpl(
         if (item.removesLocalDataWhenAcknowledged) {
             removeLocally(item)
         } else {
-            syncer.runExclusive { localActions.forgetRefusedDelete(item.target, item.localId) }
+            bringBackWithServerVersion(item)
         }
+    }
+
+    private suspend fun bringBackWithServerVersion(item: SyncIssueItem) {
+        syncer.runExclusive { localActions.awaitServerVersion(item.target, item.localId) }
+        if (connectivity.isOnline()) syncer.restoreServerVersion(item.target, item.localId) else syncer.requestSync()
     }
 
     private suspend fun removeLocally(item: SyncIssueItem) {
@@ -113,6 +119,7 @@ class SyncIssueRepositoryImpl(
         return when (syncer.restoreServerVersion(item.target, item.localId)) {
             SyncOutcome.Synced -> RevertOutcome.RESTORED
             SyncOutcome.Skipped -> RevertOutcome.NEEDS_CONNECTION
+            SyncOutcome.Failed(DomainException.NotFound) -> RevertOutcome.GONE_ON_SERVER
             is SyncOutcome.Failed -> RevertOutcome.FAILED
         }
     }

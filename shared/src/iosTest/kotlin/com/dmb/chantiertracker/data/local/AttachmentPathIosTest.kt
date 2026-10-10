@@ -40,4 +40,20 @@ class AttachmentPathIosTest {
             store.delete(key)
         }
     }
+
+    @Test
+    fun the_stored_keys_list_every_saved_file_by_its_bare_key() = runTest {
+        val store = FileKitAttachmentFileStore(newFileName = { "ioskeystest-${NSUUID().UUIDString}" })
+        val photo = store.save(byteArrayOf(1, 2, 3), "photo.jpg")
+        val clip = store.save(byteArrayOf(4, 5, 6), "clip.mp4")
+
+        try {
+            assertTrue(store.storedKeys().containsAll(listOf(photo, clip)), "saved '$photo' and '$clip', listed ${store.storedKeys()}")
+            store.delete(photo)
+            assertTrue(photo !in store.storedKeys() && clip in store.storedKeys())
+        } finally {
+            store.delete(photo)
+            store.delete(clip)
+        }
+    }
 }

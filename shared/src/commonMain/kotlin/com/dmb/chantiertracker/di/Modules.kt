@@ -27,6 +27,7 @@ import com.dmb.chantiertracker.data.local.AttachmentFileStore
 import com.dmb.chantiertracker.data.local.ExportFileStore
 import com.dmb.chantiertracker.data.local.FileKitAttachmentFileStore
 import com.dmb.chantiertracker.data.local.FileKitExportFileStore
+import com.dmb.chantiertracker.data.local.OrphanAttachmentFileCleaner
 import com.dmb.chantiertracker.data.local.TokenStorage
 import com.dmb.chantiertracker.data.local.db.AppDatabase
 import com.dmb.chantiertracker.data.local.db.AttachmentDao
@@ -222,12 +223,14 @@ val syncModule: Module = module {
             stockApi = get(),
             stockDao = get(),
             connectivity = get(),
+            awaitedServerVersions = get<SyncIssueLocalActions>(),
             syncState = get(),
             scope = get<AppCoroutineScope>(),
             backgroundSync = get(),
         )
     }
     single<Syncer> { get<SyncEngine>() }
+    single { OrphanAttachmentFileCleaner(get(), get(), get(), get<AppCoroutineScope>()) }
 }
 
 val dataModule: Module = module {

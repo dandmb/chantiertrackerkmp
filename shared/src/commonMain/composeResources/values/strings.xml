@@ -619,6 +619,7 @@
     <string name="sync_notice_reverted">Change undone: the server value is back.</string>
     <string name="sync_notice_revert_needs_connection">Cannot undo while offline. Reconnect, then try again.</string>
     <string name="sync_notice_revert_failed">Cannot undo right now. Try again later.</string>
+    <string name="sync_notice_revert_gone_on_server">This item was deleted on the server. Your change can no longer be undone.</string>
     <plurals name="sync_linked_removed">
         <item quantity="one">1 linked entry will be deleted too.</item>
         <item quantity="other">%1$d linked entries will be deleted too.</item>

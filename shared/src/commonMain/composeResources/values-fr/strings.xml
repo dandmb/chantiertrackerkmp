@@ -619,6 +619,7 @@
     <string name="sync_notice_reverted">Modification annulée : la valeur du serveur est rétablie.</string>
     <string name="sync_notice_revert_needs_connection">Annulation impossible hors ligne. Reconnectez-vous, puis réessayez.</string>
     <string name="sync_notice_revert_failed">Annulation impossible pour le moment. Réessayez plus tard.</string>
+    <string name="sync_notice_revert_gone_on_server">Cet élément a été supprimé sur le serveur. Votre modification ne peut plus être annulée.</string>
     <plurals name="sync_linked_removed">
         <item quantity="one">1 saisie liée sera aussi supprimée.</item>
         <item quantity="other">%1$d saisies liées seront aussi supprimées.</item>

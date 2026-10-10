@@ -345,17 +345,45 @@ class SyncIssueRepositoryImplTest {
     }
 
     @Test
-    fun acknowledging_a_refused_delete_only_clears_the_mention_and_removes_nothing() = runTest {
+    fun acknowledging_a_refused_delete_online_drops_the_mention_then_reads_the_server_version_at_once() = runTest {
         dao.rows.value = listOf(syncIssueRow(SyncIssueTarget.STAGE, "st-del", syncStatus = SyncStatus.SYNCED, pendingOp = PendingOp.NONE, serverId = 5, serverErrorCode = "PROJECT_INSUFFICIENT_ROLE"))
-        localActions.onForget = { _, _ ->
+        localActions.onAwait = { _, _ ->
             assertTrue(syncer.inExclusive)
+            assertTrue(syncer.restored.isEmpty(), "the mention is dropped before the server is asked")
             dao.rows.value = emptyList()
         }
 
         repository.acknowledge(listed("st-del"))
 
-        assertEquals(listOf("forget STAGE st-del"), localActions.calls)
+        assertEquals(listOf("await STAGE st-del"), localActions.calls, "nothing is removed")
+        assertEquals(listOf(SyncIssueTarget.STAGE to "st-del"), syncer.restored)
+        assertEquals(0, syncer.requestCount)
         assertTrue(repository.observeIssues().first().isEmpty())
+    }
+
+    @Test
+    fun acknowledging_a_refused_delete_offline_keeps_the_last_known_version_and_schedules_the_refresh() = runTest {
+        dao.rows.value = listOf(syncIssueRow(SyncIssueTarget.STAGE, "st-del", syncStatus = SyncStatus.SYNCED, pendingOp = PendingOp.NONE, serverId = 5, serverErrorCode = "PROJECT_INSUFFICIENT_ROLE"))
+        localActions.onAwait = { _, _ -> dao.rows.value = emptyList() }
+        connectivity.setOnline(false)
+
+        repository.acknowledge(listed("st-del"))
+
+        assertEquals(listOf("await STAGE st-del"), localActions.calls)
+        assertEquals(emptyList(), syncer.restored, "the server cannot be read offline")
+        assertEquals(1, syncer.requestCount, "the refresh is handed to the next pass")
+        assertTrue(repository.observeIssues().first().isEmpty())
+    }
+
+    @Test
+    fun reverting_a_change_whose_element_is_gone_on_the_server_says_so_instead_of_failing() = runTest {
+        dao.rows.value = listOf(refusedLineUpdate.copy(serverQuantity = null))
+        syncer.restoreOutcome = com.dmb.chantiertracker.data.sync.SyncOutcome.Failed(com.dmb.chantiertracker.domain.model.DomainException.NotFound)
+
+        assertEquals(com.dmb.chantiertracker.domain.repository.RevertOutcome.GONE_ON_SERVER, repository.revert(listed("pl-edit")))
+
+        syncer.restoreOutcome = com.dmb.chantiertracker.data.sync.SyncOutcome.Failed(com.dmb.chantiertracker.domain.model.DomainException.Unexpected)
+        assertEquals(com.dmb.chantiertracker.domain.repository.RevertOutcome.FAILED, repository.revert(listed("pl-edit")))
     }
 
     @Test

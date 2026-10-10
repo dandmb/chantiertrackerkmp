@@ -808,12 +808,23 @@ suspend fun verifySyncIssueActionsContract(db: AppDatabase) {
     )
     assertEquals(listOf("e-ok", "e-ok-work"), db.dailyEntryDao().findForLog("l-ok").map { it.localId }.sorted(), "the synced entries are untouched")
 
-    actions.forgetRefusedDelete(SyncIssueTarget.PURCHASE_LINE, "pl-change")
-    assertEquals(updateRefused, db.purchaseLineDao().findByLocalId("pl-change")!!.lastSyncError, "only a refused delete is forgotten")
-    actions.forgetRefusedDelete(SyncIssueTarget.STAGE, "s-delete-refused")
-    val forgotten = db.stageDao().findByLocalId("s-delete-refused")!!
-    assertEquals<List<Any?>>(listOf(synced, PendingOp.NONE, null, null), listOf(forgotten.syncStatus, forgotten.pendingOp, forgotten.lastSyncError, forgotten.serverErrorCode))
-    actions.forgetRefusedDelete(SyncIssueTarget.STAGE, "s-delete-refused")
+    val awaiting = com.dmb.chantiertracker.data.sync.SyncError.AWAITING_SERVER_VERSION
+    assertEquals(emptyList(), actions.rowsAwaitingServerVersion())
+    actions.awaitServerVersion(SyncIssueTarget.PURCHASE_LINE, "pl-change")
+    assertEquals(updateRefused, db.purchaseLineDao().findByLocalId("pl-change")!!.lastSyncError, "only a refused delete awaits its server version")
+    actions.awaitServerVersion(SyncIssueTarget.STAGE, "s-delete-refused")
+    actions.awaitServerVersion(SyncIssueTarget.STAGE, "s-delete-refused")
+    val awaited = db.stageDao().findByLocalId("s-delete-refused")!!
+    assertEquals<List<Any?>>(listOf(synced, PendingOp.NONE, awaiting, null), listOf(awaited.syncStatus, awaited.pendingOp, awaited.lastSyncError, awaited.serverErrorCode))
+    assertEquals(listOf(com.dmb.chantiertracker.data.local.db.AwaitedRow(SyncIssueTarget.STAGE, "s-delete-refused")), actions.rowsAwaitingServerVersion())
+    assertTrue("s-delete-refused" !in db.syncIssueDao().observeUnsettled().first().map { it.localId }, "what awaits its server version is no longer to review")
+    assertEquals(emptyList(), db.stageDao().findPending().map { it.localId }, "and is never queued for a push")
+    actions.stopAwaitingServerVersion(SyncIssueTarget.PURCHASE_LINE, "pl-change")
+    assertEquals(updateRefused, db.purchaseLineDao().findByLocalId("pl-change")!!.lastSyncError)
+    actions.stopAwaitingServerVersion(SyncIssueTarget.STAGE, "s-delete-refused")
+    actions.stopAwaitingServerVersion(SyncIssueTarget.STAGE, "s-delete-refused")
+    assertNull(db.stageDao().findByLocalId("s-delete-refused")!!.lastSyncError)
+    assertEquals(emptyList(), actions.rowsAwaitingServerVersion())
 
     assertTrue(!actions.restoreKnownServerValue(SyncIssueTarget.PURCHASE_LINE, "pl-change"), "the price and supplier the server holds are not on the device")
     assertEquals(3.0, db.purchaseLineDao().findByLocalId("pl-change")!!.quantity)

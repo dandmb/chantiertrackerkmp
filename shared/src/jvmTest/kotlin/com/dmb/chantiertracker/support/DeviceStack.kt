@@ -93,6 +93,7 @@ class DeviceStack : AutoCloseable {
         connectivity = connectivity,
         syncState = SyncStateHolder(),
         scope = scope,
+        awaitedServerVersions = db.syncIssueActionDao(),
     )
 
     val preferences = FakeAppPreferences()

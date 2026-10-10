@@ -146,13 +146,18 @@ fun issueItem(
     currency = currency,
 )
 
+object NoAwaitedServerVersion : com.dmb.chantiertracker.data.local.db.AwaitedServerVersions {
+    override suspend fun rowsAwaitingServerVersion(): List<com.dmb.chantiertracker.data.local.db.AwaitedRow> = emptyList()
+
+    override suspend fun stopAwaitingServerVersion(target: SyncIssueTarget, localId: String) = Unit
+}
+
 class FakeSyncIssueLocalActions : com.dmb.chantiertracker.data.local.db.SyncIssueLocalActions {
     val calls = mutableListOf<String>()
     var linked = 0
     var pathsOfRemoved = emptyList<String>()
     var knownServerValue = true
     var onRemove: (suspend (SyncIssueTarget, String) -> Unit)? = null
-    var onForget: (suspend (SyncIssueTarget, String) -> Unit)? = null
     var onRestoreKnown: (suspend (SyncIssueTarget, String) -> Unit)? = null
 
     override suspend fun countLinked(target: SyncIssueTarget, localId: String): Int {
@@ -166,9 +171,18 @@ class FakeSyncIssueLocalActions : com.dmb.chantiertracker.data.local.db.SyncIssu
         return pathsOfRemoved.also { pathsOfRemoved = emptyList() }
     }
 
-    override suspend fun forgetRefusedDelete(target: SyncIssueTarget, localId: String) {
-        calls += "forget $target $localId"
-        onForget?.invoke(target, localId)
+    var onAwait: (suspend (SyncIssueTarget, String) -> Unit)? = null
+    var awaited = emptyList<com.dmb.chantiertracker.data.local.db.AwaitedRow>()
+
+    override suspend fun awaitServerVersion(target: SyncIssueTarget, localId: String) {
+        calls += "await $target $localId"
+        onAwait?.invoke(target, localId)
+    }
+
+    override suspend fun rowsAwaitingServerVersion() = awaited
+
+    override suspend fun stopAwaitingServerVersion(target: SyncIssueTarget, localId: String) {
+        calls += "stopAwaiting $target $localId"
     }
 
     override suspend fun restoreKnownServerValue(target: SyncIssueTarget, localId: String): Boolean {

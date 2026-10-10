@@ -57,6 +57,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import com.dmb.chantiertracker.data.local.db.AwaitedServerVersions
 import kotlinx.io.Buffer
 import kotlinx.io.write
 import kotlin.time.Duration
@@ -127,6 +128,7 @@ class SyncEngine(
     private val stockApi: StockApi,
     private val stockDao: StockDao,
     private val connectivity: ConnectivityObserver,
+    private val awaitedServerVersions: AwaitedServerVersions,
     private val syncState: SyncStateHolder,
     private val scope: CoroutineScope,
     private val clock: Clock = SystemClock,
@@ -184,17 +186,7 @@ class SyncEngine(
     override suspend fun restoreServerVersion(target: SyncIssueTarget, localId: String): SyncOutcome = mutex.withLock {
         if (!connectivity.isOnline()) return@withLock SyncOutcome.Skipped
         try {
-            val syncedAt = clock.nowEpochMillis()
-            when (target) {
-                SyncIssueTarget.PROJECT -> restoreProject(localId, syncedAt)
-                SyncIssueTarget.STAGE -> restoreStage(localId, syncedAt)
-                SyncIssueTarget.MATERIAL -> restoreMaterial(localId, syncedAt)
-                SyncIssueTarget.ENTRY -> restoreEntry(localId, syncedAt)
-                SyncIssueTarget.PURCHASE_LINE -> restorePurchaseLine(localId, syncedAt)
-                SyncIssueTarget.CONSUMPTION_LINE -> restoreConsumptionLine(localId, syncedAt)
-                SyncIssueTarget.ATTACHMENT -> Unit
-            }
-            SyncOutcome.Synced
+            if (writeServerVersion(target, localId)) SyncOutcome.Synced else SyncOutcome.Failed(DomainException.NotFound)
         } catch (e: CancellationException) {
             throw e
         } catch (e: DomainException) {
@@ -204,49 +196,110 @@ class SyncEngine(
         }
     }
 
+    private suspend fun writeServerVersion(target: SyncIssueTarget, localId: String): Boolean {
+        val syncedAt = clock.nowEpochMillis()
+        try {
+            when (target) {
+                SyncIssueTarget.PROJECT -> restoreProject(localId, syncedAt)
+                SyncIssueTarget.STAGE -> restoreStage(localId, syncedAt)
+                SyncIssueTarget.MATERIAL -> restoreMaterial(localId, syncedAt)
+                SyncIssueTarget.ENTRY -> restoreEntry(localId, syncedAt)
+                SyncIssueTarget.PURCHASE_LINE -> restorePurchaseLine(localId, syncedAt)
+                SyncIssueTarget.CONSUMPTION_LINE -> restoreConsumptionLine(localId, syncedAt)
+                SyncIssueTarget.ATTACHMENT -> Unit
+            }
+        } catch (e: DomainException.NotFound) {
+            rowGoneOnServer(target, localId)
+            return false
+        }
+        return true
+    }
+
+    private suspend fun refreshRowsAwaitingTheirServerVersion() {
+        for (row in awaitedServerVersions.rowsAwaitingServerVersion()) {
+            try {
+                writeServerVersion(row.target, row.localId)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: DomainException) {
+                if (e.isServerRejection()) awaitedServerVersions.stopAwaitingServerVersion(row.target, row.localId)
+            }
+        }
+    }
+
+    private suspend fun rowGoneOnServer(target: SyncIssueTarget, localId: String) {
+        when (target) {
+            SyncIssueTarget.PROJECT -> dao.findByLocalId(localId)?.let { row ->
+                if (row.holdsARefusedUpdate()) dao.upsert(row.copy(lastSyncError = SyncError.DELETED_ON_SERVER, serverErrorCode = null)) else if (row.awaitsItsServerVersion()) projectGoneOnServer(row)
+            }
+            SyncIssueTarget.STAGE -> stageDao.findByLocalId(localId)?.let { row ->
+                if (row.holdsARefusedUpdate()) stageDao.upsert(row.copy(lastSyncError = SyncError.DELETED_ON_SERVER, serverErrorCode = null)) else if (row.awaitsItsServerVersion()) stageGoneOnServer(row)
+            }
+            SyncIssueTarget.ENTRY -> dailyEntryDao.findByLocalId(localId)?.let { row ->
+                if (row.holdsARefusedUpdate()) dailyEntryDao.upsert(row.copy(lastSyncError = SyncError.DELETED_ON_SERVER, serverErrorCode = null)) else if (row.awaitsItsServerVersion()) entryGoneOnServer(row)
+            }
+            SyncIssueTarget.MATERIAL -> materialDao.findByLocalId(localId)?.takeIf { it.holdsARefusedUpdate() }
+                ?.let { materialDao.upsert(it.copy(lastSyncError = SyncError.DELETED_ON_SERVER, serverErrorCode = null)) }
+            SyncIssueTarget.PURCHASE_LINE -> purchaseLineDao.findByLocalId(localId)?.takeIf { it.holdsARefusedUpdate() }
+                ?.let { purchaseLineDao.upsert(it.copy(lastSyncError = SyncError.DELETED_ON_SERVER, serverErrorCode = null)) }
+            SyncIssueTarget.CONSUMPTION_LINE -> consumptionLineDao.findByLocalId(localId)?.takeIf { it.holdsARefusedUpdate() }
+                ?.let { consumptionLineDao.upsert(it.copy(lastSyncError = SyncError.DELETED_ON_SERVER, serverErrorCode = null)) }
+            SyncIssueTarget.ATTACHMENT -> Unit
+        }
+        awaitedServerVersions.stopAwaitingServerVersion(target, localId)
+    }
+
     private fun SyncedRow.holdsARefusedUpdate(): Boolean =
         syncStatus == SyncStatus.CONFLICTED && pendingOp == PendingOp.UPDATE && serverId != null && lastSyncError != SyncError.DELETED_ON_SERVER
 
+    private fun SyncedRow.awaitsItsServerVersion(): Boolean =
+        syncStatus == SyncStatus.SYNCED && pendingOp == PendingOp.NONE && serverId != null && lastSyncError == SyncError.AWAITING_SERVER_VERSION
+
+    private fun SyncedRow.canTakeItsServerVersion(): Boolean = holdsARefusedUpdate() || awaitsItsServerVersion()
+
+    private fun <T> PagedRead<T>.itemOrGone(matches: (T) -> Boolean): T =
+        items.firstOrNull(matches) ?: throw if (isComplete) DomainException.NotFound else DomainException.Unexpected
+
     private suspend fun restoreProject(localId: String, syncedAt: Long) {
-        val local = dao.findByLocalId(localId)?.takeIf { it.holdsARefusedUpdate() } ?: return
+        val local = dao.findByLocalId(localId)?.takeIf { it.canTakeItsServerVersion() } ?: return
         val remote = serverCall { api.get(local.serverId!!) }
         dao.upsert(remote.toSyncedEntity(localId = localId, syncedAt = syncedAt, previous = local))
     }
 
     private suspend fun restoreStage(localId: String, syncedAt: Long) {
-        val local = stageDao.findByLocalId(localId)?.takeIf { it.holdsARefusedUpdate() } ?: return
+        val local = stageDao.findByLocalId(localId)?.takeIf { it.canTakeItsServerVersion() } ?: return
         val remote = serverCall { stageApi.get(local.serverId!!) }
         stageDao.upsert(remote.toSyncedEntity(localId, local.projectLocalId, syncedAt, local))
     }
 
     private suspend fun restoreMaterial(localId: String, syncedAt: Long) {
-        val local = materialDao.findByLocalId(localId)?.takeIf { it.holdsARefusedUpdate() } ?: return
+        val local = materialDao.findByLocalId(localId)?.takeIf { it.canTakeItsServerVersion() } ?: return
         val projectServerId = dao.findByLocalId(local.projectLocalId)?.serverId ?: throw DomainException.NotFound
-        val remote = readProjectMaterials(projectServerId).items.firstOrNull { it.id == local.serverId } ?: throw DomainException.NotFound
+        val remote = readProjectMaterials(projectServerId).itemOrGone { it.id == local.serverId }
         materialDao.upsert(remote.toSyncedEntity(localId, local.projectLocalId, syncedAt, local))
     }
 
     private suspend fun restoreEntry(localId: String, syncedAt: Long) {
-        val local = dailyEntryDao.findByLocalId(localId)?.takeIf { it.holdsARefusedUpdate() } ?: return
+        val local = dailyEntryDao.findByLocalId(localId)?.takeIf { it.canTakeItsServerVersion() } ?: return
         val logServerId = dailyLogDao.findByLocalId(local.dailyLogLocalId)?.serverId ?: throw DomainException.NotFound
         val remote = serverCall { dailyLogApi.getLog(logServerId) }.entries.firstOrNull { it.id == local.serverId } ?: throw DomainException.NotFound
         dailyEntryDao.upsert(remote.toSyncedEntity(localId, local.dailyLogLocalId, syncedAt, local))
     }
 
     private suspend fun restorePurchaseLine(localId: String, syncedAt: Long) {
-        val local = purchaseLineDao.findByLocalId(localId)?.takeIf { it.holdsARefusedUpdate() } ?: return
+        val local = purchaseLineDao.findByLocalId(localId)?.takeIf { it.canTakeItsServerVersion() } ?: return
         val entryServerId = dailyEntryDao.findByLocalId(local.entryLocalId)?.serverId ?: throw DomainException.NotFound
         val read = readAllPages(PurchaseLineDto::id) { page, size -> serverCall { purchaseLineApi.list(entryServerId, page, size) } }
-        val remote = read.items.firstOrNull { it.id == local.serverId } ?: throw DomainException.NotFound
+        val remote = read.itemOrGone { it.id == local.serverId }
         val materialLocalId = materialDao.findByServerId(remote.materialId)?.localId ?: local.materialLocalId
         purchaseLineDao.upsert(remote.toSyncedEntity(localId, local.entryLocalId, materialLocalId, syncedAt, local))
     }
 
     private suspend fun restoreConsumptionLine(localId: String, syncedAt: Long) {
-        val local = consumptionLineDao.findByLocalId(localId)?.takeIf { it.holdsARefusedUpdate() } ?: return
+        val local = consumptionLineDao.findByLocalId(localId)?.takeIf { it.canTakeItsServerVersion() } ?: return
         val entryServerId = dailyEntryDao.findByLocalId(local.entryLocalId)?.serverId ?: throw DomainException.NotFound
         val read = readAllPages(ConsumptionLineDto::id) { page, size -> serverCall { consumptionLineApi.list(entryServerId, page, size) } }
-        val remote = read.items.firstOrNull { it.id == local.serverId } ?: throw DomainException.NotFound
+        val remote = read.itemOrGone { it.id == local.serverId }
         val materialLocalId = materialDao.findByServerId(remote.materialId)?.localId ?: local.materialLocalId
         consumptionLineDao.upsert(remote.toSyncedEntity(localId, local.entryLocalId, materialLocalId, syncedAt, local))
     }
@@ -259,6 +312,7 @@ class SyncEngine(
         syncState.update(SyncState.Syncing)
         return try {
             pushPending()
+            refreshRowsAwaitingTheirServerVersion()
             pullAll()
             refreshStocksMarkedForRefresh()
             syncState.update(SyncState.Idle)
