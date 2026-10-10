@@ -48,10 +48,10 @@ class RefusedCreationResendTest {
     )
 
     @Test
-    fun every_reason_is_classified_as_sent_again_or_frozen_until_corrected() {
+    fun every_reason_is_classified_as_able_to_leave_by_itself_or_frozen_until_corrected() {
         assertEquals(RefusalReason.entries.toSet(), expectedByReason.keys, "a reason added to the enum must be classified here")
         RefusalReason.entries.forEach { reason ->
-            assertEquals(expectedByReason.getValue(reason), reason.creationIsSentAgainByEachPass, "$reason")
+            assertEquals(expectedByReason.getValue(reason), reason.creationCanLeaveWithoutACorrection, "$reason")
         }
     }
 
@@ -59,7 +59,7 @@ class RefusedCreationResendTest {
     fun every_code_the_app_knows_is_classified_and_a_new_code_must_be_added_to_this_table() {
         assertEquals(knownRefusalCodes.keys, expectedByCode.keys, "a server code added to the app without a classification here")
         expectedByCode.forEach { (code, expected) ->
-            assertEquals(expected, refusalReasonOf(code).creationIsSentAgainByEachPass, code)
+            assertEquals(expected, refusalReasonOf(code).creationCanLeaveWithoutACorrection, code)
         }
     }
 
@@ -67,7 +67,7 @@ class RefusedCreationResendTest {
     fun a_code_the_app_does_not_know_and_a_refusal_kept_without_a_code_are_frozen() {
         listOf("A_CODE_FROM_A_NEWER_SERVER", "", null).forEach { code ->
             assertEquals(RefusalReason.UNKNOWN, refusalReasonOf(code), "$code")
-            assertFalse(refusalReasonOf(code).creationIsSentAgainByEachPass, "$code")
+            assertFalse(refusalReasonOf(code).creationCanLeaveWithoutACorrection, "$code")
         }
     }
 
@@ -84,9 +84,9 @@ class RefusedCreationResendTest {
     }
 
     @Test
-    fun what_the_user_can_retry_is_still_sent_again_by_itself() {
+    fun what_depends_on_something_else_can_leave_without_a_correction() {
         RefusalReason.entries.filter { it.dependsOnSomethingElse }.forEach { reason ->
-            assertTrue(reason.creationIsSentAgainByEachPass, "$reason offers Retry, so it is not frozen")
+            assertTrue(reason.creationCanLeaveWithoutACorrection, "$reason offers Retry, so it is not frozen")
         }
     }
 }

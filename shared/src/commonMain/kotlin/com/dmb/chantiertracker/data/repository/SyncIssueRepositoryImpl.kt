@@ -74,7 +74,7 @@ class SyncIssueRepositoryImpl(
         if (!item.issue.canBeRetried) return RetryOutcome.STILL_REFUSED
         val frozenUpdate = item.issue.kind == SyncIssueKind.UPDATE_REFUSED
         if (frozenUpdate) syncIssueDao.sendRefusedUpdateAgain(item.target, item.localId)
-        if (syncer.syncNow() != SyncOutcome.Synced) {
+        if (syncer.syncNowSendingAgain(item.target, item.localId) != SyncOutcome.Synced) {
             if (frozenUpdate) syncIssueDao.freezeUnsentUpdateAgain(item.target, item.localId, item.issue.serverCode)
             return RetryOutcome.NOT_SENT
         }

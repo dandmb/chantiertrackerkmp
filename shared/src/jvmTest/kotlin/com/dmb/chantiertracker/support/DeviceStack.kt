@@ -88,6 +88,7 @@ class DeviceStack : AutoCloseable {
         attachmentFileStore = fileStore,
         invitationDao = db.invitationDao(),
         invitationApi = invitationApi,
+        accountApi = com.dmb.chantiertracker.data.remote.AccountApi(client),
         stockApi = com.dmb.chantiertracker.data.remote.StockApi(client),
         stockDao = db.stockDao(),
         connectivity = connectivity,

@@ -221,6 +221,7 @@ val syncModule: Module = module {
             attachmentFileStore = get(),
             invitationDao = get(),
             invitationApi = get(),
+            accountApi = get(),
             stockApi = get(),
             stockDao = get(),
             connectivity = get(),

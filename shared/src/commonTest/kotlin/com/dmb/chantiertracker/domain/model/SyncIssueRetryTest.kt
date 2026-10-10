@@ -24,9 +24,24 @@ class SyncIssueRetryTest {
             assertTrue(SyncIssue(SyncIssueKind.REFUSED, reason).canBeRetried, "$reason, creation")
             assertTrue(SyncIssue(SyncIssueKind.UPDATE_REFUSED, reason).canBeRetried, "$reason, update")
         }
-        assertFalse(SyncIssue(SyncIssueKind.REFUSED, RefusalReason.INSUFFICIENT_STOCK).canBeRetried)
+        assertFalse(SyncIssue(SyncIssueKind.REFUSED, RefusalReason.INVALID_VALUE).canBeRetried)
         assertFalse(SyncIssue(SyncIssueKind.REFUSED, RefusalReason.UNKNOWN).canBeRetried)
         assertFalse(SyncIssue(SyncIssueKind.REFUSED, RefusalReason.FILE_REFUSED).canBeRetried)
+    }
+
+    @Test
+    fun a_creation_refused_for_lack_of_stock_can_be_retried_since_stock_can_arrive_and_a_refused_change_cannot() {
+        assertFalse(RefusalReason.INSUFFICIENT_STOCK.dependsOnSomethingElse, "a correction can lift it too: it keeps Fix")
+        assertTrue(SyncIssue(SyncIssueKind.REFUSED, RefusalReason.INSUFFICIENT_STOCK).canBeRetried, "creation")
+        assertFalse(SyncIssue(SyncIssueKind.UPDATE_REFUSED, RefusalReason.INSUFFICIENT_STOCK).canBeRetried, "change: unchanged, Fix or Undo")
+    }
+
+    @Test
+    fun a_refused_creation_offers_retry_exactly_when_it_can_leave_without_a_correction() {
+        RefusalReason.entries.forEach { reason ->
+            assertEquals(reason.creationCanLeaveWithoutACorrection, SyncIssue(SyncIssueKind.REFUSED, reason).canBeRetried, "$reason")
+        }
+        assertFalse(SyncIssue(SyncIssueKind.REFUSED, reason = null).canBeRetried)
     }
 
     @Test

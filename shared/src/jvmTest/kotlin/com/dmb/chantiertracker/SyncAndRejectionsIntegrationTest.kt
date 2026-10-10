@@ -690,6 +690,88 @@ class SyncAndRejectionsIntegrationTest {
     }
 
     @Test
+    fun a5_a_project_over_the_plan_limit_is_sent_once_while_it_waits_then_leaves_in_the_pass_that_sees_the_plan_changed() = runScenario {
+        val phone = device()
+        val owner = phone.signedInAs("qa-a5-limit", "QA A5 Limite")
+        var projectSends = 0
+        phone.client.plugin(io.ktor.client.plugins.HttpSend).intercept { request ->
+            if (request.method.value == "POST" && request.url.buildString().endsWith("/projects")) projectSends++
+            execute(request)
+        }
+
+        phone.goOffline()
+        val first = phone.newProject("QA A5 premier")
+        val second = phone.newProject("QA A5 second (au-delà de la limite FREE)")
+        val stageUnderSecond = phone.newStage(second, "Étape sous un projet refusé")
+        phone.goOnline()
+        repeat(4) { phone.sync.syncNow() }
+        phone.waitForTheRunningSyncPass()
+
+        val rejected = phone.db.projectDao().findByLocalId(second)!!
+        println("A-5 tranche 3 — limite de formule : ${rejected.syncStatus} / ${rejected.lastSyncError}, envois de projets après quatre passes = $projectSends")
+        assertEquals(SyncStatus.SYNCED, phone.db.projectDao().findByLocalId(first)?.syncStatus)
+        assertEquals(listOf<Any?>(SyncStatus.CONFLICTED, SyncError.PLAN_LIMIT), listOf(rejected.syncStatus, rejected.lastSyncError))
+        assertEquals(2, projectSends, "un envoi par projet : le projet refusé n'est pas renvoyé avant son échéance")
+
+        accounts.grantPlan(owner.id, "SEMI_FLEX")
+        assertEquals(SyncOutcome.Synced, phone.sync.syncNow())
+
+        println("A-5 tranche 3 — après passage en SEMI_FLEX : envois = $projectSends, projet = ${phone.db.projectDao().findByLocalId(second)?.syncStatus}")
+        assertEquals(3, projectSends, "le pull voit la formule changée : le projet repart dans cette passe, sans attendre l'échéance")
+        assertEquals(SyncStatus.SYNCED, phone.db.projectDao().findByLocalId(second)?.syncStatus)
+        assertEquals(SyncStatus.SYNCED, phone.db.stageDao().findByLocalId(stageUnderSecond)?.syncStatus, "et son étape le suit")
+        assertTrue(phone.syncIssues.observeIssues().first().isEmpty())
+    }
+
+    @Test
+    fun a5_an_entry_refused_on_a_suspended_project_is_sent_once_while_it_waits_then_leaves_in_the_pass_that_sees_the_project_reopened() = runScenario {
+        val ownerPhone = device()
+        ownerPhone.signedInAs("qa-a5-s-owner", "QA A5 Suspendu Propriétaire")
+        val supervisorPhone = device()
+        val supervisor = supervisorPhone.signedInAs("qa-a5-s-super", "QA A5 Suspendu Superviseur")
+        val projectId = ownerPhone.newProject("QA A5 suspendu")
+        ownerPhone.newStage(projectId, "Charpente")
+        ownerPhone.sync.syncNow()
+        ownerPhone.invitations.invite(projectId, supervisor.email)
+        supervisorPhone.invitations.acceptInvitation(supervisorPhone.invitationApi.listMine().single().token)
+        supervisorPhone.sync.syncNow()
+        val supervisorProject = supervisorPhone.projects.observeProjects().first().single()
+        supervisorPhone.sync.syncProject(supervisorProject.localId)
+        val supervisorStage = supervisorPhone.stages.observeStages(supervisorProject.localId).first().single()
+        suspend fun ownerSetsStatus(status: ProjectStatus) {
+            val detail = ownerPhone.projects.observeProject(projectId).first()!!
+            ownerPhone.projects.updateProject(projectId, UpdateProjectInput(detail.name, detail.description, detail.location, detail.currency, detail.timezone, status))
+            ownerPhone.waitForTheRunningSyncPass()
+            assertEquals(SyncOutcome.Synced, ownerPhone.sync.syncNow())
+        }
+        ownerSetsStatus(ProjectStatus.SUSPENDED)
+        val today = todayInParis()
+        val entrySends = supervisorPhone.countingSends("POST", "/logs/$today/works")
+
+        supervisorPhone.goOffline()
+        val entry = supervisorPhone.logs.createWorkEntry(supervisorStage.localId, today).entryLocalId
+        supervisorPhone.goOnline()
+        repeat(3) { supervisorPhone.sync.syncNow() }
+        supervisorPhone.sync.syncProject(supervisorProject.localId)
+        supervisorPhone.waitForTheRunningSyncPass()
+
+        val refused = supervisorPhone.syncIssues.observeIssues().first().single()
+        println("A-5 tranche 3 — projet suspendu : ${refused.issue.reason}, envois après quatre passes = ${entrySends()}")
+        assertEquals(com.dmb.chantiertracker.domain.model.RefusalReason.PROJECT_OR_STAGE_INACTIVE, refused.issue.reason)
+        assertEquals(ProjectStatus.SUSPENDED, supervisorPhone.projects.observeProject(supervisorProject.localId).first()?.status)
+        assertEquals(1, entrySends(), "le pull qui apporte la suspension ne renvoie rien, et les passes suivantes non plus")
+
+        ownerSetsStatus(ProjectStatus.IN_PROGRESS)
+        assertEquals(SyncOutcome.Synced, supervisorPhone.sync.syncNow())
+
+        val after = supervisorPhone.db.dailyEntryDao().findByLocalId(entry)
+        println("A-5 tranche 3 — après réouverture : envois = ${entrySends()}, saisie = ${after?.syncStatus}")
+        assertEquals(2, entrySends(), "le pull voit le projet rouvert : la saisie repart dans cette passe, sans attendre l'échéance")
+        assertEquals(SyncStatus.SYNCED, after?.syncStatus)
+        assertTrue(supervisorPhone.syncIssues.observeIssues().first().isEmpty())
+    }
+
+    @Test
     fun adr74_an_entry_refused_for_a_past_day_offers_no_retry_and_leaves_with_discard() = runScenario {
         val ownerPhone = device()
         ownerPhone.signedInAs("qa-74t-owner", "QA 74 ter Propriétaire")

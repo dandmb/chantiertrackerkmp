@@ -142,7 +142,7 @@ class SyncIssueActionsUiTest {
         val expected = listOf(
             duplicateEntry to listOf("Abandonner"),
             refusedFile to listOf("Abandonner"),
-            tooMuch to listOf("Corriger", "Abandonner"),
+            tooMuch to listOf("Corriger", "Réessayer", "Abandonner"),
             suspended to listOf("Réessayer", "Abandonner"),
             unknownStage to listOf("Corriger", "Abandonner"),
             unknownMaterial to listOf("Abandonner"),
@@ -161,8 +161,8 @@ class SyncIssueActionsUiTest {
 
     @Test
     fun the_actions_are_translated() {
-        onScreen(listOf(tooMuch)) { assertEquals(listOf("Corriger", "Abandonner"), buttonsShown(french)) }
-        onScreen(listOf(tooMuch), locale = "en") { assertEquals(listOf("Fix", "Discard"), buttonsShown(english)) }
+        onScreen(listOf(tooMuch)) { assertEquals(listOf("Corriger", "Réessayer", "Abandonner"), buttonsShown(french)) }
+        onScreen(listOf(tooMuch), locale = "en") { assertEquals(listOf("Fix", "Retry", "Discard"), buttonsShown(english)) }
         onScreen(listOf(refusedChangeOnSuspended), locale = "en") { assertEquals(listOf("Retry", "Undo my change"), buttonsShown(english)) }
         onScreen(listOf(goneEntry), locale = "en") { assertEquals(listOf("Got it"), buttonsShown(english)) }
     }

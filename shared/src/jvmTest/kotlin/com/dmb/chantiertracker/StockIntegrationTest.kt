@@ -246,7 +246,7 @@ class StockIntegrationTest {
         val refused = issues.observeIssues().first().single()
         println("ADR-74 tranche 3 — corriger : ${refused.target} ${refused.issue.kind} ${refused.issue.reason}, actions=${refused.actions}, formulaire=${refused.fixRoute()}")
         assertEquals(tooMuch, refused.localId)
-        assertEquals(listOf(SyncIssueAction.FIX, SyncIssueAction.DISCARD), refused.actions)
+        assertEquals(listOf(SyncIssueAction.FIX, SyncIssueAction.RETRY, SyncIssueAction.DISCARD), refused.actions)
         assertEquals(ConsumptionLineFormRoute(entryLocalId = work, projectLocalId = project, lineLocalId = tooMuch), refused.fixRoute(), "« Corriger » rouvre le formulaire de la ligne")
 
         owner.goOffline()
@@ -279,8 +279,17 @@ class StockIntegrationTest {
         return { sent }
     }
 
+    private fun DeviceStack.countingConsumptionSends(): () -> Int {
+        var sent = 0
+        client.plugin(HttpSend).intercept { request ->
+            if (request.method.value == "POST" && request.url.buildString().contains("/consumption-lines")) sent++
+            execute(request)
+        }
+        return { sent }
+    }
+
     @Test
-    fun a5_a_consumption_above_the_stock_is_still_sent_at_every_pass_and_leaves_by_itself_once_the_stock_is_there() = runScenario {
+    fun a5_a_consumption_above_the_stock_is_sent_once_while_it_waits_and_leaves_in_the_pass_that_sends_the_purchase() = runScenario {
         val owner = device()
         owner.signedInAs("qa-a5-stock", "QA A5 Stock")
         val (project, stage) = owner.newSite("QA A5 stock")
@@ -289,34 +298,74 @@ class StockIntegrationTest {
         val cement = owner.materials.createMaterial(project, "Ciment", "sac")
         owner.purchaseLines.createLine(purchase, CreatePurchaseLineInput(cement.localId, 2.0, 5.0, null))
         owner.sync.syncNow()
-        var consumptionSends = 0
-        owner.client.plugin(HttpSend).intercept { request ->
-            if (request.method.value == "POST" && request.url.buildString().contains("/consumption-lines")) consumptionSends++
-            execute(request)
-        }
+        val consumptionSends = owner.countingConsumptionSends()
 
         owner.goOffline()
         val work = owner.logs.createWorkEntry(stage, date).entryLocalId
         val tooMuch = owner.consumptionLines.createLine(work, CreateConsumptionLineInput(cement.localId, 5.0))
         owner.goOnline()
         repeat(3) { owner.sync.syncNow() }
+        owner.sync.syncProject(project)
         owner.waitForTheRunningSyncPass()
 
-        println("A-5 tranche 2 — stock insuffisant : envois après trois passes = $consumptionSends")
-        assertTrue(consumptionSends >= 3, "un refus qui dépend d'autre chose repart à chaque passe, comme avant : $consumptionSends")
-        assertEquals(listOf(tooMuch), owner.syncIssues.observeIssues().first().map { it.localId })
+        println("A-5 tranche 3 — stock insuffisant : envois après quatre passes = ${consumptionSends()}")
+        assertEquals(1, consumptionSends(), "avant son échéance, la consommation refusée n'est envoyée qu'une fois")
+        val refused = owner.syncIssues.observeIssues().first().single()
+        assertEquals(listOf(SyncIssueAction.FIX, SyncIssueAction.RETRY, SyncIssueAction.DISCARD), refused.actions, "« Réessayer » est proposé pour un stock insuffisant")
 
+        owner.goOffline()
+        owner.waitForTheRunningSyncPass()
         owner.purchaseLines.createLine(purchase, CreatePurchaseLineInput(cement.localId, 5.0, 5.0, null))
-        owner.waitForTheRunningSyncPass()
-        owner.sync.syncNow()
+        owner.goOnline()
         owner.sync.syncNow()
 
         val sent = owner.db.consumptionLineDao().findByLocalId(tooMuch)!!
-        val (app, server) = owner.compare("A-5 tranche 2 — après l'achat", project)
+        val (app, server) = owner.compare("A-5 tranche 3 — après l'achat", project)
+        println("A-5 tranche 3 — après l'achat : envois = ${consumptionSends()}, ligne = ${sent.syncStatus}")
+        assertEquals(2, consumptionSends(), "l'achat accepté renvoie la consommation dans la même passe, sans attendre l'échéance")
         assertEquals(SyncStatus.SYNCED, sent.syncStatus, "le stock est arrivé : la consommation part seule, sans action de l'utilisateur")
         assertEquals(2.0, server.getValue("Ciment"), "7 achetés, 5 consommés")
         assertEquals(server, app)
         assertTrue(owner.syncIssues.observeIssues().first().isEmpty())
+    }
+
+    @Test
+    fun a5_a_purchase_made_by_another_account_then_the_pull_of_the_stock_lets_the_refused_consumption_leave() = runScenario {
+        val site = aSiteWithASupervisor("a5-stock")
+        val date = today().toString()
+        val purchase = site.owner.logs.createPurchaseEntry(site.ownerStage, date).entryLocalId
+        val ownerCement = site.owner.materials.createMaterial(site.ownerProject, "Ciment", "sac")
+        site.owner.purchaseLines.createLine(purchase, CreatePurchaseLineInput(ownerCement.localId, 2.0, 5.0, null))
+        site.owner.sync.syncNow()
+        site.supervisor.sync.syncProject(site.supervisorProject)
+        val cement = site.supervisor.materials.observeMaterials(site.supervisorProject).first().single()
+        val consumptionSends = site.supervisor.countingConsumptionSends()
+
+        site.supervisor.goOffline()
+        val work = site.supervisor.logs.createWorkEntry(site.supervisorStage, date).entryLocalId
+        val tooMuch = site.supervisor.consumptionLines.createLine(work, CreateConsumptionLineInput(cement.localId, 5.0))
+        site.supervisor.goOnline()
+        repeat(3) { site.supervisor.sync.syncNow() }
+        site.supervisor.sync.syncProject(site.supervisorProject)
+        site.supervisor.waitForTheRunningSyncPass()
+
+        println("A-5 tranche 3 — stock insuffisant, superviseur : envois après quatre passes = ${consumptionSends()}")
+        assertEquals(1, consumptionSends(), "plusieurs passes avant l'échéance, stock inchangé : un seul envoi")
+        assertEquals(listOf(tooMuch), site.supervisor.syncIssues.observeIssues().first().map { it.localId })
+
+        site.owner.purchaseLines.createLine(purchase, CreatePurchaseLineInput(ownerCement.localId, 5.0, 5.0, null))
+        site.owner.waitForTheRunningSyncPass()
+        site.owner.sync.syncNow()
+        site.supervisor.sync.syncProject(site.supervisorProject)
+
+        val sent = site.supervisor.db.consumptionLineDao().findByLocalId(tooMuch)!!
+        val (app, server) = site.supervisor.compare("A-5 tranche 3 — après l'achat du propriétaire", site.supervisorProject)
+        println("A-5 tranche 3 — après l'achat du propriétaire et le pull : envois = ${consumptionSends()}, ligne = ${sent.syncStatus}")
+        assertEquals(2, consumptionSends(), "le pull montre un stock en hausse : la consommation repart dans cette passe")
+        assertEquals(SyncStatus.SYNCED, sent.syncStatus)
+        assertEquals(2.0, server.getValue("Ciment"), "7 achetés, 5 consommés")
+        assertEquals(server, app)
+        assertTrue(site.supervisor.syncIssues.observeIssues().first().isEmpty())
     }
 
     @Test
@@ -341,7 +390,7 @@ class StockIntegrationTest {
         val consumptionsSent = owner.whileSending("POST", "/consumption-lines") {
             owner.consumptionLines.updateLine(tooMuch, com.dmb.chantiertracker.domain.model.UpdateConsumptionLineInput(2.0))
         }
-        owner.sync.syncNow()
+        owner.syncIssues.retry(owner.syncIssues.observeIssues().first().single())
         val afterTheRefusedResend = owner.db.consumptionLineDao().findByLocalId(tooMuch)!!
         println("ADR-75 — correction pendant le renvoi refusé : envois=${consumptionsSent()}, quantité=${afterTheRefusedResend.quantity}, version=${afterTheRefusedResend.localVersion}")
         assertTrue(consumptionsSent() >= 1, "la correction a bien été enregistrée pendant l'envoi de l'ancienne valeur")

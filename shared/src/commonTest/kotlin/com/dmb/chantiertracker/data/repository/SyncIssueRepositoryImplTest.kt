@@ -194,7 +194,8 @@ class SyncIssueRepositoryImplTest {
 
         assertEquals(RetryOutcome.ACCEPTED, repository.retry(item))
         assertEquals(1, syncer.syncCount)
-        assertTrue(dao.sentAgain.isEmpty(), "a refused creation is already sent at every pass")
+        assertEquals(listOf(item.target to item.localId), syncer.sentAgain, "the pass is asked to send this entry now, whatever its time")
+        assertTrue(dao.sentAgain.isEmpty(), "a refused creation needs no change in the database to be sent again")
     }
 
     @Test

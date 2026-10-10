@@ -49,10 +49,18 @@ class SyncIssueActionsTest {
     @Test
     fun a_refused_creation_a_correction_can_lift_can_be_fixed_where_a_form_exists_or_discarded() {
         everyTarget.forEach { target ->
-            liftedByACorrection.forEach { reason ->
+            (liftedByACorrection - RefusalReason.INSUFFICIENT_STOCK).forEach { reason ->
                 val expected = if (target in withAForm) listOf(FIX, DISCARD) else listOf(DISCARD)
                 assertEquals(expected, actionsOf(target, SyncIssueKind.REFUSED, reason), "$target, $reason")
             }
+        }
+    }
+
+    @Test
+    fun a_creation_refused_for_lack_of_stock_can_be_fixed_where_a_form_exists_retried_or_discarded() {
+        everyTarget.forEach { target ->
+            val expected = if (target in withAForm) listOf(FIX, RETRY, DISCARD) else listOf(RETRY, DISCARD)
+            assertEquals(expected, actionsOf(target, SyncIssueKind.REFUSED, RefusalReason.INSUFFICIENT_STOCK), "$target")
         }
     }
 

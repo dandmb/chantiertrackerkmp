@@ -136,6 +136,16 @@ class FakeSyncer : com.dmb.chantiertracker.data.sync.Syncer {
         return outcome
     }
 
+    val sentAgain = mutableListOf<Pair<com.dmb.chantiertracker.domain.model.SyncIssueTarget, String>>()
+
+    override suspend fun syncNowSendingAgain(
+        target: com.dmb.chantiertracker.domain.model.SyncIssueTarget,
+        localId: String,
+    ): com.dmb.chantiertracker.data.sync.SyncOutcome {
+        sentAgain += target to localId
+        return syncNow()
+    }
+
     override suspend fun syncProject(localId: String): com.dmb.chantiertracker.data.sync.SyncOutcome {
         syncedProjects += localId
         onSync?.invoke()

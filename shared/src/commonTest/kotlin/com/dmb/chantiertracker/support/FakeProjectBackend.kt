@@ -136,6 +136,9 @@ class FakeProjectBackend {
     val invitations = mutableListOf<ServerInvitation>()
     val myPendingInvitations = mutableListOf<ServerPendingInvitation>()
     var planLimitReached = false
+    var plan = "FREE"
+    var planIsFounder = false
+    var planProjectsLimit: Int? = 1
     /** When set, POST /invitations/{token}/accept answers this status. */
     var acceptStatus: HttpStatusCode? = null
     var nextId = 100L
@@ -221,6 +224,7 @@ class FakeProjectBackend {
     fun attachmentApi() = com.dmb.chantiertracker.data.remote.AttachmentApi(client(sharedTokenStorage))
     fun invitationApi() = com.dmb.chantiertracker.data.remote.InvitationApi(client(sharedTokenStorage))
     fun stockApi() = com.dmb.chantiertracker.data.remote.StockApi(client(sharedTokenStorage))
+    fun accountApi() = com.dmb.chantiertracker.data.remote.AccountApi(client(sharedTokenStorage))
 
     private suspend fun MockRequestHandleScope.handle(request: HttpRequestData): HttpResponseData {
         val path = request.url.encodedPath.removePrefix("/api/v1")
@@ -265,6 +269,13 @@ class FakeProjectBackend {
         val stockProjectId = Regex("""/projects/(\d+)/stock$""").find(path)?.groupValues?.get(1)?.toLong()
 
         return when {
+            request.method == HttpMethod.Get && path == "/users/me/plan-usage" ->
+                respond(
+                    """{"plan":${plan.q()},"isFounder":$planIsFounder,"projectsUsed":${projects.size},"projectsLimit":$planProjectsLimit}""",
+                    HttpStatusCode.OK,
+                    headersOf(io.ktor.http.HttpHeaders.ContentType, "application/json"),
+                )
+
             request.method == HttpMethod.Get && stockProjectId != null -> {
                 stockStatus?.let { return respondProblem(it, "Stock indisponible.") }
                 respondPage(request, stockOf(stockProjectId))
