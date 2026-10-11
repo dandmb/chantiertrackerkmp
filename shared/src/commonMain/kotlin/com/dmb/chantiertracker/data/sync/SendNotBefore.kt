@@ -6,6 +6,10 @@ import kotlin.time.Duration.Companion.minutes
 
 val REFUSED_CREATION_SPACING: List<Duration> = listOf(15.minutes, 1.hours, 6.hours, 24.hours)
 
+val UPLOAD_WITHOUT_ANSWER_SPACING: List<Duration> = REFUSED_CREATION_SPACING
+
+val RATE_LIMIT_WAIT_WITHOUT_RETRY_AFTER: Duration = 1.minutes
+
 class SendNotBefore<A>(private val clock: Clock) {
 
     private class Wait<A>(val notBefore: Long, val stepsTaken: Int, val about: A)
@@ -15,6 +19,8 @@ class SendNotBefore<A>(private val clock: Clock) {
     fun mayBeSentNow(key: String): Boolean = isDue(waits[key])
 
     fun notBefore(key: String): Long? = waits[key]?.notBefore
+
+    fun about(key: String): A? = waits[key]?.about
 
     fun waitAtLeast(key: String, delay: Duration, about: A) {
         val current = waits[key]
