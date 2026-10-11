@@ -157,9 +157,9 @@ class SyncEngine(
     private val refusedCreations = SendNotBefore<RefusedCreation>(clock)
     private var aPullReleasedARefusedCreation = false
     private var planSeenWhileAProjectWaitsForIt: PlanSeen? = null
-    private val uploadWaits = SendNotBefore<UploadWait>(clock)
+    private val sendWaits = SendNotBefore<SendWait>(clock)
     private var refusalStatus: Int? = null
-    private var passWhenTheUploadQuotaReturns: Job? = null
+    private var passWhenAQuotaReturns: Job? = null
 
     fun start() {
         if (started) return
@@ -193,7 +193,7 @@ class SyncEngine(
     }
 
     private suspend fun syncNowThatTheNetworkIsBack(): SyncOutcome = onePass {
-        uploadWaits.sendAtNextPass { it == UploadWait.NO_ANSWER }
+        sendWaits.sendAtNextPass { it == SendWait.NO_ANSWER }
         runSync()
     }
 
@@ -206,15 +206,15 @@ class SyncEngine(
     private suspend fun onePass(pass: suspend () -> SyncOutcome): SyncOutcome = mutex.withLock {
         stocksReadIncompletelyThisPass.clear()
         aPullReleasedARefusedCreation = false
-        pass().also { passAgainWhenTheUploadQuotaReturns() }
+        pass().also { passAgainWhenAQuotaReturns() }
     }
 
-    private fun passAgainWhenTheUploadQuotaReturns() {
+    private fun passAgainWhenAQuotaReturns() {
         if (!started) return
-        val wait = (uploadWaits.notBefore(UPLOAD_QUOTA) ?: return) - clock.nowEpochMillis()
+        val wait = (sendWaits.soonestStillToCome { it == SendWait.QUOTA } ?: return) - clock.nowEpochMillis()
         if (wait <= 0) return
-        passWhenTheUploadQuotaReturns?.cancel()
-        passWhenTheUploadQuotaReturns = scope.launch {
+        passWhenAQuotaReturns?.cancel()
+        passWhenAQuotaReturns = scope.launch {
             delay(wait)
             syncNow()
         }
@@ -311,13 +311,22 @@ class SyncEngine(
         for (row in pending) {
             if (!mayLeave(row)) continue
             val key = sendKey(target, row.localId)
+            if (!sendWaits.mayBeSentNow(key)) continue
             val issue = row.syncIssue()
             when {
                 issue?.waitsForACorrection == true -> continue
                 issue?.isACreationThatCanLeaveWithoutACorrection != true -> refusedCreations.forget(key)
                 !refusedCreations.mayBeSentNow(key) -> continue
             }
-            push(row)
+            try {
+                push(row)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: DomainException) {
+                if (!waitsAfter(e, key)) throw e
+                continue
+            }
+            if (sendWaits.mayBeSentNow(key)) sendWaits.forget(key)
             val after = dao.findByLocalId(row.localId)
             val refusedFor = after?.syncIssue()?.takeIf { it.isACreationThatCanLeaveWithoutACorrection }?.reason
             if (after == null || refusedFor == null) {
@@ -326,6 +335,16 @@ class SyncEngine(
                 refusedCreations.waitLonger(key, REFUSED_CREATION_SPACING, RefusedCreation(refusedFor, placeOf(after), target))
             }
         }
+    }
+
+    private fun waitsAfter(failure: DomainException, key: String): Boolean {
+        when {
+            failure is DomainException.RateLimited ->
+                sendWaits.waitAtLeast(key, failure.retryAfterSeconds?.seconds ?: RATE_LIMIT_WAIT_WITHOUT_RETRY_AFTER, sendWaits.about(key) ?: SendWait.QUOTA)
+            failure.leavesTheOutcomeUnknown() -> sendWaits.waitLonger(key, SEND_WITHOUT_ANSWER_SPACING, SendWait.NO_ANSWER)
+            else -> return false
+        }
+        return true
     }
 
     private suspend fun placeOfAnEntry(entryLocalId: String, materialLocalId: String? = null): PlaceOfARow {
@@ -748,19 +767,24 @@ class SyncEngine(
         this is DomainException.Network || (this is DomainException.Unexpected && (refusalStatus ?: SERVER_ERROR) >= SERVER_ERROR)
 
     private fun uploadMayLeave(attachment: AttachmentEntity): Boolean =
-        uploadWaits.mayBeSentNow(UPLOAD_QUOTA) && uploadWaits.mayBeSentNow(sendKey(SyncIssueTarget.ATTACHMENT, attachment.localId))
+        sendWaits.mayBeSentNow(UPLOAD_QUOTA) && sendWaits.mayBeSentNow(sendKey(SyncIssueTarget.ATTACHMENT, attachment.localId))
 
     private suspend fun recogniseAnUploadWithoutAnswer(attachment: AttachmentEntity, stored: AttachmentDto) {
         attachmentDao.writeIfUnchanged(stored.toSyncedEntity(attachment.localId, attachment.entryLocalId, attachment.localPath, clock.nowEpochMillis(), attachment))
-        uploadWaits.forget(sendKey(SyncIssueTarget.ATTACHMENT, attachment.localId))
+        sendWaits.forget(sendKey(SyncIssueTarget.ATTACHMENT, attachment.localId))
     }
 
     private suspend fun storedByAnUploadWithoutAnswer(attachment: AttachmentEntity, entryServerId: Long): AttachmentDto? {
-        if (uploadWaits.about(sendKey(SyncIssueTarget.ATTACHMENT, attachment.localId)) != UploadWait.NO_ANSWER) return null
+        if (sendWaits.about(sendKey(SyncIssueTarget.ATTACHMENT, attachment.localId)) != SendWait.NO_ANSWER) return null
         val onServer = readAllPages(AttachmentDto::id) { page, size -> serverCall { attachmentApi.list(entryServerId, page, size) } }.items
         val knownServerIds = attachmentDao.findForEntry(attachment.entryLocalId).mapNotNull { it.serverId }.toSet()
         return onServer.firstOrNull { it.id !in knownServerIds && it.originalName == attachment.originalName }
     }
+
+    private fun DomainException.isAClientErrorTheAppDoesNotKnow(): Boolean =
+        this is DomainException.Unexpected && (refusalStatus ?: SERVER_ERROR) in CLIENT_ERRORS
+
+    private fun DomainException.refusesTheRow(): Boolean = isServerRejection() || isAClientErrorTheAppDoesNotKnow()
 
     private fun DomainException.isFileRefusal(): Boolean =
         this is DomainException.FileTooLarge || refusalCode in FILE_REFUSAL_CODES
@@ -861,7 +885,7 @@ class SyncEngine(
         } catch (e: DomainException.NotFound) {
             RemoteDelete.ALREADY_GONE
         } catch (e: DomainException) {
-            if (e.isServerRejection()) RemoteDelete.REJECTED else throw e
+            if (e.refusesTheRow()) RemoteDelete.REJECTED else throw e
         }
 
     // ─── materials ──────────────────────────────────────────────────────────
@@ -882,7 +906,7 @@ class SyncEngine(
             }
             return
         } catch (e: DomainException) {
-            if (e.isServerRejection()) {
+            if (e.refusesTheRow()) {
                 materialDao.writeIfUnchanged(material.copy(syncStatus = SyncStatus.CONFLICTED, lastSyncError = SyncError.REJECTED, serverErrorCode = refusalCode))
                 return
             }
@@ -921,7 +945,7 @@ class SyncEngine(
             materialDao.writeIfUnchanged(material.copy(syncStatus = SyncStatus.CONFLICTED, lastSyncError = SyncError.DELETED_ON_SERVER))
             return
         } catch (e: DomainException) {
-            if (e.isServerRejection()) {
+            if (e.refusesTheRow()) {
                 materialDao.writeIfUnchanged(material.copy(syncStatus = SyncStatus.CONFLICTED, lastSyncError = SyncError.UPDATE_REFUSED, serverErrorCode = refusalCode))
                 return
             }
@@ -947,7 +971,7 @@ class SyncEngine(
             keepEntryGoneOnServer(entry)
             return
         } catch (e: DomainException) {
-            if (e.isServerRejection()) {
+            if (e.refusesTheRow()) {
                 dailyEntryDao.writeIfUnchanged(entry.copy(syncStatus = SyncStatus.CONFLICTED, lastSyncError = SyncError.REJECTED, serverErrorCode = refusalCode))
                 return
             }
@@ -973,7 +997,7 @@ class SyncEngine(
             entryGoneOnServer(entry)
             return
         } catch (e: DomainException) {
-            if (e.isServerRejection()) {
+            if (e.refusesTheRow()) {
                 dailyEntryDao.writeIfUnchanged(entry.copy(syncStatus = SyncStatus.CONFLICTED, lastSyncError = SyncError.UPDATE_REFUSED, serverErrorCode = refusalCode))
                 return
             }
@@ -1004,7 +1028,7 @@ class SyncEngine(
             purchaseLineDao.writeIfUnchanged(line.copy(syncStatus = SyncStatus.CONFLICTED, lastSyncError = SyncError.DELETED_ON_SERVER))
             return
         } catch (e: DomainException) {
-            if (e.isServerRejection()) {
+            if (e.refusesTheRow()) {
                 purchaseLineDao.writeIfUnchanged(line.copy(syncStatus = SyncStatus.CONFLICTED, lastSyncError = SyncError.REJECTED, serverErrorCode = refusalCode))
                 return
             }
@@ -1030,7 +1054,7 @@ class SyncEngine(
             purchaseLineDao.writeIfUnchanged(line.copy(syncStatus = SyncStatus.CONFLICTED, lastSyncError = SyncError.DELETED_ON_SERVER))
             return
         } catch (e: DomainException) {
-            if (e.isServerRejection()) {
+            if (e.refusesTheRow()) {
                 purchaseLineDao.writeIfUnchanged(line.copy(syncStatus = SyncStatus.CONFLICTED, lastSyncError = SyncError.UPDATE_REFUSED, serverErrorCode = refusalCode))
                 return
             }
@@ -1094,7 +1118,7 @@ class SyncEngine(
             consumptionLineDao.writeIfUnchanged(line.copy(syncStatus = SyncStatus.CONFLICTED, lastSyncError = SyncError.DELETED_ON_SERVER))
             return
         } catch (e: DomainException) {
-            if (e.isServerRejection()) {
+            if (e.refusesTheRow()) {
                 consumptionLineDao.writeIfUnchanged(line.copy(syncStatus = SyncStatus.CONFLICTED, lastSyncError = SyncError.REJECTED, serverErrorCode = refusalCode))
                 return
             }
@@ -1119,7 +1143,7 @@ class SyncEngine(
             consumptionLineDao.writeIfUnchanged(line.copy(syncStatus = SyncStatus.CONFLICTED, lastSyncError = SyncError.DELETED_ON_SERVER))
             return
         } catch (e: DomainException) {
-            if (e.isServerRejection()) {
+            if (e.refusesTheRow()) {
                 consumptionLineDao.writeIfUnchanged(line.copy(syncStatus = SyncStatus.CONFLICTED, lastSyncError = SyncError.UPDATE_REFUSED, serverErrorCode = refusalCode))
                 return
             }
@@ -1176,7 +1200,7 @@ class SyncEngine(
         val entryServerId = dailyEntryDao.findByLocalId(attachment.entryLocalId)?.serverId ?: return
         val key = sendKey(SyncIssueTarget.ATTACHMENT, attachment.localId)
         storedByAnUploadWithoutAnswer(attachment, entryServerId)?.let { return recogniseAnUploadWithoutAnswer(attachment, it) }
-        uploadWaits.forget(UPLOAD_QUOTA)
+        sendWaits.forget(UPLOAD_QUOTA)
         val bytes = try {
             attachmentFileStore.readBytes(attachment.localPath)
         } catch (e: CancellationException) {
@@ -1201,15 +1225,15 @@ class SyncEngine(
             return
         } catch (e: DomainException.RateLimited) {
             val wait = e.retryAfterSeconds?.seconds ?: RATE_LIMIT_WAIT_WITHOUT_RETRY_AFTER
-            uploadWaits.waitAtLeast(key, wait, uploadWaits.about(key) ?: UploadWait.QUOTA)
-            uploadWaits.waitAtLeast(UPLOAD_QUOTA, wait, UploadWait.QUOTA)
+            sendWaits.waitAtLeast(key, wait, sendWaits.about(key) ?: SendWait.QUOTA)
+            sendWaits.waitAtLeast(UPLOAD_QUOTA, wait, SendWait.QUOTA)
             return
         } catch (e: DomainException) {
             if (e.leavesTheOutcomeUnknown()) {
-                uploadWaits.waitLonger(key, UPLOAD_WITHOUT_ANSWER_SPACING, UploadWait.NO_ANSWER)
+                sendWaits.waitLonger(key, SEND_WITHOUT_ANSWER_SPACING, SendWait.NO_ANSWER)
                 return
             }
-            uploadWaits.forget(key)
+            sendWaits.forget(key)
             if (e.isFileRefusal()) {
                 attachmentDao.writeIfUnchanged(
                     attachment.copy(
@@ -1226,7 +1250,7 @@ class SyncEngine(
             }
             throw e
         }
-        uploadWaits.forget(key)
+        sendWaits.forget(key)
         val synced = dto.toSyncedEntity(attachment.localId, attachment.entryLocalId, attachment.localPath, clock.nowEpochMillis(), attachment)
         attachmentDao.storeCreated(synced, removeFromServer = { attachmentApi.delete(dto.id) }) { edited -> edited.copy(serverId = synced.serverId) }
     }
@@ -1472,7 +1496,7 @@ class SyncEngine(
         for (dto in remote) {
             if (dto.id in knownServerIds) continue
             val uploadedFromHere = locals.firstOrNull {
-                it.serverId == null && it.originalName == dto.originalName && uploadWaits.about(sendKey(SyncIssueTarget.ATTACHMENT, it.localId)) == UploadWait.NO_ANSWER
+                it.serverId == null && it.originalName == dto.originalName && sendWaits.about(sendKey(SyncIssueTarget.ATTACHMENT, it.localId)) == SendWait.NO_ANSWER
             }?.let { attachmentDao.findByLocalId(it.localId) }
             if (uploadedFromHere != null) {
                 recogniseAnUploadWithoutAnswer(uploadedFromHere, dto)
@@ -1506,10 +1530,8 @@ class SyncEngine(
         } catch (e: DomainException.NotFound) {
             keepStageGoneOnServer(stage)
             return
-        } catch (e: DomainException.Forbidden) {
-            stageDao.writeIfUnchanged(stage.copy(syncStatus = SyncStatus.CONFLICTED, lastSyncError = SyncError.REJECTED, serverErrorCode = refusalCode))
-            return
-        } catch (e: DomainException.Validation) {
+        } catch (e: DomainException) {
+            if (!e.refusesTheRow()) throw e
             stageDao.writeIfUnchanged(stage.copy(syncStatus = SyncStatus.CONFLICTED, lastSyncError = SyncError.REJECTED, serverErrorCode = refusalCode))
             return
         }
@@ -1532,12 +1554,16 @@ class SyncEngine(
         } catch (e: DomainException.NotFound) {
             stageGoneOnServer(stage)
             return
+        } catch (e: DomainException) {
+            if (!e.refusesTheRow()) throw e
+            stageDao.writeIfUnchanged(stage.copy(syncStatus = SyncStatus.CONFLICTED, lastSyncError = SyncError.UPDATE_REFUSED, serverErrorCode = refusalCode))
+            return
         }
 
         val updated = try {
             serverCall { stageApi.update(serverId, stage.toUpdateRequest()) }
         } catch (e: DomainException) {
-            if (!e.isServerRejection()) throw e
+            if (!e.refusesTheRow()) throw e
             stageDao.writeIfUnchanged(stage.copy(syncStatus = SyncStatus.CONFLICTED, lastSyncError = SyncError.UPDATE_REFUSED, serverErrorCode = refusalCode))
             return
         }
@@ -1567,7 +1593,8 @@ class SyncEngine(
         } catch (e: DomainException.PlanLimitReached) {
             dao.writeIfUnchanged(entity.copy(syncStatus = SyncStatus.CONFLICTED, lastSyncError = SyncError.PLAN_LIMIT, serverErrorCode = refusalCode))
             return
-        } catch (e: DomainException.Validation) {
+        } catch (e: DomainException) {
+            if (!e.refusesTheRow()) throw e
             dao.writeIfUnchanged(entity.copy(syncStatus = SyncStatus.CONFLICTED, lastSyncError = SyncError.REJECTED, serverErrorCode = refusalCode))
             return
         }
@@ -1585,6 +1612,10 @@ class SyncEngine(
         } catch (e: DomainException.NotFound) {
             projectGoneOnServer(entity)
             return
+        } catch (e: DomainException) {
+            if (!e.refusesTheRow()) throw e
+            dao.writeIfUnchanged(entity.copy(syncStatus = SyncStatus.CONFLICTED, lastSyncError = SyncError.UPDATE_REFUSED, serverErrorCode = refusalCode))
+            return
         }
 
         if (serverChangedSinceLastSync(remote.updatedAt, entity)) {
@@ -1597,7 +1628,7 @@ class SyncEngine(
         val updated = try {
             serverCall { api.update(serverId, entity.toUpdateRequest()) }
         } catch (e: DomainException) {
-            if (!e.isServerRejection()) throw e
+            if (!e.refusesTheRow()) throw e
             dao.writeIfUnchanged(entity.copy(syncStatus = SyncStatus.CONFLICTED, lastSyncError = SyncError.UPDATE_REFUSED, serverErrorCode = refusalCode))
             return
         }
@@ -1636,7 +1667,7 @@ class SyncEngine(
                 local == null ->
                     dao.insertNew(dto.toSyncedEntity(localId = newLocalId(), syncedAt = syncedAt))
 
-                local.pendingOp == PendingOp.NONE || serverChangedSinceLastSync(dto.updatedAt, local) -> {
+                local.pendingOp == PendingOp.NONE || (local.pendingOp != PendingOp.DELETE && serverChangedSinceLastSync(dto.updatedAt, local)) -> {
                     // A pending local edit loses when the server row moved on since our last sync.
                     aPullShowsAStatusOfProject(local.localId, before = local.status, now = dto.status)
                     dao.writeIfUnchanged(dto.toSyncedEntity(localId = local.localId, syncedAt = syncedAt, previous = local))
@@ -1675,10 +1706,11 @@ private data class PlaceOfARow(val projectLocalId: String?, val stageLocalId: St
 
 private data class RefusedCreation(val reason: RefusalReason, val place: PlaceOfARow, val target: SyncIssueTarget)
 
-private enum class UploadWait { QUOTA, NO_ANSWER }
+private enum class SendWait { QUOTA, NO_ANSWER }
 
 private const val UPLOAD_QUOTA = "QUOTA:uploads"
 private const val SERVER_ERROR = 500
+private val CLIENT_ERRORS = 400..499
 
 private data class PlanSeen(val plan: String, val isFounder: Boolean, val projectsLimit: Int?, val projectsUsed: Long)
 

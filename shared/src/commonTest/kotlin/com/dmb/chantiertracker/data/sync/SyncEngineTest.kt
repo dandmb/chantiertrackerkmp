@@ -922,10 +922,11 @@ class SyncEngineTest {
         f.backend.seedConsumptionLine(com.dmb.chantiertracker.support.ServerConsumptionLine(id = 555, entryId = 40, materialId = 7, quantity = 4.0))
         val engine = f.engine(backgroundScope)
 
-        assertIs<SyncOutcome.Failed>(engine.syncNow())
+        assertIs<SyncOutcome.Synced>(engine.syncNow())
         val stillPending = f.consumptionLineDao.findByLocalId("cl1")!!
-        assertEquals(PendingOp.DELETE, stillPending.pendingOp, "kept for the next pass")
+        assertEquals(PendingOp.DELETE, stillPending.pendingOp, "kept for a later pass")
 
+        f.clock.advanceBy(15 * 60_000)
         f.backend.deleteStatus = null
         assertIs<SyncOutcome.Synced>(engine.syncNow())
         assertNull(f.consumptionLineDao.findByLocalId("cl1"))
@@ -986,7 +987,7 @@ class SyncEngineTest {
     }
 
     @Test
-    fun a_transient_server_error_on_a_project_delete_keeps_it_pending_for_the_next_pass() = runTest {
+    fun a_transient_server_error_on_a_project_delete_keeps_it_pending_for_a_later_pass() = runTest {
         val f = Fixture()
         f.backend.deleteStatus = io.ktor.http.HttpStatusCode.InternalServerError
         f.backend.seed(ServerProject(id = 3, name = "Villa"))
@@ -995,9 +996,10 @@ class SyncEngineTest {
         )
         val engine = f.engine(backgroundScope)
 
-        assertIs<SyncOutcome.Failed>(engine.syncNow())
+        assertIs<SyncOutcome.Synced>(engine.syncNow())
         assertEquals(PendingOp.DELETE, f.dao.findByLocalId("p3")!!.pendingOp)
 
+        f.clock.advanceBy(15 * 60_000)
         f.backend.deleteStatus = null
         assertIs<SyncOutcome.Synced>(engine.syncNow())
         assertNull(f.dao.findByLocalId("p3"))
@@ -1043,7 +1045,7 @@ class SyncEngineTest {
     }
 
     @Test
-    fun a_transient_server_error_on_a_stage_delete_keeps_it_pending_for_the_next_pass() = runTest {
+    fun a_transient_server_error_on_a_stage_delete_keeps_it_pending_for_a_later_pass() = runTest {
         val f = Fixture()
         f.backend.deleteStatus = io.ktor.http.HttpStatusCode.InternalServerError
         f.backend.seed(ServerProject(id = 5, name = "Villa"))
@@ -1054,9 +1056,10 @@ class SyncEngineTest {
         )
         val engine = f.engine(backgroundScope)
 
-        assertIs<SyncOutcome.Failed>(engine.syncNow())
+        assertIs<SyncOutcome.Synced>(engine.syncNow())
         assertEquals(PendingOp.DELETE, f.stageDao.findByLocalId("st1")!!.pendingOp)
 
+        f.clock.advanceBy(15 * 60_000)
         f.backend.deleteStatus = null
         assertIs<SyncOutcome.Synced>(engine.syncNow())
         assertNull(f.stageDao.findByLocalId("st1"))
@@ -1101,7 +1104,7 @@ class SyncEngineTest {
     }
 
     @Test
-    fun a_transient_server_error_on_an_entry_delete_keeps_it_pending_for_the_next_pass() = runTest {
+    fun a_transient_server_error_on_an_entry_delete_keeps_it_pending_for_a_later_pass() = runTest {
         val f = Fixture()
         f.backend.deleteStatus = io.ktor.http.HttpStatusCode.InternalServerError
         f.backend.seedEntry(com.dmb.chantiertracker.support.ServerEntry(id = 40, dailyLogId = 800, type = "PURCHASE"))
@@ -1110,9 +1113,10 @@ class SyncEngineTest {
         )
         val engine = f.engine(backgroundScope)
 
-        assertIs<SyncOutcome.Failed>(engine.syncNow())
+        assertIs<SyncOutcome.Synced>(engine.syncNow())
         assertEquals(PendingOp.DELETE, f.dailyEntryDao.findByLocalId("e1")!!.pendingOp)
 
+        f.clock.advanceBy(15 * 60_000)
         f.backend.deleteStatus = null
         assertIs<SyncOutcome.Synced>(engine.syncNow())
         assertNull(f.dailyEntryDao.findByLocalId("e1"))
@@ -3103,6 +3107,52 @@ class SyncEngineTest {
 
         assertEquals(2, f.sent("POST", "/entries/900/attachments"), "the network is back: sent at once")
         assertEquals(SyncStatus.SYNCED, f.attachmentDao.findByLocalId("a1")!!.syncStatus)
+    }
+
+    @Test
+    fun a_started_engine_plans_a_pass_for_the_time_a_rate_limited_row_may_leave() = runTest {
+        val f = Fixture()
+        f.dao.upsert(localProject("p1", name = "Villa"))
+        f.backend.refuseWith = { request ->
+            com.dmb.chantiertracker.support.ServerRefusal(io.ktor.http.HttpStatusCode.TooManyRequests, "RATE_LIMITED", retryAfterSeconds = 3).takeIf { request.method.value == "POST" }
+        }
+        val engine = f.engine(backgroundScope, catchUpInterval = 24.hours)
+        assertIs<SyncOutcome.Synced>(engine.syncNow())
+        f.connectivity.setOnline(false)
+        engine.start()
+        runCurrent()
+        engine.syncNow()
+        val passesSoFar = f.connectivity.isOnlineChecks
+
+        advanceTimeBy(2_900)
+        runCurrent()
+        assertEquals(0, f.connectivity.isOnlineChecks - passesSoFar, "no pass before the time the server gave")
+        advanceTimeBy(200)
+        runCurrent()
+
+        assertEquals(1, f.connectivity.isOnlineChecks - passesSoFar, "nobody asked for this pass: the engine planned it")
+    }
+
+    @Test
+    fun the_network_coming_back_sends_the_rows_that_got_no_answer_without_waiting_for_their_time() = runTest {
+        val f = Fixture()
+        f.dao.upsert(localProject("p1", name = "Villa"))
+        f.backend.cutTheNetworkFor = { it.method.value == "POST" }
+        val engine = f.engine(backgroundScope, catchUpInterval = 24.hours)
+        engine.start()
+        runCurrent()
+        engine.runExclusive { }
+        assertEquals(1, f.backend.receivedMethods.count { it == "POST /projects" }, "no answer: the row waits fifteen minutes")
+
+        f.connectivity.setOnline(false)
+        runCurrent()
+        f.backend.cutTheNetworkFor = null
+        f.connectivity.setOnline(true)
+        runCurrent()
+        engine.runExclusive { }
+
+        assertEquals(2, f.backend.receivedMethods.count { it == "POST /projects" }, "the network is back: sent at once")
+        assertEquals(SyncStatus.SYNCED, f.dao.findByLocalId("p1")!!.syncStatus)
     }
 
     @Test

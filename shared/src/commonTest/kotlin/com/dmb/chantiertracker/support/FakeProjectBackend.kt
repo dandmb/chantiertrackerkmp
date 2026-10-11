@@ -244,7 +244,10 @@ class FakeProjectBackend {
         receivedAuthorizations += "${request.method.value} $path" to request.headers[io.ktor.http.HttpHeaders.Authorization]
         beforeHandle?.invoke(request)
         refuseWith?.invoke(request)?.let { refusal ->
-            return respondProblem(refusal.status, refusal.detail, errors = if (refusal.withFieldErrors) mapOf("champ" to "invalide") else null, code = refusal.code)
+            return respondProblem(
+                refusal.status, refusal.detail, errors = if (refusal.withFieldErrors) mapOf("champ" to "invalide") else null, code = refusal.code,
+                extraHeaders = refusal.retryAfterSeconds?.let { mapOf(HttpHeaders.RetryAfter to it.toString()) }.orEmpty(),
+            )
         }
         if (refuseOnce?.invoke(request) == true) {
             refuseOnce = null
@@ -774,5 +777,5 @@ private fun JsonObject.number(key: String): Double? = this[key]?.jsonPrimitive?.
 
 private fun String?.q(): String = if (this == null) "null" else "\"" + replace("\"", "\\\"") + "\""
 
-class ServerRefusal(val status: HttpStatusCode, val code: String?, val withFieldErrors: Boolean = false, val detail: String = "Refusé.")
+class ServerRefusal(val status: HttpStatusCode, val code: String?, val withFieldErrors: Boolean = false, val detail: String = "Refusé.", val retryAfterSeconds: Int? = null)
 

@@ -337,7 +337,8 @@ class UploadsOnAnUnreliableNetworkTest {
                 assertEquals(listOf<Any?>(SyncStatus.PENDING, PendingOp.CREATE, null, null), listOf(after.syncStatus, after.pendingOp, after.lastSyncError, after.serverErrorCode), "$path, $status")
                 assertEquals(emptyList(), issues.observeIssues().first().filter { it.issue.kind != SyncIssueKind.BLOCKED_BY_PARENT }.map { it.key }, "$path, $status: nothing to review")
                 backend.refuseWith = null
-                assertEquals(SyncOutcome.Synced, engine.syncNow(), "$path, $status: it leaves at the next pass once the server is back")
+                after(15.minutes)
+                assertEquals(SyncOutcome.Synced, engine.syncNow(), "$path, $status: it leaves once the server is back")
                 assertEquals(SyncStatus.SYNCED, row(id)!!.syncStatus, "$path, $status")
             }
         }
