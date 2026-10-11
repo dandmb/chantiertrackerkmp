@@ -820,12 +820,13 @@ class RefusedCreationsAreSpacedTest {
         after(15.minutes)
         theServerRefuses(path, serverDown)
 
-        assertEquals(false, engine.syncNow() == SyncOutcome.Synced, "the server is down: the pass fails")
+        assertEquals(SyncOutcome.Synced, engine.syncNow(), "the server is down for this row only: the pass goes on")
         assertEquals(2, posts(path))
         theServerAccepts(path)
+        after(15.minutes)
         assertEquals(SyncOutcome.Synced, engine.syncNow())
 
-        assertEquals(3, posts(path), "nothing was answered about this entry: it is sent at the next pass, without waiting an hour")
+        assertEquals(3, posts(path), "nothing was answered about this entry: it is sent fifteen minutes later, without waiting an hour")
         assertEquals(SyncStatus.SYNCED, db.stageDao().findByLocalId(stage)!!.syncStatus)
     }
 }

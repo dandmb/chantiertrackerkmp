@@ -159,4 +159,19 @@ class SendNotBeforeTest {
         after(2.hours)
         assertTrue(waits.isWaiting { it == "plan" }, "still remembered once due, until it is sent or forgotten")
     }
+
+    @Test
+    fun it_gives_the_soonest_time_still_to_come_among_the_rows_of_a_kind() {
+        assertEquals(null, waits.soonestStillToCome { it == "quota" })
+
+        waits.waitAtLeast("STAGE:a", 30.seconds, about = "quota")
+        waits.waitAtLeast("STAGE:b", 10.seconds, about = "quota")
+        waits.waitAtLeast("STAGE:c", 5.seconds, about = "no answer")
+
+        assertEquals(start + 10.seconds.inWholeMilliseconds, waits.soonestStillToCome { it == "quota" })
+        after(10.seconds)
+        assertEquals(start + 30.seconds.inWholeMilliseconds, waits.soonestStillToCome { it == "quota" }, "a time that has come is no longer to come")
+        after(20.seconds)
+        assertEquals(null, waits.soonestStillToCome { it == "quota" })
+    }
 }

@@ -4,6 +4,9 @@ import com.dmb.chantiertracker.data.local.db.PendingOp
 import com.dmb.chantiertracker.data.local.db.SyncStatus
 import com.dmb.chantiertracker.data.sync.SyncOutcome
 import com.dmb.chantiertracker.domain.model.actions
+import com.dmb.chantiertracker.domain.model.RefusalReason
+import com.dmb.chantiertracker.domain.model.SyncIssueAction
+import com.dmb.chantiertracker.domain.model.SyncIssueKind
 import com.dmb.chantiertracker.domain.model.canBeRetried
 import com.dmb.chantiertracker.data.sync.SyncError
 import com.dmb.chantiertracker.domain.model.AuthState
@@ -876,6 +879,43 @@ class SyncAndRejectionsIntegrationTest {
         assertEquals(1, onServer.size, "un seul exemplaire sur le serveur")
         assertEquals(listOf<Any?>(photo, SyncStatus.SYNCED, onServer.single().id), rows.single().let { listOf(it.localId, it.syncStatus, it.serverId) }, "la ligne de l'appareil est reconnue, sans doublon local")
         if (added != null) assertEquals(1, added.size)
+    }
+
+    @Test
+    fun d_a_row_the_server_refuses_with_a_status_the_app_does_not_know_does_not_fail_the_pass_and_is_shown_as_a_refusal() = runScenario {
+        val phone = device()
+        phone.signedInAs("qa-d-4xx", "QA D Statut inconnu")
+        val projectId = phone.newProject("QA D statut inconnu")
+        assertEquals(SyncOutcome.Synced, phone.sync.syncNow())
+        val statuses = mutableListOf<Int>()
+        phone.client.plugin(io.ktor.client.plugins.HttpSend).intercept { request ->
+            val isTheStageSentWithTheWrongMethod = request.method.value == "POST" && (request.body as? io.ktor.http.content.TextContent)?.text?.contains("mauvaise méthode") == true
+            if (isTheStageSentWithTheWrongMethod) request.method = io.ktor.http.HttpMethod.Put
+            execute(request).also { if (isTheStageSentWithTheWrongMethod) statuses += it.response.status.value }
+        }
+
+        phone.goOffline()
+        val refused = phone.stages.createStage(CreateStageInput(projectId, "Étape envoyée avec la mauvaise méthode", null, null, null, null))
+        val sibling = phone.stages.createStage(CreateStageInput(projectId, "Charpente", null, null, null, null))
+        phone.waitForTheRunningSyncPass()
+        phone.goOnline()
+        val pass = phone.sync.syncNow()
+        phone.waitForTheRunningSyncPass()
+        repeat(2) { phone.sync.syncNow() }
+
+        val row = phone.db.stageDao().findByLocalId(refused)!!
+        val item = phone.syncIssues.observeIssues().first().single { it.localId == refused }
+        println("D tranche 2 — 4xx inattendu : statuts=$statuses, passe=$pass, ligne=${row.syncStatus}/${row.lastSyncError}/${row.serverErrorCode}, raison=${item.issue.reason}, actions=${item.actions}, autre étape=${phone.db.stageDao().findByLocalId(sibling)!!.syncStatus}")
+        assertEquals(listOf(405), statuses, "le vrai serveur répond 405, une seule fois : la ligne n'est pas renvoyée")
+        assertEquals(SyncOutcome.Synced, pass, "une ligne refusée avec un statut inconnu ne fait pas échouer la passe")
+        assertEquals(listOf<Any?>(SyncStatus.CONFLICTED, SyncError.REJECTED), listOf(row.syncStatus, row.lastSyncError))
+        assertEquals(listOf<Any?>(SyncIssueKind.REFUSED, RefusalReason.UNKNOWN), listOf(item.issue.kind, item.issue.reason))
+        assertEquals(false, SyncIssueAction.RETRY in item.actions)
+        assertEquals(SyncStatus.SYNCED, phone.db.stageDao().findByLocalId(sibling)!!.syncStatus, "l'autre étape est partie")
+
+        phone.syncIssues.discard(item)
+        assertEquals(SyncOutcome.Synced, phone.sync.syncProject(projectId))
+        assertEquals(listOf("Charpente"), phone.stages.observeStages(projectId).first().map { it.name })
     }
 
     @Test
