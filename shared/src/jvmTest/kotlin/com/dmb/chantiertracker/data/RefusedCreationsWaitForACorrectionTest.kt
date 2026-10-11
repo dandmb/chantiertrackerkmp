@@ -418,14 +418,14 @@ class RefusedCreationsWaitForACorrectionTest {
     }
 
     @Test
-    fun unchanged_in_this_tranche_a_photo_refused_for_another_reason_than_its_file_is_still_uploaded_at_every_pass() = runTest {
+    fun a_photo_refused_for_another_reason_than_its_file_is_no_longer_uploaded_at_every_pass() = runTest {
         aSyncedSite()
         val photo = attachments.addAttachment("e900", ByteArray(8), "bon.jpg", "image/jpeg")
         theServerRefuses("/entries/900/attachments", inactive)
 
         threePasses()
 
-        assertEquals(3, posts("/entries/900/attachments"), "attachments are handled with the uploads (group D)")
+        assertEquals(1, posts("/entries/900/attachments"), "since group D an upload follows the same rule as the six other tables")
         assertEquals(SyncStatus.CONFLICTED, db.attachmentDao().findByLocalId(photo.localId)!!.syncStatus)
     }
 

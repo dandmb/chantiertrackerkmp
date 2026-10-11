@@ -11,9 +11,9 @@ import kotlinx.coroutines.CancellationException
 private const val BILLING_NOT_OPEN_CODE = "BILLING_NOT_OPEN"
 private const val DUPLICATE_MATERIAL_CODE = "DUPLICATE_MATERIAL"
 
-suspend fun <T> apiCall(block: suspend () -> T): T = apiCallReportingRefusalCode({}, block)
+suspend fun <T> apiCall(block: suspend () -> T): T = apiCallReportingRefusalCode({}, block = block)
 
-suspend fun <T> apiCallReportingRefusalCode(onRefusalCode: (String?) -> Unit, block: suspend () -> T): T =
+suspend fun <T> apiCallReportingRefusalCode(onRefusalCode: (String?) -> Unit, onRefusalStatus: (Int) -> Unit = {}, block: suspend () -> T): T =
     try {
         block()
     } catch (e: CancellationException) {
@@ -21,6 +21,7 @@ suspend fun <T> apiCallReportingRefusalCode(onRefusalCode: (String?) -> Unit, bl
     } catch (e: DomainException) {
         throw e
     } catch (e: ResponseException) {
+        onRefusalStatus(e.response.status.value)
         throw e.toDomainException(onRefusalCode)
     } catch (e: Throwable) {
         throw DomainException.Network

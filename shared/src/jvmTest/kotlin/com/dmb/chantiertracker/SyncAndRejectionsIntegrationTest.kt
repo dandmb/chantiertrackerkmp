@@ -771,6 +771,113 @@ class SyncAndRejectionsIntegrationTest {
         assertTrue(supervisorPhone.syncIssues.observeIssues().first().isEmpty())
     }
 
+    private fun filesInTheBackendUploads(): Set<String>? =
+        System.getProperty("chantiertracker.backendUploadsDir")?.let { dir -> java.io.File(dir).walkTopDown().filter { it.isFile }.map { it.relativeTo(java.io.File(dir)).path }.toSet() }
+
+    @Test
+    fun d_twenty_five_photos_added_at_once_all_reach_the_server_within_the_upload_quota_without_loss_or_duplicate() = runScenario {
+        val phone = device()
+        phone.signedInAs("qa-d-photos", "QA D Photos")
+        val projectId = phone.newProject("QA D 25 photos")
+        val stageId = phone.newStage(projectId, "Charpente")
+        val entry = phone.logs.createPurchaseEntry(stageId, todayInParis()).entryLocalId
+        assertEquals(SyncOutcome.Synced, phone.sync.syncNow())
+        val uploadsBefore = filesInTheBackendUploads()
+        var uploads = 0
+        var rateLimited = 0
+        var readsAfterARateLimit = 0
+        phone.client.plugin(io.ktor.client.plugins.HttpSend).intercept { request ->
+            val isAnUpload = request.method.value == "POST" && request.url.buildString().endsWith("/attachments")
+            val call = execute(request)
+            if (isAnUpload) {
+                uploads++
+                if (call.response.status == io.ktor.http.HttpStatusCode.TooManyRequests) rateLimited++
+            } else if (rateLimited > 0 && request.method.value == "GET") {
+                readsAfterARateLimit++
+            }
+            call
+        }
+
+        phone.goOffline()
+        val jpeg = aSmallJpeg()
+        val photos = (1..25).map { phone.attachments.addAttachment(entry, jpeg, "qa-d-photo-${it.toString().padStart(2, '0')}.jpg", "image/jpeg").localId }
+        phone.waitForTheRunningSyncPass()
+        phone.goOnline()
+        suspend fun sent() = photos.count { phone.db.attachmentDao().findByLocalId(it)?.syncStatus == SyncStatus.SYNCED }
+
+        val firstPass = phone.sync.syncNow()
+        phone.waitForTheRunningSyncPass()
+        val sentByTheFirstPasses = sent()
+        println("D tranche 1 — 25 photos, après la première passe : $firstPass, envoyées=$sentByTheFirstPasses, POST=$uploads, 429=$rateLimited, lectures après le 429=$readsAfterARateLimit")
+        assertEquals(SyncOutcome.Synced, firstPass, "le 429 ne fait pas échouer la passe")
+        assertEquals(20, sentByTheFirstPasses, "le quota du serveur : 20 envois de fichiers par minute")
+        assertTrue(rateLimited >= 1, "le serveur a répondu 429 au moins une fois")
+        assertTrue(readsAfterARateLimit > 0, "le pull se fait pendant que les fichiers attendent")
+        assertTrue(phone.syncIssues.observeIssues().first().isEmpty(), "un 429 n'est pas un refus : rien à revoir")
+
+        var passes = 0
+        while (sent() < photos.size && passes < 60) {
+            kotlinx.coroutines.delay(1_000)
+            phone.sync.syncNow()
+            passes++
+        }
+
+        val onServer = phone.attachmentApi.list(phone.db.dailyEntryDao().findByLocalId(entry)!!.serverId!!, 0, 100).content
+        val added = uploadsBefore?.let { before -> (filesInTheBackendUploads()!! - before).sorted() }
+        println("D tranche 1 — 25 photos, à la fin : envoyées=${sent()}, POST=$uploads, 429=$rateLimited, passes d'attente=$passes, sur le serveur=${onServer.size}")
+        added?.let { files -> println("D tranche 1 — fichiers ajoutés dans uploads (${files.size}) :\n" + files.joinToString("\n")) }
+        assertEquals(25, sent(), "tout est parti")
+        assertEquals(25, onServer.size, "rien de perdu, rien en double sur le serveur")
+        assertEquals(photos.indices.map { "qa-d-photo-${(it + 1).toString().padStart(2, '0')}.jpg" }, onServer.mapNotNull { it.originalName }.sorted())
+        assertEquals(25 + rateLimited, uploads, "un envoi par fichier, plus un par 429 reçu")
+        if (added != null) assertEquals(25, added.size, "25 fichiers de plus dans le dossier uploads du backend, pas un de plus")
+        assertTrue(phone.syncIssues.observeIssues().first().isEmpty())
+    }
+
+    @Test
+    fun d_a_photo_the_server_stored_but_whose_answer_was_lost_is_recognised_and_not_stored_twice() = runScenario {
+        val phone = device()
+        phone.signedInAs("qa-d-lost", "QA D Réponse perdue")
+        val projectId = phone.newProject("QA D réponse perdue")
+        val stageId = phone.newStage(projectId, "Charpente")
+        val created = phone.logs.createPurchaseEntry(stageId, todayInParis())
+        assertEquals(SyncOutcome.Synced, phone.sync.syncNow())
+        val uploadsBefore = filesInTheBackendUploads()
+        var uploads = 0
+        phone.client.plugin(io.ktor.client.plugins.HttpSend).intercept { request ->
+            val isAnUpload = request.method.value == "POST" && request.url.buildString().endsWith("/attachments")
+            val call = execute(request)
+            if (isAnUpload && uploads++ == 0) throw java.io.IOException("réponse perdue après l'enregistrement par le serveur")
+            call
+        }
+
+        phone.goOffline()
+        val photo = phone.attachments.addAttachment(created.entryLocalId, aSmallJpeg(), "qa-d-bon.jpg", "image/jpeg").localId
+        phone.waitForTheRunningSyncPass()
+        phone.goOnline()
+        val pass = phone.sync.syncNow()
+        phone.waitForTheRunningSyncPass()
+
+        val waiting = phone.db.attachmentDao().findByLocalId(photo)!!
+        val entryServerId = phone.db.dailyEntryDao().findByLocalId(created.entryLocalId)!!.serverId!!
+        println("D tranche 1 — réponse perdue : passe=$pass, ligne=${waiting.syncStatus}/${waiting.lastSyncError}, sur le serveur=${phone.attachmentApi.list(entryServerId, 0, 100).content.size}")
+        assertEquals(SyncOutcome.Synced, pass, "une coupure sur un fichier ne fait pas échouer la passe")
+        assertEquals(listOf<Any?>(SyncStatus.PENDING, null, null), listOf(waiting.syncStatus, waiting.lastSyncError, waiting.serverErrorCode), "pas de refus écrit")
+        assertTrue(phone.syncIssues.observeIssues().first().isEmpty(), "rien à revoir")
+
+        repeat(2) { phone.sync.syncNow() }
+        assertEquals(SyncOutcome.Synced, phone.sync.syncLog(created.dailyLogLocalId))
+
+        val rows = phone.db.attachmentDao().findForEntry(created.entryLocalId)
+        val onServer = phone.attachmentApi.list(entryServerId, 0, 100).content
+        val added = uploadsBefore?.let { before -> (filesInTheBackendUploads()!! - before).sorted() }
+        println("D tranche 1 — réponse perdue, après l'ouverture de la journée : envois=$uploads, lignes locales=${rows.size}, sur le serveur=${onServer.size}, fichiers ajoutés=${added?.size}")
+        assertEquals(1, uploads, "le fichier n'est pas envoyé une seconde fois")
+        assertEquals(1, onServer.size, "un seul exemplaire sur le serveur")
+        assertEquals(listOf<Any?>(photo, SyncStatus.SYNCED, onServer.single().id), rows.single().let { listOf(it.localId, it.syncStatus, it.serverId) }, "la ligne de l'appareil est reconnue, sans doublon local")
+        if (added != null) assertEquals(1, added.size)
+    }
+
     @Test
     fun adr74_an_entry_refused_for_a_past_day_offers_no_retry_and_leaves_with_discard() = runScenario {
         val ownerPhone = device()

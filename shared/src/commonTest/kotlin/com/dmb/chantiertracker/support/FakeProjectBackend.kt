@@ -198,6 +198,11 @@ class FakeProjectBackend {
     var beforeHandle: (suspend (HttpRequestData) -> Unit)? = null
     var refuseOnce: ((HttpRequestData) -> Boolean)? = null
     var refuseWith: ((HttpRequestData) -> ServerRefusal?)? = null
+    var uploadsLeftBeforeRateLimit: Int? = null
+    var rateLimitRetryAfterSeconds: Int? = 3
+    var rateLimitedUploads = 0
+    var cutTheNetworkFor: ((HttpRequestData) -> Boolean)? = null
+    var loseTheAnswerOf: ((HttpRequestData) -> Boolean)? = null
 
     fun seed(project: ServerProject) = project.also { projects += it }
 
@@ -229,6 +234,13 @@ class FakeProjectBackend {
     private suspend fun MockRequestHandleScope.handle(request: HttpRequestData): HttpResponseData {
         val path = request.url.encodedPath.removePrefix("/api/v1")
         receivedMethods += "${request.method.value} $path"
+        if (cutTheNetworkFor?.invoke(request) == true) throw kotlinx.io.IOException("network cut")
+        val answer = answer(request, path)
+        if (loseTheAnswerOf?.invoke(request) == true) throw kotlinx.io.IOException("answer lost")
+        return answer
+    }
+
+    private suspend fun MockRequestHandleScope.answer(request: HttpRequestData, path: String): HttpResponseData {
         receivedAuthorizations += "${request.method.value} $path" to request.headers[io.ktor.http.HttpHeaders.Authorization]
         beforeHandle?.invoke(request)
         refuseWith?.invoke(request)?.let { refusal ->
@@ -462,7 +474,19 @@ class FakeProjectBackend {
 
             request.method == HttpMethod.Post && attachmentsEntryId != null -> {
                 attachmentUploadRejection?.let { (status, detail) -> return respondProblem(status, detail, code = attachmentUploadRejectionCode) }
-                val isVideo = request.body.toByteArray().decodeToString().contains("Content-Type: video/")
+                uploadsLeftBeforeRateLimit?.let { left ->
+                    if (left <= 0) {
+                        rateLimitedUploads++
+                        return respondProblem(
+                            HttpStatusCode.TooManyRequests, "Trop de requêtes. Réessayez plus tard.", code = "RATE_LIMITED",
+                            extraHeaders = rateLimitRetryAfterSeconds?.let { mapOf(HttpHeaders.RetryAfter to it.toString()) }.orEmpty(),
+                        )
+                    }
+                    uploadsLeftBeforeRateLimit = left - 1
+                }
+                val body = request.body.toByteArray().decodeToString()
+                val isVideo = body.contains("Content-Type: video/")
+                val fileName = Regex("filename=\"?([^\";\r\n]+)").find(body)?.groupValues?.get(1) ?: "photo.jpg"
                 val created = if (isVideo) {
                     // Mirrors the backend: the raw upload is transcoded to a small MP4.
                     ServerAttachment(
@@ -471,7 +495,7 @@ class FakeProjectBackend {
                         bytes = byteArrayOf(9, 9, 9), durationSeconds = attachmentUploadDurationSeconds,
                     )
                 } else {
-                    ServerAttachment(nextAttachmentId++, attachmentsEntryId)
+                    ServerAttachment(nextAttachmentId++, attachmentsEntryId, originalName = fileName)
                 }
                 attachments += created
                 respondJson(attachmentJson(created), HttpStatusCode.Created)

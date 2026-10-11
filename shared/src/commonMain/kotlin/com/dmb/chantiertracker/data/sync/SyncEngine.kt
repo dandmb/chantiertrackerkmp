@@ -58,6 +58,7 @@ import com.dmb.chantiertracker.presentation.sync.SyncState
 import com.dmb.chantiertracker.presentation.sync.SyncStateHolder
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
@@ -69,6 +70,7 @@ import kotlinx.io.Buffer
 import kotlinx.io.write
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
+import kotlin.time.Duration.Companion.seconds
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
@@ -155,13 +157,16 @@ class SyncEngine(
     private val refusedCreations = SendNotBefore<RefusedCreation>(clock)
     private var aPullReleasedARefusedCreation = false
     private var planSeenWhileAProjectWaitsForIt: PlanSeen? = null
+    private val uploadWaits = SendNotBefore<UploadWait>(clock)
+    private var refusalStatus: Int? = null
+    private var passWhenTheUploadQuotaReturns: Job? = null
 
     fun start() {
         if (started) return
         started = true
         scope.launch {
             connectivity.online.collect { online ->
-                if (online) syncNow() else syncState.update(SyncState.Offline)
+                if (online) syncNowThatTheNetworkIsBack() else syncState.update(SyncState.Offline)
             }
         }
         scope.launch {
@@ -187,6 +192,11 @@ class SyncEngine(
         runSync()
     }
 
+    private suspend fun syncNowThatTheNetworkIsBack(): SyncOutcome = onePass {
+        uploadWaits.sendAtNextPass { it == UploadWait.NO_ANSWER }
+        runSync()
+    }
+
     override suspend fun syncProject(localId: String): SyncOutcome = onePass { runProjectSync(localId) }
 
     override suspend fun syncStage(stageLocalId: String): SyncOutcome = onePass { runStageSync(stageLocalId) }
@@ -196,7 +206,18 @@ class SyncEngine(
     private suspend fun onePass(pass: suspend () -> SyncOutcome): SyncOutcome = mutex.withLock {
         stocksReadIncompletelyThisPass.clear()
         aPullReleasedARefusedCreation = false
-        pass()
+        pass().also { passAgainWhenTheUploadQuotaReturns() }
+    }
+
+    private fun passAgainWhenTheUploadQuotaReturns() {
+        if (!started) return
+        val wait = (uploadWaits.notBefore(UPLOAD_QUOTA) ?: return) - clock.nowEpochMillis()
+        if (wait <= 0) return
+        passWhenTheUploadQuotaReturns?.cancel()
+        passWhenTheUploadQuotaReturns = scope.launch {
+            delay(wait)
+            syncNow()
+        }
     }
 
     override suspend fun <T> runExclusive(block: suspend () -> T): T = mutex.withLock { block() }
@@ -284,9 +305,11 @@ class SyncEngine(
         dao: LocalChangesDao<E>,
         pending: List<E>,
         placeOf: suspend (E) -> PlaceOfARow,
+        mayLeave: (E) -> Boolean = { true },
         push: suspend (E) -> Unit,
     ) where E : SyncedRow, E : LocallyVersioned<E> {
         for (row in pending) {
+            if (!mayLeave(row)) continue
             val key = sendKey(target, row.localId)
             val issue = row.syncIssue()
             when {
@@ -300,7 +323,7 @@ class SyncEngine(
             if (after == null || refusedFor == null) {
                 refusedCreations.forget(key)
             } else {
-                refusedCreations.waitLonger(key, REFUSED_CREATION_SPACING, RefusedCreation(refusedFor, placeOf(after)))
+                refusedCreations.waitLonger(key, REFUSED_CREATION_SPACING, RefusedCreation(refusedFor, placeOf(after), target))
             }
         }
     }
@@ -328,6 +351,17 @@ class SyncEngine(
     private fun aRoleCanLiftOn(projectLocalId: String): (RefusedCreation) -> Boolean =
         { (it.reason == RefusalReason.INSUFFICIENT_ROLE || it.reason == RefusalReason.PROJECT_OR_STAGE_INACTIVE) && it.place.projectLocalId == projectLocalId }
 
+    private val aProjectOverThePlanLimit: (RefusedCreation) -> Boolean =
+        { it.reason == RefusalReason.PLAN_LIMIT && it.target == SyncIssueTarget.PROJECT }
+
+    private fun aPullShowsThePlanOfTheOwner(projectLocalId: String, before: ProjectEntity, now: ProjectEntity) {
+        if (before.ownerEntitlements() == now.ownerEntitlements()) return
+        aPullShowsAChangeFor { it.reason == RefusalReason.PLAN_LIMIT && it.target != SyncIssueTarget.PROJECT && it.place.projectLocalId == projectLocalId }
+    }
+
+    private fun ProjectEntity.ownerEntitlements(): List<Any?> =
+        listOf(ownerPlan, ownerIsFounder, ownerCanExportPdf, ownerMaxHistoryDays, ownerMaxVideos, ownerMaxVideoDurationSeconds, ownerMaxSupervisorsPerProject)
+
     private fun waitsForStockOf(materialServerId: Long): (RefusedCreation) -> Boolean =
         { it.reason == RefusalReason.INSUFFICIENT_STOCK && it.place.materialServerId == materialServerId }
 
@@ -339,7 +373,7 @@ class SyncEngine(
     }
 
     private suspend fun readThePlanWhileAProjectWaitsForIt() {
-        if (!refusedCreations.isWaiting { it.reason == RefusalReason.PLAN_LIMIT }) {
+        if (!refusedCreations.isWaiting(aProjectOverThePlanLimit)) {
             planSeenWhileAProjectWaitsForIt = null
             return
         }
@@ -353,7 +387,7 @@ class SyncEngine(
         val seen = PlanSeen(usage.plan, usage.isFounder, usage.projectsLimit, usage.projectsUsed)
         val before = planSeenWhileAProjectWaitsForIt
         planSeenWhileAProjectWaitsForIt = seen
-        if (before != null && before != seen) aPullShowsAChangeFor { it.reason == RefusalReason.PLAN_LIMIT }
+        if (before != null && before != seen) aPullShowsAChangeFor(aProjectOverThePlanLimit)
     }
 
     private fun SyncedRow.holdsARefusedUpdate(): Boolean =
@@ -468,7 +502,9 @@ class SyncEngine(
         val local = dao.findByLocalId(localId)
         if (local != null && local.pendingOp == PendingOp.NONE) {
             aPullShowsAStatusOfProject(localId, before = local.status, now = detail.status)
-            dao.writeIfUnchanged(detail.toSyncedEntity(localId = localId, syncedAt = clock.nowEpochMillis(), previous = local))
+            val read = detail.toSyncedEntity(localId = localId, syncedAt = clock.nowEpochMillis(), previous = local)
+            aPullShowsThePlanOfTheOwner(localId, before = local, now = read)
+            dao.writeIfUnchanged(read)
         }
         pullMembers(serverId, localId)
         pullInvitations(serverId, localId)
@@ -686,7 +722,10 @@ class SyncEngine(
                 PendingOp.NONE -> Unit
             }
         }
-        for (attachment in attachmentDao.findPending()) {
+        sendWhatIsDue(
+            SyncIssueTarget.ATTACHMENT, attachmentDao, attachmentDao.findPending(), placeOf = { placeOfAnEntry(it.entryLocalId) },
+            mayLeave = { it.pendingOp != PendingOp.CREATE || uploadMayLeave(it) },
+        ) { attachment ->
             when (attachment.pendingOp) {
                 PendingOp.CREATE -> pushAttachmentCreate(attachment)
                 PendingOp.DELETE -> pushAttachmentDelete(attachment)
@@ -701,7 +740,26 @@ class SyncEngine(
     // stock (both 409), and entry-type / attachment-type mismatch (400).
     private suspend fun <T> serverCall(block: suspend () -> T): T {
         refusalCode = null
-        return apiCallReportingRefusalCode({ refusalCode = it }, block)
+        refusalStatus = null
+        return apiCallReportingRefusalCode({ refusalCode = it }, { refusalStatus = it }, block)
+    }
+
+    private fun DomainException.leavesTheOutcomeUnknown(): Boolean =
+        this is DomainException.Network || (this is DomainException.Unexpected && (refusalStatus ?: SERVER_ERROR) >= SERVER_ERROR)
+
+    private fun uploadMayLeave(attachment: AttachmentEntity): Boolean =
+        uploadWaits.mayBeSentNow(UPLOAD_QUOTA) && uploadWaits.mayBeSentNow(sendKey(SyncIssueTarget.ATTACHMENT, attachment.localId))
+
+    private suspend fun recogniseAnUploadWithoutAnswer(attachment: AttachmentEntity, stored: AttachmentDto) {
+        attachmentDao.writeIfUnchanged(stored.toSyncedEntity(attachment.localId, attachment.entryLocalId, attachment.localPath, clock.nowEpochMillis(), attachment))
+        uploadWaits.forget(sendKey(SyncIssueTarget.ATTACHMENT, attachment.localId))
+    }
+
+    private suspend fun storedByAnUploadWithoutAnswer(attachment: AttachmentEntity, entryServerId: Long): AttachmentDto? {
+        if (uploadWaits.about(sendKey(SyncIssueTarget.ATTACHMENT, attachment.localId)) != UploadWait.NO_ANSWER) return null
+        val onServer = readAllPages(AttachmentDto::id) { page, size -> serverCall { attachmentApi.list(entryServerId, page, size) } }.items
+        val knownServerIds = attachmentDao.findForEntry(attachment.entryLocalId).mapNotNull { it.serverId }.toSet()
+        return onServer.firstOrNull { it.id !in knownServerIds && it.originalName == attachment.originalName }
     }
 
     private fun DomainException.isFileRefusal(): Boolean =
@@ -1116,6 +1174,9 @@ class SyncEngine(
 
     private suspend fun pushAttachmentCreate(attachment: AttachmentEntity) {
         val entryServerId = dailyEntryDao.findByLocalId(attachment.entryLocalId)?.serverId ?: return
+        val key = sendKey(SyncIssueTarget.ATTACHMENT, attachment.localId)
+        storedByAnUploadWithoutAnswer(attachment, entryServerId)?.let { return recogniseAnUploadWithoutAnswer(attachment, it) }
+        uploadWaits.forget(UPLOAD_QUOTA)
         val bytes = try {
             attachmentFileStore.readBytes(attachment.localPath)
         } catch (e: CancellationException) {
@@ -1138,7 +1199,17 @@ class SyncEngine(
         } catch (e: DomainException.NotFound) {
             attachmentDao.writeIfUnchanged(attachment.copy(syncStatus = SyncStatus.CONFLICTED, lastSyncError = SyncError.DELETED_ON_SERVER))
             return
+        } catch (e: DomainException.RateLimited) {
+            val wait = e.retryAfterSeconds?.seconds ?: RATE_LIMIT_WAIT_WITHOUT_RETRY_AFTER
+            uploadWaits.waitAtLeast(key, wait, uploadWaits.about(key) ?: UploadWait.QUOTA)
+            uploadWaits.waitAtLeast(UPLOAD_QUOTA, wait, UploadWait.QUOTA)
+            return
         } catch (e: DomainException) {
+            if (e.leavesTheOutcomeUnknown()) {
+                uploadWaits.waitLonger(key, UPLOAD_WITHOUT_ANSWER_SPACING, UploadWait.NO_ANSWER)
+                return
+            }
+            uploadWaits.forget(key)
             if (e.isFileRefusal()) {
                 attachmentDao.writeIfUnchanged(
                     attachment.copy(
@@ -1155,6 +1226,7 @@ class SyncEngine(
             }
             throw e
         }
+        uploadWaits.forget(key)
         val synced = dto.toSyncedEntity(attachment.localId, attachment.entryLocalId, attachment.localPath, clock.nowEpochMillis(), attachment)
         attachmentDao.storeCreated(synced, removeFromServer = { attachmentApi.delete(dto.id) }) { edited -> edited.copy(serverId = synced.serverId) }
     }
@@ -1399,6 +1471,13 @@ class SyncEngine(
 
         for (dto in remote) {
             if (dto.id in knownServerIds) continue
+            val uploadedFromHere = locals.firstOrNull {
+                it.serverId == null && it.originalName == dto.originalName && uploadWaits.about(sendKey(SyncIssueTarget.ATTACHMENT, it.localId)) == UploadWait.NO_ANSWER
+            }?.let { attachmentDao.findByLocalId(it.localId) }
+            if (uploadedFromHere != null) {
+                recogniseAnUploadWithoutAnswer(uploadedFromHere, dto)
+                continue
+            }
             // A photo or video that first appeared on the server (web, another
             // device) — download it once and keep a local copy, same as one
             // added here. Videos are already transcoded server-side (ADR-35).
@@ -1594,7 +1673,12 @@ private fun sendKey(target: SyncIssueTarget, localId: String): String = "$target
 
 private data class PlaceOfARow(val projectLocalId: String?, val stageLocalId: String? = null, val materialServerId: Long? = null)
 
-private data class RefusedCreation(val reason: RefusalReason, val place: PlaceOfARow)
+private data class RefusedCreation(val reason: RefusalReason, val place: PlaceOfARow, val target: SyncIssueTarget)
+
+private enum class UploadWait { QUOTA, NO_ANSWER }
+
+private const val UPLOAD_QUOTA = "QUOTA:uploads"
+private const val SERVER_ERROR = 500
 
 private data class PlanSeen(val plan: String, val isFounder: Boolean, val projectsLimit: Int?, val projectsUsed: Long)
 

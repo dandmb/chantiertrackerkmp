@@ -22,6 +22,7 @@ import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.minutes
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -3019,7 +3020,7 @@ class SyncEngineTest {
     }
 
     @Test
-    fun a_server_error_on_an_upload_is_not_a_file_refusal_and_is_tried_again() = runTest {
+    fun a_server_error_on_an_upload_is_not_a_refusal_and_is_tried_again_later() = runTest {
         val f = stockFixture()
         f.siteWithCement(serverPurchase = null)
         val path = f.fileStore.save(ByteArray(8), "photo.jpg")
@@ -3027,10 +3028,81 @@ class SyncEngineTest {
         f.backend.attachmentUploadRejection = io.ktor.http.HttpStatusCode.InternalServerError to "Erreur."
         val engine = f.engine(backgroundScope)
 
-        engine.syncNow()
-        engine.syncNow()
+        assertIs<SyncOutcome.Synced>(engine.syncNow())
+        assertIs<SyncOutcome.Synced>(engine.syncNow())
 
-        assertEquals(2, f.sent("POST", "/entries/900/attachments"))
+        assertEquals(1, f.sent("POST", "/entries/900/attachments"), "not uploaded again by the pass that follows")
+        val photo = f.attachmentDao.findByLocalId("a1")!!
+        assertEquals(listOf<Any?>(SyncStatus.PENDING, null, null), listOf(photo.syncStatus, photo.lastSyncError, photo.serverErrorCode))
+        f.clock.advanceBy(15 * 60_000)
+        engine.syncNow()
+        assertEquals(2, f.sent("POST", "/entries/900/attachments"), "tried again fifteen minutes later")
+    }
+
+    @Test
+    fun a_started_engine_plans_a_pass_for_the_time_the_upload_quota_returns() = runTest {
+        val f = stockFixture()
+        f.siteWithCement(serverPurchase = null)
+        f.attachmentDao.upsert(com.dmb.chantiertracker.support.localAttachment("a1", entryLocalId = "e900", localPath = f.fileStore.save(ByteArray(8), "a1.jpg")))
+        f.backend.uploadsLeftBeforeRateLimit = 0
+        f.backend.rateLimitRetryAfterSeconds = 3
+        val engine = f.engine(backgroundScope, catchUpInterval = 24.hours)
+        engine.syncNow()
+        f.connectivity.setOnline(false)
+        engine.start()
+        runCurrent()
+        engine.syncNow()
+        val passesSoFar = f.connectivity.isOnlineChecks
+
+        advanceTimeBy(2_900)
+        runCurrent()
+        assertEquals(0, f.connectivity.isOnlineChecks - passesSoFar, "no pass before the time the server gave")
+        advanceTimeBy(200)
+        runCurrent()
+
+        assertEquals(1, f.connectivity.isOnlineChecks - passesSoFar, "nobody asked for this pass: the engine planned it")
+    }
+
+    @Test
+    fun an_engine_that_was_not_started_plans_no_pass_of_its_own() = runTest {
+        val f = stockFixture()
+        f.siteWithCement(serverPurchase = null)
+        f.attachmentDao.upsert(com.dmb.chantiertracker.support.localAttachment("a1", entryLocalId = "e900", localPath = f.fileStore.save(ByteArray(8), "a1.jpg")))
+        f.backend.uploadsLeftBeforeRateLimit = 0
+        f.backend.rateLimitRetryAfterSeconds = 3
+        val engine = f.engine(backgroundScope, catchUpInterval = 24.hours)
+        engine.syncNow()
+        f.connectivity.setOnline(false)
+        engine.syncNow()
+        val passesSoFar = f.connectivity.isOnlineChecks
+
+        advanceTimeBy(60_000)
+        runCurrent()
+
+        assertEquals(0, f.connectivity.isOnlineChecks - passesSoFar)
+    }
+
+    @Test
+    fun the_network_coming_back_sends_the_uploads_that_got_no_answer_without_waiting_for_their_time() = runTest {
+        val f = stockFixture()
+        f.siteWithCement(serverPurchase = null)
+        f.attachmentDao.upsert(com.dmb.chantiertracker.support.localAttachment("a1", entryLocalId = "e900", localPath = f.fileStore.save(ByteArray(8), "a1.jpg")))
+        f.backend.cutTheNetworkFor = { it.method.value == "POST" }
+        val engine = f.engine(backgroundScope, catchUpInterval = 24.hours)
+        engine.start()
+        runCurrent()
+        engine.runExclusive { }
+        assertEquals(1, f.sent("POST", "/entries/900/attachments"), "no answer: the file waits fifteen minutes")
+
+        f.connectivity.setOnline(false)
+        runCurrent()
+        f.backend.cutTheNetworkFor = null
+        f.connectivity.setOnline(true)
+        runCurrent()
+        engine.runExclusive { }
+
+        assertEquals(2, f.sent("POST", "/entries/900/attachments"), "the network is back: sent at once")
+        assertEquals(SyncStatus.SYNCED, f.attachmentDao.findByLocalId("a1")!!.syncStatus)
     }
 
     @Test
