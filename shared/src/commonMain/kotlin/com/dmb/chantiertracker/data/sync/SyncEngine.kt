@@ -59,15 +59,20 @@ import com.dmb.chantiertracker.presentation.sync.SyncStateHolder
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import com.dmb.chantiertracker.data.local.db.AwaitedServerVersions
-import kotlinx.io.Buffer
-import kotlinx.io.write
+import kotlinx.io.buffered
+import kotlin.concurrent.Volatile
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
@@ -83,7 +88,9 @@ sealed interface SyncOutcome {
 /** What repositories need from the sync layer: nudge it after a local write, or await a pass. */
 interface Syncer {
     fun requestSync()
+    val uploadProgress: StateFlow<Map<String, Float>>
     suspend fun syncNow(): SyncOutcome
+    suspend fun syncNowAtTheUsersRequest(): SyncOutcome
     suspend fun syncNowSendingAgain(target: SyncIssueTarget, localId: String): SyncOutcome
     suspend fun syncProject(localId: String): SyncOutcome
     suspend fun syncStage(stageLocalId: String): SyncOutcome
@@ -160,6 +167,9 @@ class SyncEngine(
     private val sendWaits = SendNotBefore<SendWait>(clock)
     private var refusalStatus: Int? = null
     private var passWhenAQuotaReturns: Job? = null
+    @Volatile private var videosLeaving: Job? = null
+    @Volatile private var videosAreLeaving = false
+    private var videoBeingSent: String? = null
 
     fun start() {
         if (started) return
@@ -185,16 +195,33 @@ class SyncEngine(
     internal suspend fun syncNowOrDeferToOs(): SyncOutcome =
         syncNow().also { if (it != SyncOutcome.Synced) backgroundSync.requestExpeditedSync() }
 
+    private val progressOfUploads = MutableStateFlow<Map<String, Float>>(emptyMap())
+    override val uploadProgress: StateFlow<Map<String, Float>> = progressOfUploads.asStateFlow()
+
     override suspend fun syncNow(): SyncOutcome = onePass { runSync() }
+
+    override suspend fun syncNowAtTheUsersRequest(): SyncOutcome = onePass {
+        sendAgainWhatGotNoAnswer()
+        runSync()
+    }
+
+    internal suspend fun awaitVideosBeingSent() {
+        videosLeaving?.join()
+    }
 
     override suspend fun syncNowSendingAgain(target: SyncIssueTarget, localId: String): SyncOutcome = onePass {
         refusedCreations.sendAtNextPass(sendKey(target, localId))
+        sendAgainWhatGotNoAnswer()
         runSync()
     }
 
     private suspend fun syncNowThatTheNetworkIsBack(): SyncOutcome = onePass {
-        sendWaits.sendAtNextPass { it == SendWait.NO_ANSWER }
+        sendAgainWhatGotNoAnswer()
         runSync()
+    }
+
+    private fun sendAgainWhatGotNoAnswer() {
+        sendWaits.sendAtNextPass { it == SendWait.NO_ANSWER }
     }
 
     override suspend fun syncProject(localId: String): SyncOutcome = onePass { runProjectSync(localId) }
@@ -206,7 +233,71 @@ class SyncEngine(
     private suspend fun onePass(pass: suspend () -> SyncOutcome): SyncOutcome = mutex.withLock {
         stocksReadIncompletelyThisPass.clear()
         aPullReleasedARefusedCreation = false
-        pass().also { passAgainWhenAQuotaReturns() }
+        pass().also { outcome ->
+            passAgainWhenAQuotaReturns()
+            if (outcome != SyncOutcome.Skipped && aVideoWaitsToBeSent()) sendVideosAside()
+        }
+    }
+
+    private suspend fun aVideoWaitsToBeSent(): Boolean =
+        try {
+            attachmentDao.findPending().any { it.pendingOp == PendingOp.CREATE && it.isAVideo() }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            false
+        }
+
+    private fun sendVideosAside() {
+        if (videosAreLeaving) return
+        videosAreLeaving = true
+        videosLeaving = scope.launch {
+            try {
+                sendVideosOneByOne()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: DomainException) {
+                Unit
+            } finally {
+                videosAreLeaving = false
+            }
+        }
+    }
+
+    private suspend fun sendVideosOneByOne() {
+        val alreadyTried = mutableSetOf<String>()
+        while (true) {
+            val upload = mutex.withLock {
+                nextVideoToSend(alreadyTried).also {
+                    videoBeingSent = it?.attachment?.localId
+                    if (it == null) videosAreLeaving = false
+                }
+            } ?: return
+            val answer = transfer(upload)
+            mutex.withLock {
+                videoBeingSent = null
+                afterSending(SyncIssueTarget.ATTACHMENT, attachmentDao, upload.attachment, { placeOfAnEntry(it.entryLocalId) }, failureOf { settle(upload, answer) })
+                passAgainWhenAQuotaReturns()
+            }
+        }
+    }
+
+    private suspend fun nextVideoToSend(alreadyTried: MutableSet<String>): Upload? {
+        for (video in attachmentDao.findPending()) {
+            if (video.pendingOp != PendingOp.CREATE || !video.isAVideo() || !alreadyTried.add(video.localId)) continue
+            if (!uploadMayLeave() || !isDue(SyncIssueTarget.ATTACHMENT, video)) continue
+            val upload = try {
+                uploadToMake(video)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: DomainException) {
+                afterSending(SyncIssueTarget.ATTACHMENT, attachmentDao, video, { placeOfAnEntry(it.entryLocalId) }, e)
+                continue
+            }
+            if (upload != null) return upload
+            afterSending(SyncIssueTarget.ATTACHMENT, attachmentDao, video, { placeOfAnEntry(it.entryLocalId) }, null)
+        }
+        return null
     }
 
     private fun passAgainWhenAQuotaReturns() {
@@ -220,7 +311,11 @@ class SyncEngine(
         }
     }
 
-    override suspend fun <T> runExclusive(block: suspend () -> T): T = mutex.withLock { block() }
+    override suspend fun <T> runExclusive(block: suspend () -> T): T = mutex.withLock {
+        videosLeaving?.cancelAndJoin()
+        videoBeingSent = null
+        block()
+    }
 
     override suspend fun restoreServerVersion(target: SyncIssueTarget, localId: String): SyncOutcome = mutex.withLock {
         if (!connectivity.isOnline()) return@withLock SyncOutcome.Skipped
@@ -309,38 +404,60 @@ class SyncEngine(
         push: suspend (E) -> Unit,
     ) where E : SyncedRow, E : LocallyVersioned<E> {
         for (row in pending) {
-            if (!mayLeave(row)) continue
-            val key = sendKey(target, row.localId)
-            if (!sendWaits.mayBeSentNow(key)) continue
-            val issue = row.syncIssue()
-            when {
-                issue?.waitsForACorrection == true -> continue
-                issue?.isACreationThatCanLeaveWithoutACorrection != true -> refusedCreations.forget(key)
-                !refusedCreations.mayBeSentNow(key) -> continue
-            }
-            try {
-                push(row)
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: DomainException) {
-                if (!waitsAfter(e, key)) throw e
-                continue
-            }
-            if (sendWaits.mayBeSentNow(key)) sendWaits.forget(key)
-            val after = dao.findByLocalId(row.localId)
-            val refusedFor = after?.syncIssue()?.takeIf { it.isACreationThatCanLeaveWithoutACorrection }?.reason
-            if (after == null || refusedFor == null) {
-                refusedCreations.forget(key)
-            } else {
-                refusedCreations.waitLonger(key, REFUSED_CREATION_SPACING, RefusedCreation(refusedFor, placeOf(after), target))
-            }
+            if (!mayLeave(row) || !isDue(target, row)) continue
+            afterSending(target, dao, row, placeOf, failureOf { push(row) })
+        }
+    }
+
+    private fun <E> isDue(target: SyncIssueTarget, row: E): Boolean where E : SyncedRow, E : LocallyVersioned<E> {
+        val key = sendKey(target, row.localId)
+        if (!sendWaits.mayBeSentNow(key) || !sendWaits.mayBeSentNow(quotaKey(key))) return false
+        val issue = row.syncIssue()
+        when {
+            issue?.waitsForACorrection == true -> return false
+            issue?.isACreationThatCanLeaveWithoutACorrection != true -> refusedCreations.forget(key)
+            !refusedCreations.mayBeSentNow(key) -> return false
+        }
+        return true
+    }
+
+    private suspend fun failureOf(send: suspend () -> Unit): DomainException? =
+        try {
+            send()
+            null
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: DomainException) {
+            e
+        }
+
+    private suspend fun <E> afterSending(
+        target: SyncIssueTarget,
+        dao: LocalChangesDao<E>,
+        row: E,
+        placeOf: suspend (E) -> PlaceOfARow,
+        failure: DomainException?,
+    ) where E : SyncedRow, E : LocallyVersioned<E> {
+        val key = sendKey(target, row.localId)
+        if (failure != null) {
+            if (!waitsAfter(failure, key)) throw failure
+            return
+        }
+        sendWaits.forget(key)
+        sendWaits.forget(quotaKey(key))
+        val after = dao.findByLocalId(row.localId)
+        val refusedFor = after?.syncIssue()?.takeIf { it.isACreationThatCanLeaveWithoutACorrection }?.reason
+        if (after == null || refusedFor == null) {
+            refusedCreations.forget(key)
+        } else {
+            refusedCreations.waitLonger(key, REFUSED_CREATION_SPACING, RefusedCreation(refusedFor, placeOf(after), target))
         }
     }
 
     private fun waitsAfter(failure: DomainException, key: String): Boolean {
         when {
             failure is DomainException.RateLimited ->
-                sendWaits.waitAtLeast(key, failure.retryAfterSeconds?.seconds ?: RATE_LIMIT_WAIT_WITHOUT_RETRY_AFTER, sendWaits.about(key) ?: SendWait.QUOTA)
+                sendWaits.waitAtLeast(quotaKey(key), failure.retryAfterSeconds?.seconds ?: RATE_LIMIT_WAIT_WITHOUT_RETRY_AFTER, SendWait.QUOTA)
             failure.leavesTheOutcomeUnknown() -> sendWaits.waitLonger(key, SEND_WITHOUT_ANSWER_SPACING, SendWait.NO_ANSWER)
             else -> return false
         }
@@ -743,7 +860,7 @@ class SyncEngine(
         }
         sendWhatIsDue(
             SyncIssueTarget.ATTACHMENT, attachmentDao, attachmentDao.findPending(), placeOf = { placeOfAnEntry(it.entryLocalId) },
-            mayLeave = { it.pendingOp != PendingOp.CREATE || uploadMayLeave(it) },
+            mayLeave = { it.pendingOp != PendingOp.CREATE || (!it.isAVideo() && uploadMayLeave()) },
         ) { attachment ->
             when (attachment.pendingOp) {
                 PendingOp.CREATE -> pushAttachmentCreate(attachment)
@@ -766,12 +883,30 @@ class SyncEngine(
     private fun DomainException.leavesTheOutcomeUnknown(): Boolean =
         this is DomainException.Network || (this is DomainException.Unexpected && (refusalStatus ?: SERVER_ERROR) >= SERVER_ERROR)
 
-    private fun uploadMayLeave(attachment: AttachmentEntity): Boolean =
-        sendWaits.mayBeSentNow(UPLOAD_QUOTA) && sendWaits.mayBeSentNow(sendKey(SyncIssueTarget.ATTACHMENT, attachment.localId))
+    private fun uploadMayLeave(): Boolean = sendWaits.mayBeSentNow(UPLOAD_QUOTA)
+
+    private fun AttachmentEntity.isAVideo(): Boolean = mimeType.startsWith("video/")
 
     private suspend fun recogniseAnUploadWithoutAnswer(attachment: AttachmentEntity, stored: AttachmentDto) {
-        attachmentDao.writeIfUnchanged(stored.toSyncedEntity(attachment.localId, attachment.entryLocalId, attachment.localPath, clock.nowEpochMillis(), attachment))
+        keepWhatTheServerMade(attachment, stored, if (attachment.isAVideo()) whatTheServerMadeOf(stored) else null) { attachmentDao.writeIfUnchanged(it) }
         sendWaits.forget(sendKey(SyncIssueTarget.ATTACHMENT, attachment.localId))
+    }
+
+    private suspend fun whatTheServerMadeOf(stored: AttachmentDto): ByteArray? =
+        try {
+            apiCallReportingRefusalCode({}) { attachmentApi.download(stored.id) }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: DomainException) {
+            null
+        }
+
+    private suspend fun keepWhatTheServerMade(attachment: AttachmentEntity, stored: AttachmentDto, madeByTheServer: ByteArray?, store: suspend (AttachmentEntity) -> Unit) {
+        val path = madeByTheServer?.let { attachmentFileStore.save(it, stored.originalName ?: attachment.originalName) } ?: attachment.localPath
+        store(stored.toSyncedEntity(attachment.localId, attachment.entryLocalId, path, clock.nowEpochMillis(), attachment))
+        if (path == attachment.localPath) return
+        val kept = attachmentDao.findByLocalId(attachment.localId)?.localPath
+        listOf(attachment.localPath, path).filter { it != kept }.forEach { attachmentFileStore.delete(it) }
     }
 
     private suspend fun storedByAnUploadWithoutAnswer(attachment: AttachmentEntity, entryServerId: Long): AttachmentDto? {
@@ -1197,62 +1332,89 @@ class SyncEngine(
     // ─── attachments (photos) ───────────────────────────────────────────────
 
     private suspend fun pushAttachmentCreate(attachment: AttachmentEntity) {
-        val entryServerId = dailyEntryDao.findByLocalId(attachment.entryLocalId)?.serverId ?: return
-        val key = sendKey(SyncIssueTarget.ATTACHMENT, attachment.localId)
-        storedByAnUploadWithoutAnswer(attachment, entryServerId)?.let { return recogniseAnUploadWithoutAnswer(attachment, it) }
+        val upload = uploadToMake(attachment) ?: return
+        settle(upload, transfer(upload))
+    }
+
+    private suspend fun uploadToMake(attachment: AttachmentEntity): Upload? {
+        val entryServerId = dailyEntryDao.findByLocalId(attachment.entryLocalId)?.serverId ?: return null
+        storedByAnUploadWithoutAnswer(attachment, entryServerId)?.let {
+            recogniseAnUploadWithoutAnswer(attachment, it)
+            return null
+        }
         sendWaits.forget(UPLOAD_QUOTA)
-        val bytes = try {
-            attachmentFileStore.readBytes(attachment.localPath)
+        val size = try {
+            attachmentFileStore.sizeOf(attachment.localPath)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Throwable) {
             // The local copy is gone — nothing left to upload.
             attachmentDao.writeIfUnchanged(attachment.copy(syncStatus = SyncStatus.CONFLICTED, lastSyncError = SyncError.FILE_REFUSED, serverErrorCode = LOCAL_FILE_MISSING_CODE))
-            return
+            return null
         }
-        val dto = try {
-            serverCall {
+        return Upload(attachment, entryServerId, size)
+    }
+
+    private suspend fun transfer(upload: Upload): UploadAnswer {
+        val attachment = upload.attachment
+        var code: String? = null
+        var status: Int? = null
+        if (attachment.isAVideo()) showProgress(attachment.localId, 0f)
+        return try {
+            val stored = apiCallReportingRefusalCode({ code = it }, { status = it }) {
                 attachmentApi.upload(
-                    entryId = entryServerId,
-                    contentLength = bytes.size.toLong(),
+                    entryId = upload.entryServerId,
+                    contentLength = upload.size,
                     fileName = attachment.originalName,
                     mimeType = attachment.mimeType,
-                    openSource = { Buffer().apply { write(bytes) } },
-                )
+                    openSource = { attachmentFileStore.source(attachment.localPath).buffered() },
+                ) { sent, total ->
+                    if (attachment.isAVideo() && total != null && total > 0) showProgress(attachment.localId, (sent.toFloat() / total).coerceIn(0f, 1f))
+                }
             }
-        } catch (e: DomainException.NotFound) {
-            attachmentDao.writeIfUnchanged(attachment.copy(syncStatus = SyncStatus.CONFLICTED, lastSyncError = SyncError.DELETED_ON_SERVER))
-            return
-        } catch (e: DomainException.RateLimited) {
-            val wait = e.retryAfterSeconds?.seconds ?: RATE_LIMIT_WAIT_WITHOUT_RETRY_AFTER
-            sendWaits.waitAtLeast(key, wait, sendWaits.about(key) ?: SendWait.QUOTA)
-            sendWaits.waitAtLeast(UPLOAD_QUOTA, wait, SendWait.QUOTA)
-            return
-        } catch (e: DomainException) {
-            if (e.leavesTheOutcomeUnknown()) {
-                sendWaits.waitLonger(key, SEND_WITHOUT_ANSWER_SPACING, SendWait.NO_ANSWER)
-                return
-            }
-            sendWaits.forget(key)
-            if (e.isFileRefusal()) {
-                attachmentDao.writeIfUnchanged(
-                    attachment.copy(
-                        syncStatus = SyncStatus.CONFLICTED,
-                        lastSyncError = SyncError.FILE_REFUSED,
-                        serverErrorCode = refusalCode ?: ATTACHMENT_TOO_LARGE_CODE,
-                    ),
-                )
-                return
-            }
-            if (e.isServerRejection() || e is DomainException.Unexpected) {
-                attachmentDao.writeIfUnchanged(attachment.copy(syncStatus = SyncStatus.CONFLICTED, lastSyncError = SyncError.REJECTED, serverErrorCode = refusalCode))
-                return
-            }
+            UploadAnswer.Stored(stored, if (attachment.isAVideo()) whatTheServerMadeOf(stored) else null)
+        } catch (e: CancellationException) {
             throw e
+        } catch (e: DomainException) {
+            UploadAnswer.Failed(e, code, status)
+        } finally {
+            progressOfUploads.update { it - attachment.localId }
         }
-        sendWaits.forget(key)
-        val synced = dto.toSyncedEntity(attachment.localId, attachment.entryLocalId, attachment.localPath, clock.nowEpochMillis(), attachment)
-        attachmentDao.storeCreated(synced, removeFromServer = { attachmentApi.delete(dto.id) }) { edited -> edited.copy(serverId = synced.serverId) }
+    }
+
+    private fun showProgress(localId: String, fraction: Float) {
+        val shown = (fraction * WHOLE_PERCENTS).toInt() / WHOLE_PERCENTS
+        if (progressOfUploads.value[localId] != shown) progressOfUploads.update { it + (localId to shown) }
+    }
+
+    private suspend fun settle(upload: Upload, answer: UploadAnswer) {
+        val attachment = upload.attachment
+        when (answer) {
+            is UploadAnswer.Stored -> keepWhatTheServerMade(attachment, answer.stored, answer.madeByTheServer) { synced ->
+                attachmentDao.storeCreated(synced, removeFromServer = { attachmentApi.delete(answer.stored.id) }) { edited -> edited.copy(serverId = synced.serverId) }
+            }
+            is UploadAnswer.Failed -> {
+                refusalCode = answer.code
+                refusalStatus = answer.status
+                val failure = answer.cause
+                when {
+                    failure is DomainException.NotFound ->
+                        attachmentDao.writeIfUnchanged(attachment.copy(syncStatus = SyncStatus.CONFLICTED, lastSyncError = SyncError.DELETED_ON_SERVER))
+                    failure is DomainException.RateLimited -> {
+                        sendWaits.waitAtLeast(UPLOAD_QUOTA, failure.retryAfterSeconds?.seconds ?: RATE_LIMIT_WAIT_WITHOUT_RETRY_AFTER, SendWait.QUOTA)
+                        throw failure
+                    }
+                    failure.leavesTheOutcomeUnknown() -> throw failure
+                    failure.isFileRefusal() ->
+                        attachmentDao.writeIfUnchanged(
+                            attachment.copy(syncStatus = SyncStatus.CONFLICTED, lastSyncError = SyncError.FILE_REFUSED, serverErrorCode = refusalCode ?: ATTACHMENT_TOO_LARGE_CODE),
+                        )
+                    failure.isServerRejection() || failure is DomainException.Unexpected ->
+                        attachmentDao.writeIfUnchanged(attachment.copy(syncStatus = SyncStatus.CONFLICTED, lastSyncError = SyncError.REJECTED, serverErrorCode = refusalCode))
+                    else -> throw failure
+                }
+            }
+        }
     }
 
     private suspend fun pushAttachmentDelete(attachment: AttachmentEntity) {
@@ -1502,6 +1664,7 @@ class SyncEngine(
                 recogniseAnUploadWithoutAnswer(uploadedFromHere, dto)
                 continue
             }
+            if (locals.any { it.localId == videoBeingSent && it.originalName == dto.originalName }) continue
             // A photo or video that first appeared on the server (web, another
             // device) — download it once and keep a local copy, same as one
             // added here. Videos are already transcoded server-side (ADR-35).
@@ -1701,6 +1864,17 @@ class SyncEngine(
 private const val STATUS_THAT_ACCEPTS_ENTRIES = "IN_PROGRESS"
 
 private fun sendKey(target: SyncIssueTarget, localId: String): String = "$target:$localId"
+
+private fun quotaKey(sendKey: String): String = "QUOTA:$sendKey"
+
+private class Upload(val attachment: AttachmentEntity, val entryServerId: Long, val size: Long)
+
+private sealed interface UploadAnswer {
+    class Stored(val stored: AttachmentDto, val madeByTheServer: ByteArray?) : UploadAnswer
+    class Failed(val cause: DomainException, val code: String?, val status: Int?) : UploadAnswer
+}
+
+private const val WHOLE_PERCENTS = 100f
 
 private data class PlaceOfARow(val projectLocalId: String?, val stageLocalId: String? = null, val materialServerId: Long? = null)
 

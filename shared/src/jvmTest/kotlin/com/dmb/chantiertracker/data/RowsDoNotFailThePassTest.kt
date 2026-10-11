@@ -538,6 +538,59 @@ class RowsDoNotFailThePassTest {
         assertEquals(0, backend.receivedMethods.count { it.startsWith("PATCH") }, "nothing was written on the server")
     }
 
+    private fun sent(request: String) = backend.receivedMethods.count { it == request }
+
+    private suspend fun aProjectWithoutAnswerAndARateLimitedStage(): Pair<String, String> {
+        val withoutAnswer = projects.createProject(CreateProjectInput("Sans réponse", null, null, "EUR", "Europe/Paris"))
+        val rateLimited = stages.createStage(CreateStageInput("p5", "Limitée", null, null, null, null))
+        backend.refuseWith = { request ->
+            when ("${request.method.value} ${request.url.encodedPath.removePrefix("/api/v1")}") {
+                "POST /projects" -> ServerRefusal(HttpStatusCode.BadGateway, null)
+                "POST /projects/5/stages" -> ServerRefusal(HttpStatusCode.TooManyRequests, "RATE_LIMITED", retryAfterSeconds = 300)
+                else -> null
+            }
+        }
+        assertEquals(SyncOutcome.Synced, engine.syncNow())
+        backend.refuseWith = null
+        threePasses()
+        assertEquals(listOf(1, 1), listOf(sent("POST /projects"), sent("POST /projects/5/stages")), "an ordinary pass leaves both waiting")
+        return withoutAnswer to rateLimited
+    }
+
+    @Test
+    fun a_refresh_asked_by_the_user_sends_at_once_the_row_that_got_no_answer_and_leaves_the_rate_limited_one_waiting() = runTest {
+        aSyncedSite()
+        val (withoutAnswer, rateLimited) = aProjectWithoutAnswerAndARateLimitedStage()
+
+        assertEquals(SyncOutcome.Synced, engine.syncNowAtTheUsersRequest())
+
+        assertEquals(listOf(2, 1), listOf(sent("POST /projects"), sent("POST /projects/5/stages")), "the breakdown may be over, the server said when the quota returns")
+        assertEquals(SyncStatus.SYNCED, db.projectDao().findByLocalId(withoutAnswer)!!.syncStatus)
+        assertEquals(waitingToBeCreated, stateOf(db.stageDao().findByLocalId(rateLimited)))
+        after(300.seconds - 1.milliseconds)
+        engine.syncNowAtTheUsersRequest()
+        assertEquals(1, sent("POST /projects/5/stages"), "a rate limited row keeps the time the server gave, whoever asks")
+        after(1.milliseconds)
+        engine.syncNow()
+        assertEquals(SyncStatus.SYNCED, db.stageDao().findByLocalId(rateLimited)!!.syncStatus)
+    }
+
+    @Test
+    fun trying_a_refused_entry_again_also_sends_the_rows_that_got_no_answer_and_leaves_the_rate_limited_one_waiting() = runTest {
+        aSyncedSite()
+        val refused = materials.createMaterial("p5", "Refusé pour le rôle", "t").localId
+        backend.refuseWith = { request -> if (request.method.value == "POST" && request.url.encodedPath.endsWith("/projects/5/materials")) ServerRefusal(HttpStatusCode.Forbidden, "PROJECT_INSUFFICIENT_ROLE") else null }
+        engine.syncNow()
+        val (withoutAnswer, rateLimited) = aProjectWithoutAnswerAndARateLimitedStage()
+        val item = whatIsToReview().single { it.key == "MATERIAL:$refused" }
+
+        issues.retry(item)
+
+        assertEquals(listOf(2, 1), listOf(sent("POST /projects"), sent("POST /projects/5/stages")))
+        assertEquals(SyncStatus.SYNCED, db.projectDao().findByLocalId(withoutAnswer)!!.syncStatus)
+        assertEquals(waitingToBeCreated, stateOf(db.stageDao().findByLocalId(rateLimited)))
+    }
+
     private companion object {
         const val FAILING_NAME = "Panne"
         const val FAILING_MONTH = "2026-11-"

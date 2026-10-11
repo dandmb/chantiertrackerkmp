@@ -2,6 +2,7 @@ package com.dmb.chantiertracker.support
 
 import com.dmb.chantiertracker.data.local.AttachmentFileStore
 import com.dmb.chantiertracker.data.local.StoredAttachmentFile
+import kotlinx.io.readByteArray
 
 class FakeAttachmentFileStore(newPath: (() -> String)? = null) : AttachmentFileStore {
 
@@ -22,8 +23,10 @@ class FakeAttachmentFileStore(newPath: (() -> String)? = null) : AttachmentFileS
         return path
     }
 
-    override suspend fun readBytes(key: String): ByteArray =
-        files[key] ?: error("No fake file at $key")
+    override suspend fun readBytes(key: String): ByteArray {
+        readBytesCount++
+        return files[key] ?: error("No fake file at $key")
+    }
 
     var failOnDelete = false
 
@@ -43,6 +46,35 @@ class FakeAttachmentFileStore(newPath: (() -> String)? = null) : AttachmentFileS
         deletedPaths += files.keys
         files.clear()
     }
+
+    val sourcesOpened = mutableListOf<String>()
+    var readBytesCount = 0
+        private set
+
+    var beforeSavingFrom: (suspend () -> Unit)? = null
+
+    override suspend fun saveFrom(source: kotlinx.io.RawSource, originalName: String): String {
+        beforeSavingFrom?.invoke()
+        val ext = originalName.substringAfterLast('.', missingDelimiterValue = "jpg")
+        val path = newPath?.invoke() ?: "fake-attachments/${nextId++}.$ext"
+        files[path] = ByteArray(0)
+        savedAt[path] = now
+        val chunk = kotlinx.io.Buffer()
+        source.use {
+            while (it.readAtMostTo(chunk, 1_024) != -1L) {
+                files[path] = files.getValue(path) + chunk.readByteArray()
+                savedAt[path] = now
+            }
+        }
+        return path
+    }
+
+    override fun source(key: String): kotlinx.io.RawSource {
+        sourcesOpened += key
+        return kotlinx.io.Buffer().apply { write(files[key] ?: error("No fake file at $key")) }
+    }
+
+    override suspend fun sizeOf(key: String): Long = (files[key] ?: error("No fake file at $key")).size.toLong()
 
     // The tests treat the key as the "path" — good enough, no real filesystem.
     override fun absolutePathOf(key: String): String = key

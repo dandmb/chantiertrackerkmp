@@ -50,6 +50,8 @@ import androidx.compose.ui.graphics.decodeToImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -100,7 +102,8 @@ import com.dmb.chantiertracker.resources.attachments_title
 import com.dmb.chantiertracker.resources.video_play
 import com.dmb.chantiertracker.resources.video_too_long_no_upgrade
 import com.dmb.chantiertracker.resources.video_too_long_upgrade
-import com.dmb.chantiertracker.resources.video_upload_in_progress
+import com.dmb.chantiertracker.resources.video_too_heavy
+import com.dmb.chantiertracker.resources.video_upload_progress
 import com.dmb.chantiertracker.resources.consumption_line_delete_confirm_body
 import com.dmb.chantiertracker.resources.consumption_line_delete_confirm_title
 import com.dmb.chantiertracker.resources.consumption_lines_empty
@@ -638,20 +641,11 @@ private fun AttachmentsSection(
             }
         }
 
-        upload?.let { up ->
-            val fraction = up.fraction?.takeIf { up.stage == AttachmentUploadUi.Stage.Uploading }
+        if (upload != null) {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                if (fraction != null) {
-                    LinearProgressIndicator(progress = { fraction }, modifier = Modifier.fillMaxWidth())
-                } else {
-                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-                }
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
                 Text(
-                    text = if (fraction != null) {
-                        "${stringResource(Res.string.video_upload_in_progress)} ${(fraction * 100).roundToInt()}%"
-                    } else {
-                        stringResource(Res.string.attachment_finalizing)
-                    },
+                    text = stringResource(Res.string.attachment_finalizing),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -666,6 +660,13 @@ private fun AttachmentsSection(
             val res = if (suggestUpgrade) Res.string.video_too_long_upgrade else Res.string.video_too_long_no_upgrade
             Text(
                 stringResource(res, tooLong.actual, tooLong.limit),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+            )
+        }
+        state.videoTooHeavy?.let { tooHeavy ->
+            Text(
+                stringResource(Res.string.video_too_heavy, tooHeavy.actualMegabytes.toInt(), tooHeavy.limitMegabytes.toInt()),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.error,
             )
@@ -802,6 +803,13 @@ private fun VideoThumbnailFace(attachment: Attachment) {
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 2.dp),
+            )
+        }
+        attachment.uploadProgress?.let { sent ->
+            val description = stringResource(Res.string.video_upload_progress, (sent * 100).roundToInt())
+            LinearProgressIndicator(
+                progress = { sent },
+                modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().semantics { contentDescription = description },
             )
         }
     }

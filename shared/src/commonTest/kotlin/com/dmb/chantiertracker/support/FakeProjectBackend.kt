@@ -203,6 +203,7 @@ class FakeProjectBackend {
     var rateLimitedUploads = 0
     var cutTheNetworkFor: ((HttpRequestData) -> Boolean)? = null
     var loseTheAnswerOf: ((HttpRequestData) -> Boolean)? = null
+    var holdTheAnswerOf: (suspend (HttpRequestData) -> Unit)? = null
 
     fun seed(project: ServerProject) = project.also { projects += it }
 
@@ -236,6 +237,7 @@ class FakeProjectBackend {
         receivedMethods += "${request.method.value} $path"
         if (cutTheNetworkFor?.invoke(request) == true) throw kotlinx.io.IOException("network cut")
         val answer = answer(request, path)
+        holdTheAnswerOf?.invoke(request)
         if (loseTheAnswerOf?.invoke(request) == true) throw kotlinx.io.IOException("answer lost")
         return answer
     }
@@ -489,12 +491,12 @@ class FakeProjectBackend {
                 }
                 val body = request.body.toByteArray().decodeToString()
                 val isVideo = body.contains("Content-Type: video/")
-                val fileName = Regex("filename=\"?([^\";\r\n]+)").find(body)?.groupValues?.get(1) ?: "photo.jpg"
+                val fileName = Regex("filename=\"?([^\";\r\n]+)").find(body)?.groupValues?.get(1) ?: if (isVideo) "clip.mp4" else "photo.jpg"
                 val created = if (isVideo) {
                     // Mirrors the backend: the raw upload is transcoded to a small MP4.
                     ServerAttachment(
                         nextAttachmentId++, attachmentsEntryId,
-                        originalName = "clip.mp4", mimeType = "video/mp4",
+                        originalName = fileName, mimeType = "video/mp4",
                         bytes = byteArrayOf(9, 9, 9), durationSeconds = attachmentUploadDurationSeconds,
                     )
                 } else {

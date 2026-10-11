@@ -1,5 +1,6 @@
 package com.dmb.chantiertracker.presentation.logs
 
+import com.dmb.chantiertracker.domain.model.MAX_VIDEO_BYTES
 import com.dmb.chantiertracker.domain.model.ProjectDetail
 import com.dmb.chantiertracker.domain.model.hasUpgrade
 import com.dmb.chantiertracker.domain.model.ownerMaxVideoDurationSeconds
@@ -22,6 +23,11 @@ sealed interface VideoDurationCheck {
 
     /** `actual`/`limit` are already `mm:ss`-formatted; `hasUpgrade` drops the "upgrade" wording on LIBERTE. */
     data class TooLong(val actual: String, val limit: String, val hasUpgrade: Boolean) : VideoDurationCheck
+}
+
+sealed interface VideoWeightCheck {
+    data object Ok : VideoWeightCheck
+    data class TooHeavy(val actualMegabytes: Long, val limitMegabytes: Long) : VideoWeightCheck
 }
 
 /**
@@ -59,6 +65,13 @@ object VideoLimit {
             VideoDurationCheck.Ok
         }
     }
+
+    fun checkWeight(sizeBytes: Long): VideoWeightCheck =
+        if (sizeBytes > MAX_VIDEO_BYTES) VideoWeightCheck.TooHeavy(megabytesRoundedUp(sizeBytes), MAX_VIDEO_BYTES / BYTES_PER_MEGABYTE) else VideoWeightCheck.Ok
+
+    private fun megabytesRoundedUp(bytes: Long): Long = (bytes + BYTES_PER_MEGABYTE - 1) / BYTES_PER_MEGABYTE
+
+    private const val BYTES_PER_MEGABYTE = 1024L * 1024
 
     /** Mirrors `VideoTooLongException.format` / web `formatVideoDuration` — `1 min 05 s` or `45 s`. */
     fun formatDuration(totalSeconds: Long): String {

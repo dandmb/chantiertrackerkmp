@@ -4,6 +4,7 @@ import com.dmb.chantiertracker.data.local.db.PendingOp
 import com.dmb.chantiertracker.data.local.db.SyncStatus
 import com.dmb.chantiertracker.data.sync.SyncOutcome
 import com.dmb.chantiertracker.domain.model.actions
+import com.dmb.chantiertracker.presentation.logs.asUploadFile
 import com.dmb.chantiertracker.domain.model.RefusalReason
 import com.dmb.chantiertracker.domain.model.SyncIssueAction
 import com.dmb.chantiertracker.domain.model.SyncIssueKind
@@ -916,6 +917,68 @@ class SyncAndRejectionsIntegrationTest {
         phone.syncIssues.discard(item)
         assertEquals(SyncOutcome.Synced, phone.sync.syncProject(projectId))
         assertEquals(listOf("Charpente"), phone.stages.observeStages(projectId).first().map { it.name })
+    }
+
+    private fun aShortVideoFilmedOnThePhone(): java.nio.file.Path {
+        val file = java.nio.file.Files.createTempFile("qa-d-visite", ".mp4")
+        val made = ProcessBuilder(
+            "ffmpeg", "-y", "-loglevel", "error", "-f", "lavfi", "-i", "testsrc=duration=2:size=320x240:rate=15",
+            "-pix_fmt", "yuv420p", "-movflags", "+faststart", file.toString(),
+        ).inheritIO().start().waitFor()
+        assertEquals(0, made, "ffmpeg fabrique le clip de deux secondes")
+        return file
+    }
+
+    @Test
+    fun d_a_short_video_added_offline_is_kept_on_the_phone_and_sent_when_the_network_is_back() = runScenario {
+        val phone = device()
+        val owner = phone.signedInAs("qa-d-video", "QA D Vidéo")
+        accounts.grantPlan(owner.id, "SEMI_FLEX")
+        val projectId = phone.newProject("QA D vidéo hors ligne")
+        val stageId = phone.newStage(projectId, "Charpente")
+        val created = phone.logs.createPurchaseEntry(stageId, todayInParis())
+        assertEquals(SyncOutcome.Synced, phone.sync.syncNow())
+        assertEquals(SyncOutcome.Synced, phone.sync.syncProject(projectId))
+        val uploadsBefore = filesInTheBackendUploads()
+        val filmed = aShortVideoFilmedOnThePhone()
+        val rawSize = java.nio.file.Files.size(filmed)
+        var uploads = 0
+        phone.client.plugin(io.ktor.client.plugins.HttpSend).intercept { request ->
+            if (request.method.value == "POST" && request.url.buildString().endsWith("/attachments")) uploads++
+            execute(request)
+        }
+
+        phone.goOffline()
+        val video = phone.attachments.addVideo(
+            created.entryLocalId,
+            io.github.vinceglb.filekit.PlatformFile(filmed.toString()).asUploadFile("video/mp4"),
+        ).localId
+        phone.waitForTheRunningSyncPass()
+        val offlinePass = phone.sync.syncNow()
+        val waiting = phone.db.attachmentDao().findByLocalId(video)!!
+        println("D tranche 3 — vidéo hors ligne : passe=$offlinePass, ligne=${waiting.syncStatus}/${waiting.pendingOp}, taille brute=$rawSize, copie locale=${phone.fileStore.sizeOf(waiting.localPath)}, envois=$uploads, fichiers ajoutés=${uploadsBefore?.let { (filesInTheBackendUploads()!! - it).size }}")
+        assertEquals(SyncOutcome.Skipped, offlinePass)
+        assertEquals(listOf<Any?>(SyncStatus.PENDING, PendingOp.CREATE, null), listOf(waiting.syncStatus, waiting.pendingOp, waiting.lastSyncError), "gardée sur le téléphone, en attente")
+        assertEquals(rawSize, phone.fileStore.sizeOf(waiting.localPath), "la copie locale est entière")
+        assertEquals(0, uploads, "rien n'est envoyé hors ligne")
+
+        phone.goOnline()
+        val pass = phone.sync.syncNow()
+        phone.sync.awaitVideosBeingSent()
+
+        val sent = phone.db.attachmentDao().findByLocalId(video)!!
+        val entryServerId = phone.db.dailyEntryDao().findByLocalId(created.entryLocalId)!!.serverId!!
+        val onServer = phone.attachmentApi.list(entryServerId, 0, 100).content
+        val added = uploadsBefore?.let { before -> (filesInTheBackendUploads()!! - before).sorted() }
+        println("D tranche 3 — vidéo au retour du réseau : passe=$pass, ligne=${sent.syncStatus}/${sent.mimeType}/${sent.durationSeconds}s/${sent.sizeBytes} octets, envois=$uploads, sur le serveur=${onServer.map { it.originalName to it.size }}, fichiers gardés sur le téléphone=${phone.fileStore.storedPaths.size}, fichiers ajoutés au serveur=$added")
+        assertEquals(SyncOutcome.Synced, pass)
+        assertEquals(listOf<Any?>(SyncStatus.SYNCED, "video/mp4", onServer.single().id), listOf(sent.syncStatus, sent.mimeType, sent.serverId))
+        assertEquals(1, uploads, "un seul envoi")
+        assertTrue((sent.durationSeconds ?: 0) >= 1, "le serveur a mesuré la durée")
+        assertEquals(setOf(sent.localPath), phone.fileStore.storedPaths, "la vidéo brute est supprimée du téléphone, il reste le fichier fait par le serveur")
+        assertEquals(onServer.single().size, phone.fileStore.sizeOf(sent.localPath))
+        if (added != null) assertEquals(1, added.size, "un fichier de plus dans uploads")
+        java.nio.file.Files.deleteIfExists(filmed)
     }
 
     @Test

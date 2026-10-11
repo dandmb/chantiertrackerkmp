@@ -12,6 +12,8 @@ class FakeAttachmentDao(initial: List<AttachmentEntity> = emptyList()) : Attachm
 
     private val rows = MutableStateFlow(initial.associateBy { it.localId })
 
+    fun count(): Int = rows.value.size
+
     val stored: List<AttachmentEntity> get() = rows.value.values.toList()
 
     override fun observeForEntry(entryLocalId: String): Flow<List<AttachmentEntity>> =

@@ -350,7 +350,8 @@
     <string name="attachment_video_delete">Delete video</string>
     <string name="attachment_delete_confirm_title">Delete this attachment?</string>
     <string name="attachment_delete_confirm_body">This file will be permanently deleted.</string>
-    <string name="video_upload_in_progress">Uploading video…</string>
+    <string name="video_upload_progress">Uploading video: %1$d%</string>
+    <string name="video_too_heavy">The video is %1$d MB, the limit is %2$d MB. Shorten it or record it at a lower quality.</string>
     <string name="attachment_finalizing">Finishing up…</string>
     <string name="attachments_loading">Loading attachments…</string>
     <string name="video_upload_error">Couldn't upload this video.</string>

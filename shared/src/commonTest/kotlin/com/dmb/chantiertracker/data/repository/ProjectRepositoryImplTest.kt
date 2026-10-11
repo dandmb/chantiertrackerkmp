@@ -94,6 +94,13 @@ class ProjectRepositoryImplTest {
     }
 
     @Test
+    fun a_refresh_asked_by_the_user_tells_the_engine_so() = runTest {
+        val syncer = FakeSyncer()
+        repo(syncer = syncer).refreshAtTheUsersRequest()
+        assertEquals(listOf(1, 0), listOf(syncer.syncsAtTheUsersRequest, syncer.syncCount))
+    }
+
+    @Test
     fun refresh_delegates_to_a_full_sync_pass() = runTest {
         val syncer = FakeSyncer()
         repo(syncer = syncer).refresh()
