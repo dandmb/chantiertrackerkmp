@@ -136,6 +136,17 @@ class FakeSyncer : com.dmb.chantiertracker.data.sync.Syncer {
         return outcome
     }
 
+    val progressOfUploads = kotlinx.coroutines.flow.MutableStateFlow<Map<String, Float>>(emptyMap())
+    override val uploadProgress: kotlinx.coroutines.flow.StateFlow<Map<String, Float>> = progressOfUploads
+
+    var syncsAtTheUsersRequest = 0
+        private set
+
+    override suspend fun syncNowAtTheUsersRequest(): com.dmb.chantiertracker.data.sync.SyncOutcome {
+        syncsAtTheUsersRequest++
+        return outcome
+    }
+
     val sentAgain = mutableListOf<Pair<com.dmb.chantiertracker.domain.model.SyncIssueTarget, String>>()
 
     override suspend fun syncNowSendingAgain(
@@ -224,6 +235,11 @@ class FakeProjectRepository(
     override suspend fun refresh() {
         refreshCount++
         log += "refresh"
+        onRefresh?.invoke()
+    }
+
+    override suspend fun refreshAtTheUsersRequest() {
+        log += "refreshAtTheUsersRequest"
         onRefresh?.invoke()
     }
 
@@ -454,25 +470,21 @@ class FakeAttachmentRepository(
         return row
     }
 
-    var uploadVideoError: com.dmb.chantiertracker.domain.model.DomainException? = null
-    var uploadVideoProgressSteps: List<Float> = listOf(0.5f, 1f)
+    var addVideoError: com.dmb.chantiertracker.domain.model.DomainException? = null
 
-    override suspend fun uploadVideo(
+    override suspend fun addVideo(
         entryLocalId: String,
         video: com.dmb.chantiertracker.domain.model.UploadFile,
-        onProgress: (Float) -> Unit,
     ): com.dmb.chantiertracker.domain.model.Attachment {
-        log += "uploadVideo:$entryLocalId:${video.name}:${video.mimeType}:${video.size()}"
-        uploadVideoProgressSteps.forEach(onProgress)
-        uploadVideoError?.let { throw it }
+        log += "addVideo:$entryLocalId:${video.name}:${video.mimeType}:${video.size()}"
+        addVideoError?.let { throw it }
         val stored = com.dmb.chantiertracker.domain.model.Attachment(
             localId = newLocalId,
             entryLocalId = entryLocalId,
             localPath = "fake-attachments/$newLocalId.mp4",
             originalName = video.name,
-            mimeType = "video/mp4",
-            sizeBytes = 1_024L,
-            durationSeconds = 12,
+            mimeType = video.mimeType,
+            sizeBytes = video.size(),
             uploadedAt = 0L,
         )
         publish(stored)

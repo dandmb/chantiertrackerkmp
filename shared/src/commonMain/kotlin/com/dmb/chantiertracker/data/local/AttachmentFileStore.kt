@@ -12,6 +12,13 @@ import io.github.vinceglb.filekit.name
 import io.github.vinceglb.filekit.path
 import io.github.vinceglb.filekit.readBytes
 import io.github.vinceglb.filekit.write
+import io.github.vinceglb.filekit.PlatformFile
+import io.github.vinceglb.filekit.sink
+import io.github.vinceglb.filekit.size
+import io.github.vinceglb.filekit.source
+import kotlinx.io.RawSource
+import kotlinx.io.buffered
+import kotlinx.io.files.FileNotFoundException
 import kotlin.time.ExperimentalTime
 
 // Attachments are the first entity in this app whose payload is a binary
@@ -30,7 +37,10 @@ data class StoredAttachmentFile(val key: String, val lastModifiedEpochMillis: Lo
 interface AttachmentFileStore {
     /** Writes the bytes and returns the stable key to store in Room. */
     suspend fun save(bytes: ByteArray, originalName: String): String
+    suspend fun saveFrom(source: RawSource, originalName: String): String
     suspend fun readBytes(key: String): ByteArray
+    fun source(key: String): RawSource
+    suspend fun sizeOf(key: String): Long
     suspend fun delete(key: String)
     suspend fun storedFiles(): List<StoredAttachmentFile>
 
@@ -47,19 +57,34 @@ interface AttachmentFileStore {
 
 // FileKit.filesDir is the one app-private directory that exists identically
 // on Android/iOS/Desktop, so no expect/actual is needed here.
-class FileKitAttachmentFileStore(private val newFileName: () -> String) : AttachmentFileStore {
+class FileKitAttachmentFileStore(
+    private val newFileName: () -> String,
+    private val directory: () -> PlatformFile = { FileKit.filesDir / DIR },
+) : AttachmentFileStore {
 
-    private val dir get() = FileKit.filesDir / DIR
+    private val dir get() = directory()
 
     override suspend fun save(bytes: ByteArray, originalName: String): String {
         dir.createDirectories()
-        val extension = originalName.substringAfterLast('.', missingDelimiterValue = "jpg")
-        val key = "${newFileName()}.$extension"
+        val key = keyFor(originalName)
         (dir / key).write(bytes)
         return key
     }
 
+    private fun keyFor(originalName: String): String = "${newFileName()}.${originalName.substringAfterLast('.', missingDelimiterValue = "jpg")}"
+
+    override suspend fun saveFrom(source: RawSource, originalName: String): String {
+        dir.createDirectories()
+        val key = keyFor(originalName)
+        source.buffered().use { from -> (dir / key).sink().buffered().use { to -> from.transferTo(to) } }
+        return key
+    }
+
     override suspend fun readBytes(key: String): ByteArray = (dir / key).readBytes()
+
+    override fun source(key: String): RawSource = (dir / key).source()
+
+    override suspend fun sizeOf(key: String): Long = (dir / key).takeIf { it.exists() }?.size() ?: throw FileNotFoundException(key)
 
     override suspend fun delete(key: String) {
         val file = dir / key

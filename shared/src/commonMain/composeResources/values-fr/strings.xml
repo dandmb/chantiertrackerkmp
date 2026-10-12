@@ -350,7 +350,8 @@
     <string name="attachment_video_delete">Supprimer la vidéo</string>
     <string name="attachment_delete_confirm_title">Supprimer ce justificatif ?</string>
     <string name="attachment_delete_confirm_body">Ce fichier sera définitivement supprimé.</string>
-    <string name="video_upload_in_progress">Envoi de la vidéo…</string>
+    <string name="video_upload_progress">Envoi de la vidéo : %1$d %</string>
+    <string name="video_too_heavy">La vidéo pèse %1$d Mo, la limite est de %2$d Mo. Raccourcissez-la ou filmez-la dans une qualité plus basse.</string>
     <string name="attachment_finalizing">Finalisation…</string>
     <string name="attachments_loading">Chargement des justificatifs…</string>
     <string name="video_upload_error">Impossible d'envoyer cette vidéo.</string>

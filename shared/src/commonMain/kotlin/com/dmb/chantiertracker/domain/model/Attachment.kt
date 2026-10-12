@@ -11,6 +11,7 @@ data class Attachment(
     val durationSeconds: Int? = null,
     val uploadedAt: Long,
     val syncIssue: SyncIssue? = null,
+    val uploadProgress: Float? = null,
 ) {
     val isVideo: Boolean get() = mimeType.startsWith("video/")
 }

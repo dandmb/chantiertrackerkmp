@@ -12,6 +12,8 @@ import kotlinx.io.RawSource
  * auth plugin refreshes a token mid-upload, so the same [UploadFile] can be
  * asked for a fresh stream more than once.
  */
+const val MAX_VIDEO_BYTES: Long = 200L * 1024 * 1024
+
 interface UploadFile {
     val name: String
     val mimeType: String

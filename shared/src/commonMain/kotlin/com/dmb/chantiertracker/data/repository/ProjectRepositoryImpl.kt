@@ -108,6 +108,10 @@ class ProjectRepositoryImpl(
         syncer.requestSync()
     }
 
+    override suspend fun refreshAtTheUsersRequest() {
+        syncer.syncNowAtTheUsersRequest()
+    }
+
     override suspend fun refresh() {
         syncer.syncNow()
     }

@@ -3156,6 +3156,36 @@ class SyncEngineTest {
     }
 
     @Test
+    fun the_network_coming_back_does_not_send_a_rate_limited_row_before_the_time_the_server_gave() = runTest {
+        val f = Fixture()
+        f.dao.upsert(localProject("p1", name = "Villa"))
+        f.backend.cutTheNetworkFor = { it.method.value == "POST" }
+        val engine = f.engine(backgroundScope, catchUpInterval = 24.hours)
+        engine.start()
+        runCurrent()
+        engine.runExclusive { }
+        f.backend.cutTheNetworkFor = null
+        f.backend.refuseWith = { request ->
+            com.dmb.chantiertracker.support.ServerRefusal(io.ktor.http.HttpStatusCode.TooManyRequests, "RATE_LIMITED", retryAfterSeconds = 3_000).takeIf { request.method.value == "POST" }
+        }
+        f.clock.advanceBy(15 * 60_000)
+        engine.syncNow()
+        assertEquals(2, f.backend.receivedMethods.count { it == "POST /projects" }, "no answer, then a rate limit")
+        f.backend.refuseWith = null
+
+        f.connectivity.setOnline(false)
+        runCurrent()
+        f.connectivity.setOnline(true)
+        runCurrent()
+        engine.runExclusive { }
+
+        assertEquals(2, f.backend.receivedMethods.count { it == "POST /projects" }, "the network is back, the quota is not")
+        f.clock.advanceBy(3_000_000)
+        engine.syncNow()
+        assertEquals(SyncStatus.SYNCED, f.dao.findByLocalId("p1")!!.syncStatus)
+    }
+
+    @Test
     fun a_file_too_large_refused_by_a_proxy_without_any_code_still_reads_as_a_file_refusal() = runTest {
         val f = stockFixture()
         f.siteWithCement(serverPurchase = null)

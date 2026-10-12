@@ -473,17 +473,17 @@ class DailyLogViewModelTest {
     }
 
     @Test
-    fun a_video_within_the_limit_is_uploaded_with_progress_and_then_appears() = runTest {
+    fun a_video_within_the_limits_is_queued_and_then_appears() = runTest {
         val purchaseEntry = DailyEntry("e1", "log-1", EntryType.PURCHASE, summary = null)
         val logs = FakeDailyLogRepository(detail = logDetail(entries = listOf(purchaseEntry)))
-        val attachments = FakeAttachmentRepository().apply { uploadVideoProgressSteps = listOf(0.25f, 0.75f, 1f) }
+        val attachments = FakeAttachmentRepository()
         val v = vm(logs, projects = projectRepo(ownerId = 1L, ownerPlan = Plan.SEMI_FLEX), attachments = attachments)
         v.load("log-1"); advanceUntilIdle()
 
         v.onVideoSelected("e1", com.dmb.chantiertracker.support.fakeUploadFile(com.dmb.chantiertracker.support.mp4Bytes(30.0), name = "clip.mp4"))
         advanceUntilIdle()
 
-        assertEquals("uploadVideo:e1:clip.mp4:video/mp4:${com.dmb.chantiertracker.support.mp4Bytes(30.0).size}", attachments.log.single())
+        assertEquals("addVideo:e1:clip.mp4:video/mp4:${com.dmb.chantiertracker.support.mp4Bytes(30.0).size}", attachments.log.single())
         assertNull(v.state.value.attachmentUpload, "indicator cleared once done")
         assertNull(v.state.value.videoTooLong)
         assertEquals(listOf("video/mp4"), v.state.value.attachments.map { it.mimeType })
@@ -495,14 +495,14 @@ class DailyLogViewModelTest {
         val logs = FakeDailyLogRepository(detail = logDetail(entries = listOf(purchaseEntry)))
         // observeAttachments emits the new row only on emitDeferredRows() — like
         // Room, whose Flow re-emits asynchronously after dao.upsert() returns.
-        // Without ADR-39, the indicator cleared on uploadVideo() return, leaving a
+        // Without ADR-39, the indicator cleared when the repository returned, leaving a
         // visible window of "done" + empty list.
         val attachments = FakeAttachmentRepository().apply { deferListEmission = true }
         val v = vm(logs, projects = projectRepo(ownerId = 1L, ownerPlan = Plan.SEMI_FLEX), attachments = attachments)
         v.load("log-1"); advanceUntilIdle()
 
         v.onVideoSelected("e1", com.dmb.chantiertracker.support.fakeUploadFile(com.dmb.chantiertracker.support.mp4Bytes(30.0)))
-        runCurrent() // upload finished; the row has NOT propagated to the list yet
+        runCurrent() // the copy finished; the row has NOT propagated to the list yet
 
         assertTrue(v.state.value.attachments.isEmpty(), "the row is not in the list yet")
         assertEquals(
@@ -555,10 +555,10 @@ class DailyLogViewModelTest {
     }
 
     @Test
-    fun a_video_upload_failure_surfaces_the_error_and_clears_the_progress_bar() = runTest {
+    fun a_video_that_could_not_be_kept_surfaces_the_error_and_clears_the_indicator() = runTest {
         val logs = FakeDailyLogRepository(detail = logDetail())
         val attachments = FakeAttachmentRepository().apply {
-            uploadVideoError = com.dmb.chantiertracker.domain.model.DomainException.Network
+            addVideoError = com.dmb.chantiertracker.domain.model.DomainException.Unexpected
         }
         val v = vm(logs, projects = projectRepo(ownerId = 1L, ownerPlan = Plan.LIBERTE), attachments = attachments)
         v.load("log-1"); advanceUntilIdle()
@@ -566,7 +566,51 @@ class DailyLogViewModelTest {
         v.onVideoSelected("e1", com.dmb.chantiertracker.support.fakeUploadFile(com.dmb.chantiertracker.support.mp4Bytes(10.0), name = "clip.mp4"))
         advanceUntilIdle()
 
-        assertEquals(com.dmb.chantiertracker.domain.model.DomainException.Network, v.state.value.attachmentError)
+        assertEquals(com.dmb.chantiertracker.domain.model.DomainException.Unexpected, v.state.value.attachmentError)
         assertNull(v.state.value.attachmentUpload)
+    }
+
+    private fun aVideoWeighing(bytes: Long) = object : com.dmb.chantiertracker.domain.model.UploadFile by com.dmb.chantiertracker.support.fakeUploadFile(com.dmb.chantiertracker.support.mp4Bytes(10.0), name = "clip.mp4") {
+        override fun size(): Long = bytes
+    }
+
+    @Test
+    fun a_video_heavier_than_the_server_accepts_is_refused_with_its_weight_before_any_copy() = runTest {
+        val purchaseEntry = DailyEntry("e1", "log-1", EntryType.PURCHASE, summary = null)
+        val logs = FakeDailyLogRepository(detail = logDetail(entries = listOf(purchaseEntry)))
+        val attachments = FakeAttachmentRepository()
+        val v = vm(logs, projects = projectRepo(ownerId = 1L, ownerPlan = Plan.LIBERTE), attachments = attachments)
+        v.load("log-1"); advanceUntilIdle()
+
+        v.onVideoSelected("e1", aVideoWeighing(260L * 1024 * 1024))
+        advanceUntilIdle()
+
+        assertEquals(VideoWeightCheck.TooHeavy(actualMegabytes = 260, limitMegabytes = 200), v.state.value.videoTooHeavy)
+        assertTrue(attachments.log.isEmpty(), "the repository is never called for a video the server would refuse")
+        assertNull(v.state.value.attachmentUpload)
+        assertNull(v.state.value.attachmentError)
+    }
+
+    @Test
+    fun a_video_one_byte_over_the_limit_is_shown_as_over_it_not_as_equal_to_it() {
+        assertEquals(VideoWeightCheck.TooHeavy(actualMegabytes = 201, limitMegabytes = 200), VideoLimit.checkWeight(200L * 1024 * 1024 + 1))
+        assertEquals<VideoWeightCheck>(VideoWeightCheck.Ok, VideoLimit.checkWeight(200L * 1024 * 1024))
+    }
+
+    @Test
+    fun choosing_another_video_clears_the_too_heavy_message() = runTest {
+        val purchaseEntry = DailyEntry("e1", "log-1", EntryType.PURCHASE, summary = null)
+        val logs = FakeDailyLogRepository(detail = logDetail(entries = listOf(purchaseEntry)))
+        val attachments = FakeAttachmentRepository()
+        val v = vm(logs, projects = projectRepo(ownerId = 1L, ownerPlan = Plan.LIBERTE), attachments = attachments)
+        v.load("log-1"); advanceUntilIdle()
+        v.onVideoSelected("e1", aVideoWeighing(260L * 1024 * 1024))
+        advanceUntilIdle()
+
+        v.onVideoSelected("e1", aVideoWeighing(5L * 1024 * 1024))
+        advanceUntilIdle()
+
+        assertNull(v.state.value.videoTooHeavy)
+        assertEquals(1, attachments.log.size)
     }
 }

@@ -26,6 +26,7 @@ interface ProjectRepository {
 
     /** Best-effort pull of the whole list from the server into the local store. Never throws. */
     suspend fun refresh()
+    suspend fun refreshAtTheUsersRequest()
 
     /** Best-effort pull of one project and its members from the server into the local store. Never throws. */
     suspend fun refreshProject(localId: String)

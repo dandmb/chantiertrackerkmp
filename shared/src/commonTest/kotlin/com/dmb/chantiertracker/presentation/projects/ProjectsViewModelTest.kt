@@ -112,7 +112,7 @@ class ProjectsViewModelTest {
         advanceUntilIdle()
 
         assertTrue(vm.state.value.isRefreshing, "l'indicateur reste pendant la synchro")
-        assertEquals(1, repo.refreshCount, "le geste délègue à repo.refresh()")
+        assertEquals(listOf("refreshAtTheUsersRequest"), repo.log.filter { it == "refresh" || it == "refreshAtTheUsersRequest" }, "le geste dit au dépôt que c'est l'utilisateur qui demande")
         assertEquals(listOf(newer, older), vm.state.value.projects, "la liste locale reste affichée pendant l'opération")
 
         gate.complete(Unit)
@@ -222,6 +222,6 @@ class ProjectsViewModelTest {
 
         assertFalse(vm.state.value.isRefreshing)
         assertEquals(listOf(older), vm.state.value.projects)
-        assertEquals(1, repo.refreshCount)
+        assertEquals(1, repo.log.count { it == "refreshAtTheUsersRequest" })
     }
 }

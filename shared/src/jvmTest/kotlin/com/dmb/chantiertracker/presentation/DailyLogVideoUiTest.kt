@@ -51,7 +51,7 @@ class DailyLogVideoUiTest {
         resetTestMainDispatcher()
     }
 
-    private fun vm(): DailyLogViewModel {
+    private fun vm(beingSent: Attachment? = null): DailyLogViewModel {
         val logs = FakeDailyLogRepository(
             detail = DailyLogDetail(
                 localId = "log-1", stageLocalId = "s1", date = "2026-09-05",
@@ -77,7 +77,7 @@ class DailyLogVideoUiTest {
         val attachments = FakeAttachmentRepository(
             attachments = listOf(
                 Attachment("a1", "e1", "/x/clip.mp4", "clip.mp4", "video/mp4", 900_000L, durationSeconds = 20, uploadedAt = 0L),
-            ),
+            ) + listOfNotNull(beingSent),
         )
         return DailyLogViewModel(
             logs, stages, projects, auth, FakeMaterialRepository(),
@@ -141,5 +141,45 @@ class DailyLogVideoUiTest {
             mediaH >= dialogH * 0.9,
             "player region $mediaH should fill the $dialogH dialog, not a fixed strip",
         )
+    }
+
+    @Test
+    fun the_thumbnail_of_a_video_being_sent_shows_how_far_it_is() = runComposeUiTest {
+        val beingSent = Attachment("a2", "e1", "/x/visite.mov", "visite.mov", "video/quicktime", 90_000_000L, uploadedAt = 1L, uploadProgress = 0.4f)
+        setContent {
+            customAppLocale = "fr"
+            AppEnvironment { AppTheme { DailyLogScreen(dailyLogLocalId = "log-1", viewModel = vm(beingSent)) } }
+        }
+        waitForIdle()
+
+        assertTrue(onAllNodes(hasContentDescription("Envoi de la vidéo : 40 %")).fetchSemanticsNodes().size == 1, "one thumbnail, the one being sent, says how far it is")
+    }
+
+    @Test
+    fun a_video_that_is_not_being_sent_shows_no_progress() = runComposeUiTest {
+        setContent {
+            customAppLocale = "fr"
+            AppEnvironment { AppTheme { DailyLogScreen(dailyLogLocalId = "log-1", viewModel = vm()) } }
+        }
+        waitForIdle()
+
+        assertTrue(onAllNodes(hasContentDescription("Envoi de la vidéo", substring = true)).fetchSemanticsNodes().isEmpty())
+    }
+
+    @Test
+    fun a_video_too_heavy_for_the_server_is_refused_with_its_weight_and_the_limit() = runComposeUiTest {
+        val viewModel = vm()
+        setContent {
+            customAppLocale = "fr"
+            AppEnvironment { AppTheme { DailyLogScreen(dailyLogLocalId = "log-1", viewModel = viewModel) } }
+        }
+        waitForIdle()
+
+        viewModel.onVideoSelected("e1", object : com.dmb.chantiertracker.domain.model.UploadFile by com.dmb.chantiertracker.support.fakeUploadFile(com.dmb.chantiertracker.support.mp4Bytes(10.0)) {
+            override fun size(): Long = 260L * 1024 * 1024
+        })
+        waitForIdle()
+
+        assertTrue(onAllNodes(androidx.compose.ui.test.hasText("La vidéo pèse 260 Mo, la limite est de 200 Mo. Raccourcissez-la ou filmez-la dans une qualité plus basse.")).fetchSemanticsNodes().size == 1)
     }
 }

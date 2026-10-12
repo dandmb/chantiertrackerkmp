@@ -37,15 +37,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.io.buffered
 
-/**
- * Progress of adding a justificatif (ADR-39).
- * - [Uploading] with a non-null [fraction] → determinate bar (video bytes leaving the device).
- * - [Uploading] with a null [fraction] → indeterminate (a photo, or the video's bytes are all sent).
- * - [Finalizing] → the server response, the transcoded MP4 download, the local write and the
- *   list refresh — shown until the new row is on screen, so "100 %" is never a lie.
- */
-data class AttachmentUploadUi(val stage: Stage, val fraction: Float? = null) {
-    enum class Stage { Uploading, Finalizing }
+data class AttachmentUploadUi(val stage: Stage) {
+    enum class Stage { Finalizing }
 }
 
 data class DailyLogUiState(
@@ -66,6 +59,7 @@ data class DailyLogUiState(
     val attachmentUpload: AttachmentUploadUi? = null,
     val attachmentError: DomainException? = null,
     val videoTooLong: VideoDurationCheck.TooLong? = null,
+    val videoTooHeavy: VideoWeightCheck.TooHeavy? = null,
     // The project OWNER's allowance — gates the "Add a video" affordance and the duration pre-check.
     val ownerVideoLimits: OwnerVideoLimits? = null,
     // Project IN_PROGRESS and stage not COMPLETED — the only server-side gate on
@@ -230,15 +224,13 @@ class DailyLogViewModel(
         }
     }
 
-    /**
-     * A video was picked from the gallery. The file is **streamed** end to end
-     * (ADR-38) — never read into a ByteArray, which used to blow the Android
-     * heap on a ~2-min clip. Client-side duration pre-check (courtesy — the
-     * server re-asserts), then an **online** upload with progress (ADR-35). A
-     * too-long clip is rejected before any upload.
-     */
     fun onVideoSelected(entryLocalId: String, video: UploadFile) {
-        _state.update { it.copy(attachmentError = null, videoTooLong = null) }
+        _state.update { it.copy(attachmentError = null, videoTooLong = null, videoTooHeavy = null) }
+        val tooHeavy = VideoLimit.checkWeight(video.size()) as? VideoWeightCheck.TooHeavy
+        if (tooHeavy != null) {
+            _state.update { it.copy(videoTooHeavy = tooHeavy) }
+            return
+        }
         val limits = _state.value.ownerVideoLimits
         viewModelScope.launch {
             // Reads only a bounded prefix of the file (Mp4Duration), so it's
@@ -248,23 +240,8 @@ class DailyLogViewModel(
             }.getOrNull()
             when (val check = VideoLimit.check(limits, duration)) {
                 is VideoDurationCheck.TooLong -> _state.update { it.copy(videoTooLong = check) }
-                VideoDurationCheck.Ok -> addAttachment(
-                    AttachmentUploadUi(AttachmentUploadUi.Stage.Uploading, fraction = 0f),
-                ) {
-                    attachmentRepository.uploadVideo(entryLocalId, video) { fraction ->
-                        _state.update {
-                            // Bytes all sent, but the server is still transcoding
-                            // and we still have to pull the MP4 back — that's
-                            // Finalizing, not a finished upload.
-                            it.copy(
-                                attachmentUpload = if (fraction >= 1f) {
-                                    AttachmentUploadUi(AttachmentUploadUi.Stage.Finalizing)
-                                } else {
-                                    AttachmentUploadUi(AttachmentUploadUi.Stage.Uploading, fraction)
-                                },
-                            )
-                        }
-                    }
+                VideoDurationCheck.Ok -> addAttachment(AttachmentUploadUi(AttachmentUploadUi.Stage.Finalizing)) {
+                    attachmentRepository.addVideo(entryLocalId, video)
                 }
             }
         }
@@ -276,7 +253,7 @@ class DailyLogViewModel(
     // visible "done but empty" gap (ADR-39). A timeout guards against a Flow
     // that never catches up, so the user is never stuck.
     private fun addAttachment(initial: AttachmentUploadUi, add: suspend () -> Attachment) {
-        _state.update { it.copy(attachmentError = null, videoTooLong = null, attachmentUpload = initial) }
+        _state.update { it.copy(attachmentError = null, videoTooLong = null, videoTooHeavy = null, attachmentUpload = initial) }
         viewModelScope.launch {
             try {
                 val added = add()
@@ -294,7 +271,7 @@ class DailyLogViewModel(
         }
     }
 
-    fun clearAttachmentError() = _state.update { it.copy(attachmentError = null, videoTooLong = null) }
+    fun clearAttachmentError() = _state.update { it.copy(attachmentError = null, videoTooLong = null, videoTooHeavy = null) }
 
     fun deleteAttachment(attachmentLocalId: String) {
         viewModelScope.launch { attachmentRepository.deleteAttachment(attachmentLocalId) }
