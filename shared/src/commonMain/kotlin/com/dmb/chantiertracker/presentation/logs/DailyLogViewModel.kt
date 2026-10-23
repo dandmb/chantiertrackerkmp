@@ -46,6 +46,7 @@ data class DailyLogUiState(
     val detail: DailyLogDetail? = null,
     val canEdit: Boolean = false,
     val isAdmin: Boolean = false,
+    val currentUserId: Long? = null,
     val currency: String? = null,
     val projectLocalId: String? = null,
     val materials: List<Material> = emptyList(),
@@ -67,6 +68,11 @@ data class DailyLogUiState(
     val projectAndStageActive: Boolean = false,
 ) {
     val isMissing: Boolean get() = !isLoading && detail == null
+
+    // The backend lets a SUPERVISOR delete only what they sent (403 PROJECT_INSUFFICIENT_ROLE
+    // otherwise); an attachment not on the server yet can only be theirs. Unknown author: hidden.
+    fun canDelete(attachment: Attachment): Boolean =
+        canEdit && (isAdmin || !attachment.sentToTheServer || (currentUserId != null && attachment.uploadedById == currentUserId))
     val canAddVideo: Boolean get() = VideoLimit.canAdd(ownerVideoLimits)
 
     // "Flag an issue" is for a member who can see the entry but can't fix it
@@ -136,6 +142,7 @@ class DailyLogViewModel(
                             detail = access.detail,
                             canEdit = access.canEdit,
                             isAdmin = access.isAdmin,
+                            currentUserId = (authRepository.authState.value as? AuthState.Authenticated)?.user?.id,
                             currency = access.currency,
                             projectLocalId = access.projectLocalId,
                             materials = materialsStock.first,

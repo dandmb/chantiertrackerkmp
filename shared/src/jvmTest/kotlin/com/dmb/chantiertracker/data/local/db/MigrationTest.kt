@@ -1248,6 +1248,66 @@ class MigrationTest {
         added.forEach { (table, column) -> assertEquals("INTEGER" to true, v16.getValue(table).getValue(column), "$table.$column is a non-null INTEGER") }
         v15.forEach { (table, columns) -> columns.forEach { (name, type) -> assertEquals(type, v16.getValue(table).getValue(name), "$table.$name unchanged") } }
     }
+
+    @Test
+    fun migrating_a_real_v16_database_keeps_every_attachment_with_an_author_still_unknown() = runTest {
+        val v16Path = dir.resolve("migration-v16.db").absolutePathString()
+        BundledSQLiteDriver().open(v16Path).use { c ->
+            createFromExportedSchema(c, version = 16)
+            c.execSQL(
+                "INSERT INTO projects (localId, serverId, name, currency, timezone, status, syncStatus, pendingOp, locallyModifiedAt, localVersion, awaitsServerVersion) " +
+                    "VALUES ('p-v16', 42, 'Chantier v16', 'EUR', 'Europe/Paris', 'IN_PROGRESS', 'SYNCED', 'NONE', 1000, 3, 0)",
+            )
+            c.execSQL(
+                "INSERT INTO stages (localId, serverId, projectLocalId, name, status, syncStatus, pendingOp, locallyModifiedAt, localVersion, awaitsServerVersion) " +
+                    "VALUES ('s-v16', 43, 'p-v16', 'Gros œuvre', 'IN_PROGRESS', 'SYNCED', 'NONE', 1000, 0, 0)",
+            )
+            c.execSQL("INSERT INTO daily_logs (localId, serverId, stageLocalId, date, locallyCreatedAt) VALUES ('l-v16', 47, 's-v16', '2026-10-01', 1000)")
+            c.execSQL(
+                "INSERT INTO daily_entries (localId, serverId, dailyLogLocalId, type, summary, syncStatus, pendingOp, locallyModifiedAt, localVersion, awaitsServerVersion) " +
+                    "VALUES ('e-v16', 48, 'l-v16', 'PURCHASE', 'Livraison', 'SYNCED', 'NONE', 1000, 0, 0)",
+            )
+            c.execSQL(
+                "INSERT INTO attachments (localId, serverId, entryLocalId, localPath, originalName, mimeType, sizeBytes, uploadedAt, syncStatus, pendingOp, " +
+                    "locallyModifiedAt, lastSyncError, serverErrorCode, localVersion) VALUES " +
+                    "('a-synced', 90, 'e-v16', 'dalle.jpg', 'dalle.jpg', 'image/jpeg', 1024, 1000, 'SYNCED', 'NONE', 1000, NULL, NULL, 2), " +
+                    "('a-pending', NULL, 'e-v16', 'fissure.jpg', 'fissure.jpg', 'image/jpeg', 2048, 1000, 'PENDING', 'CREATE', 1000, NULL, NULL, 1), " +
+                    "('a-refused', NULL, 'e-v16', 'ticket.jpg', 'ticket.jpg', 'image/jpeg', 512, 1000, 'CONFLICTED', 'CREATE', 1000, 'FILE_REFUSED', 'ATTACHMENT_TOO_LARGE', 0)",
+            )
+        }
+
+        val db = Room.databaseBuilder<AppDatabase>(name = v16Path).buildChantierDatabase()
+        try {
+            val attachments = db.attachmentDao().findForEntry("e-v16").associateBy { it.localId }
+            assertEquals(setOf("a-synced", "a-pending", "a-refused"), attachments.keys, "every attachment is kept")
+            attachments.values.forEach { assertEquals(null, it.uploadedById, "${it.localId}: author unknown until the next sync") }
+            assertEquals(listOf(90L, 2L), attachments.getValue("a-synced").let { listOf(it.serverId, it.localVersion) })
+            assertEquals(listOf(SyncStatus.PENDING, PendingOp.CREATE), attachments.getValue("a-pending").let { listOf(it.syncStatus, it.pendingOp) })
+            assertEquals("ATTACHMENT_TOO_LARGE", attachments.getValue("a-refused").serverErrorCode)
+            assertEquals(3L, db.projectDao().findByLocalId("p-v16")?.localVersion, "other tables untouched")
+        } finally {
+            db.close()
+        }
+    }
+
+    @Test
+    fun the_exported_v17_schema_adds_only_the_author_of_an_attachment_as_a_nullable_integer() {
+        fun columnsByTable(version: Int): Map<String, Map<String, Pair<String, Boolean>>> =
+            exportedSchema(version)["entities"]!!.jsonArray.associate { entity ->
+                entity.jsonObject["tableName"]!!.jsonPrimitive.content to entity.jsonObject["fields"]!!.jsonArray.associate { field ->
+                    val f = field.jsonObject
+                    f["columnName"]!!.jsonPrimitive.content to (f["affinity"]!!.jsonPrimitive.content to (f["notNull"]?.jsonPrimitive?.content == "true"))
+                }
+            }
+        val v16 = columnsByTable(16)
+        val v17 = columnsByTable(17)
+
+        assertEquals(v16.keys, v17.keys, "no table added or removed")
+        val added = v17.flatMap { (table, columns) -> (columns.keys - v16.getValue(table).keys).map { table to it } }.toSet()
+        assertEquals(setOf("attachments" to "uploadedById"), added)
+        assertEquals("INTEGER" to false, v17.getValue("attachments").getValue("uploadedById"), "nullable: unknown for the rows already on the device")
+        v16.forEach { (table, columns) -> columns.forEach { (name, type) -> assertEquals(type, v17.getValue(table).getValue(name), "$table.$name unchanged") } }
+    }
 }
 
 private fun seedARealV14Database(c: androidx.sqlite.SQLiteConnection) {

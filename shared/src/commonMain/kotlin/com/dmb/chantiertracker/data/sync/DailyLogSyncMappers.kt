@@ -144,6 +144,7 @@ fun AttachmentDto.toSyncedEntity(
     sizeBytes = size ?: previous?.sizeBytes ?: 0L,
     durationSeconds = durationSeconds ?: previous?.durationSeconds,
     uploadedAt = parseServerTimestampMillis(uploadedAt) ?: previous?.uploadedAt ?: syncedAt,
+    uploadedById = uploadedById ?: previous?.uploadedById,
     syncStatus = SyncStatus.SYNCED,
     pendingOp = PendingOp.NONE,
     locallyModifiedAt = previous?.locallyModifiedAt ?: syncedAt,

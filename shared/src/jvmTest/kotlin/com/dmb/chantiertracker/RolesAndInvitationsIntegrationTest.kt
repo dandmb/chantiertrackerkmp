@@ -26,6 +26,10 @@ import com.dmb.chantiertracker.support.signInForTheFirstTime
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.setMain
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
@@ -493,5 +497,59 @@ class RolesAndInvitationsIntegrationTest {
 
         val seenBySupervisor = runCatching { site.supervisor.reports.projectReports(site.supervisorProject, 0, ReportSort.NEWEST_FIRST) }
         println("P10 — ce que le superviseur peut voir de ses signalements : $seenBySupervisor")
+    }
+
+    // ─── R3 — a supervisor deletes only the attachments they sent ───────────
+
+    @Test
+    fun r3_a_supervisor_is_offered_delete_only_on_their_own_attachment_and_that_delete_goes_through() = runScenario {
+        val site = aSiteWithASupervisor("r3")
+        val owner = site.owner
+        val supervisor = site.supervisor
+
+        val ownerEntry = owner.logs.createPurchaseEntry(site.ownerStage, today()).entryLocalId
+        owner.attachments.addAttachment(ownerEntry, aSmallJpeg(), "proprietaire.jpg", "image/jpeg")
+        assertEquals(SyncOutcome.Synced, owner.sync.syncNow())
+
+        supervisor.sync.syncProject(site.supervisorProject)
+        supervisor.sync.syncStage(site.supervisorStage)
+        val day = supervisor.logs.observeLogs(site.supervisorStage).first().single()
+        supervisor.sync.syncLog(day.localId)
+        val entry = supervisor.logs.observeLog(day.localId).first()!!.entries.single { it.type == EntryType.PURCHASE }.localId
+        val mine = supervisor.attachments.addAttachment(entry, aSmallJpeg(), "superviseur.jpg", "image/jpeg").localId
+        assertEquals(SyncOutcome.Synced, supervisor.sync.syncNow())
+        supervisor.sync.syncLog(day.localId)
+
+        val supervisorId = (supervisor.authState.state.value as com.dmb.chantiertracker.domain.model.AuthState.Authenticated).user.id
+        val rows = supervisor.db.attachmentDao().findForEntry(entry).associateBy { it.originalName }
+        println("R3 — auteurs vus par le superviseur : ${rows.mapValues { it.value.uploadedById }} (superviseur=$supervisorId)")
+        assertEquals(supervisorId, rows.getValue("superviseur.jpg").uploadedById)
+        assertTrue(rows.getValue("proprietaire.jpg").uploadedById.let { it != null && it != supervisorId }, "the owner's photo carries the owner as author")
+
+        kotlinx.coroutines.Dispatchers.setMain(kotlinx.coroutines.Dispatchers.Default)
+        try {
+            val screen = com.dmb.chantiertracker.presentation.logs.DailyLogViewModel(
+                supervisor.logs, supervisor.stages, supervisor.projects, supervisor.auth, supervisor.materials,
+                supervisor.purchaseLines, supervisor.consumptionLines, supervisor.attachments,
+            )
+            screen.load(day.localId)
+            val state = kotlinx.coroutines.withTimeout(10_000) { screen.state.first { !it.isLoading && it.canEdit && it.attachments.size == 2 } }
+            val offered = state.attachments.associate { it.originalName to state.canDelete(it) }
+            println("R3 — bouton Supprimer proposé au superviseur : $offered")
+            assertEquals(mapOf("proprietaire.jpg" to false, "superviseur.jpg" to true), offered)
+            screen.viewModelScope.cancel()
+        } finally {
+            kotlinx.coroutines.Dispatchers.resetMain()
+        }
+
+        supervisor.attachments.deleteAttachment(mine)
+        assertEquals(SyncOutcome.Synced, supervisor.sync.syncNow())
+        supervisor.sync.syncLog(day.localId)
+        val entryServerId = supervisor.db.dailyEntryDao().findByLocalId(entry)!!.serverId!!
+        val onServer = supervisor.attachmentApi.list(entryServerId, 0, 50).content.map { it.originalName }
+        println("R3 — après la suppression du superviseur : serveur=$onServer, à revoir=${supervisor.syncIssues.observeIssues().first()}")
+        assertEquals(listOf("proprietaire.jpg"), onServer, "their own photo is gone from the server, the owner's stays")
+        assertEquals(emptyList(), supervisor.syncIssues.observeIssues().first(), "no refusal")
+        assertEquals(listOf("proprietaire.jpg"), supervisor.db.attachmentDao().findForEntry(entry).map { it.originalName })
     }
 }

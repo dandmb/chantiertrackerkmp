@@ -694,7 +694,7 @@ private fun AttachmentsSection(
                     AttachmentThumbnail(
                         attachment = attachment,
                         bitmap = if (attachment.isVideo) null else thumbnails[attachment.localPath],
-                        canEdit = canEdit,
+                        canEdit = state.canDelete(attachment),
                         onClick = { zoomedAttachment = attachment },
                         onDelete = { pendingDelete = attachment },
                     )
