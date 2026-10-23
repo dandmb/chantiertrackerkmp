@@ -19,8 +19,9 @@ class ConsumptionLineApi(private val client: HttpClient) {
     suspend fun list(entryId: Long, page: Int, size: Int): PageDto<ConsumptionLineDto> =
         client.get(ApiRoutes.entryConsumptionLines(entryId)) { sortedByIdPage(page, size) }.body()
 
-    suspend fun create(entryId: Long, body: CreateConsumptionLineRequestDto): ConsumptionLineDto =
+    suspend fun create(entryId: Long, body: CreateConsumptionLineRequestDto, idempotencyKey: String?): ConsumptionLineDto =
         client.post(ApiRoutes.entryConsumptionLines(entryId)) {
+            idempotencyKey(idempotencyKey)
             contentType(ContentType.Application.Json)
             setBody(body)
         }.body()

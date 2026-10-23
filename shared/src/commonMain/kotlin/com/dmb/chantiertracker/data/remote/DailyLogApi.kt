@@ -23,14 +23,16 @@ class DailyLogApi(private val client: HttpClient) {
     suspend fun getLog(id: Long): DailyLogDetailDto =
         client.get(ApiRoutes.log(id)).body()
 
-    suspend fun createPurchaseEntry(stageId: Long, date: String, body: EntryRequestDto): DailyEntryDto =
+    suspend fun createPurchaseEntry(stageId: Long, date: String, body: EntryRequestDto, idempotencyKey: String?): DailyEntryDto =
         client.post(ApiRoutes.stageLogPurchases(stageId, date)) {
+            idempotencyKey(idempotencyKey)
             contentType(ContentType.Application.Json)
             setBody(body)
         }.body()
 
-    suspend fun createWorkEntry(stageId: Long, date: String, body: EntryRequestDto): DailyEntryDto =
+    suspend fun createWorkEntry(stageId: Long, date: String, body: EntryRequestDto, idempotencyKey: String?): DailyEntryDto =
         client.post(ApiRoutes.stageLogWorks(stageId, date)) {
+            idempotencyKey(idempotencyKey)
             contentType(ContentType.Application.Json)
             setBody(body)
         }.body()

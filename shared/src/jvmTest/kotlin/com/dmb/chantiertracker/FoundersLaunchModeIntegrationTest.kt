@@ -143,7 +143,7 @@ class FoundersLaunchModeIntegrationTest {
 
     private suspend fun pullOwnNewProject(): ProjectDetail {
         assertIs<AuthState.Authenticated>(holder.state.value)
-        createdProjects += projectApi.create(CreateProjectRequestDto("QA fondateurs", null, "Nîmes", "EUR", "Europe/Paris")).id
+        createdProjects += projectApi.create(CreateProjectRequestDto("QA fondateurs", null, "Nîmes", "EUR", "Europe/Paris"), idempotencyKey = null).id
         account.refreshPlanUsage()
         projects.refresh()
         val localId = projects.observeProjects().first().first().localId

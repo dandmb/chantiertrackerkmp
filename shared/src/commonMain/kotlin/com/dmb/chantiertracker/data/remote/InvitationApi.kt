@@ -20,8 +20,9 @@ class InvitationApi(private val client: HttpClient) {
     suspend fun list(projectId: Long, page: Int, size: Int): PageDto<InvitationDto> =
         client.get(ApiRoutes.projectInvitations(projectId)) { sortedByIdPage(page, size) }.body()
 
-    suspend fun create(projectId: Long, body: CreateInvitationRequestDto): InvitationDto =
+    suspend fun create(projectId: Long, body: CreateInvitationRequestDto, idempotencyKey: String?): InvitationDto =
         client.post(ApiRoutes.projectInvitations(projectId)) {
+            idempotencyKey(idempotencyKey)
             contentType(ContentType.Application.Json)
             setBody(body)
         }.body()

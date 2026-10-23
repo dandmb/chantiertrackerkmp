@@ -13,6 +13,7 @@ import kotlinx.coroutines.CancellationException
 
 private const val BILLING_NOT_OPEN_CODE = "BILLING_NOT_OPEN"
 private const val DUPLICATE_MATERIAL_CODE = "DUPLICATE_MATERIAL"
+private const val IDEMPOTENCY_KEY_IN_PROGRESS_CODE = "IDEMPOTENCY_KEY_IN_PROGRESS"
 private val PROBLEM_JSON = ContentType("application", "problem+json")
 
 suspend fun <T> apiCall(block: suspend () -> T): T = apiCallReportingRefusalCode({}, block = block)
@@ -51,6 +52,7 @@ private fun ResponseException.toDomainException(problem: ProblemDetailDto?, onRe
     // from the exception name) — tested as is, never the translatable `detail`.
     if (problem?.code == BILLING_NOT_OPEN_CODE) return DomainException.BillingNotOpen
     if (problem?.code == DUPLICATE_MATERIAL_CODE) return DomainException.DuplicateMaterial
+    if (problem?.code == IDEMPOTENCY_KEY_IN_PROGRESS_CODE) return DomainException.CreationInProgress(retryAfterSeconds = response.retryAfterSeconds())
 
     return when (response.status) {
         HttpStatusCode.Unauthorized -> DomainException.InvalidCredentials
@@ -70,14 +72,14 @@ private fun ResponseException.toDomainException(problem: ProblemDetailDto?, onRe
             else -> DomainException.Forbidden
         }
         HttpStatusCode.PayloadTooLarge -> DomainException.FileTooLarge
-        HttpStatusCode.TooManyRequests -> DomainException.RateLimited(
-            retryAfterSeconds = response.headers[HttpHeaders.RetryAfter]?.trim()?.toIntOrNull()?.takeIf { it > 0 },
-        )
+        HttpStatusCode.TooManyRequests -> DomainException.RateLimited(retryAfterSeconds = response.retryAfterSeconds())
         HttpStatusCode.BadRequest ->
             if (hasFieldErrors) DomainException.Validation else DomainException.InvalidCode
         else -> DomainException.Unexpected
     }
 }
+
+private fun HttpResponse.retryAfterSeconds(): Int? = headers[HttpHeaders.RetryAfter]?.trim()?.toIntOrNull()?.takeIf { it > 0 }
 
 private fun String.containsAny(vararg needles: String): Boolean =
     needles.any { contains(it, ignoreCase = true) }

@@ -10,12 +10,17 @@ import java.net.http.HttpResponse
 /**
  * Stands between a device and the real backend like the production reverse proxy. A request
  * that [redeployingFor] accepts gets the proxy's own answer during a redeploy: a 404 in plain
- * text, not the backend's problem format. Every other request is forwarded unchanged.
+ * text, not the backend's problem format. Every other request is forwarded unchanged; one that
+ * [loseTheAnswerFor] accepts reaches the backend, then the connection is cut before the answer.
  */
 class RedeployingProxy(private val backendBaseUrl: String) : AutoCloseable {
 
     @Volatile var redeployingFor: (method: String, path: String) -> Boolean = { _, _ -> false }
     val answeredWhileRedeploying = mutableListOf<String>()
+    @Volatile var loseTheAnswerFor: (method: String, path: String) -> Boolean = { _, _ -> false }
+
+    data class Forwarded(val method: String, val path: String, val idempotencyKey: String?, val status: Int, val replayed: Boolean, val answerLost: Boolean)
+    val forwarded = mutableListOf<Forwarded>()
 
     private val forwarder = HttpClient.newHttpClient()
     private val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0).apply {
@@ -37,6 +42,14 @@ class RedeployingProxy(private val backendBaseUrl: String) : AutoCloseable {
                     if (name.lowercase() !in RESTRICTED_HEADERS) values.forEach { request.header(name, it) }
                 }
                 val response = forwarder.send(request.build(), HttpResponse.BodyHandlers.ofByteArray())
+                val lost = loseTheAnswerFor(exchange.requestMethod, path)
+                synchronized(forwarded) {
+                    forwarded += Forwarded(
+                        exchange.requestMethod, path, exchange.requestHeaders.getFirst("Idempotency-Key"), response.statusCode(),
+                        response.headers().firstValue("Idempotent-Replayed").orElse(null) == "true", lost,
+                    )
+                }
+                if (lost) return@use
                 response.headers().map().forEach { (name, values) ->
                     if (name.lowercase() !in RESTRICTED_HEADERS && name != ":status") values.forEach { exchange.responseHeaders.add(name, it) }
                 }

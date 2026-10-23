@@ -25,6 +25,7 @@ sealed class DomainException : Exception() {
     data object InvalidCode : DomainException()
     data object Validation : DomainException()
     data class RateLimited(val retryAfterSeconds: Int? = null) : DomainException()
+    data class CreationInProgress(val retryAfterSeconds: Int? = null) : DomainException()
     data object PlanLimitReached : DomainException()
     data object DuplicateMaterial : DomainException()
     data object FileTooLarge : DomainException()

@@ -70,7 +70,7 @@ class DisposableAccounts : AutoCloseable {
         }
         val email = "$prefix-${System.currentTimeMillis()}@local.dev"
         val temporaryPassword = "TempPass1234!"
-        val dto = admin.createUser(CreateAdminUserRequestDto(email, name, temporaryPassword, "USER"))
+        val dto = admin.createUser(CreateAdminUserRequestDto(email, name, temporaryPassword, "USER"), idempotencyKey = null)
         created += dto.id
         return Account(dto.id, email, name, temporaryPassword)
     }

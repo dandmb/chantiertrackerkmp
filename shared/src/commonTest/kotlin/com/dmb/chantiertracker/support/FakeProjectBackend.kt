@@ -10,6 +10,10 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpMethod
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
+import io.ktor.http.content.TextContent
+import io.ktor.http.isSuccess
+import io.ktor.utils.io.ByteReadChannel
+import io.ktor.utils.io.toByteArray
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.contentOrNull
@@ -205,6 +209,13 @@ class FakeProjectBackend {
     /** Answers like the reverse proxy while the API is being redeployed: a 404 that is not the backend's problem format. */
     var redeployingFor: ((HttpRequestData) -> Boolean)? = null
     var redeployAnswer: RedeployAnswer = RedeployAnswer.PROXY_TEXT
+    /** Every POST on a route that accepts `Idempotency-Key`, with the key it carried (null when absent). */
+    val receivedIdempotencyKeys = mutableListOf<Pair<String, String?>>()
+    /** Answers 409 IDEMPOTENCY_KEY_IN_PROGRESS (Retry-After: 10), as the backend does while the first call still runs. */
+    var idempotencyInProgressFor: ((HttpRequestData) -> Boolean)? = null
+    var replayedCreations = 0
+    private class CompletedCreation(val path: String, val body: String?, val status: HttpStatusCode, val headers: io.ktor.http.Headers, val bytes: ByteArray)
+    private val completedCreations = mutableMapOf<Pair<String, String>, CompletedCreation>()
     var loseTheAnswerOf: ((HttpRequestData) -> Boolean)? = null
     var holdTheAnswerOf: (suspend (HttpRequestData) -> Unit)? = null
 
@@ -240,10 +251,42 @@ class FakeProjectBackend {
         receivedMethods += "${request.method.value} $path"
         if (cutTheNetworkFor?.invoke(request) == true) throw kotlinx.io.IOException("network cut")
         if (redeployingFor?.invoke(request) == true) return respondWhileRedeploying(redeployAnswer)
-        val answer = answer(request, path)
+        val answer = idempotentAnswer(request, path) ?: answer(request, path)
         holdTheAnswerOf?.invoke(request)
         if (loseTheAnswerOf?.invoke(request) == true) throw kotlinx.io.IOException("answer lost")
         return answer
+    }
+
+    // Mirrors the backend's IdempotencyFilter (BE-2, BE-4): scope = route + key, a completed
+    // creation is replayed, the same key with another path or body is a 422, a malformed key a 400.
+    private suspend fun MockRequestHandleScope.idempotentAnswer(request: HttpRequestData, path: String): HttpResponseData? {
+        if (request.method != HttpMethod.Post) return null
+        val route = IDEMPOTENT_ROUTES.firstOrNull { it.matches(path) } ?: return null
+        val key = request.headers["Idempotency-Key"]
+        receivedIdempotencyKeys += "POST $path" to key
+        if (key == null) return null
+        if (!VALID_IDEMPOTENCY_KEY.matches(key)) {
+            return respondProblem(HttpStatusCode.BadRequest, "Idempotency-Key invalide.", code = "INVALID_IDEMPOTENCY_KEY")
+        }
+        if (idempotencyInProgressFor?.invoke(request) == true) {
+            return respondProblem(
+                HttpStatusCode.Conflict, "Requête déjà en cours.", code = "IDEMPOTENCY_KEY_IN_PROGRESS",
+                extraHeaders = mapOf(HttpHeaders.RetryAfter to "10"),
+            )
+        }
+        val body = (request.body as? TextContent)?.text
+        completedCreations[route.pattern to key]?.let { done ->
+            if (done.path != path || done.body != body) {
+                return respondProblem(HttpStatusCode.UnprocessableEntity, "Clé déjà utilisée.", code = "IDEMPOTENCY_KEY_REUSED")
+            }
+            replayedCreations++
+            return respond(done.bytes, done.status, io.ktor.http.headers { appendAll(done.headers); append("Idempotent-Replayed", "true") })
+        }
+        val answer = answer(request, path)
+        if (!answer.statusCode.isSuccess()) return answer
+        val bytes = (answer.body as ByteReadChannel).toByteArray()
+        completedCreations[route.pattern to key] = CompletedCreation(path, body, answer.statusCode, answer.headers, bytes)
+        return respond(bytes, answer.statusCode, answer.headers)
     }
 
     private suspend fun MockRequestHandleScope.answer(request: HttpRequestData, path: String): HttpResponseData {
@@ -785,3 +828,11 @@ private fun String?.q(): String = if (this == null) "null" else "\"" + replace("
 
 class ServerRefusal(val status: HttpStatusCode, val code: String?, val withFieldErrors: Boolean = false, val detail: String = "Refusé.", val retryAfterSeconds: Int? = null)
 
+private val VALID_IDEMPOTENCY_KEY = Regex("^[A-Za-z0-9._:-]{1,128}$")
+
+private val IDEMPOTENT_ROUTES = listOf(
+    "^/projects$", "^/projects/[^/]+/stages$", "^/projects/[^/]+/materials$", "^/projects/[^/]+/invitations$",
+    "^/stages/[^/]+/logs/[^/]+/purchases$", "^/stages/[^/]+/logs/[^/]+/works$",
+    "^/entries/[^/]+/purchase-lines$", "^/entries/[^/]+/consumption-lines$", "^/entries/[^/]+/attachments$",
+    "^/entries/[^/]+/reports$", "^/admin/users$",
+).map(::Regex)

@@ -32,8 +32,9 @@ class AdminApi(private val client: HttpClient) {
             parameter("sort", "createdAt,desc")
         }.body()
 
-    suspend fun createUser(body: CreateAdminUserRequestDto): AdminUserResponseDto =
+    suspend fun createUser(body: CreateAdminUserRequestDto, idempotencyKey: String?): AdminUserResponseDto =
         client.post(ApiRoutes.ADMIN_USERS) {
+            idempotencyKey(idempotencyKey)
             contentType(ContentType.Application.Json)
             setBody(body)
         }.body()

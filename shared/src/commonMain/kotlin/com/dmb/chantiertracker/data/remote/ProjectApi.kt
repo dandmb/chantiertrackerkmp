@@ -27,8 +27,9 @@ class ProjectApi(private val client: HttpClient) {
     suspend fun members(id: Long, page: Int, size: Int): PageDto<MemberDto> =
         client.get(ApiRoutes.projectMembers(id)) { sortedByIdPage(page, size) }.body()
 
-    suspend fun create(body: CreateProjectRequestDto): ProjectDto =
+    suspend fun create(body: CreateProjectRequestDto, idempotencyKey: String?): ProjectDto =
         client.post(ApiRoutes.PROJECTS) {
+            idempotencyKey(idempotencyKey)
             contentType(ContentType.Application.Json)
             setBody(body)
         }.body()

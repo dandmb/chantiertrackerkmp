@@ -9,6 +9,7 @@ import com.dmb.chantiertracker.data.remote.dto.CreateAdminUserRequestDto
 import com.dmb.chantiertracker.data.remote.dto.TimeSeriesPointDto
 import com.dmb.chantiertracker.data.remote.dto.UpdateAdminUserRequestDto
 import com.dmb.chantiertracker.data.remote.dto.UpdateUserPlanRequestDto
+import com.dmb.chantiertracker.data.remote.OnlineCreationKeys
 import com.dmb.chantiertracker.domain.model.AdminStats
 import com.dmb.chantiertracker.domain.model.AdminUser
 import com.dmb.chantiertracker.domain.model.AdminUserPage
@@ -26,12 +27,14 @@ import kotlinx.coroutines.CancellationException
 // ReportRepositoryImpl/BillingRepositoryImpl.
 class AdminRepositoryImpl(private val api: AdminApi) : AdminRepository {
 
+    private val creationKeys = OnlineCreationKeys()
+
     override suspend fun listUsers(page: Int): AdminUserPage =
         apiCall { api.listUsers(page, PAGE_SIZE) }.toAdminUserPage()
 
     override suspend fun createUser(email: String, name: String, password: String, globalRole: GlobalRole): AdminUser =
-        apiCall {
-            api.createUser(CreateAdminUserRequestDto(email = email, name = name, password = password, globalRole = globalRole.name))
+        CreateAdminUserRequestDto(email = email, name = name, password = password, globalRole = globalRole.name).let { request ->
+            creationKeys.send(request) { key -> api.createUser(request, key) }
         }.toAdminUser()
 
     override suspend fun updateUserName(id: Long, name: String): AdminUser =

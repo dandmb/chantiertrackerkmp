@@ -37,9 +37,11 @@ class AttachmentApi(private val client: HttpClient) {
         fileName: String,
         mimeType: String,
         openSource: () -> Source,
+        idempotencyKey: String?,
         onProgress: (sent: Long, total: Long?) -> Unit = { _, _ -> },
     ): AttachmentDto =
         client.post(ApiRoutes.entryAttachments(entryId)) {
+            idempotencyKey(idempotencyKey)
             timeout {
                 requestTimeoutMillis = 15 * 60_000L
                 socketTimeoutMillis = 5 * 60_000L
