@@ -62,6 +62,7 @@ class RateLimitMappingTest {
                 status = HttpStatusCode.NotFound,
                 detail = "Introuvable.",
                 extraHeaders = mapOf(HttpHeaders.RetryAfter to "30"),
+                code = "PROJECT_ACCESS_DENIED",
             )
         }
         assertFailsWith<DomainException.NotFound> { apiCall { mock.client.get("projects/9") } }

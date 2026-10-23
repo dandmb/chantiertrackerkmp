@@ -202,6 +202,9 @@ class FakeProjectBackend {
     var rateLimitRetryAfterSeconds: Int? = 3
     var rateLimitedUploads = 0
     var cutTheNetworkFor: ((HttpRequestData) -> Boolean)? = null
+    /** Answers like the reverse proxy while the API is being redeployed: a 404 that is not the backend's problem format. */
+    var redeployingFor: ((HttpRequestData) -> Boolean)? = null
+    var redeployAnswer: RedeployAnswer = RedeployAnswer.PROXY_TEXT
     var loseTheAnswerOf: ((HttpRequestData) -> Boolean)? = null
     var holdTheAnswerOf: (suspend (HttpRequestData) -> Unit)? = null
 
@@ -236,6 +239,7 @@ class FakeProjectBackend {
         val path = request.url.encodedPath.removePrefix("/api/v1")
         receivedMethods += "${request.method.value} $path"
         if (cutTheNetworkFor?.invoke(request) == true) throw kotlinx.io.IOException("network cut")
+        if (redeployingFor?.invoke(request) == true) return respondWhileRedeploying(redeployAnswer)
         val answer = answer(request, path)
         holdTheAnswerOf?.invoke(request)
         if (loseTheAnswerOf?.invoke(request) == true) throw kotlinx.io.IOException("answer lost")
@@ -255,7 +259,7 @@ class FakeProjectBackend {
             refuseOnce = null
             return respondProblem(HttpStatusCode.Forbidden, "Accès refusé.", code = "PROJECT_INSUFFICIENT_ROLE")
         }
-        if (goneOnServer.any { it.containsMatchIn(path) }) return respondProblem(HttpStatusCode.NotFound, "Introuvable.")
+        if (goneOnServer.any { it.containsMatchIn(path) }) return respondProblem(HttpStatusCode.NotFound, "Introuvable.", code = "NOT_FOUND")
         if (forbiddenOnServer.any { it.containsMatchIn(path) }) return respondProblem(HttpStatusCode.Forbidden, "Accès refusé.", code = "PROJECT_INSUFFICIENT_ROLE")
         if (request.method == HttpMethod.Patch) {
             updateStatus?.let { return respondProblem(it, "Modification refusée.", code = updateRefusalCode) }
@@ -300,14 +304,14 @@ class FakeProjectBackend {
 
             request.method == HttpMethod.Get && stagesProjectId != null -> {
                 if (projects.none { it.id == stagesProjectId }) {
-                    return respondProblem(HttpStatusCode.NotFound, "Projet introuvable.")
+                    return respondProblem(HttpStatusCode.NotFound, "Projet introuvable.", code = "PROJECT_ACCESS_DENIED")
                 }
                 respondPage(request, stages.filter { it.projectId == stagesProjectId }.map { it.id to stageJson(it) })
             }
 
             request.method == HttpMethod.Post && stagesProjectId != null -> {
                 if (projects.none { it.id == stagesProjectId }) {
-                    return respondProblem(HttpStatusCode.NotFound, "Projet introuvable.")
+                    return respondProblem(HttpStatusCode.NotFound, "Projet introuvable.", code = "PROJECT_ACCESS_DENIED")
                 }
                 val body = request.jsonBody()
                 val created = ServerStage(
@@ -326,7 +330,7 @@ class FakeProjectBackend {
 
             request.method == HttpMethod.Get && stageId != null -> {
                 val stage = stages.firstOrNull { it.id == stageId }
-                    ?: return respondProblem(HttpStatusCode.NotFound, "Étape introuvable.")
+                    ?: return respondProblem(HttpStatusCode.NotFound, "Étape introuvable.", code = "STAGE_NOT_FOUND")
                 respondJson(stageJson(stage))
             }
 
@@ -335,7 +339,7 @@ class FakeProjectBackend {
                     return respondProblem(HttpStatusCode.Forbidden, "Action réservée à un administrateur.", code = "PROJECT_INSUFFICIENT_ROLE")
                 }
                 val stage = stages.firstOrNull { it.id == stageId }
-                    ?: return respondProblem(HttpStatusCode.NotFound, "Étape introuvable.")
+                    ?: return respondProblem(HttpStatusCode.NotFound, "Étape introuvable.", code = "STAGE_NOT_FOUND")
                 val body = request.jsonBody()
                 body.string("name")?.let { stage.name = it }
                 body.string("description")?.let { stage.description = it }
@@ -371,7 +375,7 @@ class FakeProjectBackend {
 
             request.method == HttpMethod.Patch && materialId != null -> {
                 val m = materials.firstOrNull { it.id == materialId }
-                    ?: return respondProblem(HttpStatusCode.NotFound, "Matériau introuvable.")
+                    ?: return respondProblem(HttpStatusCode.NotFound, "Matériau introuvable.", code = "MATERIAL_NOT_FOUND")
                 val body = request.jsonBody()
                 body.string("name")?.let { m.name = it }
                 body.string("unit")?.let { m.unit = it }
@@ -390,13 +394,13 @@ class FakeProjectBackend {
 
             request.method == HttpMethod.Get && logDetailId != null -> {
                 val log = logs.firstOrNull { it.id == logDetailId }
-                    ?: return respondProblem(HttpStatusCode.NotFound, "Journée introuvable.")
+                    ?: return respondProblem(HttpStatusCode.NotFound, "Journée introuvable.", code = "DAILY_LOG_NOT_FOUND")
                 respondJson(logDetailJson(log))
             }
 
             request.method == HttpMethod.Patch && entryId != null -> {
                 val e = entries.firstOrNull { it.id == entryId }
-                    ?: return respondProblem(HttpStatusCode.NotFound, "Entrée introuvable.")
+                    ?: return respondProblem(HttpStatusCode.NotFound, "Entrée introuvable.", code = "DAILY_ENTRY_NOT_FOUND")
                 e.summary = request.jsonBody().string("summary")
                 e.modifiedAt = patchAppliedAt
                 respondJson(entryJson(e))
@@ -429,7 +433,7 @@ class FakeProjectBackend {
 
             request.method == HttpMethod.Patch && purchaseLineId != null -> {
                 val l = purchaseLines.firstOrNull { it.id == purchaseLineId }
-                    ?: return respondProblem(HttpStatusCode.NotFound, "Ligne introuvable.")
+                    ?: return respondProblem(HttpStatusCode.NotFound, "Ligne introuvable.", code = "PURCHASE_LINE_NOT_FOUND")
                 val body = request.jsonBody()
                 body.number("quantity")?.let { l.quantity = it }
                 body.number("unitPrice")?.let { l.unitPrice = it }
@@ -462,7 +466,7 @@ class FakeProjectBackend {
 
             request.method == HttpMethod.Patch && consumptionLineId != null -> {
                 val l = consumptionLines.firstOrNull { it.id == consumptionLineId }
-                    ?: return respondProblem(HttpStatusCode.NotFound, "Ligne introuvable.")
+                    ?: return respondProblem(HttpStatusCode.NotFound, "Ligne introuvable.", code = "CONSUMPTION_LINE_NOT_FOUND")
                 request.jsonBody().number("quantity")?.let { l.quantity = it }
                 respondJson(consumptionLineJson(l))
             }
@@ -508,7 +512,7 @@ class FakeProjectBackend {
 
             request.method == HttpMethod.Get && attachmentId != null -> {
                 val a = attachments.firstOrNull { it.id == attachmentId }
-                    ?: return respondProblem(HttpStatusCode.NotFound, "Justificatif introuvable.")
+                    ?: return respondProblem(HttpStatusCode.NotFound, "Justificatif introuvable.", code = "ATTACHMENT_NOT_FOUND")
                 respond(a.bytes, HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, a.mimeType))
             }
 
@@ -522,7 +526,7 @@ class FakeProjectBackend {
 
             request.method == HttpMethod.Get && membersProjectId != null -> {
                 if (projects.none { it.id == membersProjectId }) {
-                    return respondProblem(HttpStatusCode.NotFound, "Projet introuvable.")
+                    return respondProblem(HttpStatusCode.NotFound, "Projet introuvable.", code = "PROJECT_ACCESS_DENIED")
                 }
                 respondPage(request, membersOf(membersProjectId))
             }
@@ -552,7 +556,7 @@ class FakeProjectBackend {
             request.method == HttpMethod.Delete && invitationId != null -> {
                 if (invitationsForbidden) return respondProblem(HttpStatusCode.Forbidden, "Action réservée à un administrateur.")
                 if (invitations.none { it.id == invitationId }) {
-                    return respondProblem(HttpStatusCode.NotFound, "Invitation introuvable.")
+                    return respondProblem(HttpStatusCode.NotFound, "Invitation introuvable.", code = "INVITATION_NOT_FOUND")
                 }
                 invitations.removeAll { it.id == invitationId }
                 respondJson("", HttpStatusCode.NoContent)
@@ -565,14 +569,14 @@ class FakeProjectBackend {
 
             request.method == HttpMethod.Get && detailsToken != null -> {
                 val invitation = myPendingInvitations.firstOrNull { it.token == detailsToken }
-                    ?: return respondProblem(HttpStatusCode.NotFound, "Invitation introuvable.")
+                    ?: return respondProblem(HttpStatusCode.NotFound, "Invitation introuvable.", code = "INVITATION_NOT_FOUND")
                 respondJson(invitationDetailsJson(invitation))
             }
 
             request.method == HttpMethod.Post && acceptToken != null -> {
                 acceptStatus?.let { return respondProblem(it, "Cette invitation n'est plus valide.") }
                 if (myPendingInvitations.none { it.token == acceptToken }) {
-                    return respondProblem(HttpStatusCode.NotFound, "Invitation introuvable.")
+                    return respondProblem(HttpStatusCode.NotFound, "Invitation introuvable.", code = "INVITATION_NOT_FOUND")
                 }
                 myPendingInvitations.removeAll { it.token == acceptToken }
                 respondJson("""{"message":"Invitation acceptée avec succès."}""")
@@ -580,7 +584,7 @@ class FakeProjectBackend {
 
             request.method == HttpMethod.Post && declineToken != null -> {
                 if (myPendingInvitations.none { it.token == declineToken }) {
-                    return respondProblem(HttpStatusCode.NotFound, "Invitation introuvable.")
+                    return respondProblem(HttpStatusCode.NotFound, "Invitation introuvable.", code = "INVITATION_NOT_FOUND")
                 }
                 myPendingInvitations.removeAll { it.token == declineToken }
                 respondJson("", HttpStatusCode.NoContent)
@@ -588,7 +592,7 @@ class FakeProjectBackend {
 
             request.method == HttpMethod.Get && idInPath != null -> {
                 val project = projects.firstOrNull { it.id == idInPath }
-                    ?: return respondProblem(HttpStatusCode.NotFound, "Projet introuvable.")
+                    ?: return respondProblem(HttpStatusCode.NotFound, "Projet introuvable.", code = "PROJECT_ACCESS_DENIED")
                 respondJson(detailJson(project))
             }
 
@@ -613,7 +617,7 @@ class FakeProjectBackend {
 
             request.method == HttpMethod.Patch && idInPath != null -> {
                 val project = projects.firstOrNull { it.id == idInPath }
-                    ?: return respondProblem(HttpStatusCode.NotFound, "Projet introuvable.")
+                    ?: return respondProblem(HttpStatusCode.NotFound, "Projet introuvable.", code = "PROJECT_ACCESS_DENIED")
                 val body = request.jsonBody()
                 body.string("name")?.let { project.name = it }
                 body.string("description")?.let { project.description = it }
@@ -631,7 +635,7 @@ class FakeProjectBackend {
                 respondJson("", HttpStatusCode.NoContent)
             }
 
-            else -> respondProblem(HttpStatusCode.NotFound, "route inconnue: $path")
+            else -> respondProblem(HttpStatusCode.NotFound, "route inconnue: $path", code = "NO_RESOURCE_FOUND")
         }
     }
 

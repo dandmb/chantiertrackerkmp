@@ -4,6 +4,7 @@ import com.dmb.chantiertracker.data.local.AuthTokens
 import com.dmb.chantiertracker.data.local.TokenStorage
 import com.dmb.chantiertracker.data.remote.dto.LoginResponseDto
 import com.dmb.chantiertracker.data.remote.dto.RefreshTokenRequestDto
+import com.dmb.chantiertracker.domain.model.DomainException
 import io.ktor.client.HttpClient
 import io.ktor.client.HttpClientConfig
 import io.ktor.client.call.body
@@ -85,6 +86,8 @@ fun HttpClientConfig<*>.configureChantierTrackerClient(
                     val fresh = response.body<LoginResponseDto>()
                     tokenStorage.save(AuthTokens(fresh.accessToken, fresh.refreshToken))
                     BearerTokens(fresh.accessToken, fresh.refreshToken)
+                } else if (response.comesFromAnUnavailableApi()) {
+                    throw DomainException.Network
                 } else {
                     tokenStorage.clear()
                     onSessionExpired()
