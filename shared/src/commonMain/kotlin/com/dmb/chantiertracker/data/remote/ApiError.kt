@@ -4,12 +4,16 @@ import com.dmb.chantiertracker.data.remote.dto.ProblemDetailDto
 import com.dmb.chantiertracker.domain.model.DomainException
 import io.ktor.client.call.body
 import io.ktor.client.plugins.ResponseException
+import io.ktor.client.statement.HttpResponse
+import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
+import io.ktor.http.contentType
 import kotlinx.coroutines.CancellationException
 
 private const val BILLING_NOT_OPEN_CODE = "BILLING_NOT_OPEN"
 private const val DUPLICATE_MATERIAL_CODE = "DUPLICATE_MATERIAL"
+private val PROBLEM_JSON = ContentType("application", "problem+json")
 
 suspend fun <T> apiCall(block: suspend () -> T): T = apiCallReportingRefusalCode({}, block = block)
 
@@ -21,14 +25,24 @@ suspend fun <T> apiCallReportingRefusalCode(onRefusalCode: (String?) -> Unit, on
     } catch (e: DomainException) {
         throw e
     } catch (e: ResponseException) {
+        val problem = e.response.problemOrNull()
+        // While the API is redeployed the reverse proxy answers 404 in its own format:
+        // the server is unreachable, nothing was found missing.
+        if (e.response.isNotTheBackendsAnswer(problem)) throw DomainException.Network
         onRefusalStatus(e.response.status.value)
-        throw e.toDomainException(onRefusalCode)
+        throw e.toDomainException(problem, onRefusalCode)
     } catch (e: Throwable) {
         throw DomainException.Network
     }
 
-private suspend fun ResponseException.toDomainException(onRefusalCode: (String?) -> Unit): DomainException {
-    val problem = runCatching { response.body<ProblemDetailDto>() }.getOrNull()
+suspend fun HttpResponse.comesFromAnUnavailableApi(): Boolean = isNotTheBackendsAnswer(problemOrNull())
+
+private suspend fun HttpResponse.problemOrNull(): ProblemDetailDto? = runCatching { body<ProblemDetailDto>() }.getOrNull()
+
+private fun HttpResponse.isNotTheBackendsAnswer(problem: ProblemDetailDto?): Boolean =
+    status == HttpStatusCode.NotFound && (contentType()?.match(PROBLEM_JSON) != true || problem?.code.isNullOrBlank())
+
+private fun ResponseException.toDomainException(problem: ProblemDetailDto?, onRefusalCode: (String?) -> Unit): DomainException {
     onRefusalCode(problem?.code)
     val detail = problem?.detail.orEmpty()
     val hasFieldErrors = !problem?.errors.isNullOrEmpty()

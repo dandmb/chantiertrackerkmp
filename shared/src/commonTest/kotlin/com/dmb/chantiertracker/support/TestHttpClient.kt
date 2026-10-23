@@ -63,6 +63,15 @@ fun MockRequestHandleScope.respondProblem(
     )
 }
 
+enum class RedeployAnswer { PROXY_TEXT, EMPTY, JSON_WITHOUT_CODE, PROBLEM_WITHOUT_CODE }
+
+fun MockRequestHandleScope.respondWhileRedeploying(answer: RedeployAnswer = RedeployAnswer.PROXY_TEXT): HttpResponseData = when (answer) {
+    RedeployAnswer.PROXY_TEXT -> respond("404 page not found", HttpStatusCode.NotFound, headersOf(HttpHeaders.ContentType, "text/plain; charset=utf-8"))
+    RedeployAnswer.EMPTY -> respond("", HttpStatusCode.NotFound)
+    RedeployAnswer.JSON_WITHOUT_CODE -> respondJson("""{"timestamp":"2026-10-23T10:00:00Z","status":404,"error":"Not Found","path":"/api/v1/projects"}""", HttpStatusCode.NotFound)
+    RedeployAnswer.PROBLEM_WITHOUT_CODE -> respondProblem(HttpStatusCode.NotFound, "Not Found")
+}
+
 class RecordingMockClient(
     tokenStorage: TokenStorage,
     onSessionExpired: suspend () -> Unit = {},

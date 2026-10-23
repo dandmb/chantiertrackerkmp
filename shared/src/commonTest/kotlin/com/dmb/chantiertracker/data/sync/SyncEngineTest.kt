@@ -974,6 +974,7 @@ class SyncEngineTest {
     fun a_project_already_gone_on_the_server_is_removed_locally_not_restored() = runTest {
         val f = Fixture()
         f.backend.deleteStatus = io.ktor.http.HttpStatusCode.NotFound
+        f.backend.deleteRefusalCode = "PROJECT_ACCESS_DENIED"
         f.backend.seed(ServerProject(id = 3, name = "Villa"))
         f.dao.upsert(
             localProject("p3", serverId = 3, pendingOp = PendingOp.DELETE, syncStatus = SyncStatus.PENDING),
@@ -1033,6 +1034,7 @@ class SyncEngineTest {
     fun a_stage_already_gone_on_the_server_is_removed_locally_not_restored() = runTest {
         val f = Fixture()
         f.backend.deleteStatus = io.ktor.http.HttpStatusCode.NotFound
+        f.backend.deleteRefusalCode = "STAGE_NOT_FOUND"
         f.dao.upsert(localProject("p5", serverId = 5, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
         f.stageDao.upsert(
             localStage("st1", projectLocalId = "p5", serverId = 90, pendingOp = PendingOp.DELETE, syncStatus = SyncStatus.PENDING),
@@ -1093,6 +1095,7 @@ class SyncEngineTest {
     fun an_entry_already_gone_on_the_server_is_removed_locally_not_restored() = runTest {
         val f = Fixture()
         f.backend.deleteStatus = io.ktor.http.HttpStatusCode.NotFound
+        f.backend.deleteRefusalCode = "DAILY_ENTRY_NOT_FOUND"
         f.dailyEntryDao.upsert(
             com.dmb.chantiertracker.support.localDailyEntry("e1", serverId = 40, pendingOp = PendingOp.DELETE, syncStatus = SyncStatus.PENDING),
         )

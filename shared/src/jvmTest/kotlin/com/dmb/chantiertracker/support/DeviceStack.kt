@@ -41,7 +41,7 @@ import java.nio.file.Files
  * repository, the single SyncEngine), against a real backend — the device the QA scenarios drive.
  * Starts online; [connectivity] switches it to airplane mode and back.
  */
-class DeviceStack : AutoCloseable {
+class DeviceStack(baseUrl: String = IntegrationBackend.baseUrl) : AutoCloseable {
 
     private val dir = Files.createTempDirectory("ct-device")
     val storage = DesktopTokenStorage(dir)
@@ -49,7 +49,7 @@ class DeviceStack : AutoCloseable {
     val client = createHttpClient(
         engine = httpClientEngine(),
         tokenStorage = storage,
-        baseUrl = IntegrationBackend.baseUrl,
+        baseUrl = baseUrl,
         enableLogging = false,
         onSessionExpired = { authState.update(AuthState.Unauthenticated) },
     )

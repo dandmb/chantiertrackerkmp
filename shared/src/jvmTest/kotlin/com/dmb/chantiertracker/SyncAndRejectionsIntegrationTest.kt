@@ -341,8 +341,18 @@ class SyncAndRejectionsIntegrationTest {
             waitingLine.blockedBy,
             "la ligne en attente nomme la saisie refusée dont elle dépend",
         )
-        assertEquals(2, listed.size, "l'écran liste la saisie refusée et sa ligne en attente")
-        assertEquals(1, issues.observeIssueCount().first(), "la pastille ne compte que la saisie refusée, pas la ligne en attente")
+        // Depuis BE-3 (backend e81efb0), un matériau créé sur un projet suspendu est refusé lui aussi.
+        val refusedMaterial = listed.single { it.target == com.dmb.chantiertracker.domain.model.SyncIssueTarget.MATERIAL }
+        println("ADR-74 — matériau refusé : ${refusedMaterial.label} ${refusedMaterial.issue.kind} ${refusedMaterial.issue.reason} réessayable=${refusedMaterial.issue.canBeRetried} actions=${refusedMaterial.actions} projet=${refusedMaterial.projectName} étape=${refusedMaterial.stageName} jour=${refusedMaterial.date}")
+        println("ADR-74 — ligne en attente : actions=${waitingLine.actions} attend=${waitingLine.blockedBy}")
+        println("ADR-74 — saisie refusée : actions=${refusedEntry.actions}")
+        assertEquals(cement.localId, refusedMaterial.localId)
+        assertEquals(com.dmb.chantiertracker.domain.model.SyncIssueKind.REFUSED, refusedMaterial.issue.kind)
+        assertEquals(com.dmb.chantiertracker.domain.model.RefusalReason.PROJECT_OR_STAGE_INACTIVE, refusedMaterial.issue.reason)
+        assertTrue(refusedMaterial.issue.canBeRetried, "le matériau aussi se réessaie une fois le projet rouvert")
+        assertEquals(listOf("Ciment", supervisorProject.localId, "QA 74 à revoir"), listOf(refusedMaterial.label, refusedMaterial.projectLocalId, refusedMaterial.projectName))
+        assertEquals(3, listed.size, "l'écran liste la saisie refusée, le matériau refusé et la ligne en attente")
+        assertEquals(2, issues.observeIssueCount().first(), "la pastille compte les deux refus, pas la ligne en attente")
 
         val whileSuspended = issues.retry(refusedEntry)
         println("ADR-74 tranche 2 — « Réessayer » projet encore suspendu : $whileSuspended")
@@ -359,6 +369,7 @@ class SyncAndRejectionsIntegrationTest {
         val afterReopening = issues.retry(refusedEntry)
         println("ADR-74 tranche 2 — « Réessayer » projet rouvert : $afterReopening")
         assertEquals(com.dmb.chantiertracker.domain.repository.RetryOutcome.ACCEPTED, afterReopening)
+        println("ADR-74 — après « Réessayer » sur la saisie : ${issues.observeIssues().first().joinToString { "${it.target} ${it.issue.kind}" }}")
         supervisorPhone.sync.syncNow()
         val remaining = issues.observeIssues().first()
         println("ADR-74 tranche 2 — à revoir après réouverture : ${remaining.size}")
@@ -366,6 +377,7 @@ class SyncAndRejectionsIntegrationTest {
         assertEquals(0, issues.observeIssueCount().first())
         assertEquals(SyncStatus.SYNCED, supervisorPhone.db.dailyEntryDao().findByLocalId(entry)?.syncStatus)
         assertEquals(SyncStatus.SYNCED, supervisorPhone.db.purchaseLineDao().findByLocalId(line)?.syncStatus)
+        assertEquals(SyncStatus.SYNCED, supervisorPhone.db.materialDao().findByLocalId(cement.localId)?.syncStatus)
         assertEquals(com.dmb.chantiertracker.domain.repository.SignOutResult.SignedOut, supervisorPhone.signOut.signOut(), "plus rien ne retient la déconnexion")
     }
 
