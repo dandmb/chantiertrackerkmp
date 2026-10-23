@@ -1666,7 +1666,10 @@ class SyncEngine(
         val syncedAt = clock.nowEpochMillis()
 
         for (dto in remote) {
-            if (dto.id in knownServerIds) continue
+            if (dto.id in knownServerIds) {
+                learnTheAuthorOf(locals.first { it.serverId == dto.id }, dto)
+                continue
+            }
             val uploadedFromHere = locals.firstOrNull {
                 it.serverId == null && it.originalName == dto.originalName && sendWaits.about(sendKey(SyncIssueTarget.ATTACHMENT, it.localId)) == SendWait.NO_ANSWER
             }?.let { attachmentDao.findByLocalId(it.localId) }
@@ -1692,6 +1695,12 @@ class SyncEngine(
                 attachmentFileStore.delete(it.localPath)
                 attachmentDao.deleteIfUnchanged(it)
             }
+    }
+
+    // Rows from before v17 have no author: the next pull fills it in, nothing else.
+    private suspend fun learnTheAuthorOf(local: AttachmentEntity, dto: AttachmentDto) {
+        if (local.uploadedById != null || dto.uploadedById == null) return
+        attachmentDao.writeIfUnchanged(local.copy(uploadedById = dto.uploadedById))
     }
 
     private suspend fun pushStageCreate(stage: StageEntity) {

@@ -56,6 +56,8 @@ class AttachmentRepositoryImpl(
         durationSeconds = entity.durationSeconds,
         uploadedAt = entity.uploadedAt,
         syncIssue = entity.syncIssue(blockedByParent),
+        uploadedById = entity.uploadedById,
+        sentToTheServer = entity.serverId != null,
     )
 
     override suspend fun addAttachment(entryLocalId: String, bytes: ByteArray, originalName: String, mimeType: String): Attachment {

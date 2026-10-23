@@ -420,6 +420,9 @@ data class AttachmentEntity(
     override val lastSyncError: String?,
     override val serverErrorCode: String? = null,
     override val localVersion: Long = 0,
+    // Who sent it, as the server records it (R3: a supervisor deletes only their own). Null for
+    // a row not yet on the server, and for rows from before v17 until the next pull.
+    val uploadedById: Long? = null,
 ) : SyncedRow, LocallyVersioned<AttachmentEntity> {
     override fun withLocalVersion(version: Long): AttachmentEntity = copy(localVersion = version)
 }

@@ -424,3 +424,9 @@ val MIGRATION_15_16 = object : Migration(15, 16) {
         connection.execSQL("CREATE INDEX IF NOT EXISTS `index_material_merges_keptLocalId` ON `material_merges` (`keptLocalId`)")
     }
 }
+
+val MIGRATION_16_17 = object : Migration(16, 17) {
+    override fun migrate(connection: SQLiteConnection) {
+        connection.execSQL("ALTER TABLE `attachments` ADD COLUMN `uploadedById` INTEGER")
+    }
+}

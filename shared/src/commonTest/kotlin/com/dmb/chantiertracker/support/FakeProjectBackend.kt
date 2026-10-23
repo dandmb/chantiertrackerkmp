@@ -119,6 +119,7 @@ class ServerAttachment(
     val mimeType: String = "image/jpeg",
     val bytes: ByteArray = byteArrayOf(1, 2, 3),
     val durationSeconds: Int? = null,
+    val uploadedById: Long = 1L,
 )
 
 /**
@@ -214,6 +215,8 @@ class FakeProjectBackend {
     /** Answers 409 IDEMPOTENCY_KEY_IN_PROGRESS (Retry-After: 10), as the backend does while the first call still runs. */
     var idempotencyInProgressFor: ((HttpRequestData) -> Boolean)? = null
     var replayedCreations = 0
+    /** The account the backend records as the author of an uploaded attachment. */
+    var uploaderId = 1L
     private class CompletedCreation(val path: String, val body: String?, val status: HttpStatusCode, val headers: io.ktor.http.Headers, val bytes: ByteArray)
     private val completedCreations = mutableMapOf<Pair<String, String>, CompletedCreation>()
     var loseTheAnswerOf: ((HttpRequestData) -> Boolean)? = null
@@ -544,10 +547,10 @@ class FakeProjectBackend {
                     ServerAttachment(
                         nextAttachmentId++, attachmentsEntryId,
                         originalName = fileName, mimeType = "video/mp4",
-                        bytes = byteArrayOf(9, 9, 9), durationSeconds = attachmentUploadDurationSeconds,
+                        bytes = byteArrayOf(9, 9, 9), durationSeconds = attachmentUploadDurationSeconds, uploadedById = uploaderId,
                     )
                 } else {
-                    ServerAttachment(nextAttachmentId++, attachmentsEntryId, originalName = fileName)
+                    ServerAttachment(nextAttachmentId++, attachmentsEntryId, originalName = fileName, uploadedById = uploaderId)
                 }
                 attachments += created
                 respondJson(attachmentJson(created), HttpStatusCode.Created)
@@ -809,7 +812,7 @@ class FakeProjectBackend {
 
     private fun attachmentJson(a: ServerAttachment): String =
         """{"id":${a.id},"entryId":${a.entryId},"originalName":${a.originalName.q()},"mimeType":${a.mimeType.q()},
-            "size":${a.bytes.size},"durationSeconds":${a.durationSeconds ?: "null"},"uploadedById":1,"uploadedAt":"2026-01-01T09:00:00"}"""
+            "size":${a.bytes.size},"durationSeconds":${a.durationSeconds ?: "null"},"uploadedById":${a.uploadedById},"uploadedAt":"2026-01-01T09:00:00"}"""
 }
 
 private const val DEFAULT_PAGE_SIZE = 20
