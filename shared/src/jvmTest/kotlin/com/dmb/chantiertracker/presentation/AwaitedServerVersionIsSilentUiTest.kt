@@ -124,7 +124,7 @@ class AwaitedServerVersionIsSilentUiTest {
         }
         waitUntil(timeoutMillis = 5_000L) { onAllNodesWithText("Rien à revoir").fetchSemanticsNodes().isNotEmpty() }
 
-        onNodeWithText("Le serveur n'a refusé aucune de vos saisies.").assertExists()
+        onNodeWithText("Le serveur n'a refusé aucune de tes saisies.").assertExists()
         onAllNodes(hasText("élément", substring = true)).assertCountEquals(0)
         onAllNodesWithText("J'ai compris").assertCountEquals(0)
         assertEquals(0, vm.state.value.total)

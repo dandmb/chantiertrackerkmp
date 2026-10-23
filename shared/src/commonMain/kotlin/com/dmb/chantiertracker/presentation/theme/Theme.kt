@@ -8,102 +8,151 @@ import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.dmb.chantiertracker.resources.Res
-import com.dmb.chantiertracker.resources.plus_jakarta_medium
-import com.dmb.chantiertracker.resources.plus_jakarta_regular
-import com.dmb.chantiertracker.resources.plus_jakarta_semibold
+import com.dmb.chantiertracker.resources.big_shoulders_display_black
+import com.dmb.chantiertracker.resources.familjen_grotesk_bold
+import com.dmb.chantiertracker.resources.familjen_grotesk_medium
 import org.jetbrains.compose.resources.Font
 
-private val LightColors = lightColorScheme(
-    primary = Terracotta,
-    onPrimary = Color.White,
-    primaryContainer = TerracottaContainer,
-    onPrimaryContainer = TerracottaDark,
-    secondary = WarmGray,
-    onSecondary = Color.White,
-    secondaryContainer = TerracottaContainer,
-    onSecondaryContainer = TerracottaDark,
-    background = BackgroundLight,
-    onBackground = TextPrimaryLight,
-    surface = SurfaceLight,
-    onSurface = TextPrimaryLight,
-    surfaceVariant = BackgroundLight,
-    onSurfaceVariant = TextSecondaryLight,
-    outline = OutlineLight,
-    outlineVariant = DividerLight,
+// Light: the web's charte — black ink on white, yellow only as a fill (selected navigation
+// item, highlighted surfaces), black pills with white text, thick black outlines.
+internal val LightColors = lightColorScheme(
+    primary = Ink,
+    onPrimary = Paper,
+    primaryContainer = Yellow,
+    onPrimaryContainer = Ink,
+    inversePrimary = Yellow,
+    secondary = Ink,
+    onSecondary = Paper,
+    secondaryContainer = Yellow,
+    onSecondaryContainer = Ink,
+    background = Paper,
+    onBackground = Ink,
+    surface = Paper,
+    onSurface = Ink,
+    surfaceVariant = PaperDim,
+    onSurfaceVariant = Muted,
+    surfaceTint = Paper,
+    surfaceBright = Paper,
+    surfaceDim = PaperDim,
+    surfaceContainerLowest = Paper,
+    surfaceContainerLow = Paper,
+    surfaceContainer = Paper,
+    surfaceContainerHigh = Paper,
+    surfaceContainerHighest = PaperDim,
+    inverseSurface = Ink,
+    inverseOnSurface = Paper,
+    outline = Ink,
+    outlineVariant = Rule,
     tertiary = SuccessGreen,
-    onTertiary = Color.White,
+    onTertiary = Paper,
     tertiaryContainer = SuccessGreenLight,
     onTertiaryContainer = SuccessOnGreenLight,
     error = ErrorRed,
-    onError = Color.White,
+    onError = Paper,
     errorContainer = ErrorRedLight,
-    onErrorContainer = ErrorRed,
+    onErrorContainer = ErrorRedDark,
+    scrim = Ink,
 )
 
-private val DarkColors = darkColorScheme(
-    primary = TerracottaLight,
-    onPrimary = Color.White,
-    primaryContainer = TerracottaContainerDark,
-    onPrimaryContainer = TerracottaContainer,
-    secondary = WarmGrayLight,
-    onSecondary = Color.Black,
-    secondaryContainer = TerracottaContainerDark,
-    onSecondaryContainer = TerracottaContainer,
-    background = BackgroundDark,
-    onBackground = TextPrimaryDark,
-    surface = SurfaceDark,
-    onSurface = TextPrimaryDark,
-    surfaceVariant = SurfaceDark,
-    onSurfaceVariant = TextSecondaryDark,
-    outline = OutlineDark,
-    outlineVariant = DividerDark,
-    tertiary = SuccessGreenLight,
-    onTertiary = Color.Black,
+// Dark: the same charte at night — white outlines on near-black, yellow pills with black text.
+internal val DarkColors = darkColorScheme(
+    primary = Yellow,
+    onPrimary = Ink,
+    primaryContainer = Yellow,
+    onPrimaryContainer = Ink,
+    inversePrimary = Ink,
+    secondary = Paper,
+    onSecondary = Ink,
+    secondaryContainer = Yellow,
+    onSecondaryContainer = Ink,
+    background = Ink,
+    onBackground = Paper,
+    surface = Ink,
+    onSurface = Paper,
+    surfaceVariant = NightSurface,
+    onSurfaceVariant = NightMuted,
+    surfaceTint = Ink,
+    surfaceBright = NightSurfaceHigh,
+    surfaceDim = Ink,
+    surfaceContainerLowest = Ink,
+    surfaceContainerLow = NightSurface,
+    surfaceContainer = NightSurface,
+    surfaceContainerHigh = NightSurfaceHigh,
+    surfaceContainerHighest = NightSurfaceHigh,
+    inverseSurface = Paper,
+    inverseOnSurface = Ink,
+    outline = Paper,
+    outlineVariant = NightRule,
+    tertiary = SuccessGreenNight,
+    onTertiary = Ink,
     tertiaryContainer = SuccessGreenDark,
     onTertiaryContainer = SuccessOnGreenDark,
-    error = ErrorRed,
-    onError = Color.White,
+    error = ErrorRedNight,
+    onError = Ink,
+    errorContainer = ErrorContainerNight,
+    onErrorContainer = OnErrorContainerNight,
+    scrim = Ink,
 )
 
+// Pills for buttons and chips (M3 buttons already use the full corner), 4 dp like the web
+// for fields and cards.
 private val AppShapes = Shapes(
     extraSmall = RoundedCornerShape(4.dp),
-    small = RoundedCornerShape(6.dp),
-    medium = RoundedCornerShape(6.dp),
-    large = RoundedCornerShape(10.dp),
+    small = RoundedCornerShape(4.dp),
+    medium = RoundedCornerShape(4.dp),
+    large = RoundedCornerShape(8.dp),
+    extraLarge = RoundedCornerShape(12.dp),
 )
 
+// Titles: Big Shoulders Display 900, the web's line height of 1.18 (accents clear the comma of
+// the line above). Compose has no text-transform: shared title components upper-case the text.
+const val DISPLAY_LINE_HEIGHT = 1.18f
+
 @Composable
-private fun appFontFamily(): FontFamily = FontFamily(
-    Font(Res.font.plus_jakarta_regular, FontWeight.Normal),
-    Font(Res.font.plus_jakarta_medium, FontWeight.Medium),
-    Font(Res.font.plus_jakarta_semibold, FontWeight.SemiBold),
+private fun displayFontFamily(): FontFamily = FontFamily(
+    Font(Res.font.big_shoulders_display_black, FontWeight.Black),
 )
+
+// Text: Familjen Grotesk, loaded in 500 and 700 only — regular text is 500, anything
+// emphasised (semi-bold included) resolves to 700, as on the web.
+@Composable
+private fun textFontFamily(): FontFamily = FontFamily(
+    Font(Res.font.familjen_grotesk_medium, FontWeight.Normal),
+    Font(Res.font.familjen_grotesk_medium, FontWeight.Medium),
+    Font(Res.font.familjen_grotesk_bold, FontWeight.SemiBold),
+    Font(Res.font.familjen_grotesk_bold, FontWeight.Bold),
+)
+
+private fun TextStyle.asDisplay(family: FontFamily, size: Int): TextStyle =
+    copy(fontFamily = family, fontWeight = FontWeight.Black, fontSize = size.sp, lineHeight = (size * DISPLAY_LINE_HEIGHT).sp, letterSpacing = 0.sp)
 
 @Composable
 private fun appTypography(): Typography {
-    val family = appFontFamily()
+    val display = displayFontFamily()
+    val text = textFontFamily()
     val d = Typography()
     return Typography(
-        displayLarge = d.displayLarge.copy(fontFamily = family),
-        displayMedium = d.displayMedium.copy(fontFamily = family),
-        displaySmall = d.displaySmall.copy(fontFamily = family),
-        headlineLarge = d.headlineLarge.copy(fontFamily = family, fontWeight = FontWeight.SemiBold),
-        headlineMedium = d.headlineMedium.copy(fontFamily = family, fontWeight = FontWeight.SemiBold),
-        headlineSmall = d.headlineSmall.copy(fontFamily = family, fontWeight = FontWeight.SemiBold),
-        titleLarge = d.titleLarge.copy(fontFamily = family, fontWeight = FontWeight.SemiBold),
-        titleMedium = d.titleMedium.copy(fontFamily = family, fontWeight = FontWeight.Medium),
-        titleSmall = d.titleSmall.copy(fontFamily = family, fontWeight = FontWeight.Medium),
-        bodyLarge = d.bodyLarge.copy(fontFamily = family),
-        bodyMedium = d.bodyMedium.copy(fontFamily = family),
-        bodySmall = d.bodySmall.copy(fontFamily = family),
-        labelLarge = d.labelLarge.copy(fontFamily = family, fontWeight = FontWeight.Medium),
-        labelMedium = d.labelMedium.copy(fontFamily = family, fontWeight = FontWeight.Medium),
-        labelSmall = d.labelSmall.copy(fontFamily = family, fontWeight = FontWeight.Medium),
+        displayLarge = d.displayLarge.asDisplay(display, 57),
+        displayMedium = d.displayMedium.asDisplay(display, 45),
+        displaySmall = d.displaySmall.asDisplay(display, 36),
+        headlineLarge = d.headlineLarge.asDisplay(display, 36),
+        headlineMedium = d.headlineMedium.asDisplay(display, 32),
+        headlineSmall = d.headlineSmall.asDisplay(display, 28),
+        titleLarge = d.titleLarge.asDisplay(display, 24),
+        titleMedium = d.titleMedium.copy(fontFamily = text, fontWeight = FontWeight.Bold),
+        titleSmall = d.titleSmall.copy(fontFamily = text, fontWeight = FontWeight.Bold),
+        bodyLarge = d.bodyLarge.copy(fontFamily = text, fontWeight = FontWeight.Medium),
+        bodyMedium = d.bodyMedium.copy(fontFamily = text, fontWeight = FontWeight.Medium),
+        bodySmall = d.bodySmall.copy(fontFamily = text, fontWeight = FontWeight.Medium),
+        labelLarge = d.labelLarge.copy(fontFamily = text, fontWeight = FontWeight.Bold),
+        labelMedium = d.labelMedium.copy(fontFamily = text, fontWeight = FontWeight.Bold),
+        labelSmall = d.labelSmall.copy(fontFamily = text, fontWeight = FontWeight.Bold),
     )
 }
 

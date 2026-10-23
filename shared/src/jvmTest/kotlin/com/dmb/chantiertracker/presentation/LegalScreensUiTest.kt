@@ -316,7 +316,7 @@ class LegalScreensUiTest {
                 viewModel = RegisterViewModel(FakeAuthRepository()),
             )
         }
-        val sentence = "En créant un compte, vous acceptez nos Conditions générales d'utilisation et notre Politique de confidentialité."
+        val sentence = "En créant un compte, tu acceptes nos Conditions générales d'utilisation et notre Politique de confidentialité."
 
         onNodeWithText(sentence).assertExists()
         tapInside(sentence, "Conditions générales d'utilisation")

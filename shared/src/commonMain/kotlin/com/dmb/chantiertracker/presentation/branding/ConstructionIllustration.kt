@@ -7,6 +7,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import com.dmb.chantiertracker.presentation.theme.Ink
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
@@ -23,9 +24,9 @@ fun ConstructionIllustration(modifier: Modifier = Modifier) {
         fun p(x: Float, y: Float) = Offset(x * scale + 0f, y * scale + originY)
         val line = 1.6f * scale
 
-        val faint = Color.White.copy(alpha = 0.16f)
-        val soft = Color.White.copy(alpha = 0.28f)
-        val strong = Color.White.copy(alpha = 0.92f)
+        val faint = Ink.copy(alpha = 0.16f)
+        val soft = Ink.copy(alpha = 0.28f)
+        val strong = Ink.copy(alpha = 0.92f)
 
         drawBuilding(p(6f, 38f), p(24f, 65f), faint, soft, scale, windows = false)
         drawBuilding(p(26f, 26f), p(48f, 65f), faint, soft, scale, windows = true)

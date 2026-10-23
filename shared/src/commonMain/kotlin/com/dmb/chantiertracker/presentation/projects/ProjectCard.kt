@@ -1,5 +1,6 @@
 package com.dmb.chantiertracker.presentation.projects
 
+import androidx.compose.foundation.BorderStroke
 import com.dmb.chantiertracker.domain.model.SyncIssueTarget
 import com.dmb.chantiertracker.presentation.sync.SyncIssueMarker
 import androidx.compose.foundation.layout.Arrangement
@@ -33,7 +34,7 @@ fun ProjectCard(project: Project, onClick: () -> Unit, modifier: Modifier = Modi
         modifier = modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.large,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = CardDefaults.outlinedCardBorder(),
+        border = BorderStroke(2.dp, MaterialTheme.colorScheme.outline),
     ) {
         Row(
             modifier = Modifier.padding(start = 16.dp, end = 12.dp, top = 16.dp, bottom = 16.dp),

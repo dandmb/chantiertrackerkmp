@@ -12,7 +12,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -22,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.dmb.chantiertracker.presentation.AppOutlinedTextField
 import com.dmb.chantiertracker.presentation.ResponsiveContent
 import com.dmb.chantiertracker.presentation.auth.components.AuthPrimaryButton
 import com.dmb.chantiertracker.presentation.i18n.localizedText
@@ -73,7 +73,7 @@ fun ReportEntryScreen(
                         .padding(PaddingValues(start = 24.dp, end = 24.dp, top = 20.dp, bottom = 32.dp)),
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
-                    OutlinedTextField(
+                    AppOutlinedTextField(
                         value = state.message,
                         onValueChange = viewModel::onMessageChange,
                         modifier = Modifier.fillMaxWidth(),

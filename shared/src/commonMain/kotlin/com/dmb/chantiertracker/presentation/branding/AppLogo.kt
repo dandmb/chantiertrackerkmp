@@ -14,7 +14,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.path
 import androidx.compose.ui.unit.dp
-import com.dmb.chantiertracker.presentation.theme.Terracotta
+import com.dmb.chantiertracker.presentation.theme.Ink
 
 val AppGlyph: ImageVector = ImageVector.Builder(
     name = "AppGlyph",
@@ -67,7 +67,7 @@ fun AppLogo(size: androidx.compose.ui.unit.Dp, modifier: Modifier = Modifier) {
     Box(
         modifier = modifier
             .size(size)
-            .background(Terracotta, RoundedCornerShape(size * 0.18f)),
+            .background(Ink, RoundedCornerShape(size * 0.125f)),
         contentAlignment = Alignment.Center,
     ) {
         Icon(

@@ -120,7 +120,7 @@ class ProjectHistoryUiTest {
     fun a_free_project_shows_the_30_day_retention_notice() = runComposeUiTest {
         content(FakeHistoryRepository(listOf(page(0, 1, listOf(item(1, "Dan a créé le projet"))))), ownerPlan = Plan.FREE)
 
-        awaitText("Historique limité aux 30 derniers jours. Passez à Semi-flex ou Liberté pour un historique plus long.")
+        awaitText("Historique limité aux 30 derniers jours. Passe à Semi-flex ou Liberté pour un historique plus long.")
     }
 
     // ADR-66 — the owner is a founder still on FREE: 180 days, as combined by the server.
@@ -141,7 +141,7 @@ class ProjectHistoryUiTest {
         content(oneEntry(), ownerPlan = Plan.FREE, billing = BillingAvailability.CLOSED)
 
         awaitText("Historique limité aux 30 derniers jours.")
-        onNodeWithText("Passez à", substring = true).assertDoesNotExist()
+        onNodeWithText("Passe à", substring = true).assertDoesNotExist()
     }
 
     @Test
@@ -154,7 +154,7 @@ class ProjectHistoryUiTest {
         )
 
         awaitText("Historique limité aux 6 derniers mois.")
-        onNodeWithText("Passez à", substring = true).assertDoesNotExist()
+        onNodeWithText("Passe à", substring = true).assertDoesNotExist()
     }
 
     @Test

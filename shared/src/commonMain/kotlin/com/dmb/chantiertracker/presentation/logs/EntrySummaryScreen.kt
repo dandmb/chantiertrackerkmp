@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -20,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dmb.chantiertracker.domain.model.EntryType
+import com.dmb.chantiertracker.presentation.AppOutlinedTextField
 import com.dmb.chantiertracker.presentation.ResponsiveContent
 import com.dmb.chantiertracker.presentation.auth.components.AuthPrimaryButton
 import com.dmb.chantiertracker.resources.Res
@@ -66,7 +66,7 @@ fun EntrySummaryScreen(
                     // calm hint under the field (not an error) explaining why Save
                     // is disabled, and disappears as soon as text is entered.
                     val needsTitleHint = isWork && state.summary.isBlank()
-                    OutlinedTextField(
+                    AppOutlinedTextField(
                         value = state.summary,
                         onValueChange = viewModel::onSummaryChange,
                         modifier = Modifier.fillMaxWidth(),

@@ -178,7 +178,7 @@ class BillingScreenUiTest {
         onNodeWithText("Formule Semi-Flex").assertDoesNotExist()
         onNodeWithText("Formule Liberté").assertDoesNotExist()
         onNodeWithText("€", substring = true).assertDoesNotExist()
-        onNodeWithText("Passez à", substring = true).assertDoesNotExist()
+        onNodeWithText("Passe à", substring = true).assertDoesNotExist()
     }
 
     @Test
@@ -218,7 +218,7 @@ class BillingScreenUiTest {
     fun with_billing_open_the_history_notice_suggests_the_upgrade() = runComposeUiTest {
         mount(usage(Plan.FREE))
 
-        onNodeWithText("Historique limité aux 30 derniers jours. Passez à Semi-flex ou Liberté pour un historique plus long.")
+        onNodeWithText("Historique limité aux 30 derniers jours. Passe à Semi-flex ou Liberté pour un historique plus long.")
             .assertExists()
     }
 
@@ -236,7 +236,7 @@ class BillingScreenUiTest {
 
         onNodeWithText("Formule Gratuite").assertExists()
         onNodeWithText("Fondateur").assertExists()
-        onNodeWithText("Vous faites partie des premiers inscrits.", substring = true).assertExists()
+        onNodeWithText("Tu fais partie des premiers inscrits.", substring = true).assertExists()
         // The photo quota is the one exception to "Semi-Flex benefits" (150, not 300):
         // the sentence must say so, like the web's, never promise the full Semi-Flex tier.
         onNodeWithText("avec moitié moins de photos", substring = true).assertExists()
@@ -253,7 +253,7 @@ class BillingScreenUiTest {
     fun a_founder_on_the_free_plan_reads_six_months_of_history_with_billing_open_too() = runComposeUiTest {
         mount(usage(Plan.FREE, isFounder = true, historyDaysLimit = 180, historyDaysLimitKnown = true))
 
-        onNodeWithText("Historique limité aux 6 derniers mois. Passez à Liberté pour un historique illimité.").assertExists()
+        onNodeWithText("Historique limité aux 6 derniers mois. Passe à Liberté pour un historique illimité.").assertExists()
         onNodeWithText("30 derniers jours", substring = true).assertDoesNotExist()
     }
 

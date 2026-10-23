@@ -13,7 +13,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -24,6 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.dmb.chantiertracker.presentation.AppOutlinedTextField
 import com.dmb.chantiertracker.presentation.ResponsiveContent
 import com.dmb.chantiertracker.presentation.formatEpochMillisDateTime
 import com.dmb.chantiertracker.presentation.auth.components.AuthPrimaryButton
@@ -130,8 +130,8 @@ fun ConsumptionLineFormContent(
                             color = if (selected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surface,
                             shape = MaterialTheme.shapes.small,
                             border = BorderStroke(
-                                1.dp,
-                                if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant,
+                                2.dp,
+                                if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
                             ),
                             modifier = Modifier.fillMaxWidth(),
                         ) {
@@ -151,7 +151,7 @@ fun ConsumptionLineFormContent(
                     }
 
                     state.selectedStock?.let {
-                        OutlinedTextField(
+                        AppOutlinedTextField(
                             value = state.quantity,
                             onValueChange = onQuantityChange,
                             label = { Text(stringResource(Res.string.quantity_label) + " (${it.unit})") },

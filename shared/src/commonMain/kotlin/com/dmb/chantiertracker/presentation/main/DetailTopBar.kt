@@ -9,7 +9,9 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.font.FontWeight
+import com.dmb.chantiertracker.presentation.CapitalTitle
 import com.dmb.chantiertracker.presentation.auth.components.BackArrowIcon
 import com.dmb.chantiertracker.resources.Res
 import com.dmb.chantiertracker.resources.action_back
@@ -23,7 +25,7 @@ fun DetailTopBar(
     actions: @Composable RowScope.() -> Unit = {},
 ) {
     TopAppBar(
-        title = { Text(title, fontWeight = FontWeight.SemiBold) },
+        title = { CapitalTitle(title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
         navigationIcon = {
             IconButton(onClick = onBack) {
                 Icon(BackArrowIcon, contentDescription = stringResource(Res.string.action_back))

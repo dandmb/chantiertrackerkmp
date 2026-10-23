@@ -51,7 +51,7 @@ import kotlin.test.Test
 @OptIn(ExperimentalTestApi::class)
 class AuthScreensSnapshotTest {
 
-    private val outDir = File("build/auth-snapshots").apply { mkdirs() }
+    private val outDir = SnapshotSettings.outDir("build/auth-snapshots")
 
     @BeforeTest fun setUp() { installTestMainDispatcher() }
 
@@ -73,7 +73,7 @@ class AuthScreensSnapshotTest {
             AppEnvironment {
                 AppTheme(darkTheme = dark) {
                     val size = if (landscape) 892.dp to 412.dp else 412.dp to 892.dp
-                    Box(Modifier.size(size.first, size.second)) { screen() }
+                    Box(Modifier.size(size.first, size.second)) { AtTheSnapshotFontScale { screen() } }
                 }
             }
         }

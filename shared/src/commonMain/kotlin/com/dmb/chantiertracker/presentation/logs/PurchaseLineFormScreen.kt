@@ -17,7 +17,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -30,6 +29,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.dmb.chantiertracker.presentation.AppOutlinedTextField
 import com.dmb.chantiertracker.presentation.ResponsiveContent
 import com.dmb.chantiertracker.presentation.auth.components.AuthPrimaryButton
 import com.dmb.chantiertracker.presentation.format.formatMoney
@@ -90,7 +90,7 @@ fun PurchaseLineFormScreen(
                     val unitPriceLabel = stringResource(Res.string.unit_price_label) + (currency?.let { " ($it)" } ?: "")
 
                     if (state.isEdit) {
-                        OutlinedTextField(
+                        AppOutlinedTextField(
                             value = state.selectedMaterial?.let { "${it.name} (${it.unit})" }.orEmpty(),
                             onValueChange = {},
                             readOnly = true,
@@ -101,7 +101,7 @@ fun PurchaseLineFormScreen(
                         MaterialPicker(state, viewModel)
                     }
 
-                    OutlinedTextField(
+                    AppOutlinedTextField(
                         value = state.quantity,
                         onValueChange = viewModel::onQuantityChange,
                         label = { Text(quantityLabel) },
@@ -112,7 +112,7 @@ fun PurchaseLineFormScreen(
                         enabled = !state.isSubmitting,
                         modifier = Modifier.fillMaxWidth(),
                     )
-                    OutlinedTextField(
+                    AppOutlinedTextField(
                         value = state.unitPrice,
                         onValueChange = viewModel::onUnitPriceChange,
                         label = { Text(unitPriceLabel) },
@@ -123,7 +123,7 @@ fun PurchaseLineFormScreen(
                         enabled = !state.isSubmitting,
                         modifier = Modifier.fillMaxWidth(),
                     )
-                    OutlinedTextField(
+                    AppOutlinedTextField(
                         value = state.supplier,
                         onValueChange = viewModel::onSupplierChange,
                         label = { Text(stringResource(Res.string.supplier_label)) },
@@ -151,7 +151,7 @@ fun PurchaseLineFormScreen(
 @Composable
 private fun MaterialPicker(state: PurchaseLineFormUiState, viewModel: PurchaseLineFormViewModel) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        OutlinedTextField(
+        AppOutlinedTextField(
             value = state.materialQuery,
             onValueChange = viewModel::onMaterialQueryChange,
             label = { Text(stringResource(Res.string.material_label)) },
@@ -172,7 +172,7 @@ private fun MaterialPicker(state: PurchaseLineFormUiState, viewModel: PurchaseLi
         }
 
         state.creatingNewUnit?.let { unit ->
-            OutlinedTextField(
+            AppOutlinedTextField(
                 value = unit,
                 onValueChange = viewModel::onNewUnitChange,
                 label = { Text(stringResource(Res.string.material_unit_label)) },
@@ -196,7 +196,7 @@ private fun PickerRow(text: String, onClick: () -> Unit) {
         onClick = onClick,
         color = MaterialTheme.colorScheme.surface,
         shape = MaterialTheme.shapes.small,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        border = BorderStroke(2.dp, MaterialTheme.colorScheme.outline),
         modifier = Modifier.fillMaxWidth(),
     ) {
         Text(text, modifier = Modifier.padding(12.dp), style = MaterialTheme.typography.bodyMedium)

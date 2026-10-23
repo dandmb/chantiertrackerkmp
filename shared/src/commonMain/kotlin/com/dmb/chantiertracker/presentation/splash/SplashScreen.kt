@@ -17,7 +17,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.dmb.chantiertracker.presentation.branding.AppGlyph
-import com.dmb.chantiertracker.presentation.theme.Terracotta
+import com.dmb.chantiertracker.presentation.theme.Ink
 import com.dmb.chantiertracker.resources.Res
 import com.dmb.chantiertracker.resources.app_name
 import com.dmb.chantiertracker.resources.splash_tagline
@@ -25,7 +25,7 @@ import org.jetbrains.compose.resources.stringResource
 
 @Composable
 fun SplashScreen() {
-    Surface(modifier = Modifier.fillMaxSize(), color = Terracotta) {
+    Surface(modifier = Modifier.fillMaxSize(), color = Ink) {
         Column(
             modifier = Modifier.fillMaxSize().padding(32.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -38,7 +38,7 @@ fun SplashScreen() {
                 modifier = Modifier.size(96.dp),
             )
             Text(
-                text = stringResource(Res.string.app_name),
+                text = stringResource(Res.string.app_name).uppercase(),
                 modifier = Modifier.padding(top = 24.dp),
                 style = MaterialTheme.typography.headlineSmall,
                 color = Color.White,

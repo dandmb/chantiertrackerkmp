@@ -320,7 +320,7 @@ class SyncIssueActionsUiTest {
 
     @Test
     fun offline_undo_is_disabled_with_a_sentence_that_explains_why_unless_the_server_value_is_on_the_device() {
-        val explanation = "Hors ligne : la valeur du serveur n'est pas connue sur cet appareil. Reconnectez-vous pour annuler votre modification."
+        val explanation = "Hors ligne : la valeur du serveur n'est pas connue sur cet appareil. Reconnecte-toi pour annuler ta modification."
         val repo = FakeSyncIssueRepository(listOf(refusedChange)).apply { online.value = false }
         onScreen(emptyList(), repo = repo) { screen ->
             onNodeWithText("Annuler ma modification").assertIsNotEnabled()
@@ -348,13 +348,13 @@ class SyncIssueActionsUiTest {
         val failing = FakeSyncIssueRepository(listOf(refusedChange)).apply { revertOutcome = RevertOutcome.FAILED }
         onScreen(emptyList(), repo = failing) {
             onNodeWithText("Annuler ma modification").performClick()
-            await("Annulation impossible pour le moment. Réessayez plus tard.")
+            await("Annulation impossible pour le moment. Réessaie plus tard.")
             onNodeWithText("Modification refusée").assertExists()
         }
         val gone = FakeSyncIssueRepository(listOf(refusedChange)).apply { revertOutcome = RevertOutcome.GONE_ON_SERVER }
         onScreen(emptyList(), repo = gone) {
             onNodeWithText("Annuler ma modification").performClick()
-            await("Cet élément a été supprimé sur le serveur. Votre modification ne peut plus être annulée.")
+            await("Cet élément a été supprimé sur le serveur. Ta modification ne peut plus être annulée.")
         }
         val goneInEnglish = FakeSyncIssueRepository(listOf(refusedChange)).apply { revertOutcome = RevertOutcome.GONE_ON_SERVER }
         onScreen(emptyList(), locale = "en", repo = goneInEnglish) {
@@ -364,7 +364,7 @@ class SyncIssueActionsUiTest {
         val lostConnection = FakeSyncIssueRepository(listOf(refusedChange)).apply { revertOutcome = RevertOutcome.NEEDS_CONNECTION }
         onScreen(emptyList(), repo = lostConnection) {
             onNodeWithText("Annuler ma modification").performClick()
-            await("Annulation impossible hors ligne. Reconnectez-vous, puis réessayez.")
+            await("Annulation impossible hors ligne. Reconnecte-toi, puis réessaie.")
         }
     }
 
@@ -473,7 +473,7 @@ class SyncIssueActionsUiTest {
                 val bounds = node.getUnclippedBoundsInRoot()
                 assertTrue(bounds.left >= 0.dp && bounds.right <= 320.dp, "« $label » fits in 320 dp: $bounds")
             }
-            val explanation = "Hors ligne : la valeur du serveur n'est pas connue sur cet appareil. Reconnectez-vous pour annuler votre modification."
+            val explanation = "Hors ligne : la valeur du serveur n'est pas connue sur cet appareil. Reconnecte-toi pour annuler ta modification."
             list.performScrollToNode(hasText(explanation))
             waitForIdle()
             val layouts = mutableListOf<TextLayoutResult>()
