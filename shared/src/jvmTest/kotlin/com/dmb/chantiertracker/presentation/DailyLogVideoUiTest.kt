@@ -180,6 +180,6 @@ class DailyLogVideoUiTest {
         })
         waitForIdle()
 
-        assertTrue(onAllNodes(androidx.compose.ui.test.hasText("La vidéo pèse 260 Mo, la limite est de 200 Mo. Raccourcissez-la ou filmez-la dans une qualité plus basse.")).fetchSemanticsNodes().size == 1)
+        assertTrue(onAllNodes(androidx.compose.ui.test.hasText("La vidéo pèse 260 Mo, la limite est de 200 Mo. Raccourcis-la ou filme-la dans une qualité plus basse.")).fetchSemanticsNodes().size == 1)
     }
 }

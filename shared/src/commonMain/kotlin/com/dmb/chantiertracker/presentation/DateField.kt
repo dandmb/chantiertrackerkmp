@@ -8,7 +8,6 @@ import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -49,7 +48,7 @@ fun DateField(
     val minMillis = remember(minDate) { minDate.toUtcMillis() }
 
     Box(modifier) {
-        OutlinedTextField(
+        AppOutlinedTextField(
             // Stored ISO, shown as JJ-MM-AAAA like every other date in the app.
             value = if (value.isBlank()) "" else formatIsoDate(value),
             onValueChange = {},

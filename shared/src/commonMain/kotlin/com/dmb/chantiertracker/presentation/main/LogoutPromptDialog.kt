@@ -18,6 +18,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.dmb.chantiertracker.presentation.CapitalTitle
 import com.dmb.chantiertracker.resources.Res
 import com.dmb.chantiertracker.resources.action_cancel
 import com.dmb.chantiertracker.resources.logout_anyway
@@ -65,7 +66,7 @@ fun LogoutPromptDialog(
         )
         is LogoutPrompt.Blocked -> AlertDialog(
             onDismissRequest = onDismiss,
-            title = { Text(stringResource(Res.string.logout_blocked_title)) },
+            title = { CapitalTitle(stringResource(Res.string.logout_blocked_title)) },
             text = {
                 Text(
                     stringResource(Res.string.logout_blocked_message, unsentSummary(prompt.unsent)),
@@ -77,7 +78,7 @@ fun LogoutPromptDialog(
         )
         is LogoutPrompt.RefusedWritesLeft -> AlertDialog(
             onDismissRequest = onDismiss,
-            title = { Text(stringResource(Res.string.logout_refused_title)) },
+            title = { CapitalTitle(stringResource(Res.string.logout_refused_title)) },
             text = {
                 Column(Modifier.verticalScroll(rememberScrollState())) {
                     Text(

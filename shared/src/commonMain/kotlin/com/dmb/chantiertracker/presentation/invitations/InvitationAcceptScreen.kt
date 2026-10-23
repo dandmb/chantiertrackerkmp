@@ -20,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.dmb.chantiertracker.presentation.CapitalTitle
 import com.dmb.chantiertracker.presentation.ResponsiveContent
 import com.dmb.chantiertracker.presentation.auth.components.AuthPrimaryButton
 import com.dmb.chantiertracker.presentation.i18n.localizedText
@@ -57,7 +58,7 @@ fun InvitationAcceptScreen(
                         tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(48.dp),
                     )
-                    Text(
+                    CapitalTitle(
                         text = stringResource(Res.string.invitation_accept_welcome, current.projectName),
                         style = MaterialTheme.typography.titleLarge,
                         textAlign = TextAlign.Center,
@@ -74,7 +75,7 @@ fun InvitationAcceptScreen(
                     )
                 }
                 InvitationAcceptStatus.InvalidLink -> ResultColumn {
-                    Text(
+                    CapitalTitle(
                         text = stringResource(Res.string.invitation_accept_invalid_title),
                         style = MaterialTheme.typography.titleLarge,
                         textAlign = TextAlign.Center,
@@ -91,7 +92,7 @@ fun InvitationAcceptScreen(
                     )
                 }
                 is InvitationAcceptStatus.Failed -> ResultColumn {
-                    Text(
+                    CapitalTitle(
                         text = stringResource(Res.string.invitation_accept_error_title),
                         style = MaterialTheme.typography.titleLarge,
                         textAlign = TextAlign.Center,

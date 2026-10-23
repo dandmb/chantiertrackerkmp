@@ -28,7 +28,7 @@ fun ConfirmActionDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(title) },
+        title = { CapitalTitle(title) },
         text = { Text(body, style = MaterialTheme.typography.bodyMedium) },
         confirmButton = {
             TextButton(

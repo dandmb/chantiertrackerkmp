@@ -1,6 +1,7 @@
 package com.dmb.chantiertracker.presentation.projects.detail
 
 import com.dmb.chantiertracker.domain.model.SyncIssueTarget
+import com.dmb.chantiertracker.presentation.CapitalTitle
 import com.dmb.chantiertracker.presentation.sync.SyncIssueMarker
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
@@ -400,10 +401,9 @@ private fun ProjectHeader(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.Top,
         ) {
-            Text(
+            CapitalTitle(
                 text = detail.name,
                 style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.weight(1f),
             )
             if (canEdit) {

@@ -29,6 +29,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.dmb.chantiertracker.domain.model.Plan
+import com.dmb.chantiertracker.presentation.CapitalTitle
 import com.dmb.chantiertracker.resources.Res
 import com.dmb.chantiertracker.resources.app_name
 import com.dmb.chantiertracker.resources.menu_logout
@@ -61,7 +62,7 @@ fun AppTopBar(
 
     TopAppBar(
         title = {
-            Text(text = stringResource(Res.string.app_name), fontWeight = FontWeight.SemiBold)
+            CapitalTitle(text = stringResource(Res.string.app_name))
         },
         actions = {
             leadingActions()

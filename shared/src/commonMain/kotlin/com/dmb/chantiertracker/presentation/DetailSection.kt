@@ -20,6 +20,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 
 // The single building block for every section of a detail screen
 // (ProjectDetailScreen, StageDetailScreen, DailyLogScreen…): one title style
@@ -45,10 +46,9 @@ fun DetailSection(
             leadingIcon?.let {
                 Icon(it, contentDescription = null, tint = titleColor, modifier = Modifier.size(20.dp))
             }
-            Text(
+            CapitalTitle(
                 text = title,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
+                style = MaterialTheme.typography.titleSmall.copy(letterSpacing = 0.06.em),
                 color = titleColor,
                 modifier = Modifier.weight(1f),
             )

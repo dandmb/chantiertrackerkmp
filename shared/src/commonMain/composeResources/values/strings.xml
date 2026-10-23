@@ -632,4 +632,5 @@
     <string name="sync_waiting_on_purchase_entry_and_material">Waiting: depends on the purchases entry of %1$s and on the material “%2$s”, which were refused.</string>
     <string name="sync_waiting_on_work_entry_and_material">Waiting: depends on the work entry of %1$s and on the material “%2$s”, which were refused.</string>
     <string name="sync_waiting_on_entry_and_material">Waiting: depends on the entry and on the material “%1$s”, which were refused.</string>
+    <string name="field_invalid_input">Invalid input</string>
 </resources>

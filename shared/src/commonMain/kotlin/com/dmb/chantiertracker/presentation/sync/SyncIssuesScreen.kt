@@ -16,6 +16,7 @@ import androidx.compose.material3.TextButton
 import com.dmb.chantiertracker.domain.model.SyncIssueAction
 import com.dmb.chantiertracker.domain.model.SyncIssueTarget
 import com.dmb.chantiertracker.domain.model.actions
+import com.dmb.chantiertracker.presentation.CapitalTitle
 import com.dmb.chantiertracker.resources.action_cancel
 import com.dmb.chantiertracker.resources.sync_acknowledge_body
 import com.dmb.chantiertracker.resources.sync_acknowledge_title
@@ -201,11 +202,10 @@ private fun LazyListScope.issueCards(items: List<SyncIssueItem>, state: SyncIssu
 @Composable
 private fun Summary(total: Int) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(
+        CapitalTitle(
             text = pluralStringResource(Res.plurals.sync_issues_count, total, total),
             style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.semantics { heading() },
+            isHeading = true,
         )
         Text(
             text = stringResource(Res.string.sync_issues_intro),
@@ -250,7 +250,7 @@ private fun IssueCard(item: SyncIssueItem, state: SyncIssuesUiState, actions: Is
         modifier = if (singledOut) Modifier.fillMaxWidth().semantics { selected = true } else Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.large,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = if (singledOut) BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else CardDefaults.outlinedCardBorder(),
+        border = BorderStroke(if (singledOut) 3.dp else 2.dp, if (singledOut) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline),
     ) {
         Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             StatusLabel(item.issue.kind)
@@ -333,7 +333,7 @@ private fun ConfirmRemovalDialog(confirmation: SyncIssueConfirmation, onConfirm:
     val discarding = confirmation.action == SyncIssueAction.DISCARD
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(stringResource(if (discarding) Res.string.sync_discard_title else Res.string.sync_acknowledge_title)) },
+        title = { CapitalTitle(stringResource(if (discarding) Res.string.sync_discard_title else Res.string.sync_acknowledge_title)) },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
@@ -413,12 +413,11 @@ private fun NothingToReview(state: SyncIssuesUiState, onDismissNotice: () -> Uni
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Icon(CheckIcon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(40.dp))
-            Text(
+            CapitalTitle(
                 text = stringResource(Res.string.sync_issues_empty_title),
                 style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.SemiBold,
                 textAlign = TextAlign.Center,
-                modifier = Modifier.semantics { heading() },
+                isHeading = true,
             )
             Text(
                 text = stringResource(Res.string.sync_issues_empty_body),

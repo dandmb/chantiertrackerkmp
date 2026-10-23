@@ -106,7 +106,7 @@ import kotlin.test.Test
 @OptIn(ExperimentalTestApi::class, ExperimentalMaterial3Api::class)
 class MainScreensSnapshotTest {
 
-    private val outDir = File("build/auth-snapshots").apply { mkdirs() }
+    private val outDir = SnapshotSettings.outDir("build/auth-snapshots")
 
     private val sampleProjects = listOf(
         Project("1", "Villa Vidal", null, "Nîmes", ProjectStatus.IN_PROGRESS),
@@ -138,7 +138,7 @@ class MainScreensSnapshotTest {
                         androidx.compose.runtime.CompositionLocalProvider(
                             com.dmb.chantiertracker.presentation.billing.LocalBillingAvailability provides billing,
                         ) {
-                            Box(Modifier.size(412.dp, 892.dp)) { content() }
+                            Box(Modifier.size(412.dp, 892.dp)) { AtTheSnapshotFontScale { content() } }
                         }
                     }
                 }
@@ -156,7 +156,7 @@ class MainScreensSnapshotTest {
                 customAppLocale = locale
                 AppEnvironment {
                     AppTheme(darkTheme = false) {
-                        Box(Modifier.size(412.dp, 892.dp)) { content() }
+                        Box(Modifier.size(412.dp, 892.dp)) { AtTheSnapshotFontScale { content() } }
                     }
                 }
             }

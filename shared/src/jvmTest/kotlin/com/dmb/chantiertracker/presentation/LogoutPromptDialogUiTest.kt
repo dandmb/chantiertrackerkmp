@@ -37,7 +37,7 @@ class LogoutPromptDialogUiTest {
 
     @Test
     fun while_sending_the_dialog_says_so_and_offers_nothing_to_click() {
-        block = { ui, _ -> ui.onNodeWithText("Envoi de vos saisies avant la déconnexion…").assertExists() }
+        block = { ui, _ -> ui.onNodeWithText("Envoi de tes saisies avant la déconnexion…").assertExists() }
         mount(LogoutPrompt.Sending)
     }
 
@@ -46,7 +46,7 @@ class LogoutPromptDialogUiTest {
         val clicks = Clicks()
         block = { ui, c ->
             ui.onNodeWithText("Des saisies ne sont pas encore envoyées").assertExists()
-            ui.onNodeWithText("Pas encore envoyé : 3 saisies. Reconnectez-vous à Internet pour l'envoyer avant de vous déconnecter.").assertExists()
+            ui.onNodeWithText("Pas encore envoyé : 3 saisies. Reconnecte-toi à Internet pour l'envoyer avant de te déconnecter.").assertExists()
             ui.onNodeWithText("Se déconnecter quand même").assertDoesNotExist()
             ui.onNodeWithText("Réessayer").performClick()
             ui.onNodeWithText("Annuler").performClick()
@@ -59,7 +59,7 @@ class LogoutPromptDialogUiTest {
     @Test
     fun a_single_unsent_entry_is_worded_in_the_singular() {
         block = { ui, _ ->
-            ui.onNodeWithText("Pas encore envoyé : 1 saisie. Reconnectez-vous à Internet pour l'envoyer avant de vous déconnecter.").assertExists()
+            ui.onNodeWithText("Pas encore envoyé : 1 saisie. Reconnecte-toi à Internet pour l'envoyer avant de te déconnecter.").assertExists()
         }
         mount(LogoutPrompt.Blocked(com.dmb.chantiertracker.domain.model.UnsentWrites(entries = 1)))
     }
@@ -89,7 +89,7 @@ class LogoutPromptDialogUiTest {
     fun what_is_unsent_is_listed_by_nature_in_french_and_in_english() {
         val unsent = com.dmb.chantiertracker.domain.model.UnsentWrites(projects = 1, entries = 1, lines = 2, attachments = 1)
         block = { ui, _ ->
-            ui.onNodeWithText("Pas encore envoyé : 1 projet, 1 saisie, 2 lignes et 1 justificatif. Reconnectez-vous à Internet pour l'envoyer avant de vous déconnecter.").assertExists()
+            ui.onNodeWithText("Pas encore envoyé : 1 projet, 1 saisie, 2 lignes et 1 justificatif. Reconnecte-toi à Internet pour l'envoyer avant de te déconnecter.").assertExists()
         }
         mount(LogoutPrompt.Blocked(unsent))
         block = { ui, _ ->

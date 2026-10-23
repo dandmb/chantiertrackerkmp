@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -16,6 +15,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.dmb.chantiertracker.presentation.AppOutlinedTextField
+import com.dmb.chantiertracker.presentation.CapitalTitle
 import com.dmb.chantiertracker.resources.Res
 import com.dmb.chantiertracker.resources.action_cancel
 import com.dmb.chantiertracker.resources.create_name_label
@@ -32,7 +33,7 @@ fun DeleteProjectDialog(projectName: String, onDismiss: () -> Unit, onConfirm: (
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(stringResource(Res.string.delete_project_title, projectName)) },
+        title = { CapitalTitle(stringResource(Res.string.delete_project_title, projectName)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
@@ -44,7 +45,7 @@ fun DeleteProjectDialog(projectName: String, onDismiss: () -> Unit, onConfirm: (
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                OutlinedTextField(
+                AppOutlinedTextField(
                     value = typed,
                     onValueChange = { typed = it },
                     label = { Text(stringResource(Res.string.create_name_label)) },

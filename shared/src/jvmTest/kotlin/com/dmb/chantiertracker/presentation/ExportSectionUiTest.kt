@@ -71,14 +71,14 @@ class ExportSectionUiTest {
 
         onNodeWithText("Export PDF").assertExists()
         onNodeWithText("Exporter en PDF").assertExists()
-        onNodeWithText("Passez à Semi-flex", substring = true).assertDoesNotExist()
+        onNodeWithText("Passe à Semi-flex", substring = true).assertDoesNotExist()
     }
 
     @Test
     fun an_owner_not_allowed_to_export_sees_the_upgrade_hint_and_no_button() = runComposeUiTest {
         mount(canExport = false)
 
-        onNodeWithText("Passez à Semi-flex ou Liberté pour exporter ce projet en PDF.").assertExists()
+        onNodeWithText("Passe à Semi-flex ou Liberté pour exporter ce projet en PDF.").assertExists()
         onNodeWithText("Exporter en PDF").assertDoesNotExist()
     }
 
@@ -87,7 +87,7 @@ class ExportSectionUiTest {
         mount(canExport = false, billing = BillingAvailability.CLOSED)
 
         onNodeWithText("L'export PDF n'est pas disponible pour ce projet.").assertExists()
-        onNodeWithText("Passez à", substring = true).assertDoesNotExist()
+        onNodeWithText("Passe à", substring = true).assertDoesNotExist()
         onNodeWithText("Exporter en PDF").assertDoesNotExist()
     }
 
@@ -96,7 +96,7 @@ class ExportSectionUiTest {
         mount(canExport = false, billing = BillingAvailability.UNKNOWN)
 
         onNodeWithText("L'export PDF n'est pas disponible pour ce projet.").assertExists()
-        onNodeWithText("Passez à", substring = true).assertDoesNotExist()
+        onNodeWithText("Passe à", substring = true).assertDoesNotExist()
     }
 
     @Test

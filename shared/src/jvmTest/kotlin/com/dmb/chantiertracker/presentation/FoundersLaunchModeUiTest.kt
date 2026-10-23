@@ -122,7 +122,7 @@ class FoundersLaunchModeUiTest {
         planLimitMessage(BillingAvailability.OPEN)
 
         onNodeWithText(
-            "Vous avez atteint la limite de projets de votre formule. Passez à un palier supérieur pour en créer davantage.",
+            "Tu as atteint la limite de projets de ta formule. Passe à un palier supérieur pour en créer davantage.",
         ).assertExists()
     }
 
@@ -130,7 +130,7 @@ class FoundersLaunchModeUiTest {
     fun a_plan_limit_error_stays_neutral_while_billing_is_closed() = runComposeUiTest {
         planLimitMessage(BillingAvailability.CLOSED)
 
-        onNodeWithText("Vous avez atteint la limite de projets de votre formule.").assertExists()
+        onNodeWithText("Tu as atteint la limite de projets de ta formule.").assertExists()
         onNodeWithText("palier supérieur", substring = true).assertDoesNotExist()
     }
 
@@ -138,7 +138,7 @@ class FoundersLaunchModeUiTest {
     fun a_plan_limit_error_stays_neutral_while_billing_status_is_unknown() = runComposeUiTest {
         planLimitMessage(BillingAvailability.UNKNOWN)
 
-        onNodeWithText("Vous avez atteint la limite de projets de votre formule.").assertExists()
+        onNodeWithText("Tu as atteint la limite de projets de ta formule.").assertExists()
     }
 
     @Test

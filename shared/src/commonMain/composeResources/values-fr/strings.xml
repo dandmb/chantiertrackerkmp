@@ -23,13 +23,13 @@
     <string name="password_hide">Masquer le mot de passe</string>
 
     <string name="welcome_title">Bon retour !</string>
-    <string name="welcome_subtitle">Connectez-vous ou créez un compte pour suivre vos chantiers.</string>
+    <string name="welcome_subtitle">Connecte-toi ou crée un compte pour suivre tes chantiers.</string>
     <string name="welcome_create_account">Créer un compte</string>
     <string name="welcome_sign_in">Se connecter</string>
     <string name="welcome_discover_plans">Découvrir nos formules</string>
-    <string name="welcome_discover_plans_teaser">Passez directement à une formule payante, dès l'inscription.</string>
+    <string name="welcome_discover_plans_teaser">Passe directement à une formule payante, dès l'inscription.</string>
     <string name="plan_selection_title">Choisir une formule</string>
-    <string name="plan_selection_subtitle">Passez à un palier payant dès la création de votre compte.</string>
+    <string name="plan_selection_subtitle">Passe à un palier payant dès la création de ton compte.</string>
     <string name="plan_selection_choose">Choisir cette formule</string>
     <string name="plan_selection_continue_free">Créer un compte gratuit</string>
     <string name="plan_selection_tab_free">Gratuit</string>
@@ -48,25 +48,25 @@
     <string name="onboarding_p3_body">Suis les dépenses, le stock et tout l'historique de chaque chantier d'un coup d'œil.</string>
 
     <string name="login_title">Connexion</string>
-    <string name="login_subtitle">Connectez-vous pour suivre vos chantiers.</string>
+    <string name="login_subtitle">Connecte-toi pour suivre tes chantiers.</string>
     <string name="login_forgot_password">Mot de passe oublié ?</string>
     <string name="login_resend_verification">Renvoyer le code de vérification</string>
     <string name="login_submit">Se connecter</string>
     <string name="login_no_account_prompt">Pas de compte ?</string>
     <string name="login_no_account_action">Créer un compte</string>
-    <string name="login_notice_account_activated">Compte activé. Vous pouvez vous connecter.</string>
-    <string name="login_notice_password_reset">Mot de passe mis à jour. Vous pouvez vous connecter.</string>
-    <string name="login_notice_checkout_pending">Compte activé ! Connectez-vous pour finaliser votre abonnement %1$s.</string>
+    <string name="login_notice_account_activated">Compte activé. Tu peux te connecter.</string>
+    <string name="login_notice_password_reset">Mot de passe mis à jour. Tu peux te connecter.</string>
+    <string name="login_notice_checkout_pending">Compte activé ! Connecte-toi pour finaliser ton abonnement %1$s.</string>
 
     <string name="register_title">Créer un compte</string>
     <string name="register_subtitle">Quelques informations pour démarrer.</string>
     <string name="register_submit">S'inscrire</string>
-    <string name="register_legal_consent">En créant un compte, vous acceptez nos %1$s et notre %2$s.</string>
+    <string name="register_legal_consent">En créant un compte, tu acceptes nos %1$s et notre %2$s.</string>
     <string name="register_have_account_prompt">Déjà un compte ?</string>
     <string name="register_have_account_action">Se connecter</string>
 
-    <string name="verify_title">Vérifiez votre email</string>
-    <string name="verify_subtitle">Saisissez le code à 6 chiffres envoyé à %1$s.</string>
+    <string name="verify_title">Vérifie ton email</string>
+    <string name="verify_subtitle">Saisis le code à 6 chiffres envoyé à %1$s.</string>
     <string name="verify_submit">Valider</string>
     <string name="verify_resend">Renvoyer le code</string>
     <string name="verify_resending">Envoi…</string>
@@ -74,7 +74,7 @@
     <string name="verify_code_resent">Un nouveau code est en route.</string>
 
     <string name="forgot_title">Mot de passe oublié</string>
-    <string name="forgot_subtitle">Recevez un code de réinitialisation par email.</string>
+    <string name="forgot_subtitle">Reçois un code de réinitialisation par email.</string>
     <string name="forgot_submit">Envoyer le code</string>
 
     <string name="reset_title">Nouveau mot de passe</string>
@@ -83,7 +83,7 @@
     <string name="reset_back_to_login">Retour à la connexion</string>
 
     <string name="change_password_title">Changement de mot de passe requis</string>
-    <string name="change_password_subtitle">Pour des raisons de sécurité, vous devez définir un nouveau mot de passe avant de continuer.</string>
+    <string name="change_password_subtitle">Pour des raisons de sécurité, tu dois définir un nouveau mot de passe avant de continuer.</string>
     <string name="change_password_submit">Changer mon mot de passe</string>
     <string name="change_password_logout">Se déconnecter</string>
 
@@ -123,7 +123,7 @@
     <string name="create_currency_hint">EUR, USD, XAF…</string>
     <string name="create_timezone_label">Fuseau horaire</string>
     <string name="create_timezone_help">Fuseau horaire du chantier. Il détermine comment sont comptées les journées pour la personne sur place.</string>
-    <string name="create_super_admin_blocked">En tant que super-administrateur, vous ne pouvez pas créer ni rejoindre de projet.</string>
+    <string name="create_super_admin_blocked">En tant que super-administrateur, tu ne peux pas créer ni rejoindre de projet.</string>
     <string name="create_submit">Créer le projet</string>
 
     <string name="detail_title">Projet</string>
@@ -159,8 +159,8 @@
     <string name="invite_member_email_label">Email</string>
     <string name="invite_member_hint">La personne invitée rejoindra ce projet avec le rôle Superviseur.</string>
     <string name="invite_member_submit">Envoyer l'invitation</string>
-    <string name="invite_member_limit">Vous avez atteint la limite de superviseurs par projet de votre formule. Passez à un palier supérieur pour en inviter davantage.</string>
-    <string name="invite_member_limit_no_upgrade">Vous avez atteint la limite de superviseurs par projet de votre formule.</string>
+    <string name="invite_member_limit">Tu as atteint la limite de superviseurs par projet de ta formule. Passe à un palier supérieur pour en inviter davantage.</string>
+    <string name="invite_member_limit_no_upgrade">Tu as atteint la limite de superviseurs par projet de ta formule.</string>
 
     <string name="incoming_invitation_body">Tu as une invitation en attente pour rejoindre %1$s en tant que %2$s.</string>
     <string name="incoming_invitation_body_with_inviter">Tu as une invitation en attente pour rejoindre %1$s en tant que %2$s, envoyée par %3$s.</string>
@@ -182,8 +182,8 @@
     <string name="history_page">Page %1$d / %2$d</string>
     <string name="history_prev">Précédent</string>
     <string name="history_next">Suivant</string>
-    <string name="history_limit_free">Historique limité aux 30 derniers jours. Passez à Semi-flex ou Liberté pour un historique plus long.</string>
-    <string name="history_limit_semi_flex">Historique limité aux 6 derniers mois. Passez à Liberté pour un historique illimité.</string>
+    <string name="history_limit_free">Historique limité aux 30 derniers jours. Passe à Semi-flex ou Liberté pour un historique plus long.</string>
+    <string name="history_limit_semi_flex">Historique limité aux 6 derniers mois. Passe à Liberté pour un historique illimité.</string>
     <string name="history_limit_30_days">Historique limité aux 30 derniers jours.</string>
     <string name="history_limit_6_months">Historique limité aux 6 derniers mois.</string>
     <string name="history_limit_days">Historique limité aux %1$d derniers jours.</string>
@@ -199,13 +199,13 @@
     <string name="detail_export_open">Ouvrir</string>
     <string name="detail_export_share">Partager</string>
     <string name="detail_export_regenerate">Régénérer</string>
-    <string name="detail_export_upgrade">Passez à Semi-flex ou Liberté pour exporter ce projet en PDF.</string>
+    <string name="detail_export_upgrade">Passe à Semi-flex ou Liberté pour exporter ce projet en PDF.</string>
     <string name="detail_export_unavailable">L'export PDF n'est pas disponible pour ce projet.</string>
 
     <string name="billing_title">Abonnement</string>
     <string name="billing_plan_section">Plan actuel</string>
     <string name="billing_founder_badge">Fondateur</string>
-    <string name="billing_founder_explanation">Vous faites partie des premiers inscrits. Ce statut permanent vous donne au minimum les avantages de la formule Semi-Flex (avec moitié moins de photos), quelle que soit votre formule : vos limites réelles sont celles affichées ci-dessous.</string>
+    <string name="billing_founder_explanation">Tu fais partie des premiers inscrits. Ce statut permanent te donne au minimum les avantages de la formule Semi-Flex (avec moitié moins de photos), quelle que soit ta formule : tes limites réelles sont celles affichées ci-dessous.</string>
     <string name="billing_next_due">Prochaine échéance : %1$s</string>
     <string name="billing_usage_section">Usage</string>
     <string name="billing_usage_projects">%1$d/%2$d projets utilisés</string>
@@ -217,7 +217,7 @@
     <string name="billing_usage_supervisors_unlimited">Superviseurs : illimité par projet</string>
     <string name="billing_manage_subscription">Gérer mon abonnement</string>
     <string name="billing_no_action">Aucune action de facturation n'est disponible pour ce plan.</string>
-    <string name="billing_notice_checkout_succeeded">Paiement reçu — la mise à jour de votre abonnement peut prendre quelques instants.</string>
+    <string name="billing_notice_checkout_succeeded">Paiement reçu — la mise à jour de ton abonnement peut prendre quelques instants.</string>
     <string name="billing_upgrade_section">Passer à un palier supérieur</string>
     <string name="billing_cycle_monthly">Mensuel</string>
     <string name="billing_cycle_yearly">Annuel</string>
@@ -300,7 +300,7 @@
     <string name="entry_summary_edit_title">Modifier le résumé</string>
     <string name="entry_title_edit_title">Modifier le titre</string>
     <string name="entry_summary_placeholder">Résumé de la journée</string>
-    <string name="entry_title_placeholder">Décrivez les travaux réalisés</string>
+    <string name="entry_title_placeholder">Décris les travaux réalisés</string>
     <string name="material_query_hint">Rechercher ou créer un matériau</string>
     <string name="entry_summary_required_work">Le titre est obligatoire.</string>
 
@@ -351,12 +351,12 @@
     <string name="attachment_delete_confirm_title">Supprimer ce justificatif ?</string>
     <string name="attachment_delete_confirm_body">Ce fichier sera définitivement supprimé.</string>
     <string name="video_upload_progress">Envoi de la vidéo : %1$d %</string>
-    <string name="video_too_heavy">La vidéo pèse %1$d Mo, la limite est de %2$d Mo. Raccourcissez-la ou filmez-la dans une qualité plus basse.</string>
+    <string name="video_too_heavy">La vidéo pèse %1$d Mo, la limite est de %2$d Mo. Raccourcis-la ou filme-la dans une qualité plus basse.</string>
     <string name="attachment_finalizing">Finalisation…</string>
     <string name="attachments_loading">Chargement des justificatifs…</string>
     <string name="video_upload_error">Impossible d'envoyer cette vidéo.</string>
-    <string name="video_too_long_upgrade">La vidéo dure %1$s, la limite de votre formule est %2$s. Raccourcissez-la ou passez à un palier supérieur.</string>
-    <string name="video_too_long_no_upgrade">La vidéo dure %1$s, la limite de votre formule est %2$s. Merci de la raccourcir.</string>
+    <string name="video_too_long_upgrade">La vidéo dure %1$s, la limite de ta formule est %2$s. Raccourcis-la ou passe à un palier supérieur.</string>
+    <string name="video_too_long_no_upgrade">La vidéo dure %1$s, la limite de ta formule est %2$s. Merci de la raccourcir.</string>
     <string name="video_play">Lire la vidéo</string>
     <string name="video_desktop_unavailable">La lecture vidéo intégrée n'est pas disponible sur ordinateur.</string>
     <string name="video_desktop_open">Ouvrir la vidéo</string>
@@ -418,22 +418,22 @@
 
     <string name="error_invalid_credentials">Email ou mot de passe incorrect.</string>
     <string name="error_email_already_used">Cette adresse email est déjà utilisée.</string>
-    <string name="error_account_not_verified">Votre compte n'est pas encore activé. Vérifiez votre email.</string>
-    <string name="error_account_locked">Compte bloqué après trop de tentatives. Réessayez plus tard.</string>
+    <string name="error_account_not_verified">Ton compte n'est pas encore activé. Vérifie ton email.</string>
+    <string name="error_account_locked">Compte bloqué après trop de tentatives. Réessaie plus tard.</string>
     <string name="error_invalid_current_password">Le mot de passe actuel est incorrect.</string>
-    <string name="error_invalid_code">Ce code est invalide ou a expiré. Après plusieurs essais, demandez un nouveau code.</string>
-    <string name="error_validation">Vérifiez les informations saisies.</string>
-    <string name="error_rate_limited">Trop de requêtes. Réessayez dans un instant.</string>
-    <string name="error_creation_in_progress">Votre demande précédente est encore en cours de traitement. Réessayez dans un instant.</string>
-    <string name="error_plan_limit">Vous avez atteint la limite de projets de votre formule. Passez à un palier supérieur pour en créer davantage.</string>
+    <string name="error_invalid_code">Ce code est invalide ou a expiré. Après plusieurs essais, demande un nouveau code.</string>
+    <string name="error_validation">Vérifie les informations saisies.</string>
+    <string name="error_rate_limited">Trop de requêtes. Réessaie dans un instant.</string>
+    <string name="error_creation_in_progress">Ta demande précédente est encore en cours de traitement. Réessaie dans un instant.</string>
+    <string name="error_plan_limit">Tu as atteint la limite de projets de ta formule. Passe à un palier supérieur pour en créer davantage.</string>
     <string name="error_duplicate_material">Un matériau de ce nom existe déjà dans ce projet.</string>
     <string name="error_file_too_large">Ce fichier est trop volumineux pour être envoyé.</string>
-    <string name="error_plan_limit_no_upgrade">Vous avez atteint la limite de projets de votre formule.</string>
+    <string name="error_plan_limit_no_upgrade">Tu as atteint la limite de projets de ta formule.</string>
     <string name="error_billing_not_open">Les abonnements payants ne sont pas encore ouverts.</string>
-    <string name="error_forbidden">Vous n'êtes pas autorisé à effectuer cette action.</string>
-    <string name="error_not_found">Ce projet n'existe plus, ou vous n'y avez pas accès.</string>
-    <string name="error_network">Connexion au serveur impossible. Vérifiez votre connexion.</string>
-    <string name="error_unexpected">Une erreur est survenue. Réessayez.</string>
+    <string name="error_forbidden">Tu n'es pas autorisé à effectuer cette action.</string>
+    <string name="error_not_found">Ce projet n'existe plus, ou tu n'y as pas accès.</string>
+    <string name="error_network">Connexion au serveur impossible. Vérifie ta connexion.</string>
+    <string name="error_unexpected">Une erreur est survenue. Réessaie.</string>
 
     <string name="admin_users_empty">Aucun utilisateur pour l'instant.</string>
     <string name="admin_users_retry">Réessayer</string>
@@ -464,7 +464,7 @@
     <string name="admin_users_activation_resent">Email d'activation renvoyé à %1$s.</string>
     <string name="admin_users_delete_title">Supprimer %1$s ?</string>
     <string name="admin_users_delete_warning">Cette action supprime définitivement le compte et tous les projets qu'il possède. Cette action est irréversible.</string>
-    <string name="admin_users_delete_confirm_prompt">Tapez %1$s pour confirmer.</string>
+    <string name="admin_users_delete_confirm_prompt">Tape %1$s pour confirmer.</string>
     <string name="admin_users_delete_confirm_button">Supprimer définitivement</string>
     <string name="admin_create_user_title">Créer un utilisateur</string>
     <string name="admin_create_user_password_help">Cet utilisateur devra changer ce mot de passe lors de sa première connexion.</string>
@@ -472,7 +472,7 @@
     <string name="admin_create_user_submit">Créer</string>
     <string name="admin_users_action_assign_plan">Modifier le plan</string>
     <string name="admin_plan_dialog_title">Modifier le plan de %1$s</string>
-    <string name="admin_plan_stripe_guard">Cet utilisateur a un abonnement Stripe actif. Annulez-le d'abord via le portail de facturation avant de modifier son plan manuellement.</string>
+    <string name="admin_plan_stripe_guard">Cet utilisateur a un abonnement Stripe actif. Annule-le d'abord via le portail de facturation avant de modifier son plan manuellement.</string>
     <string name="admin_plan_expires_label">Date d'expiration (optionnel)</string>
     <string name="admin_plan_expires_help">Laisser vide pour un accès indéfini.</string>
     <string name="admin_plan_expires_help_free">Non applicable au plan gratuit.</string>
@@ -497,20 +497,20 @@
     <string name="admin_stats_granularity_month">Mois</string>
     <string name="admin_stats_granularity_year">Année</string>
     <plurals name="error_rate_limited_seconds">
-        <item quantity="one">Trop de tentatives. Réessayez dans %1$d seconde.</item>
-        <item quantity="other">Trop de tentatives. Réessayez dans %1$d secondes.</item>
+        <item quantity="one">Trop de tentatives. Réessaie dans %1$d seconde.</item>
+        <item quantity="other">Trop de tentatives. Réessaie dans %1$d secondes.</item>
     </plurals>
     <plurals name="error_rate_limited_minutes">
-        <item quantity="one">Trop de tentatives. Réessayez dans %1$d minute.</item>
-        <item quantity="other">Trop de tentatives. Réessayez dans %1$d minutes.</item>
+        <item quantity="one">Trop de tentatives. Réessaie dans %1$d minute.</item>
+        <item quantity="other">Trop de tentatives. Réessaie dans %1$d minutes.</item>
     </plurals>
     <string name="legal_terms_of_sale_provisional_s1_title">Aucune offre payante pour le moment</string>
     <string name="legal_terms_of_sale_provisional_s1_body">Le Service est actuellement proposé uniquement dans sa formule gratuite. Aucune offre payante n'est disponible à ce jour.</string>
     <string name="legal_terms_of_sale_provisional_s2_title">Publication des conditions de vente</string>
     <string name="legal_terms_of_sale_provisional_s2_body">Les Conditions Générales de Vente seront publiées sur cette page à l'ouverture des offres payantes, avant toute possibilité de souscription.\nL'utilisation du Service reste régie par les Conditions Générales d'Utilisation.</string>
-    <string name="logout_sending">Envoi de vos saisies avant la déconnexion…</string>
+    <string name="logout_sending">Envoi de tes saisies avant la déconnexion…</string>
     <string name="logout_blocked_title">Des saisies ne sont pas encore envoyées</string>
-    <string name="logout_blocked_message">Pas encore envoyé : %1$s. Reconnectez-vous à Internet pour l'envoyer avant de vous déconnecter.</string>
+    <string name="logout_blocked_message">Pas encore envoyé : %1$s. Reconnecte-toi à Internet pour l'envoyer avant de te déconnecter.</string>
     <string name="logout_retry">Réessayer</string>
     <string name="logout_refused_title">Saisies refusées par le serveur</string>
     <string name="logout_refused_message">Refusé par le serveur, ou en attente d'un élément refusé : %1$s. Rien de cela ne sera envoyé, et tout sera effacé si un autre compte se connecte sur cet appareil.</string>
@@ -542,9 +542,9 @@
         <item quantity="other">%1$d justificatifs</item>
     </plurals>
     <string name="sync_issues_title">Saisies à revoir</string>
-    <string name="sync_issues_intro">Chaque élément indique pourquoi il n'a pas été accepté et ce que vous pouvez faire.</string>
+    <string name="sync_issues_intro">Chaque élément indique pourquoi il n'a pas été accepté et ce que tu peux faire.</string>
     <string name="sync_issues_empty_title">Rien à revoir</string>
-    <string name="sync_issues_empty_body">Le serveur n'a refusé aucune de vos saisies.</string>
+    <string name="sync_issues_empty_body">Le serveur n'a refusé aucune de tes saisies.</string>
     <string name="sync_issues_banner_body">Le serveur n'a pas tout accepté.</string>
     <string name="sync_issues_open">Voir le détail</string>
     <plurals name="sync_issues_count">
@@ -573,7 +573,7 @@
     <string name="sync_status_deleted_on_server">Supprimé sur le serveur</string>
     <string name="sync_status_blocked">En attente</string>
     <string name="sync_marker_open">Voir dans Saisies à revoir</string>
-    <string name="sync_reason_plan_limit">La limite de votre formule est atteinte.</string>
+    <string name="sync_reason_plan_limit">La limite de ta formule est atteinte.</string>
     <string name="sync_reason_project_or_stage_inactive">Le projet est suspendu ou terminé, ou l'étape est terminée.</string>
     <string name="sync_reason_entry_date_restricted">Un superviseur ne peut saisir que sur la journée en cours.</string>
     <string name="sync_reason_insufficient_role">Cette action est réservée à un administrateur du projet.</string>
@@ -584,7 +584,7 @@
     <string name="sync_reason_invalid_value">Une valeur saisie n'est pas acceptée.</string>
     <string name="sync_reason_file_refused">Le fichier n'est pas accepté (durée, format ou taille).</string>
     <string name="sync_reason_unknown">Le serveur a refusé cet élément.</string>
-    <string name="sync_reason_deleted_on_server">Cet élément a été supprimé sur le serveur, ou ne vous est plus accessible.</string>
+    <string name="sync_reason_deleted_on_server">Cet élément a été supprimé sur le serveur, ou ne t'est plus accessible.</string>
     <string name="sync_reason_delete_refused">La suppression a été refusée : l'élément a été rétabli. %1$s</string>
     <string name="sync_reason_blocked">En attente : dépend d'un élément refusé.</string>
     <string name="sync_waiting_on_project_named">En attente : dépend du projet « %1$s », refusé.</string>
@@ -596,21 +596,21 @@
     <string name="sync_waiting_on_purchase_entry">En attente : dépend de la saisie d'achats du %1$s, refusée.</string>
     <string name="sync_waiting_on_work_entry">En attente : dépend de la saisie de travaux du %1$s, refusée.</string>
     <string name="sync_waiting_on_entry">En attente : dépend de la saisie, refusée.</string>
-    <string name="sync_typed_versus_server">Vous avez saisi %1$s ; le serveur a gardé %2$s.</string>
-    <string name="sync_hint_plan_limit">Changez de formule ou supprimez un projet, puis réessayez.</string>
-    <string name="sync_hint_project_or_stage_inactive">Demandez à un administrateur du projet de rouvrir le projet ou l'étape, puis réessayez.</string>
-    <string name="sync_hint_insufficient_role">Demandez à un administrateur du projet de le faire, ou de vous donner ses droits, puis réessayez.</string>
+    <string name="sync_typed_versus_server">Tu as saisi %1$s ; le serveur a gardé %2$s.</string>
+    <string name="sync_hint_plan_limit">Change de formule ou supprime un projet, puis réessaie.</string>
+    <string name="sync_hint_project_or_stage_inactive">Demande à un administrateur du projet de rouvrir le projet ou l'étape, puis réessaie.</string>
+    <string name="sync_hint_insufficient_role">Demande à un administrateur du projet de le faire, ou de te donner ses droits, puis réessaie.</string>
     <string name="sync_issue_retry">Réessayer</string>
     <string name="sync_issue_retrying">Envoi en cours…</string>
     <string name="sync_retry_accepted">Envoyé : le serveur a accepté.</string>
     <string name="sync_retry_still_refused">Toujours refusé par le serveur.</string>
-    <string name="sync_retry_not_sent">Envoi impossible pour le moment. Vérifiez votre connexion, puis réessayez.</string>
+    <string name="sync_retry_not_sent">Envoi impossible pour le moment. Vérifie ta connexion, puis réessaie.</string>
     <string name="sync_action_fix">Corriger</string>
     <string name="sync_action_revert">Annuler ma modification</string>
     <string name="sync_action_discard">Abandonner</string>
     <string name="sync_action_acknowledge">J'ai compris</string>
     <string name="sync_action_working">En cours…</string>
-    <string name="sync_revert_offline">Hors ligne : la valeur du serveur n'est pas connue sur cet appareil. Reconnectez-vous pour annuler votre modification.</string>
+    <string name="sync_revert_offline">Hors ligne : la valeur du serveur n'est pas connue sur cet appareil. Reconnecte-toi pour annuler ta modification.</string>
     <string name="sync_discard_title">Abandonner cet élément ?</string>
     <string name="sync_discard_body">Il n'a jamais été enregistré sur le serveur. Il sera supprimé de cet appareil.</string>
     <string name="sync_discard_file">Le fichier sera aussi supprimé de cet appareil.</string>
@@ -619,17 +619,18 @@
     <string name="sync_notice_discarded">Élément abandonné : il est supprimé de cet appareil.</string>
     <string name="sync_notice_acknowledged">Élément retiré de la liste.</string>
     <string name="sync_notice_reverted">Modification annulée : la valeur du serveur est rétablie.</string>
-    <string name="sync_notice_revert_needs_connection">Annulation impossible hors ligne. Reconnectez-vous, puis réessayez.</string>
-    <string name="sync_notice_revert_failed">Annulation impossible pour le moment. Réessayez plus tard.</string>
-    <string name="sync_notice_revert_gone_on_server">Cet élément a été supprimé sur le serveur. Votre modification ne peut plus être annulée.</string>
+    <string name="sync_notice_revert_needs_connection">Annulation impossible hors ligne. Reconnecte-toi, puis réessaie.</string>
+    <string name="sync_notice_revert_failed">Annulation impossible pour le moment. Réessaie plus tard.</string>
+    <string name="sync_notice_revert_gone_on_server">Cet élément a été supprimé sur le serveur. Ta modification ne peut plus être annulée.</string>
     <plurals name="sync_linked_removed">
         <item quantity="one">1 saisie liée sera aussi supprimée.</item>
         <item quantity="other">%1$d saisies liées seront aussi supprimées.</item>
     </plurals>
-    <string name="error_service_unavailable">Le service est momentanément indisponible. Réessayez dans quelques minutes.</string>
+    <string name="error_service_unavailable">Le service est momentanément indisponible. Réessaie dans quelques minutes.</string>
     <string name="error_image_too_large">Photo trop grande (plus de 40 mégapixels).</string>
     <string name="sync_reason_image_too_large">Photo trop grande (plus de 40 mégapixels).</string>
     <string name="sync_waiting_on_purchase_entry_and_material">En attente : dépend de la saisie d'achats du %1$s et du matériau « %2$s », refusés.</string>
     <string name="sync_waiting_on_work_entry_and_material">En attente : dépend de la saisie de travaux du %1$s et du matériau « %2$s », refusés.</string>
     <string name="sync_waiting_on_entry_and_material">En attente : dépend de la saisie et du matériau « %1$s », refusés.</string>
+    <string name="field_invalid_input">Saisie incorrecte</string>
 </resources>

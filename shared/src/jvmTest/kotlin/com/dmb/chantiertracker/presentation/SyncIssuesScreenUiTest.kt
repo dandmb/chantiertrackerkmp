@@ -85,7 +85,7 @@ class SyncIssuesScreenUiTest {
     )
 
     private val frenchSentences = mapOf(
-        RefusalReason.PLAN_LIMIT to "La limite de votre formule est atteinte.",
+        RefusalReason.PLAN_LIMIT to "La limite de ta formule est atteinte.",
         RefusalReason.PROJECT_OR_STAGE_INACTIVE to "Le projet est suspendu ou terminé, ou l'étape est terminée.",
         RefusalReason.ENTRY_DATE_RESTRICTED to "Un superviseur ne peut saisir que sur la journée en cours.",
         RefusalReason.INSUFFICIENT_ROLE to "Cette action est réservée à un administrateur du projet.",
@@ -221,7 +221,7 @@ class SyncIssuesScreenUiTest {
     fun a_refusal_that_depends_on_something_else_says_what_to_do_and_offers_retry() = onScreen(listOf(suspendedEntry, waitingLine)) { repo ->
         onNodeWithText("Refusé par le serveur").assertExists()
         onNodeWithText("Le projet est suspendu ou terminé, ou l'étape est terminée.").assertExists()
-        onNodeWithText("Demandez à un administrateur du projet de rouvrir le projet ou l'étape, puis réessayez.").assertExists()
+        onNodeWithText("Demande à un administrateur du projet de rouvrir le projet ou l'étape, puis réessaie.").assertExists()
         onAllNodesWithText("Réessayer").assertCountEquals(1)
 
         onNodeWithText("Réessayer").performClick()
@@ -236,9 +236,9 @@ class SyncIssuesScreenUiTest {
         val retryable = listOf(RefusalReason.PLAN_LIMIT, RefusalReason.PROJECT_OR_STAGE_INACTIVE, RefusalReason.INSUFFICIENT_ROLE)
         val items = retryable.mapIndexed { index, reason -> issueItem(SyncIssueTarget.MATERIAL, "m$index", refusedIssue(reason), label = "M$index") }
         onScreen(items, height = 2400) {
-            onNodeWithText("Changez de formule ou supprimez un projet, puis réessayez.").assertExists()
-            onNodeWithText("Demandez à un administrateur du projet de rouvrir le projet ou l'étape, puis réessayez.").assertExists()
-            onNodeWithText("Demandez à un administrateur du projet de le faire, ou de vous donner ses droits, puis réessayez.").assertExists()
+            onNodeWithText("Change de formule ou supprime un projet, puis réessaie.").assertExists()
+            onNodeWithText("Demande à un administrateur du projet de rouvrir le projet ou l'étape, puis réessaie.").assertExists()
+            onNodeWithText("Demande à un administrateur du projet de le faire, ou de te donner ses droits, puis réessaie.").assertExists()
             onAllNodesWithText("Réessayer").assertCountEquals(3)
         }
         onScreen(items, locale = "en", height = 2400) {
@@ -258,7 +258,7 @@ class SyncIssuesScreenUiTest {
         onScreen(pastDay, height = 1600) {
             onAllNodesWithText("Un superviseur ne peut saisir que sur la journée en cours.").assertCountEquals(2)
             onAllNodesWithText("Réessayer").assertCountEquals(0)
-            onAllNodes(hasText("réessayez", substring = true)).assertCountEquals(0)
+            onAllNodes(hasText("réessaie", substring = true)).assertCountEquals(0)
             onAllNodesWithText("Abandonner").assertCountEquals(1)
             onAllNodesWithText("Annuler ma modification").assertCountEquals(1)
         }
@@ -357,11 +357,11 @@ class SyncIssuesScreenUiTest {
         val refusedChange = { unit: String? ->
             onDay(SyncIssueTarget.PURCHASE_LINE, "pl-edit", refusedIssue(RefusalReason.STOCK_CONSUMED, kind = SyncIssueKind.UPDATE_REFUSED), label = "Ciment", unit = unit, quantity = 3.5, serverQuantity = 10.0)
         }
-        onScreen(listOf(refusedChange("sac"))) { onNodeWithText("Vous avez saisi 3,50 sac ; le serveur a gardé 10 sac.").assertExists() }
+        onScreen(listOf(refusedChange("sac"))) { onNodeWithText("Tu as saisi 3,50 sac ; le serveur a gardé 10 sac.").assertExists() }
         onScreen(listOf(refusedChange("sac")), locale = "en") { onNodeWithText("You entered 3,50 sac; the server kept 10 sac.").assertExists() }
-        onScreen(listOf(refusedChange(" "))) { onNodeWithText("Vous avez saisi 3,50 ; le serveur a gardé 10.").assertExists() }
+        onScreen(listOf(refusedChange(" "))) { onNodeWithText("Tu as saisi 3,50 ; le serveur a gardé 10.").assertExists() }
         onScreen(listOf(onDay(SyncIssueTarget.PURCHASE_LINE, "pl-new", refusedIssue(RefusalReason.STOCK_CONSUMED), label = "Ciment", unit = "sac", quantity = 3.0, serverQuantity = 10.0))) {
-            onAllNodesWithText("Vous avez saisi", substring = true).assertCountEquals(0)
+            onAllNodesWithText("Tu as saisi", substring = true).assertCountEquals(0)
         }
     }
 
@@ -376,12 +376,12 @@ class SyncIssuesScreenUiTest {
     ) {
         onNodeWithText("Modification refusée").assertExists()
         onNodeWithText("Ce stock a déjà été consommé.").assertExists()
-        onNodeWithText("Vous avez saisi 3 sac ; le serveur a gardé 10 sac.").assertExists()
+        onNodeWithText("Tu as saisi 3 sac ; le serveur a gardé 10 sac.").assertExists()
         onNodeWithText("Suppression refusée").assertExists()
         onNodeWithText("La suppression a été refusée : l'élément a été rétabli. Cette action est réservée à un administrateur du projet.").assertExists()
         onNodeWithText("Supprimé sur le serveur").assertExists()
         onNodeWithText("Saisie de travaux").assertExists()
-        onNodeWithText("Cet élément a été supprimé sur le serveur, ou ne vous est plus accessible.").assertExists()
+        onNodeWithText("Cet élément a été supprimé sur le serveur, ou ne t'est plus accessible.").assertExists()
         onAllNodesWithText("Réessayer").assertCountEquals(0)
     }
 
@@ -423,7 +423,7 @@ class SyncIssuesScreenUiTest {
     fun nothing_to_review_shows_an_empty_state_in_both_languages() {
         onScreen(emptyList()) {
             onNodeWithText("Rien à revoir").assertExists()
-            onNodeWithText("Le serveur n'a refusé aucune de vos saisies.").assertExists()
+            onNodeWithText("Le serveur n'a refusé aucune de tes saisies.").assertExists()
         }
         onScreen(emptyList(), locale = "en") {
             onNodeWithText("Nothing to review").assertExists()
@@ -455,7 +455,7 @@ class SyncIssuesScreenUiTest {
         listOf(
             "Villa Vidal", "Étape : Charpente", "Journée du 09-10-2026", "Saisie d'achats", "Refusé par le serveur",
             "Le projet est suspendu ou terminé, ou l'étape est terminée.",
-            "Demandez à un administrateur du projet de rouvrir le projet ou l'étape, puis réessayez.", "Réessayer",
+            "Demande à un administrateur du projet de rouvrir le projet ou l'étape, puis réessaie.", "Réessayer",
         ).forEach { text ->
             val bounds = onNodeWithText(text).assertIsDisplayed().getUnclippedBoundsInRoot()
             assertTrue(bounds.left >= 0.dp && bounds.right <= width.dp, "« $text » fits in $width dp: $bounds")
@@ -478,15 +478,15 @@ class SyncIssuesScreenUiTest {
     private fun ComposeUiTest.assertEveryTextCanBeReachedAndIsNeverCut(width: Int, height: Int) {
         val list = onNode(hasScrollAction())
         val expected = listOf(
-            "4 éléments à revoir", "Chaque élément indique pourquoi il n'a pas été accepté et ce que vous pouvez faire.",
-            "Atelier de menuiserie Dupont et fils, bâtiment nord", "Projet", "La limite de votre formule est atteinte.",
-            "Changez de formule ou supprimez un projet, puis réessayez.",
+            "4 éléments à revoir", "Chaque élément indique pourquoi il n'a pas été accepté et ce que tu peux faire.",
+            "Atelier de menuiserie Dupont et fils, bâtiment nord", "Projet", "La limite de ta formule est atteinte.",
+            "Change de formule ou supprime un projet, puis réessaie.",
             "Villa Vidal", "Étape : Charpente", "Étape", "Suppression refusée",
             "La suppression a été refusée : l'élément a été rétabli. Cette action est réservée à un administrateur du projet.",
             "Journée du 09-10-2026", "Saisie d'achats", "Le projet est suspendu ou terminé, ou l'étape est terminée.",
-            "Demandez à un administrateur du projet de rouvrir le projet ou l'étape, puis réessayez.",
+            "Demande à un administrateur du projet de rouvrir le projet ou l'étape, puis réessaie.",
             "Ligne d'achat : Ciment, 3 sac", "En attente : dépend de la saisie d'achats du 09-10-2026, refusée.",
-            "Modification refusée", "Ce stock a déjà été consommé.", "Vous avez saisi 3 sac ; le serveur a gardé 10 sac.",
+            "Modification refusée", "Ce stock a déjà été consommé.", "Tu as saisi 3 sac ; le serveur a gardé 10 sac.",
         )
         expected.forEach { text ->
             list.performScrollToNode(hasText(text))
@@ -500,7 +500,7 @@ class SyncIssuesScreenUiTest {
                 assertTrue(layouts.isNotEmpty() && layouts.none { it.isCut() }, "« $text » is never cut ($width x $height)")
             }
         }
-        list.performScrollToNode(hasText("Demandez à un administrateur du projet de rouvrir le projet ou l'étape, puis réessayez."))
+        list.performScrollToNode(hasText("Demande à un administrateur du projet de rouvrir le projet ou l'étape, puis réessaie."))
         list.performScrollToNode(hasText("Réessayer").and(hasClickAction()))
         waitForIdle()
     }

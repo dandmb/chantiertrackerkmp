@@ -11,7 +11,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -21,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.dmb.chantiertracker.presentation.AppOutlinedTextField
 import com.dmb.chantiertracker.presentation.ResponsiveContent
 import com.dmb.chantiertracker.presentation.auth.components.AuthPrimaryButton
 import com.dmb.chantiertracker.presentation.auth.components.ErrorBanner
@@ -87,7 +87,7 @@ private fun EditForm(state: EditProjectUiState, viewModel: EditProjectViewModel)
     ) {
         state.formError?.let { ErrorBanner(it.localizedText()) }
 
-        OutlinedTextField(
+        AppOutlinedTextField(
             value = state.name,
             onValueChange = viewModel::onNameChange,
             modifier = Modifier.fillMaxWidth(),
@@ -98,7 +98,7 @@ private fun EditForm(state: EditProjectUiState, viewModel: EditProjectViewModel)
             enabled = !locked,
         )
 
-        OutlinedTextField(
+        AppOutlinedTextField(
             value = state.description,
             onValueChange = viewModel::onDescriptionChange,
             modifier = Modifier.fillMaxWidth(),
@@ -107,7 +107,7 @@ private fun EditForm(state: EditProjectUiState, viewModel: EditProjectViewModel)
             enabled = !locked,
         )
 
-        OutlinedTextField(
+        AppOutlinedTextField(
             value = state.location,
             onValueChange = viewModel::onLocationChange,
             modifier = Modifier.fillMaxWidth(),
@@ -116,7 +116,7 @@ private fun EditForm(state: EditProjectUiState, viewModel: EditProjectViewModel)
             enabled = !locked,
         )
 
-        OutlinedTextField(
+        AppOutlinedTextField(
             value = state.currency,
             onValueChange = viewModel::onCurrencyChange,
             modifier = Modifier.fillMaxWidth(),

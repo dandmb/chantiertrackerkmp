@@ -35,7 +35,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -46,7 +45,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
@@ -56,10 +54,12 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.dmb.chantiertracker.presentation.AppOutlinedTextField
+import com.dmb.chantiertracker.presentation.CapitalTitle
 import com.dmb.chantiertracker.presentation.branding.ConstructionIllustration
 import com.dmb.chantiertracker.presentation.main.ChevronRightIcon
-import com.dmb.chantiertracker.presentation.theme.TerracottaDark
-import com.dmb.chantiertracker.presentation.theme.TerracottaLight
+import com.dmb.chantiertracker.presentation.theme.Ink
+import com.dmb.chantiertracker.presentation.theme.Yellow
 import com.dmb.chantiertracker.resources.Res
 import com.dmb.chantiertracker.resources.action_back
 import com.dmb.chantiertracker.resources.field_code_label
@@ -103,7 +103,7 @@ fun AuthScreenLayout(
         Box(
             Modifier
                 .fillMaxSize()
-                .background(Brush.verticalGradient(listOf(TerracottaLight, TerracottaDark))),
+                .background(Yellow),
         ) {
             Box(
                 Modifier
@@ -130,7 +130,7 @@ fun AuthScreenLayout(
                     Icon(
                         imageVector = BackArrowIcon,
                         contentDescription = stringResource(Res.string.action_back),
-                        tint = Color.White,
+                        tint = Ink,
                     )
                 }
             }
@@ -210,11 +210,10 @@ fun AuthScreenLayout(
 
 @Composable
 private fun ColumnScope.AuthTitleBlock(title: String, subtitle: String?) {
-    Text(
+    CapitalTitle(
         text = title,
         modifier = Modifier.fillMaxWidth(),
         style = MaterialTheme.typography.headlineMedium,
-        fontWeight = FontWeight.SemiBold,
         textAlign = TextAlign.Center,
     )
     if (subtitle != null) {
@@ -237,7 +236,7 @@ fun EmailField(
     enabled: Boolean = true,
     imeAction: ImeAction = ImeAction.Next,
 ) {
-    OutlinedTextField(
+    AppOutlinedTextField(
         value = value,
         onValueChange = onValueChange,
         modifier = modifier.fillMaxWidth(),
@@ -258,7 +257,7 @@ fun NameField(
     error: String? = null,
     enabled: Boolean = true,
 ) {
-    OutlinedTextField(
+    AppOutlinedTextField(
         value = value,
         onValueChange = onValueChange,
         modifier = modifier.fillMaxWidth(),
@@ -285,7 +284,7 @@ fun PasswordField(
     var visible by remember { mutableStateOf(false) }
     val supporting = error ?: hint
     val resolvedLabel = label ?: stringResource(Res.string.field_password_label)
-    OutlinedTextField(
+    AppOutlinedTextField(
         value = value,
         onValueChange = onValueChange,
         modifier = modifier.fillMaxWidth(),
@@ -316,7 +315,7 @@ fun CodeField(
     error: String? = null,
     enabled: Boolean = true,
 ) {
-    OutlinedTextField(
+    AppOutlinedTextField(
         value = value,
         onValueChange = { input -> if (input.length <= 6 && input.all(Char::isDigit)) onValueChange(input) },
         modifier = modifier.fillMaxWidth(),
