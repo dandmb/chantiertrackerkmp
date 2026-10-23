@@ -3,6 +3,7 @@
 package com.dmb.chantiertracker.data.repository
 
 import com.dmb.chantiertracker.data.local.AttachmentFileStore
+import com.dmb.chantiertracker.data.local.isAPhotoTooLargeForTheServer
 import com.dmb.chantiertracker.data.local.db.AttachmentDao
 import com.dmb.chantiertracker.data.local.db.AttachmentEntity
 import com.dmb.chantiertracker.data.local.db.DailyEntryDao
@@ -57,8 +58,10 @@ class AttachmentRepositoryImpl(
         syncIssue = entity.syncIssue(blockedByParent),
     )
 
-    override suspend fun addAttachment(entryLocalId: String, bytes: ByteArray, originalName: String, mimeType: String): Attachment =
-        queue(entryLocalId, fileStore.save(bytes, originalName), originalName, mimeType, bytes.size.toLong())
+    override suspend fun addAttachment(entryLocalId: String, bytes: ByteArray, originalName: String, mimeType: String): Attachment {
+        if (mimeType.startsWith("image/") && isAPhotoTooLargeForTheServer(bytes)) throw DomainException.ImageTooLarge
+        return queue(entryLocalId, fileStore.save(bytes, originalName), originalName, mimeType, bytes.size.toLong())
+    }
 
     override suspend fun addVideo(entryLocalId: String, video: UploadFile): Attachment {
         if (video.size() > MAX_VIDEO_BYTES) throw DomainException.FileTooLarge

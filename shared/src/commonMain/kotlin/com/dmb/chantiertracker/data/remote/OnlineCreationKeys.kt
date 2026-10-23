@@ -31,6 +31,7 @@ class OnlineCreationKeys(private val newKey: () -> String = { Uuid.random().toSt
 
     private fun DomainException.leavesTheCreationUnanswered(status: Int?): Boolean =
         this is DomainException.Network ||
+            this is DomainException.ServiceUnavailable ||
             this is DomainException.CreationInProgress ||
             (this is DomainException.Unexpected && (status ?: SERVER_ERROR) >= SERVER_ERROR)
 }

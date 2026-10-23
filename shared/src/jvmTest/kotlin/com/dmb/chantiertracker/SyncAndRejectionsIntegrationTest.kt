@@ -341,6 +341,11 @@ class SyncAndRejectionsIntegrationTest {
             waitingLine.blockedBy,
             "la ligne en attente nomme la saisie refusée dont elle dépend",
         )
+        assertEquals(
+            com.dmb.chantiertracker.domain.model.SyncIssueParent(com.dmb.chantiertracker.domain.model.SyncIssueTarget.MATERIAL, name = "Ciment"),
+            waitingLine.alsoBlockedBy,
+            "et le matériau refusé dont elle dépend aussi (R2)",
+        )
         // Depuis BE-3 (backend e81efb0), un matériau créé sur un projet suspendu est refusé lui aussi.
         val refusedMaterial = listed.single { it.target == com.dmb.chantiertracker.domain.model.SyncIssueTarget.MATERIAL }
         println("ADR-74 — matériau refusé : ${refusedMaterial.label} ${refusedMaterial.issue.kind} ${refusedMaterial.issue.reason} réessayable=${refusedMaterial.issue.canBeRetried} actions=${refusedMaterial.actions} projet=${refusedMaterial.projectName} étape=${refusedMaterial.stageName} jour=${refusedMaterial.date}")

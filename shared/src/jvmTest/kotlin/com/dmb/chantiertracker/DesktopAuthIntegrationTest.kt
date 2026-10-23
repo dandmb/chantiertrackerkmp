@@ -352,6 +352,10 @@ class DesktopAuthIntegrationTest {
     }.getOrDefault(false)
 
     private fun latestCodeFor(email: String, differentFrom: String? = null): String {
+        // The e-mail's own style carries six-digit colours (#161616): read the code where the
+        // template puts it, then in the link, and only in a plain-text part as a last resort.
+        val codeCell = Regex("""class="ct-code"[^>]*>\s*(\d{6})\s*<""")
+        val codeInTheLink = Regex("""[?&;]code=(\d{6})\b""")
         val sixDigits = Regex("""\b\d{6}\b""")
         repeat(20) {
             val messages = runCatching {
@@ -361,10 +365,11 @@ class DesktopAuthIntegrationTest {
                 val o = el.jsonObject
                 listOf("to", "envelope", "headers").any { key -> o[key]?.toString()?.contains(email) == true }
             }
-            val body = message?.jsonObject?.let { o ->
-                (o["text"] ?: o["html"])?.jsonPrimitive?.contentOrNull
-            }
-            val code = body?.let { sixDigits.find(it)?.value }
+            val html = message?.jsonObject?.get("html")?.jsonPrimitive?.contentOrNull.orEmpty()
+            val text = message?.jsonObject?.get("text")?.jsonPrimitive?.contentOrNull.orEmpty()
+            val code = codeCell.find(html)?.groupValues?.get(1)
+                ?: codeInTheLink.find(html)?.groupValues?.get(1)
+                ?: sixDigits.find(text)?.value
             if (code != null && code != differentFrom) return code
             Thread.sleep(300)
         }

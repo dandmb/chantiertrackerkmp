@@ -27,22 +27,22 @@ class RedeployNotFoundTest {
 
     @Test
     fun a_404_from_the_proxy_in_plain_text_is_an_unreachable_server_not_a_missing_row() = runTest {
-        assertEquals(DomainException.Network, failureFor(RedeployAnswer.PROXY_TEXT))
+        assertEquals(DomainException.ServiceUnavailable, failureFor(RedeployAnswer.PROXY_TEXT))
     }
 
     @Test
     fun a_404_without_any_body_is_an_unreachable_server() = runTest {
-        assertEquals(DomainException.Network, failureFor(RedeployAnswer.EMPTY))
+        assertEquals(DomainException.ServiceUnavailable, failureFor(RedeployAnswer.EMPTY))
     }
 
     @Test
     fun a_404_in_plain_json_without_a_code_is_an_unreachable_server() = runTest {
-        assertEquals(DomainException.Network, failureFor(RedeployAnswer.JSON_WITHOUT_CODE))
+        assertEquals(DomainException.ServiceUnavailable, failureFor(RedeployAnswer.JSON_WITHOUT_CODE))
     }
 
     @Test
     fun a_404_in_the_problem_format_but_without_a_code_is_an_unreachable_server() = runTest {
-        assertEquals(DomainException.Network, failureFor(RedeployAnswer.PROBLEM_WITHOUT_CODE))
+        assertEquals(DomainException.ServiceUnavailable, failureFor(RedeployAnswer.PROBLEM_WITHOUT_CODE))
     }
 
     @Test
@@ -50,7 +50,7 @@ class RedeployNotFoundTest {
         val mock = RecordingMockClient(FakeTokenStorage(AuthTokens("a", "r"))) {
             respondJson("""{"status":404,"detail":"Projet introuvable.","code":"PROJECT_ACCESS_DENIED"}""", HttpStatusCode.NotFound)
         }
-        assertFailsWith<DomainException.Network> { apiCall { mock.client.get("projects/9") } }
+        assertFailsWith<DomainException.ServiceUnavailable> { apiCall { mock.client.get("projects/9") } }
     }
 
     @Test
@@ -73,7 +73,7 @@ class RedeployNotFoundTest {
             }
         }
 
-        assertFailsWith<DomainException.Network> { apiCall { mock.client.get("users/me") } }
+        assertFailsWith<DomainException.ServiceUnavailable> { apiCall { mock.client.get("users/me") } }
 
         assertEquals(AuthTokens("stale", "good-refresh"), storage.tokens, "the session must survive a redeploy")
         assertEquals(0, storage.clearCount)
@@ -96,11 +96,39 @@ class RedeployNotFoundTest {
             }
         }
 
-        assertFailsWith<DomainException.Network> { apiCall { mock.client.get("users/me") } }
+        assertFailsWith<DomainException.ServiceUnavailable> { apiCall { mock.client.get("users/me") } }
         redeploying = false
         apiCall { mock.client.get("users/me") }
 
         assertEquals(AuthTokens("fresh", "fresh-refresh"), storage.tokens)
+    }
+
+    @Test
+    fun a_session_renewal_answered_by_a_server_error_keeps_the_session_and_is_retried_later() = runTest {
+        listOf(HttpStatusCode.InternalServerError, HttpStatusCode.BadGateway, HttpStatusCode.ServiceUnavailable, HttpStatusCode.GatewayTimeout).forEach { serverError ->
+            val storage = FakeTokenStorage(AuthTokens("stale", "good-refresh"))
+            var expiredSignals = 0
+            var down = true
+            val mock = RecordingMockClient(storage, onSessionExpired = { expiredSignals++ }) { request ->
+                when (request.url.encodedPath) {
+                    "/api/v1/users/me" ->
+                        if (request.headers["Authorization"] == "Bearer fresh") respondJson(USER_JSON)
+                        else respondProblem(HttpStatusCode.Unauthorized, "Token expiré.", code = "UNAUTHORIZED")
+                    "/api/v1/auth/refresh-token" ->
+                        if (down) respondProblem(serverError, "Erreur.", code = "INTERNAL_ERROR")
+                        else respondJson("""{"accessToken":"fresh","refreshToken":"fresh-refresh"}""")
+                    else -> error("unexpected ${request.url}")
+                }
+            }
+
+            assertFailsWith<DomainException.ServiceUnavailable>("$serverError") { apiCall { mock.client.get("users/me") } }
+            assertEquals(AuthTokens("stale", "good-refresh"), storage.tokens, "$serverError: the session is kept")
+            assertEquals(0, expiredSignals, "$serverError: no sign-out")
+
+            down = false
+            apiCall { mock.client.get("users/me") }
+            assertEquals(AuthTokens("fresh", "fresh-refresh"), storage.tokens, "$serverError: renewed once the server is back")
+        }
     }
 
     @Test

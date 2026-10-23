@@ -421,7 +421,7 @@
     <string name="error_account_not_verified">Votre compte n'est pas encore activé. Vérifiez votre email.</string>
     <string name="error_account_locked">Compte bloqué après trop de tentatives. Réessayez plus tard.</string>
     <string name="error_invalid_current_password">Le mot de passe actuel est incorrect.</string>
-    <string name="error_invalid_code">Ce code est invalide ou a expiré.</string>
+    <string name="error_invalid_code">Ce code est invalide ou a expiré. Après plusieurs essais, demandez un nouveau code.</string>
     <string name="error_validation">Vérifiez les informations saisies.</string>
     <string name="error_rate_limited">Trop de requêtes. Réessayez dans un instant.</string>
     <string name="error_creation_in_progress">Votre demande précédente est encore en cours de traitement. Réessayez dans un instant.</string>
@@ -626,4 +626,10 @@
         <item quantity="one">1 saisie liée sera aussi supprimée.</item>
         <item quantity="other">%1$d saisies liées seront aussi supprimées.</item>
     </plurals>
+    <string name="error_service_unavailable">Le service est momentanément indisponible. Réessayez dans quelques minutes.</string>
+    <string name="error_image_too_large">Photo trop grande (plus de 40 mégapixels).</string>
+    <string name="sync_reason_image_too_large">Photo trop grande (plus de 40 mégapixels).</string>
+    <string name="sync_waiting_on_purchase_entry_and_material">En attente : dépend de la saisie d'achats du %1$s et du matériau « %2$s », refusés.</string>
+    <string name="sync_waiting_on_work_entry_and_material">En attente : dépend de la saisie de travaux du %1$s et du matériau « %2$s », refusés.</string>
+    <string name="sync_waiting_on_entry_and_material">En attente : dépend de la saisie et du matériau « %1$s », refusés.</string>
 </resources>

@@ -2,6 +2,7 @@ package com.dmb.chantiertracker.presentation.sync
 
 import androidx.compose.runtime.Composable
 import com.dmb.chantiertracker.domain.model.EntryType
+import com.dmb.chantiertracker.domain.model.IMAGE_TOO_LARGE_CODE
 import com.dmb.chantiertracker.domain.model.RefusalReason
 import com.dmb.chantiertracker.domain.model.SyncIssue
 import com.dmb.chantiertracker.domain.model.SyncIssueAction
@@ -60,15 +61,19 @@ import com.dmb.chantiertracker.resources.sync_status_deleted_on_server
 import com.dmb.chantiertracker.resources.sync_status_refused
 import com.dmb.chantiertracker.resources.sync_status_update_refused
 import com.dmb.chantiertracker.resources.sync_typed_versus_server
+import com.dmb.chantiertracker.resources.sync_reason_image_too_large
 import com.dmb.chantiertracker.resources.sync_waiting_on_entry
+import com.dmb.chantiertracker.resources.sync_waiting_on_entry_and_material
 import com.dmb.chantiertracker.resources.sync_waiting_on_material
 import com.dmb.chantiertracker.resources.sync_waiting_on_material_named
 import com.dmb.chantiertracker.resources.sync_waiting_on_project
 import com.dmb.chantiertracker.resources.sync_waiting_on_project_named
 import com.dmb.chantiertracker.resources.sync_waiting_on_purchase_entry
+import com.dmb.chantiertracker.resources.sync_waiting_on_purchase_entry_and_material
 import com.dmb.chantiertracker.resources.sync_waiting_on_stage
 import com.dmb.chantiertracker.resources.sync_waiting_on_stage_named
 import com.dmb.chantiertracker.resources.sync_waiting_on_work_entry
+import com.dmb.chantiertracker.resources.sync_waiting_on_work_entry_and_material
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 
@@ -85,6 +90,9 @@ fun RefusalReason?.sentenceRes(): StringResource = when (this) {
     RefusalReason.FILE_REFUSED -> Res.string.sync_reason_file_refused
     RefusalReason.UNKNOWN, null -> Res.string.sync_reason_unknown
 }
+
+fun SyncIssue.reasonSentenceRes(): StringResource =
+    if (serverCode == IMAGE_TOO_LARGE_CODE) Res.string.sync_reason_image_too_large else reason.sentenceRes()
 
 fun RefusalReason?.instructionRes(): StringResource? = when (this) {
     RefusalReason.PLAN_LIMIT -> Res.string.sync_hint_plan_limit
@@ -126,11 +134,21 @@ fun RetryOutcome.noticeRes(): StringResource = when (this) {
 
 @Composable
 fun SyncIssueItem.sentence(): String =
-    if (issue.kind == SyncIssueKind.BLOCKED_BY_PARENT) blockedBy.waitingSentence() else issue.sentence()
+    if (issue.kind == SyncIssueKind.BLOCKED_BY_PARENT) blockedBy.waitingSentence(alsoBlockedBy) else issue.sentence()
 
 @Composable
-private fun SyncIssueParent?.waitingSentence(): String {
+private fun SyncIssueParent?.waitingSentence(alsoBlockedBy: SyncIssueParent?): String {
     val name = this?.name?.trim().orEmpty()
+    val material = alsoBlockedBy?.takeIf { it.target == SyncIssueTarget.MATERIAL }?.name?.trim().orEmpty()
+    if (this?.target == SyncIssueTarget.ENTRY && material.isNotEmpty()) {
+        val day = date?.trim().orEmpty()
+        return when {
+            day.isEmpty() -> stringResource(Res.string.sync_waiting_on_entry_and_material, material)
+            entryType == EntryType.PURCHASE -> stringResource(Res.string.sync_waiting_on_purchase_entry_and_material, formatIsoDate(day), material)
+            entryType == EntryType.WORK -> stringResource(Res.string.sync_waiting_on_work_entry_and_material, formatIsoDate(day), material)
+            else -> stringResource(Res.string.sync_waiting_on_entry_and_material, material)
+        }
+    }
     return when (this?.target) {
         SyncIssueTarget.PROJECT ->
             if (name.isEmpty()) stringResource(Res.string.sync_waiting_on_project) else stringResource(Res.string.sync_waiting_on_project_named, name)
@@ -155,8 +173,8 @@ private fun SyncIssueParent?.waitingSentence(): String {
 fun SyncIssue.sentence(): String = when (kind) {
     SyncIssueKind.BLOCKED_BY_PARENT -> stringResource(Res.string.sync_reason_blocked)
     SyncIssueKind.DELETED_ON_SERVER -> stringResource(Res.string.sync_reason_deleted_on_server)
-    SyncIssueKind.DELETE_REFUSED -> stringResource(Res.string.sync_reason_delete_refused, stringResource(reason.sentenceRes()))
-    SyncIssueKind.REFUSED, SyncIssueKind.UPDATE_REFUSED -> stringResource(reason.sentenceRes())
+    SyncIssueKind.DELETE_REFUSED -> stringResource(Res.string.sync_reason_delete_refused, stringResource(reasonSentenceRes()))
+    SyncIssueKind.REFUSED, SyncIssueKind.UPDATE_REFUSED -> stringResource(reasonSentenceRes())
 }
 
 @Composable

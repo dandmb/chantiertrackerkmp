@@ -177,6 +177,32 @@ class AttachmentRepositoryImplTest {
     }
 
     @Test
+    fun a_photo_above_forty_megapixels_is_refused_when_it_is_taken_before_any_copy() = runTest {
+        val dao = FakeAttachmentDao()
+        val fileStore = FakeAttachmentFileStore()
+        val backend = FakeProjectBackend()
+        val syncer = FakeSyncer()
+
+        val refused = runCatching {
+            repo(dao, fileStore, syncer, backend = backend).addAttachment("purchase-1", com.dmb.chantiertracker.data.local.aJpegHeader(8000, 6000), "chantier.jpg", "image/jpeg")
+        }
+
+        assertEquals<Any?>(DomainException.ImageTooLarge, refused.exceptionOrNull())
+        assertEquals(listOf<Any>(emptySet<String>(), 0, emptyList<String>(), 0), listOf(fileStore.storedPaths, dao.count(), backend.receivedMethods, syncer.requestCount), "not copied, not queued, not sent")
+    }
+
+    @Test
+    fun a_photo_of_forty_megapixels_or_of_unknown_size_is_queued_as_usual() = runTest {
+        val atTheLimit = FakeAttachmentDao()
+        val unknownSize = FakeAttachmentDao()
+
+        repo(atTheLimit).addAttachment("purchase-1", com.dmb.chantiertracker.data.local.aJpegHeader(8000, 5000), "limite.jpg", "image/jpeg")
+        repo(unknownSize).addAttachment("purchase-1", byteArrayOf(1, 2, 3), "inconnue.heic", "image/heic")
+
+        assertEquals(listOf(1, 1), listOf(atTheLimit.count(), unknownSize.count()))
+    }
+
+    @Test
     fun a_video_of_exactly_the_server_limit_is_accepted() = runTest {
         val dao = FakeAttachmentDao()
         val atTheLimit = object : com.dmb.chantiertracker.domain.model.UploadFile by fakeUploadFile(byteArrayOf(1, 2, 3), name = "limite.mp4") {

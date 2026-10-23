@@ -29,14 +29,16 @@ sealed class DomainException : Exception() {
     data object PlanLimitReached : DomainException()
     data object DuplicateMaterial : DomainException()
     data object FileTooLarge : DomainException()
+    data object ImageTooLarge : DomainException()
     data object BillingNotOpen : DomainException()
     data object Forbidden : DomainException()
     data object NotFound : DomainException()
     data object Network : DomainException()
+    data object ServiceUnavailable : DomainException()
     data object Unexpected : DomainException()
 
     override val message: String get() = this::class.simpleName ?: "DomainException"
 }
 
 fun DomainException.isUnreachableServer(): Boolean =
-    this is DomainException.Network || this is DomainException.Unexpected || this is DomainException.RateLimited
+    this is DomainException.Network || this is DomainException.ServiceUnavailable || this is DomainException.Unexpected || this is DomainException.RateLimited
