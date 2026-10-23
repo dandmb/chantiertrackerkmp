@@ -7,6 +7,7 @@ import com.dmb.chantiertracker.data.remote.AccountApi
 import com.dmb.chantiertracker.data.remote.AuthApi
 import com.dmb.chantiertracker.data.remote.ProjectApi
 import com.dmb.chantiertracker.data.remote.createHttpClient
+import com.dmb.chantiertracker.data.remote.dto.CreateProjectRequestDto
 import com.dmb.chantiertracker.data.remote.httpClientEngine
 import androidx.room.Room
 import com.dmb.chantiertracker.data.local.db.AppDatabase
@@ -48,7 +49,8 @@ import kotlin.test.assertTrue
 
 /**
  * Parcours réel du chemin Desktop (DesktopTokenStorage + engine OkHttp) contre le
- * backend local. Ignoré automatiquement si `localhost:8080` ne répond pas.
+ * backend local (`chantiertracker.integrationBaseUrl`, `localhost:8080` par défaut).
+ * Ignoré automatiquement s'il ne répond pas.
  * Compte requis : mobile-test@local.dev / ChantierTest1234! (créé pendant la vérif).
  *
  * Les scénarios qui ont besoin d'un compte neuf le font créer par le super-admin
@@ -68,7 +70,7 @@ class DesktopAuthIntegrationTest {
     private val client = createHttpClient(
         engine = httpClientEngine(),
         tokenStorage = storage,
-        baseUrl = "http://localhost:8080/api/v1",
+        baseUrl = com.dmb.chantiertracker.support.IntegrationBackend.baseUrl,
         enableLogging = false,
         onSessionExpired = { holder.update(AuthState.Unauthenticated) },
     )
@@ -131,7 +133,7 @@ class DesktopAuthIntegrationTest {
     @Test
     fun full_login_bootstrap_logout_against_local_backend() = runBlocking {
         com.dmb.chantiertracker.support.skipUnless(com.dmb.chantiertracker.support.IntegrationBackend.enabled, "test contre le vrai backend : -Dchantiertracker.integrationTests=true requis")
-        com.dmb.chantiertracker.support.skipUnless(backendUp(), "backend localhost:8080 indisponible")
+        com.dmb.chantiertracker.support.skipUnless(backendUp(), "backend ${com.dmb.chantiertracker.support.IntegrationBackend.baseUrl} indisponible")
 
         retryingOnRateLimit { repo.login("mobile-test@local.dev", "ChantierTest1234!") }
 
@@ -144,7 +146,7 @@ class DesktopAuthIntegrationTest {
 
         // Nouvelle session : bootstrap depuis le token stocké
         val holder2 = AuthStateHolder()
-        val client2 = createHttpClient(httpClientEngine(), storage, "http://localhost:8080/api/v1", false) {
+        val client2 = createHttpClient(httpClientEngine(), storage, com.dmb.chantiertracker.support.IntegrationBackend.baseUrl, false) {
             holder2.update(AuthState.Unauthenticated)
         }
         val repo2 = AuthRepositoryImpl(AuthApi(client2), storage, holder2, onboarding, syncEngine, ownership)
@@ -167,7 +169,7 @@ class DesktopAuthIntegrationTest {
     @Test
     fun a_new_account_resets_its_password_then_signs_in_with_the_new_one() = runBlocking {
         com.dmb.chantiertracker.support.skipUnless(com.dmb.chantiertracker.support.IntegrationBackend.enabled, "test contre le vrai backend : -Dchantiertracker.integrationTests=true requis")
-        com.dmb.chantiertracker.support.skipUnless(backendUp(), "backend localhost:8080 indisponible")
+        com.dmb.chantiertracker.support.skipUnless(backendUp(), "backend ${com.dmb.chantiertracker.support.IntegrationBackend.baseUrl} indisponible")
         com.dmb.chantiertracker.support.skipUnless(IntegrationBackend.adminConfigured, "identifiants super-admin requis (-Dchantiertracker.adminEmail / adminPassword)")
 
         val account = accounts.create("reset-flow", "Reset Flow")
@@ -192,7 +194,7 @@ class DesktopAuthIntegrationTest {
     @Test
     fun self_registration_then_email_verification_signs_in_as_a_founder() = runBlocking {
         com.dmb.chantiertracker.support.skipUnless(com.dmb.chantiertracker.support.IntegrationBackend.enabled, "test contre le vrai backend : -Dchantiertracker.integrationTests=true requis")
-        com.dmb.chantiertracker.support.skipUnless(backendUp(), "backend localhost:8080 indisponible")
+        com.dmb.chantiertracker.support.skipUnless(backendUp(), "backend ${com.dmb.chantiertracker.support.IntegrationBackend.baseUrl} indisponible")
         com.dmb.chantiertracker.support.skipUnless(
             System.getProperty("chantiertracker.integrationAllowFounderSeat") == "true",
             "inscription réelle : elle prend une place fondateur (-Dchantiertracker.integrationAllowFounderSeat=true requis)",
@@ -214,7 +216,7 @@ class DesktopAuthIntegrationTest {
     @Test
     fun logged_in_user_lists_projects_and_reads_plan() = runBlocking {
         com.dmb.chantiertracker.support.skipUnless(com.dmb.chantiertracker.support.IntegrationBackend.enabled, "test contre le vrai backend : -Dchantiertracker.integrationTests=true requis")
-        com.dmb.chantiertracker.support.skipUnless(backendUp(), "backend localhost:8080 indisponible")
+        com.dmb.chantiertracker.support.skipUnless(backendUp(), "backend ${com.dmb.chantiertracker.support.IntegrationBackend.baseUrl} indisponible")
 
         retryingOnRateLimit { repo.login("mobile-test@local.dev", "ChantierTest1234!") }
         assertIs<AuthState.Authenticated>(holder.state.value)
@@ -224,20 +226,26 @@ class DesktopAuthIntegrationTest {
         val projects = projectRepo.observeProjects().first()
         assertTrue(projects.all { it.name.isNotBlank() }, "chaque projet a un nom")
 
-        // `GET /users/me/plan-usage` → persisté en Room, plan connu (compte de test = FREE).
+        // `GET /users/me/plan-usage` → persisté en Room, plan connu (compte de test = FREE, fondateur depuis son inscription).
         accountRepo.refreshPlanUsage()
         val usage = accountRepo.observePlanUsage().first()
         assertTrue(usage != null && usage.plan != Plan.UNKNOWN, "le plan du compte de test doit être reconnu")
-        assertEquals(1, usage!!.projectsLimit, "FREE → 1 projet actif max (PlanLimitService)")
+        assertTrue(usage!!.isFounder, "le compte de test est fondateur")
+        assertEquals(3, usage.projectsLimit, "FREE fondateur → 3 projets actifs max (PlanLimitService)")
     }
 
     @Test
     fun the_free_test_account_is_at_its_project_limit_locally() = runBlocking {
         com.dmb.chantiertracker.support.skipUnless(com.dmb.chantiertracker.support.IntegrationBackend.enabled, "test contre le vrai backend : -Dchantiertracker.integrationTests=true requis")
-        com.dmb.chantiertracker.support.skipUnless(backendUp(), "backend localhost:8080 indisponible")
+        com.dmb.chantiertracker.support.skipUnless(backendUp(), "backend ${com.dmb.chantiertracker.support.IntegrationBackend.baseUrl} indisponible")
 
-        retryingOnRateLimit { repo.login("mobile-test@local.dev", "ChantierTest1234!") }
+        com.dmb.chantiertracker.support.skipUnless(IntegrationBackend.adminConfigured, "identifiants super-admin requis (-Dchantiertracker.adminEmail / adminPassword)")
+
+        // Compte neuf créé par l'admin : FREE, jamais fondateur, donc 1 projet actif max.
+        val account = accounts.create("free-limit", "Free Limit")
+        repo.signInForTheFirstTime(account, "FreeLimit1234!")
         val userId = (holder.state.value as AuthState.Authenticated).user.id
+        ProjectApi(client).create(CreateProjectRequestDto("Projet à la limite", null, "Nîmes", "EUR", "Europe/Paris"))
 
         // Room = source de vérité : on tire la liste + le plan depuis le vrai backend.
         projectRepo.refresh()
@@ -248,14 +256,14 @@ class DesktopAuthIntegrationTest {
 
         assertEquals(Plan.FREE, usage.plan)
         assertEquals(1, usage.projectsLimit)
-        assertEquals(1, activeOwned, "le compte de test possède déjà 1 projet actif")
+        assertEquals(1, activeOwned, "le compte possède 1 projet actif")
         assertTrue(usage.isAtProjectLimit(activeOwned), "limite atteinte → la création doit être bloquée en amont")
     }
 
     @Test
     fun a_new_account_creates_a_project_then_opens_its_detail() = runBlocking {
         com.dmb.chantiertracker.support.skipUnless(com.dmb.chantiertracker.support.IntegrationBackend.enabled, "test contre le vrai backend : -Dchantiertracker.integrationTests=true requis")
-        com.dmb.chantiertracker.support.skipUnless(backendUp(), "backend localhost:8080 indisponible")
+        com.dmb.chantiertracker.support.skipUnless(backendUp(), "backend ${com.dmb.chantiertracker.support.IntegrationBackend.baseUrl} indisponible")
 
         com.dmb.chantiertracker.support.skipUnless(IntegrationBackend.adminConfigured, "identifiants super-admin requis (-Dchantiertracker.adminEmail / adminPassword)")
 
@@ -291,7 +299,7 @@ class DesktopAuthIntegrationTest {
     @Test
     fun create_pull_members_edit_offline_then_delete() = runBlocking {
         com.dmb.chantiertracker.support.skipUnless(com.dmb.chantiertracker.support.IntegrationBackend.enabled, "test contre le vrai backend : -Dchantiertracker.integrationTests=true requis")
-        com.dmb.chantiertracker.support.skipUnless(backendUp(), "backend localhost:8080 indisponible")
+        com.dmb.chantiertracker.support.skipUnless(backendUp(), "backend ${com.dmb.chantiertracker.support.IntegrationBackend.baseUrl} indisponible")
 
         com.dmb.chantiertracker.support.skipUnless(IntegrationBackend.adminConfigured, "identifiants super-admin requis (-Dchantiertracker.adminEmail / adminPassword)")
 
@@ -337,7 +345,7 @@ class DesktopAuthIntegrationTest {
     }
 
     private fun backendUp(): Boolean = runCatching {
-        val conn = URI("http://localhost:8080/actuator/health").toURL().openConnection() as HttpURLConnection
+        val conn = URI(com.dmb.chantiertracker.support.IntegrationBackend.baseUrl.removeSuffix("/api/v1") + "/actuator/health").toURL().openConnection() as HttpURLConnection
         conn.connectTimeout = 1000
         conn.readTimeout = 1000
         conn.responseCode in 200..499
