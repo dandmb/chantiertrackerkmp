@@ -6,6 +6,7 @@ import com.dmb.chantiertracker.presentation.billing.paidPlansAreOffered
 import com.dmb.chantiertracker.resources.Res
 import com.dmb.chantiertracker.resources.error_account_locked
 import com.dmb.chantiertracker.resources.error_billing_not_open
+import com.dmb.chantiertracker.resources.error_creation_in_progress
 import com.dmb.chantiertracker.resources.error_account_not_verified
 import com.dmb.chantiertracker.resources.error_duplicate_material
 import com.dmb.chantiertracker.resources.error_email_already_used
@@ -39,6 +40,7 @@ fun DomainException.textRes(): StringResource = when (this) {
     DomainException.InvalidCode -> Res.string.error_invalid_code
     DomainException.Validation -> Res.string.error_validation
     is DomainException.RateLimited -> Res.string.error_rate_limited
+    is DomainException.CreationInProgress -> Res.string.error_creation_in_progress
     DomainException.PlanLimitReached -> Res.string.error_plan_limit
     DomainException.DuplicateMaterial -> Res.string.error_duplicate_material
     DomainException.FileTooLarge -> Res.string.error_file_too_large

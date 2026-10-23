@@ -75,7 +75,7 @@ class PaginationIntegrationTest {
         val project = owner.projects.createProject(CreateProjectInput("QA C5 étapes", null, "Nîmes", "EUR", "Europe/Paris"))
         owner.sync.syncNow()
         val projectServerId = owner.db.projectDao().findByLocalId(project)!!.serverId!!
-        val stageServerIds = (1..25).map { owner.stageApi.create(projectServerId, CreateStageRequestDto("Étape $it")).id }
+        val stageServerIds = (1..25).map { owner.stageApi.create(projectServerId, CreateStageRequestDto("Étape $it"), idempotencyKey = null).id }
         owner.invitations.invite(project, supervisorAccount.email)
         supervisor.invitations.acceptInvitation(supervisor.invitations.listIncomingInvitations().single().token)
         supervisor.sync.syncNow()
@@ -103,7 +103,7 @@ class PaginationIntegrationTest {
         accounts.grantPlan(account.id, "LIBERTE")
 
         val projectServerIds = (1..22).map {
-            owner.projectApi.create(CreateProjectRequestDto("QA C5 projet $it", null, "Nîmes", "EUR", "Europe/Paris")).id
+            owner.projectApi.create(CreateProjectRequestDto("QA C5 projet $it", null, "Nîmes", "EUR", "Europe/Paris"), idempotencyKey = null).id
         }
 
         assertIs<SyncOutcome.Synced>(owner.sync.syncNow())
@@ -131,13 +131,13 @@ class PaginationIntegrationTest {
         val project = owner.projects.createProject(CreateProjectInput("QA C5 journées", null, "Nîmes", "EUR", "Europe/Paris"))
         owner.sync.syncNow()
         val projectServerId = owner.db.projectDao().findByLocalId(project)!!.serverId!!
-        val mainStage = owner.stageApi.create(projectServerId, CreateStageRequestDto("Gros œuvre")).id
-        val doomedStage = owner.stageApi.create(projectServerId, CreateStageRequestDto("Étape à supprimer")).id
+        val mainStage = owner.stageApi.create(projectServerId, CreateStageRequestDto("Gros œuvre"), idempotencyKey = null).id
+        val doomedStage = owner.stageApi.create(projectServerId, CreateStageRequestDto("Étape à supprimer"), idempotencyKey = null).id
         val today = LocalDate.now(ZoneId.of("Europe/Paris"))
         val days = (0..24).map { today.minusDays(it.toLong()).toString() }
-        days.forEach { owner.dailyLogApi.createPurchaseEntry(mainStage, it, EntryRequestDto("Achat du $it")) }
-        owner.dailyLogApi.createPurchaseEntry(doomedStage, today.toString(), EntryRequestDto("Achat de l'étape à supprimer"))
-        val materialIds = (1..25).map { owner.materialApi.create(projectServerId, CreateMaterialRequestDto("Matériau $it", "u")).id }
+        days.forEach { owner.dailyLogApi.createPurchaseEntry(mainStage, it, EntryRequestDto("Achat du $it"), idempotencyKey = null) }
+        owner.dailyLogApi.createPurchaseEntry(doomedStage, today.toString(), EntryRequestDto("Achat de l'étape à supprimer"), idempotencyKey = null)
+        val materialIds = (1..25).map { owner.materialApi.create(projectServerId, CreateMaterialRequestDto("Matériau $it", "u"), idempotencyKey = null).id }
         owner.invitations.invite(project, supervisorAccount.email)
         supervisor.invitations.acceptInvitation(supervisor.invitations.listIncomingInvitations().single().token)
         supervisor.sync.syncNow()
@@ -193,17 +193,17 @@ class PaginationIntegrationTest {
         val project = owner.projects.createProject(CreateProjectInput("QA C5 lignes", null, "Nîmes", "EUR", "Europe/Paris"))
         owner.sync.syncNow()
         val projectServerId = owner.db.projectDao().findByLocalId(project)!!.serverId!!
-        val stage = owner.stageApi.create(projectServerId, CreateStageRequestDto("Gros œuvre")).id
+        val stage = owner.stageApi.create(projectServerId, CreateStageRequestDto("Gros œuvre"), idempotencyKey = null).id
         val today = LocalDate.now(ZoneId.of("Europe/Paris")).toString()
-        val purchaseEntry = owner.dailyLogApi.createPurchaseEntry(stage, today, EntryRequestDto("Achats du jour")).id
-        val workEntry = owner.dailyLogApi.createWorkEntry(stage, today, EntryRequestDto("Travaux du jour")).id
-        val cement = owner.materialApi.create(projectServerId, CreateMaterialRequestDto("Ciment", "sac")).id
-        val purchaseIds = (1..25).map { owner.purchaseLineApi.create(purchaseEntry, CreatePurchaseLineRequestDto(cement, 10.0, 2.0, "Fournisseur $it")).id }
-        val consumptionIds = (1..25).map { owner.consumptionLineApi.create(workEntry, CreateConsumptionLineRequestDto(cement, 1.0)).id }
+        val purchaseEntry = owner.dailyLogApi.createPurchaseEntry(stage, today, EntryRequestDto("Achats du jour"), idempotencyKey = null).id
+        val workEntry = owner.dailyLogApi.createWorkEntry(stage, today, EntryRequestDto("Travaux du jour"), idempotencyKey = null).id
+        val cement = owner.materialApi.create(projectServerId, CreateMaterialRequestDto("Ciment", "sac"), idempotencyKey = null).id
+        val purchaseIds = (1..25).map { owner.purchaseLineApi.create(purchaseEntry, CreatePurchaseLineRequestDto(cement, 10.0, 2.0, "Fournisseur $it"), idempotencyKey = null).id }
+        val consumptionIds = (1..25).map { owner.consumptionLineApi.create(workEntry, CreateConsumptionLineRequestDto(cement, 1.0), idempotencyKey = null).id }
         val jpeg = aSmallJpeg()
         val photoIds = (1..25).map {
             retryingOnRateLimit {
-                apiCall { owner.attachmentApi.upload(purchaseEntry, jpeg.size.toLong(), "ticket-$it.jpg", "image/jpeg", openSource = { Buffer().apply { write(jpeg) } }) }
+                apiCall { owner.attachmentApi.upload(purchaseEntry, jpeg.size.toLong(), "ticket-$it.jpg", "image/jpeg", openSource = { Buffer().apply { write(jpeg) } }, idempotencyKey = null) }
             }.id
         }
         owner.invitations.invite(project, supervisorAccount.email)
@@ -265,14 +265,14 @@ class PaginationIntegrationTest {
         val projectServerId = phone.db.projectDao().findByLocalId(project)!!.serverId!!
         val stamp = System.currentTimeMillis()
         val invitationIds = (1..25).map {
-            retryingOnRateLimit { apiCall { phone.invitationApi.create(projectServerId, CreateInvitationRequestDto("qa-c5-invite-$it-$stamp@local.dev", "SUPERVISOR")) } }.id
+            retryingOnRateLimit { apiCall { phone.invitationApi.create(projectServerId, CreateInvitationRequestDto("qa-c5-invite-$it-$stamp@local.dev", "SUPERVISOR"), idempotencyKey = null) } }.id
         }
-        val stage = phone.stageApi.create(projectServerId, CreateStageRequestDto("Gros œuvre")).id
+        val stage = phone.stageApi.create(projectServerId, CreateStageRequestDto("Gros œuvre"), idempotencyKey = null).id
         val today = LocalDate.now(ZoneId.of("Europe/Paris")).toString()
-        val purchaseEntry = phone.dailyLogApi.createPurchaseEntry(stage, today, EntryRequestDto("Achats du jour")).id
+        val purchaseEntry = phone.dailyLogApi.createPurchaseEntry(stage, today, EntryRequestDto("Achats du jour"), idempotencyKey = null).id
         val purchaseIds = (1..25).map {
-            val material = phone.materialApi.create(projectServerId, CreateMaterialRequestDto("Matériau $it", "u")).id
-            phone.purchaseLineApi.create(purchaseEntry, CreatePurchaseLineRequestDto(material, it.toDouble(), 2.0, null)).id
+            val material = phone.materialApi.create(projectServerId, CreateMaterialRequestDto("Matériau $it", "u"), idempotencyKey = null).id
+            phone.purchaseLineApi.create(purchaseEntry, CreatePurchaseLineRequestDto(material, it.toDouble(), 2.0, null), idempotencyKey = null).id
         }
 
         val tablet = device()

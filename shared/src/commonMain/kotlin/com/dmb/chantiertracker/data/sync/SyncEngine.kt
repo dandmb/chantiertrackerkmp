@@ -42,6 +42,7 @@ import com.dmb.chantiertracker.data.remote.ProjectApi
 import com.dmb.chantiertracker.data.remote.PurchaseLineApi
 import com.dmb.chantiertracker.data.remote.StageApi
 import com.dmb.chantiertracker.data.remote.StockApi
+import com.dmb.chantiertracker.data.remote.idempotencyKeyFor
 import com.dmb.chantiertracker.data.remote.apiCallReportingRefusalCode
 import com.dmb.chantiertracker.data.remote.dto.AttachmentDto
 import com.dmb.chantiertracker.data.remote.dto.ConsumptionLineDto
@@ -458,6 +459,8 @@ class SyncEngine(
         when {
             failure is DomainException.RateLimited ->
                 sendWaits.waitAtLeast(quotaKey(key), failure.retryAfterSeconds?.seconds ?: RATE_LIMIT_WAIT_WITHOUT_RETRY_AFTER, SendWait.QUOTA)
+            failure is DomainException.CreationInProgress ->
+                sendWaits.waitAtLeast(quotaKey(key), failure.retryAfterSeconds?.seconds ?: CREATION_IN_PROGRESS_WAIT_WITHOUT_RETRY_AFTER, SendWait.QUOTA)
             failure.leavesTheOutcomeUnknown() -> sendWaits.waitLonger(key, SEND_WITHOUT_ANSWER_SPACING, SendWait.NO_ANSWER)
             else -> return false
         }
@@ -877,7 +880,11 @@ class SyncEngine(
     private suspend fun <T> serverCall(block: suspend () -> T): T {
         refusalCode = null
         refusalStatus = null
-        return apiCallReportingRefusalCode({ refusalCode = it }, { refusalStatus = it }, block)
+        return apiCallReportingRefusalCode({ refusalCode = it; logAReusedKey(it) }, { refusalStatus = it }, block)
+    }
+
+    private fun logAReusedKey(code: String?) {
+        if (code == IDEMPOTENCY_KEY_REUSED_CODE) log("sync: $IDEMPOTENCY_KEY_REUSED_CODE, the local id was sent before with another request; the row is refused")
     }
 
     private fun DomainException.leavesTheOutcomeUnknown(): Boolean =
@@ -1028,7 +1035,7 @@ class SyncEngine(
     private suspend fun pushMaterialCreate(material: MaterialEntity) {
         val projectServerId = dao.findByLocalId(material.projectLocalId)?.serverId ?: return
         val created = try {
-            serverCall { materialApi.create(projectServerId, material.toCreateRequest()) }
+            serverCall { materialApi.create(projectServerId, material.toCreateRequest(), idempotencyKeyFor(material.localId)) }
         } catch (e: DomainException.NotFound) {
             materialDao.writeIfUnchanged(material.copy(syncStatus = SyncStatus.CONFLICTED, lastSyncError = SyncError.DELETED_ON_SERVER))
             return
@@ -1098,8 +1105,8 @@ class SyncEngine(
         val body = entry.toEntryRequest()
         val dto = try {
             when (entry.type.uppercase()) {
-                "PURCHASE" -> serverCall { dailyLogApi.createPurchaseEntry(stageServerId, log.date, body) }
-                "WORK" -> serverCall { dailyLogApi.createWorkEntry(stageServerId, log.date, body) }
+                "PURCHASE" -> serverCall { dailyLogApi.createPurchaseEntry(stageServerId, log.date, body, idempotencyKeyFor(entry.localId)) }
+                "WORK" -> serverCall { dailyLogApi.createWorkEntry(stageServerId, log.date, body, idempotencyKeyFor(entry.localId)) }
                 else -> return
             }
         } catch (e: DomainException.NotFound) {
@@ -1158,7 +1165,7 @@ class SyncEngine(
         val material = materialDao.findByLocalId(line.materialLocalId) ?: return
         val materialServerId = material.serverId ?: return
         val created = try {
-            serverCall { purchaseLineApi.create(entryServerId, line.toCreateRequest(materialServerId)) }
+            serverCall { purchaseLineApi.create(entryServerId, line.toCreateRequest(materialServerId), idempotencyKeyFor(line.localId)) }
         } catch (e: DomainException.NotFound) {
             purchaseLineDao.writeIfUnchanged(line.copy(syncStatus = SyncStatus.CONFLICTED, lastSyncError = SyncError.DELETED_ON_SERVER))
             return
@@ -1248,7 +1255,7 @@ class SyncEngine(
         val material = materialDao.findByLocalId(line.materialLocalId) ?: return
         val materialServerId = material.serverId ?: return
         val created = try {
-            serverCall { consumptionLineApi.create(entryServerId, line.toCreateRequest(materialServerId)) }
+            serverCall { consumptionLineApi.create(entryServerId, line.toCreateRequest(materialServerId), idempotencyKeyFor(line.localId)) }
         } catch (e: DomainException.NotFound) {
             consumptionLineDao.writeIfUnchanged(line.copy(syncStatus = SyncStatus.CONFLICTED, lastSyncError = SyncError.DELETED_ON_SERVER))
             return
@@ -1361,13 +1368,14 @@ class SyncEngine(
         var status: Int? = null
         if (attachment.isAVideo()) showProgress(attachment.localId, 0f)
         return try {
-            val stored = apiCallReportingRefusalCode({ code = it }, { status = it }) {
+            val stored = apiCallReportingRefusalCode({ code = it; logAReusedKey(it) }, { status = it }) {
                 attachmentApi.upload(
                     entryId = upload.entryServerId,
                     contentLength = upload.size,
                     fileName = attachment.originalName,
                     mimeType = attachment.mimeType,
                     openSource = { attachmentFileStore.source(attachment.localPath).buffered() },
+                    idempotencyKey = idempotencyKeyFor(attachment.localId),
                 ) { sent, total ->
                     if (attachment.isAVideo() && total != null && total > 0) showProgress(attachment.localId, (sent.toFloat() / total).coerceIn(0f, 1f))
                 }
@@ -1689,7 +1697,7 @@ class SyncEngine(
         // pass (after the project pushes) picks it up. Not an error.
         val projectServerId = dao.findByLocalId(stage.projectLocalId)?.serverId ?: return
         val created = try {
-            serverCall { stageApi.create(projectServerId, stage.toCreateRequest()) }
+            serverCall { stageApi.create(projectServerId, stage.toCreateRequest(), idempotencyKeyFor(stage.localId)) }
         } catch (e: DomainException.NotFound) {
             keepStageGoneOnServer(stage)
             return
@@ -1752,7 +1760,7 @@ class SyncEngine(
 
     private suspend fun pushCreate(entity: ProjectEntity) {
         val created = try {
-            serverCall { api.create(entity.toCreateRequest()) }
+            serverCall { api.create(entity.toCreateRequest(), idempotencyKeyFor(entity.localId)) }
         } catch (e: DomainException.PlanLimitReached) {
             dao.writeIfUnchanged(entity.copy(syncStatus = SyncStatus.CONFLICTED, lastSyncError = SyncError.PLAN_LIMIT, serverErrorCode = refusalCode))
             return
@@ -1889,6 +1897,7 @@ private val CLIENT_ERRORS = 400..499
 private data class PlanSeen(val plan: String, val isFounder: Boolean, val projectsLimit: Int?, val projectsUsed: Long)
 
 private const val ATTACHMENT_TOO_LARGE_CODE = "ATTACHMENT_TOO_LARGE"
+private const val IDEMPOTENCY_KEY_REUSED_CODE = "IDEMPOTENCY_KEY_REUSED"
 private const val LOCAL_FILE_MISSING_CODE = "LOCAL_FILE_MISSING"
 private val FILE_REFUSAL_CODES = setOf(
     ATTACHMENT_TOO_LARGE_CODE,

@@ -7,6 +7,7 @@ import com.dmb.chantiertracker.data.remote.apiCall
 import com.dmb.chantiertracker.data.remote.dto.CreateReportRequestDto
 import com.dmb.chantiertracker.data.remote.dto.ReportDto
 import com.dmb.chantiertracker.data.remote.dto.ReportPageDto
+import com.dmb.chantiertracker.data.remote.OnlineCreationKeys
 import com.dmb.chantiertracker.domain.model.DomainException
 import com.dmb.chantiertracker.domain.model.Report
 import com.dmb.chantiertracker.domain.model.ReportPage
@@ -24,9 +25,12 @@ class ReportRepositoryImpl(
     private val projectDao: ProjectDao,
 ) : ReportRepository {
 
+    private val creationKeys = OnlineCreationKeys()
+
     override suspend fun createReport(entryLocalId: String, message: String) {
         val entryServerId = entryDao.findByLocalId(entryLocalId)?.serverId ?: throw DomainException.NotFound
-        apiCall { api.create(entryServerId, CreateReportRequestDto(message = message)) }
+        val request = CreateReportRequestDto(message = message)
+        creationKeys.send(entryServerId to request) { key -> api.create(entryServerId, request, key) }
     }
 
     override suspend fun projectReports(projectLocalId: String, page: Int, sort: ReportSort): ReportPage {

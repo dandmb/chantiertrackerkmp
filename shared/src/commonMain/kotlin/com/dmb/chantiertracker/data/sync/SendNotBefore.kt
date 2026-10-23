@@ -3,12 +3,14 @@ package com.dmb.chantiertracker.data.sync
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.minutes
+import kotlin.time.Duration.Companion.seconds
 
 val REFUSED_CREATION_SPACING: List<Duration> = listOf(15.minutes, 1.hours, 6.hours, 24.hours)
 
 val SEND_WITHOUT_ANSWER_SPACING: List<Duration> = REFUSED_CREATION_SPACING
 
 val RATE_LIMIT_WAIT_WITHOUT_RETRY_AFTER: Duration = 1.minutes
+val CREATION_IN_PROGRESS_WAIT_WITHOUT_RETRY_AFTER: Duration = 10.seconds
 
 class SendNotBefore<A>(private val clock: Clock) {
 

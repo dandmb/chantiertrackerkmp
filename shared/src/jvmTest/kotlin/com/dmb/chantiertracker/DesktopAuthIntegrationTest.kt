@@ -245,7 +245,7 @@ class DesktopAuthIntegrationTest {
         val account = accounts.create("free-limit", "Free Limit")
         repo.signInForTheFirstTime(account, "FreeLimit1234!")
         val userId = (holder.state.value as AuthState.Authenticated).user.id
-        ProjectApi(client).create(CreateProjectRequestDto("Projet à la limite", null, "Nîmes", "EUR", "Europe/Paris"))
+        ProjectApi(client).create(CreateProjectRequestDto("Projet à la limite", null, "Nîmes", "EUR", "Europe/Paris"), idempotencyKey = null)
 
         // Room = source de vérité : on tire la liste + le plan depuis le vrai backend.
         projectRepo.refresh()

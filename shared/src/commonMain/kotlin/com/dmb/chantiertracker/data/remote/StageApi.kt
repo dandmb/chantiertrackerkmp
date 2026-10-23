@@ -22,8 +22,9 @@ class StageApi(private val client: HttpClient) {
     suspend fun get(id: Long): StageDto =
         client.get(ApiRoutes.stage(id)).body()
 
-    suspend fun create(projectId: Long, body: CreateStageRequestDto): StageDto =
+    suspend fun create(projectId: Long, body: CreateStageRequestDto, idempotencyKey: String?): StageDto =
         client.post(ApiRoutes.projectStages(projectId)) {
+            idempotencyKey(idempotencyKey)
             contentType(ContentType.Application.Json)
             setBody(body)
         }.body()
