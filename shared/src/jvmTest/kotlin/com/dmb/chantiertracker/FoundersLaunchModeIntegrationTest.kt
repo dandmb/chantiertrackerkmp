@@ -11,6 +11,7 @@ import com.dmb.chantiertracker.data.remote.AuthApi
 import com.dmb.chantiertracker.data.remote.BillingApi
 import com.dmb.chantiertracker.data.remote.ProjectApi
 import com.dmb.chantiertracker.data.remote.createHttpClient
+import com.dmb.chantiertracker.data.remote.dto.CreateProjectRequestDto
 import com.dmb.chantiertracker.data.remote.httpClientEngine
 import com.dmb.chantiertracker.data.repository.AccountRepositoryImpl
 import com.dmb.chantiertracker.data.repository.AuthRepositoryImpl
@@ -31,9 +32,12 @@ import com.dmb.chantiertracker.presentation.logs.VideoDurationCheck
 import com.dmb.chantiertracker.presentation.logs.VideoLimit
 import com.dmb.chantiertracker.presentation.logs.ownerVideoLimits
 import com.dmb.chantiertracker.presentation.sync.SyncStateHolder
+import com.dmb.chantiertracker.support.DisposableAccounts
 import com.dmb.chantiertracker.support.FakeConnectivityObserver
+import com.dmb.chantiertracker.support.IntegrationBackend
 import com.dmb.chantiertracker.support.founderOnFreeEntitlements
 import com.dmb.chantiertracker.support.ownerEntitlements
+import com.dmb.chantiertracker.support.signInForTheFirstTime
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import java.nio.file.Files
@@ -54,20 +58,21 @@ import kotlin.test.assertTrue
  *         -Dchantiertracker.integrationBaseUrl=http://localhost:8080/api/v1 \
  *         -Dchantiertracker.integrationPhase=<phase>
  *
- * L'état du serveur ne se pilote pas depuis un compte ordinaire : chaque phase suppose
- * que la base a été préparée à la main, puis remise en état après.
+ * L'interrupteur `billing_open` ne se pilote pas depuis un compte ordinaire : chaque phase
+ * suppose qu'il a été réglé à la main, puis remis en état après.
  *
- * - `non-founder` : `billing_open = false`, `mobile-test@local.dev` FREE, `is_founder = false`.
- * - `founder` : `billing_open = false`, même compte avec `is_founder = true`.
+ * - `non-founder` : `billing_open = false`, compte jetable créé par le super-admin des tests
+ *   (jamais fondateur : seule la vérification d'e-mail donne un siège), supprimé à la fin.
+ * - `founder` : `billing_open = false`, `mobile-test@local.dev`, fondateur depuis son inscription.
  * - `billing-open` : `billing_open = true` (aucune connexion, aucun checkout lancé).
  *
- * Le compte doit posséder au moins un projet.
+ * Chaque phase connectée crée son projet et le supprime à la fin.
  */
 class FoundersLaunchModeIntegrationTest {
 
     private val enabled = System.getProperty("chantiertracker.integrationTests") == "true"
     private val phase = System.getProperty("chantiertracker.integrationPhase")
-    private val baseUrl = System.getProperty("chantiertracker.integrationBaseUrl") ?: "http://localhost:8080/api/v1"
+    private val baseUrl = IntegrationBackend.baseUrl
 
     private val dir = Files.createTempDirectory("ct-founders-integ")
     private val storage = DesktopTokenStorage(dir)
@@ -84,6 +89,9 @@ class FoundersLaunchModeIntegrationTest {
         com.dmb.chantiertracker.support.FakeSyncer(), com.dmb.chantiertracker.support.testOwnership(),
     )
     private val billing = BillingRepositoryImpl(BillingApi(client))
+    private val projectApi = ProjectApi(client)
+    private val createdProjects = mutableListOf<Long>()
+    private val accounts = DisposableAccounts()
 
     private val db: AppDatabase = Room.inMemoryDatabaseBuilder<AppDatabase>().buildChantierDatabase()
     private val account = AccountRepositoryImpl(AccountApi(client), db.planUsageDao())
@@ -120,6 +128,8 @@ class FoundersLaunchModeIntegrationTest {
 
     @AfterTest
     fun cleanUp() {
+        runBlocking { createdProjects.forEach { runCatching { projectApi.delete(it) } } }
+        accounts.close()
         client.close()
         db.close()
         dir.toFile().deleteRecursively()
@@ -131,9 +141,9 @@ class FoundersLaunchModeIntegrationTest {
         block()
     }
 
-    private suspend fun signInAndPullFirstProject(): ProjectDetail {
-        auth.login("mobile-test@local.dev", "ChantierTest1234!")
+    private suspend fun pullOwnNewProject(): ProjectDetail {
         assertIs<AuthState.Authenticated>(holder.state.value)
+        createdProjects += projectApi.create(CreateProjectRequestDto("QA fondateurs", null, "Nîmes", "EUR", "Europe/Paris")).id
         account.refreshPlanUsage()
         projects.refresh()
         val localId = projects.observeProjects().first().first().localId
@@ -147,7 +157,9 @@ class FoundersLaunchModeIntegrationTest {
         billing.refreshAvailability()
         assertEquals(BillingAvailability.CLOSED, billing.availability.value, "lu sans jeton, avant toute connexion")
 
-        val project = signInAndPullFirstProject()
+        com.dmb.chantiertracker.support.skipUnless(IntegrationBackend.adminConfigured, "identifiants du super-admin des tests requis")
+        auth.signInForTheFirstTime(accounts.create("qa-non-founder", "QA Non Fondateur"), "QaNonFounder1234!")
+        val project = pullOwnNewProject()
         val usage = account.observePlanUsage().first()!!
         println("plan-usage -> $usage")
         println("détail projet -> ${project.ownerEntitlements}")
@@ -174,7 +186,8 @@ class FoundersLaunchModeIntegrationTest {
         billing.refreshAvailability()
         assertEquals(BillingAvailability.CLOSED, billing.availability.value)
 
-        val project = signInAndPullFirstProject()
+        auth.login("mobile-test@local.dev", "ChantierTest1234!")
+        val project = pullOwnNewProject()
         val usage = account.observePlanUsage().first()!!
         println("plan-usage -> $usage")
         println("détail projet -> ${project.ownerEntitlements}")

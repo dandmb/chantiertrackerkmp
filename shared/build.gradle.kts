@@ -1,3 +1,4 @@
+import java.util.Properties
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
@@ -123,7 +124,14 @@ room {
     schemaDirectory("$projectDir/schemas")
 }
 
+val localTestProperties = Properties().apply {
+    rootProject.file("local.properties").takeIf { it.exists() }?.reader()?.use { load(it) }
+}
+
 tasks.withType<Test>().configureEach {
+    localTestProperties.stringPropertyNames()
+        .filter { it.startsWith("chantiertracker.") }
+        .forEach { name -> systemProperty(name, localTestProperties.getProperty(name)) }
     System.getProperties().stringPropertyNames()
         .filter { it.startsWith("chantiertracker.") }
         .forEach { name -> systemProperty(name, System.getProperty(name)) }
