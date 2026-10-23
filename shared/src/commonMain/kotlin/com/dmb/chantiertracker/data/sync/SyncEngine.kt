@@ -55,6 +55,7 @@ import com.dmb.chantiertracker.data.remote.dto.ProjectDto
 import com.dmb.chantiertracker.data.remote.dto.PurchaseLineDto
 import com.dmb.chantiertracker.data.remote.dto.StageDto
 import com.dmb.chantiertracker.domain.model.DomainException
+import com.dmb.chantiertracker.domain.model.IMAGE_TOO_LARGE_CODE
 import com.dmb.chantiertracker.presentation.sync.SyncState
 import com.dmb.chantiertracker.presentation.sync.SyncStateHolder
 import kotlinx.coroutines.CancellationException
@@ -888,7 +889,8 @@ class SyncEngine(
     }
 
     private fun DomainException.leavesTheOutcomeUnknown(): Boolean =
-        this is DomainException.Network || (this is DomainException.Unexpected && (refusalStatus ?: SERVER_ERROR) >= SERVER_ERROR)
+        this is DomainException.Network || this is DomainException.ServiceUnavailable ||
+            (this is DomainException.Unexpected && (refusalStatus ?: SERVER_ERROR) >= SERVER_ERROR)
 
     private fun uploadMayLeave(): Boolean = sendWaits.mayBeSentNow(UPLOAD_QUOTA)
 
@@ -1904,6 +1906,7 @@ private val FILE_REFUSAL_CODES = setOf(
     "INVALID_ATTACHMENT_TYPE",
     "INVALID_ATTACHMENT_NAME",
     "UNSUPPORTED_IMAGE",
+    IMAGE_TOO_LARGE_CODE,
     "UNREADABLE_VIDEO",
     "VIDEO_TOO_LONG",
 )

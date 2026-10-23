@@ -63,7 +63,11 @@ class SyncIssueRepositoryImpl(
         combine(syncIssueDao.observeUnsettled(), blockedByParent) { rows, blocked ->
             rows.mapNotNull { row ->
                 row.syncIssue(blockedByParent = (row.target to row.localId) in blocked)?.let { issue ->
-                    row.toItem(issue, blockedBy = if (issue.kind == SyncIssueKind.BLOCKED_BY_PARENT) row.refusedParentAmong(rows) else null)
+                    row.toItem(
+                        issue,
+                        blockedBy = if (issue.kind == SyncIssueKind.BLOCKED_BY_PARENT) row.refusedParentAmong(rows) else null,
+                        alsoBlockedBy = if (issue.kind == SyncIssueKind.BLOCKED_BY_PARENT) row.refusedMaterialBesidesItsEntry(rows) else null,
+                    )
                 }
             }
         }
@@ -146,6 +150,14 @@ private fun SyncIssueRow.refusedParentAmong(rows: List<SyncIssueRow>): SyncIssue
     }
 }
 
+private fun SyncIssueRow.refusedMaterialBesidesItsEntry(rows: List<SyncIssueRow>): SyncIssueParent? {
+    val parent = refusedParentAmong(rows)
+    if (parent?.target != SyncIssueTarget.ENTRY || !dependsOnAMaterial()) return null
+    return rows.firstOrNull {
+        it.neverReachedTheServer() && it.target == SyncIssueTarget.MATERIAL && it.projectLocalId == projectLocalId && it.label == label
+    }?.let { SyncIssueParent(SyncIssueTarget.MATERIAL, name = it.label) }
+}
+
 private fun SyncIssueRow.dependsOnAnEntry(): Boolean =
     target == SyncIssueTarget.PURCHASE_LINE || target == SyncIssueTarget.CONSUMPTION_LINE || target == SyncIssueTarget.ATTACHMENT
 
@@ -154,7 +166,7 @@ private fun SyncIssueRow.dependsOnAMaterial(): Boolean =
 
 private fun String?.toEntryType(): EntryType? = this?.let { type -> EntryType.entries.firstOrNull { it.name == type } ?: EntryType.UNKNOWN }
 
-private fun SyncIssueRow.toItem(issue: SyncIssue, blockedBy: SyncIssueParent?) = SyncIssueItem(
+private fun SyncIssueRow.toItem(issue: SyncIssue, blockedBy: SyncIssueParent?, alsoBlockedBy: SyncIssueParent? = null) = SyncIssueItem(
     target = target,
     localId = localId,
     issue = issue,
@@ -170,6 +182,7 @@ private fun SyncIssueRow.toItem(issue: SyncIssue, blockedBy: SyncIssueParent?) =
     quantity = quantity,
     serverQuantity = serverQuantity,
     blockedBy = blockedBy,
+    alsoBlockedBy = alsoBlockedBy,
     entryLocalId = entryLocalId,
     currency = currency,
 )

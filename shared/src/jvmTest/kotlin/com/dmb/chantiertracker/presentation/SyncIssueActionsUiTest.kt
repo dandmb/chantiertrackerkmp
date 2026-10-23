@@ -138,6 +138,26 @@ class SyncIssueActionsUiTest {
     private fun ComposeUiTest.awaitGone(text: String) = waitUntil(timeoutMillis = 5_000L) { onAllNodesWithText(text).fetchSemanticsNodes().isEmpty() }
 
     @Test
+    fun a_line_waiting_for_a_refused_entry_and_a_refused_material_names_both() {
+        val waitingForBoth = waitingLine.copy(alsoBlockedBy = SyncIssueParent(SyncIssueTarget.MATERIAL, name = "Ciment"))
+        onScreen(listOf(waitingForBoth)) {
+            await("En attente : dépend de la saisie d'achats du 09-10-2026 et du matériau « Ciment », refusés.")
+        }
+        onScreen(listOf(waitingForBoth), locale = "en") {
+            await("Waiting: depends on the purchases entry of 09-10-2026 and on the material “Ciment”, which were refused.")
+        }
+    }
+
+    @Test
+    fun a_photo_refused_as_too_large_says_it_is_too_large() {
+        val tooLarge = refusedFile.copy(issue = refusedIssue(RefusalReason.FILE_REFUSED, serverCode = "IMAGE_TOO_LARGE"))
+        onScreen(listOf(tooLarge)) {
+            await("Photo trop grande (plus de 40 mégapixels).")
+            assertEquals(false, everythingShown().any { "IMAGE_TOO_LARGE" in it }, "never the server code")
+        }
+    }
+
+    @Test
     fun each_kind_of_refused_entry_shows_only_the_actions_that_make_sense_for_it() {
         val expected = listOf(
             duplicateEntry to listOf("Abandonner"),

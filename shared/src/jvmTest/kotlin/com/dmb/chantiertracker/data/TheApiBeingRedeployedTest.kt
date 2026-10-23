@@ -151,6 +151,10 @@ class TheApiBeingRedeployedTest {
 
     private class Step(val name: String, val run: suspend (Device) -> SyncOutcome)
 
+    // An unavailable service fails a pass exactly where a cut does; only its message differs.
+    private fun SyncOutcome.asSeenByTheEngine(): SyncOutcome =
+        if (this == SyncOutcome.Failed(DomainException.ServiceUnavailable)) SyncOutcome.Failed(DomainException.Network) else this
+
     private val aDayOfPasses = listOf(
         Step("pass") { it.engine.syncNow() },
         Step("project opened") { it.engine.syncProject("p5") },
@@ -176,7 +180,7 @@ class TheApiBeingRedeployedTest {
             val outcomeOfTheCut = step.run(cut)
             val outcomeOfTheRedeploy = step.run(redeploy)
             assertEquals(cut.everyRow(), redeploy.everyRow(), "$on, $answer, after « ${step.name} »: the local database must be the one a network cut leaves")
-            assertEquals(outcomeOfTheCut, outcomeOfTheRedeploy, "$on, $answer, outcome of « ${step.name} »")
+            assertEquals(outcomeOfTheCut, outcomeOfTheRedeploy.asSeenByTheEngine(), "$on, $answer, outcome of « ${step.name} »")
             assertEquals(cut.backend.receivedMethods, redeploy.backend.receivedMethods, "$on, $answer, requests sent up to « ${step.name} »: same sends, same spacing as a cut")
         }
     }
@@ -227,7 +231,7 @@ class TheApiBeingRedeployedTest {
 
         for (step in aDayOfPasses) {
             val outcome = step.run(phone)
-            assertEquals(SyncOutcome.Failed(DomainException.Network), outcome, "« ${step.name} » fails like a cut")
+            assertEquals(SyncOutcome.Failed(DomainException.ServiceUnavailable), outcome, "« ${step.name} » fails as an unavailable service")
             assertEquals(before, phone.everyRow(), "after « ${step.name} »: nothing erased, nothing refused, no delete taken as done")
         }
     }

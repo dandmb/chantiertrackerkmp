@@ -106,7 +106,7 @@ class RedeployIntegrationTest {
         for ((name, pass) in passes) {
             val outcome = pass()
             println("R1 — pendant le redéploiement, $name : $outcome")
-            assertEquals(SyncOutcome.Failed(DomainException.Network), outcome, "$name : un échec comme une coupure")
+            assertEquals(SyncOutcome.Failed(DomainException.ServiceUnavailable), outcome, "$name : un échec comme une coupure")
             assertEquals(before, phone.db.everyRow(), "$name : la base locale est identique, rien d'effacé, rien en refus, aucune suppression prise pour faite")
             assertIs<AuthState.Authenticated>(phone.authState.state.value, "$name : toujours connecté")
             assertEquals("an-expired-access-token", phone.storage.get()?.accessToken, "$name : la session n'est pas effacée")
@@ -119,7 +119,7 @@ class RedeployIntegrationTest {
         proxy.redeployingFor = { _, path -> path.contains("/auth/refresh-token") }
         val renewal = phone.sync.syncNow()
         println("R1 — jeton refusé par le backend, renouvellement tombé sur le proxy : $renewal")
-        assertEquals(SyncOutcome.Failed(DomainException.Network), renewal, "le renouvellement sans réponse du backend échoue comme une coupure")
+        assertEquals(SyncOutcome.Failed(DomainException.ServiceUnavailable), renewal, "le renouvellement sans réponse du backend échoue comme une coupure")
         assertTrue(proxy.answeredWhileRedeploying.any { it.contains("auth/refresh-token") }, "le renouvellement a bien été tenté pendant le redéploiement")
         assertEquals(before, phone.db.everyRow(), "renouvellement : la base locale est identique")
         assertIs<AuthState.Authenticated>(phone.authState.state.value, "renouvellement : toujours connecté")

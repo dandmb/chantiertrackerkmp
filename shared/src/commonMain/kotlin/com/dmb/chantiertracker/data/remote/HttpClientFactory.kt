@@ -36,6 +36,8 @@ val AppJson: Json = Json {
 }
 
 // Extension sur HttpClientConfig pour être partagée entre createHttpClient et les tests (MockEngine).
+private const val SERVER_ERROR = 500
+
 fun HttpClientConfig<*>.configureChantierTrackerClient(
     tokenStorage: TokenStorage,
     baseUrl: String,
@@ -86,8 +88,8 @@ fun HttpClientConfig<*>.configureChantierTrackerClient(
                     val fresh = response.body<LoginResponseDto>()
                     tokenStorage.save(AuthTokens(fresh.accessToken, fresh.refreshToken))
                     BearerTokens(fresh.accessToken, fresh.refreshToken)
-                } else if (response.comesFromAnUnavailableApi()) {
-                    throw DomainException.Network
+                } else if (response.comesFromAnUnavailableApi() || response.status.value >= SERVER_ERROR) {
+                    throw DomainException.ServiceUnavailable
                 } else {
                     tokenStorage.clear()
                     onSessionExpired()

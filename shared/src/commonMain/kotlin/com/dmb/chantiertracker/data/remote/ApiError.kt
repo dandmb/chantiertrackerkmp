@@ -29,7 +29,7 @@ suspend fun <T> apiCallReportingRefusalCode(onRefusalCode: (String?) -> Unit, on
         val problem = e.response.problemOrNull()
         // While the API is redeployed the reverse proxy answers 404 in its own format:
         // the server is unreachable, nothing was found missing.
-        if (e.response.isNotTheBackendsAnswer(problem)) throw DomainException.Network
+        if (e.response.isNotTheBackendsAnswer(problem)) throw DomainException.ServiceUnavailable
         onRefusalStatus(e.response.status.value)
         throw e.toDomainException(problem, onRefusalCode)
     } catch (e: Throwable) {

@@ -42,6 +42,7 @@ class RefusedCreationResendTest {
         "INVALID_ATTACHMENT_TYPE" to frozen,
         "INVALID_ATTACHMENT_NAME" to frozen,
         "UNSUPPORTED_IMAGE" to frozen,
+        "IMAGE_TOO_LARGE" to frozen,
         "UNREADABLE_VIDEO" to frozen,
         "VIDEO_TOO_LONG" to frozen,
         "LOCAL_FILE_MISSING" to frozen,

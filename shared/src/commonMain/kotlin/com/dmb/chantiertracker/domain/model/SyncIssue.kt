@@ -81,6 +81,7 @@ data class SyncIssueItem(
     val quantity: Double? = null,
     val serverQuantity: Double? = null,
     val blockedBy: SyncIssueParent? = null,
+    val alsoBlockedBy: SyncIssueParent? = null,
     val entryLocalId: String? = null,
     val currency: String? = null,
 ) {
@@ -128,6 +129,8 @@ val SyncIssueItem.removesLocalDataWhenAcknowledged: Boolean
 val SyncIssueItem.serverValueKnownLocally: Boolean
     get() = issue.kind == SyncIssueKind.UPDATE_REFUSED && target == SyncIssueTarget.CONSUMPTION_LINE && serverQuantity != null
 
+const val IMAGE_TOO_LARGE_CODE = "IMAGE_TOO_LARGE"
+
 val knownRefusalCodes: Map<String, RefusalReason> = mapOf(
     "PLAN_LIMIT_EXCEEDED" to RefusalReason.PLAN_LIMIT,
     "PROJECT_OR_STAGE_INACTIVE" to RefusalReason.PROJECT_OR_STAGE_INACTIVE,
@@ -146,6 +149,7 @@ val knownRefusalCodes: Map<String, RefusalReason> = mapOf(
     "INVALID_ATTACHMENT_TYPE" to RefusalReason.FILE_REFUSED,
     "INVALID_ATTACHMENT_NAME" to RefusalReason.FILE_REFUSED,
     "UNSUPPORTED_IMAGE" to RefusalReason.FILE_REFUSED,
+    IMAGE_TOO_LARGE_CODE to RefusalReason.FILE_REFUSED,
     "UNREADABLE_VIDEO" to RefusalReason.FILE_REFUSED,
     "VIDEO_TOO_LONG" to RefusalReason.FILE_REFUSED,
     "LOCAL_FILE_MISSING" to RefusalReason.FILE_REFUSED,
