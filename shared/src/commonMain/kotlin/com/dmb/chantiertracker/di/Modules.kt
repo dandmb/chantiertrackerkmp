@@ -75,7 +75,8 @@ import com.dmb.chantiertracker.presentation.sync.SyncStateHolder
 import com.dmb.chantiertracker.data.repository.AccountRepositoryImpl
 import com.dmb.chantiertracker.data.repository.AttachmentRepositoryImpl
 import com.dmb.chantiertracker.data.repository.AdminRepositoryImpl
-import com.dmb.chantiertracker.data.repository.BillingRepositoryImpl
+import com.dmb.chantiertracker.data.repository.billingRepositoryFor
+import com.dmb.chantiertracker.core.inAppPaymentsAllowed
 import com.dmb.chantiertracker.data.repository.InvitationRepositoryImpl
 import com.dmb.chantiertracker.data.repository.AuthRepositoryImpl
 import com.dmb.chantiertracker.data.repository.ConsumptionLineRepositoryImpl
@@ -267,7 +268,7 @@ val dataModule: Module = module {
     single<HistoryRepository> { HistoryRepositoryImpl(get(), get()) }
     single<ReportRepository> { ReportRepositoryImpl(get(), get(), get()) }
     single<ExportRepository> { ExportRepositoryImpl(get(), get(), get()) }
-    single<BillingRepository> { BillingRepositoryImpl(get()) }
+    single<BillingRepository> { billingRepositoryFor(get(), inAppPaymentsAllowed) }
     single<AdminRepository> { AdminRepositoryImpl(get()) }
     single<EditorIdentityRepository> { EditorIdentityRepositoryImpl(get(), get()) }
 }

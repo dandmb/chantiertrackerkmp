@@ -640,6 +640,8 @@
     <string name="delete_account_offline">Tu es hors ligne. La suppression du compte se fait en ligne : reconnecte-toi à Internet pour continuer.</string>
     <string name="delete_account_blocked_title">Suppression impossible pour l'instant</string>
     <string name="delete_account_manage_users">Gérer les utilisateurs</string>
+    <string name="error_deletion_subscription_renewing_outside_app">Tu as un abonnement en cours : il doit être annulé avant de supprimer ton compte.</string>
+    <string name="sync_hint_plan_limit_no_upgrade">Supprime un projet, puis réessaie.</string>
     <string name="delete_account_manage_subscription">Gérer l'abonnement</string>
     <string name="delete_account_projects_title">Projets supprimés</string>
     <string name="delete_account_no_project">Tu ne possèdes aucun projet.</string>

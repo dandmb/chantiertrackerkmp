@@ -9,13 +9,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import com.dmb.chantiertracker.presentation.App
-import com.dmb.chantiertracker.presentation.billing.dispatchCheckoutDeepLink
 import com.dmb.chantiertracker.presentation.invitations.dispatchInvitationDeepLink
 
-// ADR-51 point 4 / ADR-59 — android:launchMode="singleTask" (manifest) means
-// a chantiertracker:// return from the browser after Stripe checkout/portal,
-// or a real https://chantiertracker.com/invitations/{token} App Link, both
-// reach THIS instance via onNewIntent(), never a second stacked one.
+// ADR-59 — android:launchMode="singleTask" (manifest) means a real
+// https://chantiertracker.com/invitations/{token} App Link reaches THIS instance
+// via onNewIntent(), never a second stacked one. No Stripe return on Android (R6b).
 // onCreate also checks its own intent for the (rarer) cold-start case: the OS
 // killed the process (or the app wasn't running yet) while the link fired,
 // so the deep link is what launches/relaunches the app.
@@ -39,7 +37,6 @@ class MainActivity : ComponentActivity() {
 
     private fun dispatchDeepLink(intent: Intent?) {
         val url = intent?.data?.toString() ?: return
-        dispatchCheckoutDeepLink(url)
         dispatchInvitationDeepLink(url)
     }
 }

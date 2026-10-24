@@ -38,6 +38,7 @@ import com.dmb.chantiertracker.domain.model.ProjectRole
 import com.dmb.chantiertracker.presentation.AppOutlinedButton
 import com.dmb.chantiertracker.presentation.DetailSection
 import com.dmb.chantiertracker.presentation.auth.components.ErrorBanner
+import com.dmb.chantiertracker.presentation.billing.LocalInAppPaymentsAllowed
 import com.dmb.chantiertracker.presentation.auth.components.PasswordField
 import com.dmb.chantiertracker.presentation.i18n.localizedText
 import com.dmb.chantiertracker.resources.Res
@@ -69,6 +70,7 @@ import com.dmb.chantiertracker.resources.delete_account_understood
 import com.dmb.chantiertracker.resources.delete_account_wrong_password
 import com.dmb.chantiertracker.resources.error_deletion_last_super_admin
 import com.dmb.chantiertracker.resources.error_deletion_subscription_renewing
+import com.dmb.chantiertracker.resources.error_deletion_subscription_renewing_outside_app
 import com.dmb.chantiertracker.resources.projects_retry
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
@@ -124,31 +126,27 @@ private fun Blockers(blockers: List<DeletionBlocker>, onManageUsers: () -> Unit,
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onErrorContainer,
             )
+            val paymentsAllowed = LocalInAppPaymentsAllowed.current
             blockers.forEach { blocker ->
+                val reason = when (blocker) {
+                    DeletionBlocker.LAST_SUPER_ADMIN -> Res.string.error_deletion_last_super_admin
+                    DeletionBlocker.SUBSCRIPTION_STILL_RENEWING ->
+                        if (paymentsAllowed) Res.string.error_deletion_subscription_renewing else Res.string.error_deletion_subscription_renewing_outside_app
+                }
                 Text(
-                    stringResource(
-                        when (blocker) {
-                            DeletionBlocker.LAST_SUPER_ADMIN -> Res.string.error_deletion_last_super_admin
-                            DeletionBlocker.SUBSCRIPTION_STILL_RENEWING -> Res.string.error_deletion_subscription_renewing
-                        },
-                    ),
+                    stringResource(reason),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onErrorContainer,
                 )
-                AppOutlinedButton(
-                    onClick = when (blocker) {
-                        DeletionBlocker.LAST_SUPER_ADMIN -> onManageUsers
-                        DeletionBlocker.SUBSCRIPTION_STILL_RENEWING -> onManageSubscription
-                    },
-                ) {
-                    Text(
-                        stringResource(
-                            when (blocker) {
-                                DeletionBlocker.LAST_SUPER_ADMIN -> Res.string.delete_account_manage_users
-                                DeletionBlocker.SUBSCRIPTION_STILL_RENEWING -> Res.string.delete_account_manage_subscription
-                            },
-                        ),
-                    )
+                when (blocker) {
+                    DeletionBlocker.LAST_SUPER_ADMIN -> AppOutlinedButton(onClick = onManageUsers) {
+                        Text(stringResource(Res.string.delete_account_manage_users))
+                    }
+                    DeletionBlocker.SUBSCRIPTION_STILL_RENEWING -> if (paymentsAllowed) {
+                        AppOutlinedButton(onClick = onManageSubscription) {
+                            Text(stringResource(Res.string.delete_account_manage_subscription))
+                        }
+                    }
                 }
             }
         }

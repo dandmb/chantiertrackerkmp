@@ -640,6 +640,8 @@
     <string name="delete_account_offline">You are offline. Deleting the account happens online: reconnect to the Internet to continue.</string>
     <string name="delete_account_blocked_title">Deletion not possible for now</string>
     <string name="delete_account_manage_users">Manage users</string>
+    <string name="error_deletion_subscription_renewing_outside_app">You have an ongoing subscription: it must be cancelled before you delete your account.</string>
+    <string name="sync_hint_plan_limit_no_upgrade">Delete a project, then try again.</string>
     <string name="delete_account_manage_subscription">Manage the subscription</string>
     <string name="delete_account_projects_title">Projects deleted</string>
     <string name="delete_account_no_project">You don't own any project.</string>
