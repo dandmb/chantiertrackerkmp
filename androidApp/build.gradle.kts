@@ -3,6 +3,7 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 plugins {
     alias(libs.plugins.androidApplication)
     alias(libs.plugins.composeCompiler)
+    alias(libs.plugins.firebaseCrashlytics)
 }
 
 kotlin {
@@ -18,6 +19,11 @@ dependencies {
 
     implementation(libs.compose.uiToolingPreview)
     debugImplementation(libs.compose.uiTooling)
+
+    releaseImplementation(platform(libs.firebase.bom))
+    releaseImplementation(libs.firebase.crashlytics)
+    releaseImplementation(libs.kotlinx.coroutines.core)
+    releaseImplementation(libs.koin.core)
 }
 
 // Distribution signing: values come from CI env vars (see .github/workflows/cd-stage.yml).
@@ -25,6 +31,17 @@ dependencies {
 val distributionKeystore = providers.environmentVariable("ANDROID_KEYSTORE_FILE").orNull
     ?.let(::file)
     ?.takeIf { it.exists() }
+
+// Play Store signing (upload key): same idea, its own variables (see .github/workflows/release-android.yml).
+val uploadKeystore = providers.environmentVariable("RELEASE_KEYSTORE_FILE").orNull
+    ?.let(::file)
+    ?.takeIf { it.exists() }
+
+// Firebase of the Play Store build, from CI variables: without them Crashlytics stays off.
+val firebaseRelease = listOf("FIREBASE_RELEASE_APP_ID", "FIREBASE_RELEASE_API_KEY", "FIREBASE_PROJECT_ID")
+    .map { providers.environmentVariable(it).orNull.orEmpty() }
+    .takeIf { values -> values.all { it.isNotBlank() } }
+val crashlyticsTestCrash = providers.gradleProperty("crashlyticsTestCrash").orNull == "true"
 
 android {
     namespace = "com.dmb.chantiertracker"
@@ -34,9 +51,9 @@ android {
         applicationId = "com.dmb.chantiertracker"
         minSdk = libs.versions.android.minSdk.get().toInt()
         targetSdk = libs.versions.android.targetSdk.get().toInt()
-        // CI passes -PversionCode / -PversionName; local builds fall back to 1 / "1.0".
+        // CI passes -PversionCode / -PversionName; local builds fall back to 1 / "1.0.0".
         versionCode = providers.gradleProperty("versionCode").orNull?.toInt() ?: 1
-        versionName = providers.gradleProperty("versionName").orNull ?: "1.0"
+        versionName = providers.gradleProperty("versionName").orNull ?: "1.0.0"
     }
     packaging {
         resources {
@@ -52,6 +69,14 @@ android {
                 keyPassword = providers.environmentVariable("ANDROID_KEY_PASSWORD").orNull
             }
         }
+        if (uploadKeystore != null) {
+            create("upload") {
+                storeFile = uploadKeystore
+                storePassword = providers.environmentVariable("RELEASE_KEYSTORE_PASSWORD").orNull
+                keyAlias = providers.environmentVariable("RELEASE_KEY_ALIAS").orNull
+                keyPassword = providers.environmentVariable("RELEASE_KEY_PASSWORD").orNull
+            }
+        }
     }
     buildTypes {
         release {
@@ -60,6 +85,13 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            signingConfig = signingConfigs.findByName("upload")
+            firebaseRelease?.let { (appId, apiKey, projectId) ->
+                resValue("string", "google_app_id", appId)
+                resValue("string", "google_api_key", apiKey)
+                resValue("string", "project_id", projectId)
+            }
+            resValue("bool", "crashlytics_test_crash", crashlyticsTestCrash.toString())
         }
         // The build shipped to testers via Firebase App Distribution (branch `stage`).
         // Same code and same (production) backend as a real release — the `.staging`
@@ -78,5 +110,6 @@ android {
     }
     buildFeatures {
         compose = true
+        resValues = true
     }
 }

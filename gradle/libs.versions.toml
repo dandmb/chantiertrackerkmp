@@ -46,6 +46,9 @@ filekit = "0.15.0"
 # over Vico (whose latest stable needs Compose 1.12.0/AGP 9.3.2, which would
 # cascade into the androidx-core/connectivity ceilings noted above).
 koalaplot = "0.12.1"
+# Crash reports of the Play Store build only (R6). BoM 35.0.2 brings firebase-crashlytics 21.0.0.
+firebaseBom = "35.0.2"
+firebaseCrashlyticsPlugin = "3.0.8"
 
 [libraries]
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
@@ -110,6 +113,9 @@ filekit-dialogs-compose = { module = "io.github.vinceglb:filekit-dialogs-compose
 
 koalaplot-core = { module = "io.github.koalaplot:koalaplot-core", version.ref = "koalaplot" }
 
+firebase-bom = { module = "com.google.firebase:firebase-bom", version.ref = "firebaseBom" }
+firebase-crashlytics = { module = "com.google.firebase:firebase-crashlytics" }
+
 [plugins]
 androidApplication = { id = "com.android.application", version.ref = "agp" }
 androidMultiplatformLibrary = { id = "com.android.kotlin.multiplatform.library", version.ref = "agp" }
@@ -120,3 +126,4 @@ kotlinMultiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref =
 kotlinSerialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 androidxRoom = { id = "androidx.room", version.ref = "room" }
+firebaseCrashlytics = { id = "com.google.firebase.crashlytics", version.ref = "firebaseCrashlyticsPlugin" }

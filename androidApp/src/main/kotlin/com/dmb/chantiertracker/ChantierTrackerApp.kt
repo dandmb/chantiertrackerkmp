@@ -7,5 +7,6 @@ class ChantierTrackerApp : Application() {
     override fun onCreate() {
         super.onCreate()
         initKoin(this)
+        CrashReportingInstaller.install(this)
     }
 }
