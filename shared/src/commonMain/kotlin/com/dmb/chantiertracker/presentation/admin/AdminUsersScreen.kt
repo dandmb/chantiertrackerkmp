@@ -21,7 +21,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -41,6 +40,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dmb.chantiertracker.domain.model.AdminUser
 import com.dmb.chantiertracker.domain.model.GlobalRole
 import com.dmb.chantiertracker.domain.model.PlanSource
+import com.dmb.chantiertracker.presentation.AppOutlinedButton
 import com.dmb.chantiertracker.presentation.ResponsiveContent
 import com.dmb.chantiertracker.presentation.WidthSizeClass
 import com.dmb.chantiertracker.presentation.auth.components.ErrorBanner
@@ -136,7 +136,7 @@ fun AdminUsersScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             textAlign = TextAlign.Center,
                         )
-                        OutlinedButton(onClick = viewModel::retry) {
+                        AppOutlinedButton(onClick = viewModel::retry) {
                             Text(stringResource(Res.string.admin_users_retry))
                         }
                     }

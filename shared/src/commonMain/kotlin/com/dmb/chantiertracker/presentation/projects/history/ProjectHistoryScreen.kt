@@ -13,7 +13,6 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -33,6 +32,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dmb.chantiertracker.domain.model.HistoryActionType
 import com.dmb.chantiertracker.domain.model.HistorySort
 import com.dmb.chantiertracker.domain.model.ModificationHistoryItem
+import com.dmb.chantiertracker.presentation.AppOutlinedButton
 import com.dmb.chantiertracker.presentation.ResponsiveContent
 import com.dmb.chantiertracker.presentation.billing.historyRetentionNotice
 import com.dmb.chantiertracker.presentation.formatIsoDateTime
@@ -82,7 +82,7 @@ fun ProjectHistoryScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             textAlign = TextAlign.Center,
                         )
-                        OutlinedButton(onClick = viewModel::retry) {
+                        AppOutlinedButton(onClick = viewModel::retry) {
                             Text(stringResource(Res.string.history_retry))
                         }
                     }

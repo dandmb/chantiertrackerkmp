@@ -1,6 +1,7 @@
 package com.dmb.chantiertracker.presentation.logs
 
 import com.dmb.chantiertracker.domain.model.SyncIssueTarget
+import com.dmb.chantiertracker.presentation.AppOutlinedButton
 import com.dmb.chantiertracker.presentation.sync.SyncIssueMarker
 import com.dmb.chantiertracker.presentation.sync.SyncIssueMarkerStyle
 import androidx.compose.foundation.BorderStroke
@@ -30,7 +31,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -172,7 +172,7 @@ fun DailyLogScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center,
                     )
-                    OutlinedButton(onClick = viewModel::retry) { Text(stringResource(Res.string.projects_retry)) }
+                    AppOutlinedButton(onClick = viewModel::retry) { Text(stringResource(Res.string.projects_retry)) }
                 }
                 state.detail != null -> DailyLogContent(
                     state = state,

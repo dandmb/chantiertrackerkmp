@@ -14,7 +14,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -29,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dmb.chantiertracker.domain.model.Granularity
 import com.dmb.chantiertracker.domain.model.StatsPoint
+import com.dmb.chantiertracker.presentation.AppOutlinedButton
 import com.dmb.chantiertracker.presentation.ClickableListRow
 import com.dmb.chantiertracker.presentation.DateField
 import com.dmb.chantiertracker.presentation.DetailEmptyHint
@@ -136,7 +136,7 @@ fun AdminStatsScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center,
                     )
-                    OutlinedButton(onClick = viewModel::retry) {
+                    AppOutlinedButton(onClick = viewModel::retry) {
                         Text(stringResource(Res.string.admin_users_retry))
                     }
                 }

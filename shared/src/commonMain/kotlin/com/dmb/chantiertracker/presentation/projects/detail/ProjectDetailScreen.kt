@@ -1,6 +1,7 @@
 package com.dmb.chantiertracker.presentation.projects.detail
 
 import com.dmb.chantiertracker.domain.model.SyncIssueTarget
+import com.dmb.chantiertracker.presentation.AppOutlinedButton
 import com.dmb.chantiertracker.presentation.CapitalTitle
 import com.dmb.chantiertracker.presentation.sync.SyncIssueMarker
 import androidx.compose.foundation.BorderStroke
@@ -20,7 +21,6 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -133,7 +133,7 @@ fun ProjectDetailScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center,
                     )
-                    OutlinedButton(onClick = viewModel::retry) {
+                    AppOutlinedButton(onClick = viewModel::retry) {
                         Text(stringResource(Res.string.projects_retry))
                     }
                 }
@@ -407,7 +407,7 @@ private fun ProjectHeader(
                 modifier = Modifier.weight(1f),
             )
             if (canEdit) {
-                OutlinedButton(onClick = onEditProject) {
+                AppOutlinedButton(onClick = onEditProject) {
                     Icon(EditIcon, contentDescription = null, modifier = Modifier.size(18.dp))
                     Text(
                         text = stringResource(Res.string.detail_edit_project),
@@ -461,11 +461,11 @@ private fun DangerZone(projectName: String, isDeleting: Boolean, onDeleteConfirm
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        OutlinedButton(
+        AppOutlinedButton(
             onClick = { showDialog = true },
             enabled = !isDeleting,
             colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.error),
+            border = BorderStroke(2.dp, MaterialTheme.colorScheme.error),
         ) {
             Text(stringResource(Res.string.detail_delete_project))
         }

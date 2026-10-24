@@ -1,5 +1,6 @@
 package com.dmb.chantiertracker.data.sync
 
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -10,6 +11,6 @@ import kotlin.coroutines.CoroutineContext
  * to any screen or ViewModel. One failing job never cancels the others
  * (`SupervisorJob`).
  */
-class AppCoroutineScope : CoroutineScope {
-    override val coroutineContext: CoroutineContext = SupervisorJob() + Dispatchers.Default
+class AppCoroutineScope(dispatcher: CoroutineDispatcher = Dispatchers.Default) : CoroutineScope {
+    override val coroutineContext: CoroutineContext = SupervisorJob() + dispatcher
 }

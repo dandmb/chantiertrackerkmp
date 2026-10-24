@@ -34,7 +34,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -54,6 +53,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.dmb.chantiertracker.presentation.AppOutlinedButton
 import com.dmb.chantiertracker.presentation.AppOutlinedTextField
 import com.dmb.chantiertracker.presentation.CapitalTitle
 import com.dmb.chantiertracker.presentation.branding.ConstructionIllustration
@@ -395,7 +395,7 @@ fun AuthSecondaryButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
 ) {
-    OutlinedButton(
+    AppOutlinedButton(
         onClick = onClick,
         modifier = modifier.fillMaxWidth().height(54.dp),
         enabled = enabled,
