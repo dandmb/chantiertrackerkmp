@@ -1,5 +1,9 @@
 package com.dmb.chantiertracker.di
 
+import com.dmb.chantiertracker.data.repository.AccountDeletionRepositoryImpl
+import com.dmb.chantiertracker.data.session.SessionNotices
+import com.dmb.chantiertracker.domain.repository.AccountDeletionRepository
+import com.dmb.chantiertracker.presentation.account.DeleteAccountViewModel
 import com.dmb.chantiertracker.presentation.sync.SyncState
 import com.dmb.chantiertracker.data.local.db.LocalDataDao
 import com.dmb.chantiertracker.data.session.LocalDataEraser
@@ -252,6 +256,8 @@ val dataModule: Module = module {
     single<ProjectRepository> { ProjectRepositoryImpl(get(), get(), get<AppCoroutineScope>()) }
     single<StageRepository> { StageRepositoryImpl(get(), get(), get<AppCoroutineScope>()) }
     single<AccountRepository> { AccountRepositoryImpl(get(), get()) }
+    single { SessionNotices() }
+    single<AccountDeletionRepository> { AccountDeletionRepositoryImpl(get(), get<TokenStorage>(), get(), get(), get(), get(), get()) }
     single<DailyLogRepository> { DailyLogRepositoryImpl(get(), get(), get(), get<AppCoroutineScope>()) }
     single<MaterialRepository> { MaterialRepositoryImpl(get(), get(), get(), get(), get(), get<AppCoroutineScope>()) }
     single<PurchaseLineRepository> { PurchaseLineRepositoryImpl(get(), get(), get<AppCoroutineScope>()) }
@@ -302,6 +308,7 @@ val presentationModule: Module = module {
     viewModelOf(::ConsumptionLineFormViewModel)
     viewModelOf(::SettingsViewModel)
     viewModelOf(::BillingViewModel)
+    viewModelOf(::DeleteAccountViewModel)
     viewModelOf(::AdminUsersViewModel)
     viewModelOf(::AdminCreateUserViewModel)
     viewModelOf(::AdminStatsViewModel)

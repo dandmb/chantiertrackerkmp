@@ -633,4 +633,40 @@
     <string name="sync_waiting_on_work_entry_and_material">En attente : dépend de la saisie de travaux du %1$s et du matériau « %2$s », refusés.</string>
     <string name="sync_waiting_on_entry_and_material">En attente : dépend de la saisie et du matériau « %1$s », refusés.</string>
     <string name="field_invalid_input">Saisie incorrecte</string>
+    <string name="error_deletion_last_super_admin">Il n'y a pas d'autre super-administrateur : crée-en un autre avant de supprimer ton compte.</string>
+    <string name="error_deletion_subscription_renewing">Ton abonnement se renouvelle encore : annule-le depuis la gestion de l'abonnement, puis supprime ton compte.</string>
+    <string name="menu_delete_account">Supprimer mon compte</string>
+    <string name="delete_account_title">Supprimer mon compte</string>
+    <string name="delete_account_offline">Tu es hors ligne. La suppression du compte se fait en ligne : reconnecte-toi à Internet pour continuer.</string>
+    <string name="delete_account_blocked_title">Suppression impossible pour l'instant</string>
+    <string name="delete_account_manage_users">Gérer les utilisateurs</string>
+    <string name="delete_account_manage_subscription">Gérer l'abonnement</string>
+    <string name="delete_account_projects_title">Projets supprimés</string>
+    <string name="delete_account_no_project">Tu ne possèdes aucun projet.</string>
+    <string name="delete_account_projects_intro">Les projets dont tu es propriétaire sont supprimés avec tout leur contenu : étapes, journées, achats, stock, photos et vidéos.</string>
+    <string name="delete_account_member_with_role">%1$s (%2$s)</string>
+    <string name="delete_account_list_and">%1$s et %2$s</string>
+    <string name="delete_account_role_admin">administrateur</string>
+    <string name="delete_account_role_supervisor">superviseur</string>
+    <string name="delete_account_left_title">Projets que tu quittes</string>
+    <string name="delete_account_left_intro">Ces projets restent à leur propriétaire. Tu n'y auras plus accès.</string>
+    <string name="delete_account_good_to_know">À savoir</string>
+    <string name="delete_account_founder">Tu perds ton statut Fondateur : il n'est pas rendu, même si tu crées un nouveau compte.</string>
+    <string name="delete_account_contributions">Ce que tu as saisi dans les projets des autres reste chez eux, sous le nom « Utilisateur supprimé ».</string>
+    <string name="delete_account_sessions">Toutes tes sessions sont fermées, et un e-mail de confirmation part à ton adresse.</string>
+    <string name="delete_account_confirm_title">Confirmer la suppression</string>
+    <string name="delete_account_password_prompt">Saisis ton mot de passe pour confirmer que c'est bien toi.</string>
+    <string name="delete_account_understood">Je comprends que la suppression est définitive : mon compte et mes projets ne pourront pas être récupérés.</string>
+    <string name="delete_account_submit">Supprimer définitivement mon compte</string>
+    <string name="delete_account_submitting">Suppression…</string>
+    <string name="delete_account_wrong_password">Mot de passe incorrect.</string>
+    <string name="login_notice_account_deleted">Ton compte a été supprimé.</string>
+    <plurals name="delete_account_lost_access">
+        <item quantity="one">%1$s perdra l'accès.</item>
+        <item quantity="other">%1$s perdront l'accès.</item>
+    </plurals>
+    <plurals name="delete_account_invitations">
+        <item quantity="one">%1$d invitation en attente sera supprimée.</item>
+        <item quantity="other">%1$d invitations en attente seront supprimées.</item>
+    </plurals>
 </resources>

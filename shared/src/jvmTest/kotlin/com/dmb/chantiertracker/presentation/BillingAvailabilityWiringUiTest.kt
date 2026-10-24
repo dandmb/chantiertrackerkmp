@@ -113,7 +113,7 @@ class BillingAvailabilityWiringUiTest {
             onboardingSeen = true
             emitState(AuthState.Unauthenticated)
         }
-        return RootViewModel(auth)
+        return RootViewModel(auth, com.dmb.chantiertracker.data.session.SessionNotices())
     }
 
     @Test

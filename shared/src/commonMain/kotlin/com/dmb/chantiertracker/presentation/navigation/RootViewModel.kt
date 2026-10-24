@@ -2,6 +2,8 @@ package com.dmb.chantiertracker.presentation.navigation
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.dmb.chantiertracker.data.session.SessionNotice
+import com.dmb.chantiertracker.data.session.SessionNotices
 import com.dmb.chantiertracker.domain.model.AuthState
 import com.dmb.chantiertracker.domain.repository.AuthRepository
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -11,9 +13,12 @@ import kotlinx.coroutines.launch
 
 class RootViewModel(
     private val authRepository: AuthRepository,
+    private val sessionNotices: SessionNotices,
 ) : ViewModel() {
 
     val authState: StateFlow<AuthState> = authRepository.authState
+
+    val sessionNotice: StateFlow<SessionNotice?> = sessionNotices.notice
 
     private val _hasLoggedInBefore = MutableStateFlow<Boolean?>(null)
     val hasLoggedInBefore: StateFlow<Boolean?> = _hasLoggedInBefore.asStateFlow()
@@ -30,6 +35,7 @@ class RootViewModel(
         viewModelScope.launch {
             authRepository.authState.collect {
                 _hasLoggedInBefore.value = authRepository.hasCompletedFirstLogin()
+                if (it is AuthState.Authenticated) sessionNotices.clear()
             }
         }
     }

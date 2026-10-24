@@ -68,6 +68,10 @@ class LocalDataOwnerStore(private val preferences: AppPreferences) {
 
     fun ownerId(): Long? = preferences.read(KEY_ID)?.toLongOrNull()
 
+    fun forget() {
+        listOf(KEY_ID, KEY_EMAIL, KEY_NAME, KEY_ROLE).forEach { preferences.write(it, null) }
+    }
+
     fun record(user: User) {
         preferences.write(KEY_ID, user.id.toString())
         preferences.write(KEY_EMAIL, user.email)

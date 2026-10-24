@@ -22,6 +22,7 @@ sealed class DomainException : Exception() {
     // AuthRepositoryImpl.changePassword, same posture as other local remaps
     // (BillingRepositoryImpl, AdminRepositoryImpl).
     data object InvalidCurrentPassword : DomainException()
+    data class AccountDeletionBlocked(val blocker: DeletionBlocker) : DomainException()
     data object InvalidCode : DomainException()
     data object Validation : DomainException()
     data class RateLimited(val retryAfterSeconds: Int? = null) : DomainException()
