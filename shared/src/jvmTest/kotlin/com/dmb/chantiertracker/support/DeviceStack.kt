@@ -99,12 +99,18 @@ class DeviceStack(baseUrl: String = IntegrationBackend.baseUrl) : AutoCloseable 
 
     val preferences = FakeAppPreferences()
     val exportStore = FakeExportFileStore()
+    val wiper = LocalDataWiper(db.localDataDao(), fileStore, exportStore) {}
+    val ownerStore = LocalDataOwnerStore(preferences)
     val ownership = LocalDataOwnership(
-        LocalDataOwnerStore(preferences),
-        LocalDataWiper(db.localDataDao(), fileStore, exportStore) {},
+        ownerStore,
+        wiper,
         com.dmb.chantiertracker.data.session.RoomUnsyncedWriteCounter(db.localDataDao()),
     )
     val auth = AuthRepositoryImpl(AuthApi(client), storage, authState, DesktopOnboardingStore(dir.resolve("onboarding.flag")), sync, ownership)
+    val sessionNotices = com.dmb.chantiertracker.data.session.SessionNotices()
+    val accountDeletion = com.dmb.chantiertracker.data.repository.AccountDeletionRepositoryImpl(
+        com.dmb.chantiertracker.data.remote.AccountApi(client), storage, authState, sync, wiper, ownerStore, sessionNotices,
+    )
     val signOut = com.dmb.chantiertracker.data.repository.SignOutRepositoryImpl(auth, sync, com.dmb.chantiertracker.data.session.RoomUnsyncedWriteCounter(db.localDataDao()))
 
     val projects = ProjectRepositoryImpl(db.projectDao(), sync, scope)

@@ -9,6 +9,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
+import com.dmb.chantiertracker.data.session.SessionNotice
 import com.dmb.chantiertracker.domain.model.AuthState
 import com.dmb.chantiertracker.presentation.auth.changepassword.ChangePasswordScreen
 import com.dmb.chantiertracker.presentation.auth.forgot.ForgotPasswordScreen
@@ -34,6 +35,7 @@ fun RootNavHost(viewModel: RootViewModel = koinViewModel()) {
     val authState by viewModel.authState.collectAsStateWithLifecycle()
     val hasLoggedInBefore by viewModel.hasLoggedInBefore.collectAsStateWithLifecycle()
     val hasSeenOnboarding by viewModel.hasSeenOnboarding.collectAsStateWithLifecycle()
+    val sessionNotice by viewModel.sessionNotice.collectAsStateWithLifecycle()
 
     // Read here, not inside MainViewModel's own (async-populated) state: the
     // Projects↔Administration tab swap (ADR-52) decides MainScreen's NavHost
@@ -49,17 +51,19 @@ fun RootNavHost(viewModel: RootViewModel = koinViewModel()) {
         authenticatedUser != null -> MainScreen(globalRole = authenticatedUser.globalRole)
         else -> AuthNavHost(
             startPoint = when {
+                sessionNotice == SessionNotice.AccountDeleted -> AuthStartPoint.Login
                 hasLoggedInBefore == true -> AuthStartPoint.Login
                 hasSeenOnboarding == true -> AuthStartPoint.Welcome
                 else -> AuthStartPoint.Onboarding
             },
             onOnboardingFinished = viewModel::markOnboardingSeen,
+            startNotice = if (sessionNotice == SessionNotice.AccountDeleted) LoginNotice.AccountDeleted else null,
         )
     }
 }
 
 @Composable
-private fun AuthNavHost(startPoint: AuthStartPoint, onOnboardingFinished: () -> Unit) {
+private fun AuthNavHost(startPoint: AuthStartPoint, onOnboardingFinished: () -> Unit, startNotice: LoginNotice? = null) {
     val navController = rememberNavController()
     val neverLoggedIn = startPoint != AuthStartPoint.Login
     val paidPlansOffered = paidPlansAreOffered()
@@ -71,7 +75,7 @@ private fun AuthNavHost(startPoint: AuthStartPoint, onOnboardingFinished: () -> 
         startDestination = when (startPoint) {
             AuthStartPoint.Onboarding -> OnboardingRoute
             AuthStartPoint.Welcome -> WelcomeRoute
-            AuthStartPoint.Login -> LoginRoute()
+            AuthStartPoint.Login -> LoginRoute(notice = startNotice?.toArg())
         },
     ) {
         composable<OnboardingRoute> {

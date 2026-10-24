@@ -32,6 +32,7 @@ import com.dmb.chantiertracker.domain.model.Plan
 import com.dmb.chantiertracker.presentation.CapitalTitle
 import com.dmb.chantiertracker.resources.Res
 import com.dmb.chantiertracker.resources.app_name
+import com.dmb.chantiertracker.resources.menu_delete_account
 import com.dmb.chantiertracker.resources.menu_logout
 import com.dmb.chantiertracker.resources.menu_open
 import com.dmb.chantiertracker.resources.menu_subscription
@@ -56,6 +57,7 @@ fun AppTopBar(
     isFounder: Boolean = false,
     syncIssueCount: Int = 0,
     onOpenSyncIssues: () -> Unit = {},
+    onDeleteAccount: () -> Unit = {},
     leadingActions: @Composable RowScope.() -> Unit = {},
 ) {
     var menuOpen by remember { mutableStateOf(false) }
@@ -85,6 +87,10 @@ fun AppTopBar(
                     onLogout = {
                         menuOpen = false
                         onLogout()
+                    },
+                    onDeleteAccount = {
+                        menuOpen = false
+                        onDeleteAccount()
                     },
                 )
             }
@@ -128,6 +134,7 @@ fun AccountMenuBody(
     onSubscription: () -> Unit,
     onLogout: () -> Unit,
     isFounder: Boolean = false,
+    onDeleteAccount: () -> Unit = {},
 ) {
     Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
         Text(
@@ -165,6 +172,11 @@ fun AccountMenuBody(
     DropdownMenuItem(
         text = { Text(stringResource(Res.string.menu_logout)) },
         onClick = onLogout,
+    )
+    HorizontalDivider()
+    DropdownMenuItem(
+        text = { Text(stringResource(Res.string.menu_delete_account), color = MaterialTheme.colorScheme.error) },
+        onClick = onDeleteAccount,
     )
 }
 

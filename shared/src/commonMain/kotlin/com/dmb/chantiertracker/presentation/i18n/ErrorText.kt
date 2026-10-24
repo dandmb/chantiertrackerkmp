@@ -1,12 +1,15 @@
 package com.dmb.chantiertracker.presentation.i18n
 
 import androidx.compose.runtime.Composable
+import com.dmb.chantiertracker.domain.model.DeletionBlocker
 import com.dmb.chantiertracker.domain.model.DomainException
 import com.dmb.chantiertracker.presentation.billing.paidPlansAreOffered
 import com.dmb.chantiertracker.resources.Res
 import com.dmb.chantiertracker.resources.error_account_locked
 import com.dmb.chantiertracker.resources.error_billing_not_open
 import com.dmb.chantiertracker.resources.error_creation_in_progress
+import com.dmb.chantiertracker.resources.error_deletion_last_super_admin
+import com.dmb.chantiertracker.resources.error_deletion_subscription_renewing
 import com.dmb.chantiertracker.resources.error_account_not_verified
 import com.dmb.chantiertracker.resources.error_duplicate_material
 import com.dmb.chantiertracker.resources.error_email_already_used
@@ -43,6 +46,10 @@ fun DomainException.textRes(): StringResource = when (this) {
     DomainException.Validation -> Res.string.error_validation
     is DomainException.RateLimited -> Res.string.error_rate_limited
     is DomainException.CreationInProgress -> Res.string.error_creation_in_progress
+    is DomainException.AccountDeletionBlocked -> when (blocker) {
+        DeletionBlocker.LAST_SUPER_ADMIN -> Res.string.error_deletion_last_super_admin
+        DeletionBlocker.SUBSCRIPTION_STILL_RENEWING -> Res.string.error_deletion_subscription_renewing
+    }
     DomainException.PlanLimitReached -> Res.string.error_plan_limit
     DomainException.DuplicateMaterial -> Res.string.error_duplicate_material
     DomainException.FileTooLarge -> Res.string.error_file_too_large

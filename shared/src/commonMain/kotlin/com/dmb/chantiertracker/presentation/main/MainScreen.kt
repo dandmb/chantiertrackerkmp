@@ -47,7 +47,9 @@ import com.dmb.chantiertracker.presentation.navigation.BillingNotice
 import com.dmb.chantiertracker.presentation.legal.LegalDocumentScreen
 import com.dmb.chantiertracker.presentation.legal.legalDocumentFromArg
 import com.dmb.chantiertracker.presentation.legal.toArg
+import com.dmb.chantiertracker.presentation.account.DeleteAccountScreen
 import com.dmb.chantiertracker.presentation.navigation.BillingRoute
+import com.dmb.chantiertracker.presentation.navigation.DeleteAccountRoute
 import com.dmb.chantiertracker.presentation.navigation.LegalDocumentRoute
 import com.dmb.chantiertracker.presentation.navigation.ConsumptionLineFormRoute
 import com.dmb.chantiertracker.presentation.navigation.CreateProjectRoute
@@ -92,6 +94,7 @@ import com.dmb.chantiertracker.presentation.settings.SettingsScreen
 import com.dmb.chantiertracker.presentation.stages.create.CreateStageScreen
 import com.dmb.chantiertracker.presentation.stages.detail.StageDetailScreen
 import com.dmb.chantiertracker.resources.Res
+import com.dmb.chantiertracker.resources.delete_account_title
 import com.dmb.chantiertracker.resources.admin_create_user_title
 import com.dmb.chantiertracker.resources.admin_users_create
 import com.dmb.chantiertracker.resources.admin_users_title
@@ -114,7 +117,7 @@ import org.koin.compose.viewmodel.koinViewModel
 
 private enum class MainDestination {
     Projects, Administration, AdminUsers, AdminCreateUser, Settings, CreateProject, ProjectDetail, EditProject, InviteMember, ProjectHistory, ProjectReports, CreateStage, StageDetail, DailyLog,
-    EntrySummary, PurchaseLineForm, ConsumptionLineForm, ReportEntry, Billing, InvitationAccept, LegalDocumentPage, SyncIssues
+    EntrySummary, PurchaseLineForm, ConsumptionLineForm, ReportEntry, Billing, InvitationAccept, LegalDocumentPage, SyncIssues, DeleteAccount
 }
 
 // ADR-52 — a SUPER_ADMIN can neither own nor join a project (blocked
@@ -231,6 +234,7 @@ fun MainScreen(
         destination?.hasRoute(InvitationAcceptRoute::class) == true -> MainDestination.InvitationAccept
         destination?.hasRoute(LegalDocumentRoute::class) == true -> MainDestination.LegalDocumentPage
         destination?.hasRoute(SyncIssuesRoute::class) == true -> MainDestination.SyncIssues
+        destination?.hasRoute(DeleteAccountRoute::class) == true -> MainDestination.DeleteAccount
         else -> MainDestination.Projects
     }
     val currentTab = when (current) {
@@ -345,6 +349,10 @@ fun MainScreen(
                     title = stringResource(Res.string.admin_create_user_title),
                     onBack = { navController.popBackStack() },
                 )
+                MainDestination.DeleteAccount -> DetailTopBar(
+                    title = stringResource(Res.string.delete_account_title),
+                    onBack = { navController.popBackStack() },
+                )
                 else -> AppTopBar(
                     userName = account.userName,
                     email = account.email,
@@ -352,6 +360,7 @@ fun MainScreen(
                     isFounder = account.isFounder,
                     onSubscription = { navController.navigate(BillingRoute()) },
                     onLogout = viewModel::logout,
+                    onDeleteAccount = { navController.navigate(DeleteAccountRoute) },
                     syncIssueCount = syncIssueCount,
                     onOpenSyncIssues = openSyncIssues,
                     leadingActions = {
@@ -415,6 +424,13 @@ fun MainScreen(
             }
             composable<AdminCreateUserRoute> {
                 AdminCreateUserScreen(onCreated = { navController.popBackStack() })
+            }
+            composable<DeleteAccountRoute> {
+                DeleteAccountScreen(
+                    onCancel = { navController.popBackStack() },
+                    onManageUsers = { navController.navigate(AdminUsersRoute) },
+                    onManageSubscription = { navController.navigate(BillingRoute()) },
+                )
             }
             composable<SettingsRoute> {
                 SettingsScreen(onOpenLegalDocument = { navController.navigate(LegalDocumentRoute(it.toArg())) })

@@ -633,4 +633,40 @@
     <string name="sync_waiting_on_work_entry_and_material">Waiting: depends on the work entry of %1$s and on the material “%2$s”, which were refused.</string>
     <string name="sync_waiting_on_entry_and_material">Waiting: depends on the entry and on the material “%1$s”, which were refused.</string>
     <string name="field_invalid_input">Invalid input</string>
+    <string name="error_deletion_last_super_admin">There is no other super administrator: create another one before deleting your account.</string>
+    <string name="error_deletion_subscription_renewing">Your subscription still renews: cancel it from the subscription settings, then delete your account.</string>
+    <string name="menu_delete_account">Delete my account</string>
+    <string name="delete_account_title">Delete my account</string>
+    <string name="delete_account_offline">You are offline. Deleting the account happens online: reconnect to the Internet to continue.</string>
+    <string name="delete_account_blocked_title">Deletion not possible for now</string>
+    <string name="delete_account_manage_users">Manage users</string>
+    <string name="delete_account_manage_subscription">Manage the subscription</string>
+    <string name="delete_account_projects_title">Projects deleted</string>
+    <string name="delete_account_no_project">You don't own any project.</string>
+    <string name="delete_account_projects_intro">The projects you own are deleted with all their content: stages, days, purchases, stock, photos and videos.</string>
+    <string name="delete_account_member_with_role">%1$s (%2$s)</string>
+    <string name="delete_account_list_and">%1$s and %2$s</string>
+    <string name="delete_account_role_admin">administrator</string>
+    <string name="delete_account_role_supervisor">supervisor</string>
+    <string name="delete_account_left_title">Projects you leave</string>
+    <string name="delete_account_left_intro">These projects stay with their owner. You will no longer have access.</string>
+    <string name="delete_account_good_to_know">Good to know</string>
+    <string name="delete_account_founder">You lose your Founder status: it is not given back, even if you create a new account.</string>
+    <string name="delete_account_contributions">What you entered in other people's projects stays with them, under the name “Deleted user”.</string>
+    <string name="delete_account_sessions">All your sessions are closed, and a confirmation e-mail goes to your address.</string>
+    <string name="delete_account_confirm_title">Confirm the deletion</string>
+    <string name="delete_account_password_prompt">Enter your password to confirm it's really you.</string>
+    <string name="delete_account_understood">I understand the deletion is final: my account and my projects cannot be recovered.</string>
+    <string name="delete_account_submit">Delete my account for good</string>
+    <string name="delete_account_submitting">Deleting…</string>
+    <string name="delete_account_wrong_password">Wrong password.</string>
+    <string name="login_notice_account_deleted">Your account has been deleted.</string>
+    <plurals name="delete_account_lost_access">
+        <item quantity="one">%1$s will lose access.</item>
+        <item quantity="other">%1$s will lose access.</item>
+    </plurals>
+    <plurals name="delete_account_invitations">
+        <item quantity="one">%1$d pending invitation will be deleted.</item>
+        <item quantity="other">%1$d pending invitations will be deleted.</item>
+    </plurals>
 </resources>
