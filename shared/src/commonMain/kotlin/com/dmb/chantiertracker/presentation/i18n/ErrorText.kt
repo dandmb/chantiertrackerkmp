@@ -10,6 +10,8 @@ import com.dmb.chantiertracker.resources.error_billing_not_open
 import com.dmb.chantiertracker.resources.error_creation_in_progress
 import com.dmb.chantiertracker.resources.error_deletion_last_super_admin
 import com.dmb.chantiertracker.resources.error_deletion_subscription_renewing
+import com.dmb.chantiertracker.resources.error_deletion_subscription_renewing_outside_app
+import com.dmb.chantiertracker.presentation.billing.LocalInAppPaymentsAllowed
 import com.dmb.chantiertracker.resources.error_account_not_verified
 import com.dmb.chantiertracker.resources.error_duplicate_material
 import com.dmb.chantiertracker.resources.error_email_already_used
@@ -68,6 +70,9 @@ private const val SECONDS_PER_MINUTE = 60
 fun DomainException.localizedText(): String {
     if (this is DomainException.PlanLimitReached && !paidPlansAreOffered()) {
         return stringResource(Res.string.error_plan_limit_no_upgrade)
+    }
+    if (this is DomainException.AccountDeletionBlocked && blocker == DeletionBlocker.SUBSCRIPTION_STILL_RENEWING && !LocalInAppPaymentsAllowed.current) {
+        return stringResource(Res.string.error_deletion_subscription_renewing_outside_app)
     }
     val retryAfterSeconds = (this as? DomainException.RateLimited)?.retryAfterSeconds
         ?: return stringResource(textRes())

@@ -52,7 +52,7 @@ fun AppTopBar(
     userName: String,
     email: String,
     plan: Plan?,
-    onSubscription: () -> Unit,
+    onSubscription: (() -> Unit)?,
     onLogout: () -> Unit,
     isFounder: Boolean = false,
     syncIssueCount: Int = 0,
@@ -80,9 +80,11 @@ fun AppTopBar(
                     email = email,
                     plan = plan,
                     isFounder = isFounder,
-                    onSubscription = {
-                        menuOpen = false
-                        onSubscription()
+                    onSubscription = onSubscription?.let { open ->
+                        {
+                            menuOpen = false
+                            open()
+                        }
                     },
                     onLogout = {
                         menuOpen = false
@@ -131,7 +133,7 @@ fun AccountMenuBody(
     userName: String,
     email: String,
     plan: Plan?,
-    onSubscription: () -> Unit,
+    onSubscription: (() -> Unit)?,
     onLogout: () -> Unit,
     isFounder: Boolean = false,
     onDeleteAccount: () -> Unit = {},
@@ -150,25 +152,36 @@ fun AccountMenuBody(
             )
         }
     }
+    val planLabel = if (isFounder) {
+        stringResource(Res.string.plan_with_founder, stringResource(plan.labelRes()))
+    } else {
+        stringResource(plan.labelRes())
+    }
+    if (onSubscription == null) {
+        Text(
+            text = planLabel,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
+        )
+    }
     HorizontalDivider()
-    DropdownMenuItem(
-        text = {
-            Column {
-                Text(stringResource(Res.string.menu_subscription))
-                Text(
-                    text = if (isFounder) {
-                        stringResource(Res.string.plan_with_founder, stringResource(plan.labelRes()))
-                    } else {
-                        stringResource(plan.labelRes())
-                    },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        },
-        onClick = onSubscription,
-    )
-    HorizontalDivider()
+    if (onSubscription != null) {
+        DropdownMenuItem(
+            text = {
+                Column {
+                    Text(stringResource(Res.string.menu_subscription))
+                    Text(
+                        text = planLabel,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            },
+            onClick = onSubscription,
+        )
+        HorizontalDivider()
+    }
     DropdownMenuItem(
         text = { Text(stringResource(Res.string.menu_logout)) },
         onClick = onLogout,

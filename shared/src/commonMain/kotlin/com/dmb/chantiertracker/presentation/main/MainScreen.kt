@@ -49,6 +49,7 @@ import com.dmb.chantiertracker.presentation.legal.legalDocumentFromArg
 import com.dmb.chantiertracker.presentation.legal.toArg
 import com.dmb.chantiertracker.presentation.account.DeleteAccountScreen
 import com.dmb.chantiertracker.presentation.navigation.BillingRoute
+import com.dmb.chantiertracker.presentation.billing.LocalInAppPaymentsAllowed
 import com.dmb.chantiertracker.presentation.navigation.DeleteAccountRoute
 import com.dmb.chantiertracker.presentation.navigation.LegalDocumentRoute
 import com.dmb.chantiertracker.presentation.navigation.ConsumptionLineFormRoute
@@ -174,9 +175,11 @@ fun MainScreen(
     // onNewIntent, iOS onOpenURL) feeds into. BillingScreen itself already
     // refreshes on entry (BillingViewModel.init), so simply landing on
     // BillingRoute is all that's needed beyond the one-shot success banner.
+    val paymentsAllowed = LocalInAppPaymentsAllowed.current
     val deepLinkDispatcher = koinInject<CheckoutDeepLinkDispatcher>()
     val pendingDeepLink by deepLinkDispatcher.pending.collectAsStateWithLifecycle()
     LaunchedEffect(pendingDeepLink) {
+        if (!paymentsAllowed) return@LaunchedEffect
         val notice = when (pendingDeepLink) {
             CheckoutDeepLink.CheckoutSuccess -> BillingNotice.CheckoutSucceeded.toArg()
             CheckoutDeepLink.CheckoutCancelled, CheckoutDeepLink.PortalReturn -> null
@@ -358,7 +361,11 @@ fun MainScreen(
                     email = account.email,
                     plan = account.plan,
                     isFounder = account.isFounder,
-                    onSubscription = { navController.navigate(BillingRoute()) },
+                    onSubscription = if (paymentsAllowed) {
+                        { navController.navigate(BillingRoute()) }
+                    } else {
+                        null
+                    },
                     onLogout = viewModel::logout,
                     onDeleteAccount = { navController.navigate(DeleteAccountRoute) },
                     syncIssueCount = syncIssueCount,
@@ -438,8 +445,10 @@ fun MainScreen(
             composable<LegalDocumentRoute> { entry ->
                 legalDocumentFromArg(entry.toRoute<LegalDocumentRoute>().document)?.let { LegalDocumentScreen(it) }
             }
-            composable<BillingRoute> { entry ->
-                BillingScreen(notice = BillingNotice.fromArg(entry.toRoute<BillingRoute>().notice))
+            if (paymentsAllowed) {
+                composable<BillingRoute> { entry ->
+                    BillingScreen(notice = BillingNotice.fromArg(entry.toRoute<BillingRoute>().notice))
+                }
             }
             composable<CreateProjectRoute> {
                 CreateProjectScreen(

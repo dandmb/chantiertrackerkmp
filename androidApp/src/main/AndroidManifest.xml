@@ -5,7 +5,9 @@
 
     <application
         android:name=".ChantierTrackerApp"
-        android:allowBackup="true"
+        android:allowBackup="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
@@ -22,20 +24,8 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
-            <!-- Stripe checkout/portal return (ADR-51 point 4) — the app
-                 registers this scheme itself, no Universal Links / hosted
-                 verification file needed: the checkout only ever starts from
-                 inside this app. singleTask above is required for this to
-                 land in the existing instance via onNewIntent() instead of
-                 stacking a second one on top of it. -->
-            <intent-filter>
-                <action android:name="android.intent.action.VIEW" />
-
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-
-                <data android:scheme="chantiertracker" />
-            </intent-filter>
+            <!-- No chantiertracker:// Stripe return (ADR-51 point 4) on Android: the Google Play
+                 payments policy forbids any payment outside Play, so the app opens none (R6b). -->
 
             <!-- Real Android App Links (ADR-59) — an invitation email points
                  here, not a custom scheme: the app may not be installed yet,

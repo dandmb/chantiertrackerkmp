@@ -27,7 +27,9 @@ import com.dmb.chantiertracker.resources.sync_notice_revert_gone_on_server
 import com.dmb.chantiertracker.resources.sync_notice_revert_needs_connection
 import com.dmb.chantiertracker.resources.sync_notice_reverted
 import com.dmb.chantiertracker.resources.sync_hint_insufficient_role
+import com.dmb.chantiertracker.presentation.billing.LocalInAppPaymentsAllowed
 import com.dmb.chantiertracker.resources.sync_hint_plan_limit
+import com.dmb.chantiertracker.resources.sync_hint_plan_limit_no_upgrade
 import com.dmb.chantiertracker.resources.sync_hint_project_or_stage_inactive
 import com.dmb.chantiertracker.resources.sync_item_attachment
 import com.dmb.chantiertracker.resources.sync_item_consumption_line
@@ -94,8 +96,8 @@ fun RefusalReason?.sentenceRes(): StringResource = when (this) {
 fun SyncIssue.reasonSentenceRes(): StringResource =
     if (serverCode == IMAGE_TOO_LARGE_CODE) Res.string.sync_reason_image_too_large else reason.sentenceRes()
 
-fun RefusalReason?.instructionRes(): StringResource? = when (this) {
-    RefusalReason.PLAN_LIMIT -> Res.string.sync_hint_plan_limit
+fun RefusalReason?.instructionRes(paymentsOffered: Boolean = true): StringResource? = when (this) {
+    RefusalReason.PLAN_LIMIT -> if (paymentsOffered) Res.string.sync_hint_plan_limit else Res.string.sync_hint_plan_limit_no_upgrade
     RefusalReason.PROJECT_OR_STAGE_INACTIVE -> Res.string.sync_hint_project_or_stage_inactive
     RefusalReason.INSUFFICIENT_ROLE -> Res.string.sync_hint_insufficient_role
     else -> null
@@ -178,7 +180,7 @@ fun SyncIssue.sentence(): String = when (kind) {
 }
 
 @Composable
-fun SyncIssue.instruction(): String? = if (canBeRetried) reason.instructionRes()?.let { stringResource(it) } else null
+fun SyncIssue.instruction(): String? = if (canBeRetried) reason.instructionRes(LocalInAppPaymentsAllowed.current)?.let { stringResource(it) } else null
 
 @Composable
 fun SyncIssueItem.title(): String = when (target) {
