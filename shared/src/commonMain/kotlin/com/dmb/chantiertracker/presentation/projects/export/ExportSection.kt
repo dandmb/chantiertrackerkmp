@@ -8,7 +8,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -17,6 +16,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.dmb.chantiertracker.presentation.AppOutlinedButton
 import com.dmb.chantiertracker.presentation.DetailEmptyHint
 import com.dmb.chantiertracker.presentation.DetailSection
 import com.dmb.chantiertracker.presentation.auth.components.ErrorBanner
@@ -100,7 +100,7 @@ fun ExportSection(
                         Icon(OpenInNewIcon, contentDescription = null, modifier = Modifier.size(18.dp))
                         Text(text = stringResource(Res.string.detail_export_open), modifier = Modifier.padding(start = 6.dp))
                     }
-                    OutlinedButton(onClick = viewModel::share) {
+                    AppOutlinedButton(onClick = viewModel::share) {
                         Icon(ShareIcon, contentDescription = null, modifier = Modifier.size(18.dp))
                         Text(text = stringResource(Res.string.detail_export_share), modifier = Modifier.padding(start = 6.dp))
                     }
@@ -111,7 +111,7 @@ fun ExportSection(
             }
 
             else -> {
-                OutlinedButton(onClick = { viewModel.export(projectLocalId) }) {
+                AppOutlinedButton(onClick = { viewModel.export(projectLocalId) }) {
                     Icon(DownloadIcon, contentDescription = null, modifier = Modifier.size(18.dp))
                     Text(text = stringResource(Res.string.detail_export_action), modifier = Modifier.padding(start = 6.dp))
                 }

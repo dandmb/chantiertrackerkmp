@@ -16,6 +16,7 @@ import androidx.compose.material3.TextButton
 import com.dmb.chantiertracker.domain.model.SyncIssueAction
 import com.dmb.chantiertracker.domain.model.SyncIssueTarget
 import com.dmb.chantiertracker.domain.model.actions
+import com.dmb.chantiertracker.presentation.AppOutlinedButton
 import com.dmb.chantiertracker.presentation.CapitalTitle
 import com.dmb.chantiertracker.resources.action_cancel
 import com.dmb.chantiertracker.resources.sync_acknowledge_body
@@ -47,7 +48,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -324,7 +324,7 @@ private fun ActionButton(action: SyncIssueAction, enabled: Boolean, isRetrying: 
             colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
         ) { content() }
         SyncIssueAction.RETRY, SyncIssueAction.REVERT, SyncIssueAction.ACKNOWLEDGE ->
-            OutlinedButton(onClick = onClick, enabled = enabled, modifier = size) { content() }
+            AppOutlinedButton(onClick = onClick, enabled = enabled, modifier = size) { content() }
     }
 }
 

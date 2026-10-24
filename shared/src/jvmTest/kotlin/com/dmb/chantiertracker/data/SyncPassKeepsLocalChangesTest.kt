@@ -563,13 +563,20 @@ class SyncPassKeepsLocalChangesTest {
         db.stageDao().upsert(db.stageDao().findByLocalId("st90")!!.copy(lastSyncError = SyncError.REJECTED, serverErrorCode = "PROJECT_INSUFFICIENT_ROLE"))
         connectivity.setOnline(false)
         issues.acknowledge(issues.observeIssues().first().single { it.localId == "st90" })
+        // « J'ai compris » also requests a background pass. Armed before going online, the edit
+        // happens during whichever pass reads the stage first: that one, or the next.
+        var renamed = false
+        whileTheServerHandles("GET", "/stages/90") {
+            renamed = true
+            stages.updateStage("st90", stageInput("Renommée pendant la lecture"))
+        }
         connectivity.setOnline(true)
-        whileTheServerHandles("GET", "/stages/90") { stages.updateStage("st90", stageInput("Renommée pendant la lecture")) }
 
         engine.syncNow()
         backend.beforeHandle = null
         engine.syncNow()
 
+        assertTrue(renamed, "the stage was renamed while the server was read")
         assertEquals("Renommée pendant la lecture", db.stageDao().findByLocalId("st90")!!.name)
         assertEquals(listOf("Renommée pendant la lecture"), backend.stages.map { it.name }, "and the rename reaches the server")
     }

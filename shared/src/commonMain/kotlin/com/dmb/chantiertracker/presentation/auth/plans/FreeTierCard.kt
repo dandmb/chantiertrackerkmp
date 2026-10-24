@@ -7,13 +7,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.dmb.chantiertracker.presentation.AppOutlinedButton
 import com.dmb.chantiertracker.presentation.main.CheckIcon
 import com.dmb.chantiertracker.presentation.main.CloseIcon
 import com.dmb.chantiertracker.resources.Res
@@ -65,7 +65,7 @@ fun FreeTierCard(onContinueFree: () -> Unit, modifier: Modifier = Modifier) {
                 FreeFeatureRow(Res.string.billing_feature_free_history, included = true)
             }
 
-            OutlinedButton(onClick = onContinueFree, modifier = Modifier.fillMaxWidth()) {
+            AppOutlinedButton(onClick = onContinueFree, modifier = Modifier.fillMaxWidth()) {
                 Text(stringResource(Res.string.plan_selection_continue_free))
             }
         }
