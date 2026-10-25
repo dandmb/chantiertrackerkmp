@@ -121,7 +121,7 @@ class BillingAvailabilityWiringUiTest {
         val root = welcomeStartingRoot()
         mount {
             CompositionLocalProvider(LocalBillingAvailability provides BillingAvailability.CLOSED) {
-                RootNavHost(root)
+                RootNavHost(root, com.dmb.chantiertracker.presentation.legal.LegalLinksViewModel(com.dmb.chantiertracker.support.FakeConnectivityObserver()))
             }
         }
 
@@ -134,7 +134,7 @@ class BillingAvailabilityWiringUiTest {
         val root = welcomeStartingRoot()
         mount {
             CompositionLocalProvider(LocalBillingAvailability provides BillingAvailability.UNKNOWN) {
-                RootNavHost(root)
+                RootNavHost(root, com.dmb.chantiertracker.presentation.legal.LegalLinksViewModel(com.dmb.chantiertracker.support.FakeConnectivityObserver()))
             }
         }
 
@@ -148,7 +148,7 @@ class BillingAvailabilityWiringUiTest {
         var availability by mutableStateOf(BillingAvailability.OPEN)
         mount {
             CompositionLocalProvider(LocalBillingAvailability provides availability) {
-                RootNavHost(root)
+                RootNavHost(root, com.dmb.chantiertracker.presentation.legal.LegalLinksViewModel(com.dmb.chantiertracker.support.FakeConnectivityObserver()))
             }
         }
         awaitText("Découvrir nos formules")

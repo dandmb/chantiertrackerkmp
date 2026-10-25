@@ -504,10 +504,6 @@
         <item quantity="one">Trop de tentatives. Réessaie dans %1$d minute.</item>
         <item quantity="other">Trop de tentatives. Réessaie dans %1$d minutes.</item>
     </plurals>
-    <string name="legal_terms_of_sale_provisional_s1_title">Aucune offre payante pour le moment</string>
-    <string name="legal_terms_of_sale_provisional_s1_body">Le Service est actuellement proposé uniquement dans sa formule gratuite. Aucune offre payante n'est disponible à ce jour.</string>
-    <string name="legal_terms_of_sale_provisional_s2_title">Publication des conditions de vente</string>
-    <string name="legal_terms_of_sale_provisional_s2_body">Les Conditions Générales de Vente seront publiées sur cette page à l'ouverture des offres payantes, avant toute possibilité de souscription.\nL'utilisation du Service reste régie par les Conditions Générales d'Utilisation.</string>
     <string name="logout_sending">Envoi de tes saisies avant la déconnexion…</string>
     <string name="logout_blocked_title">Des saisies ne sont pas encore envoyées</string>
     <string name="logout_blocked_message">Pas encore envoyé : %1$s. Reconnecte-toi à Internet pour l'envoyer avant de te déconnecter.</string>
@@ -671,4 +667,20 @@
         <item quantity="one">%1$d invitation en attente sera supprimée.</item>
         <item quantity="other">%1$d invitations en attente seront supprimées.</item>
     </plurals>
+    <string name="legal_doc_notice">Mentions légales</string>
+    <string name="legal_doc_terms_of_use">Conditions générales d'utilisation</string>
+    <string name="legal_doc_terms_of_sale">Conditions générales de vente</string>
+    <string name="legal_doc_privacy">Politique de confidentialité</string>
+    <string name="legal_doc_cookies">Politique de cookies</string>
+    <string name="legal_doc_account_deletion">Suppression du compte</string>
+    <string name="legal_link_notice">Mentions légales</string>
+    <string name="legal_link_terms_of_use">CGU</string>
+    <string name="legal_link_terms_of_sale">CGV</string>
+    <string name="legal_link_privacy">Confidentialité</string>
+    <string name="legal_link_cookies">Cookies</string>
+    <string name="legal_link_account_deletion">Suppression du compte</string>
+    <string name="legal_page_offline_title">Tu es hors ligne</string>
+    <string name="legal_page_offline_message">« %1$s » est une page du site ChantierTracker. Reconnecte-toi à Internet pour l'ouvrir, ou retrouve-la plus tard à cette adresse :</string>
+    <string name="legal_page_cannot_open_title">Impossible d'ouvrir la page</string>
+    <string name="legal_page_cannot_open_message">Aucun navigateur n'a pu afficher « %1$s ». Tu peux la consulter à cette adresse :</string>
 </resources>

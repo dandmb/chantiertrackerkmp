@@ -25,7 +25,7 @@ import com.dmb.chantiertracker.data.remote.EditorIdentityApi
 import com.dmb.chantiertracker.data.local.db.EditorIdentityDao
 import com.dmb.chantiertracker.data.repository.EditorIdentityRepositoryImpl
 import com.dmb.chantiertracker.domain.repository.EditorIdentityRepository
-import com.dmb.chantiertracker.presentation.legal.LegalDocumentViewModel
+import com.dmb.chantiertracker.presentation.legal.LegalLinksViewModel
 import com.dmb.chantiertracker.core.AppConfig
 import com.dmb.chantiertracker.data.AuthStateHolder
 import com.dmb.chantiertracker.data.local.AttachmentFileStore
@@ -314,7 +314,7 @@ val presentationModule: Module = module {
     viewModelOf(::AdminCreateUserViewModel)
     viewModelOf(::AdminStatsViewModel)
     viewModelOf(::InvitationAcceptViewModel)
-    viewModelOf(::LegalDocumentViewModel)
+    viewModelOf(::LegalLinksViewModel)
 }
 
 fun appModules(): List<Module> = listOf(

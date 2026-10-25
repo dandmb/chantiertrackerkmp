@@ -103,7 +103,7 @@ class NoInAppPaymentUiTest {
             onboardingSeen = true
             emitState(AuthState.Unauthenticated)
         }
-        mount(paymentsAllowed = false) { RootNavHost(RootViewModel(auth, com.dmb.chantiertracker.data.session.SessionNotices())) }
+        mount(paymentsAllowed = false) { RootNavHost(RootViewModel(auth, com.dmb.chantiertracker.data.session.SessionNotices()), com.dmb.chantiertracker.presentation.legal.LegalLinksViewModel(com.dmb.chantiertracker.support.FakeConnectivityObserver())) }
 
         awaitText("Créer un compte")
         onNodeWithText("Découvrir nos formules").assertDoesNotExist()
@@ -116,7 +116,7 @@ class NoInAppPaymentUiTest {
             onboardingSeen = true
             emitState(AuthState.Unauthenticated)
         }
-        mount(paymentsAllowed = true) { RootNavHost(RootViewModel(auth, com.dmb.chantiertracker.data.session.SessionNotices())) }
+        mount(paymentsAllowed = true) { RootNavHost(RootViewModel(auth, com.dmb.chantiertracker.data.session.SessionNotices()), com.dmb.chantiertracker.presentation.legal.LegalLinksViewModel(com.dmb.chantiertracker.support.FakeConnectivityObserver())) }
 
         awaitText("Découvrir nos formules")
     }

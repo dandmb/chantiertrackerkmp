@@ -63,9 +63,6 @@ data object ForgotPasswordRoute
 data class ResetPasswordRoute(val email: String)
 
 @Serializable
-data class LegalDocumentRoute(val document: String)
-
-@Serializable
 data object ProjectsRoute
 
 @Serializable
