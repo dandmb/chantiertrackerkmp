@@ -430,3 +430,17 @@ val MIGRATION_16_17 = object : Migration(16, 17) {
         connection.execSQL("ALTER TABLE `attachments` ADD COLUMN `uploadedById` INTEGER")
     }
 }
+
+/**
+ * v17 → v18 : textes légaux servis par l'API (feat/legal-documents). Table `legal_documents`, le
+ * dernier texte reçu par document et par langue demandée ; vide jusqu'à la première lecture.
+ */
+val MIGRATION_17_18 = object : Migration(17, 18) {
+    override fun migrate(connection: SQLiteConnection) {
+        connection.execSQL(
+            "CREATE TABLE IF NOT EXISTS `legal_documents` (`document` TEXT NOT NULL, `requestedLanguage` TEXT NOT NULL, `language` TEXT NOT NULL, " +
+                "`fallback` INTEGER NOT NULL, `title` TEXT NOT NULL, `content` TEXT NOT NULL, `version` INTEGER NOT NULL, `publishedOn` TEXT NOT NULL, " +
+                "`receivedAt` INTEGER NOT NULL, PRIMARY KEY(`document`, `requestedLanguage`))",
+        )
+    }
+}

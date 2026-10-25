@@ -679,8 +679,17 @@
     <string name="legal_link_privacy">Confidentialité</string>
     <string name="legal_link_cookies">Cookies</string>
     <string name="legal_link_account_deletion">Suppression du compte</string>
-    <string name="legal_page_offline_title">Tu es hors ligne</string>
-    <string name="legal_page_offline_message">« %1$s » est une page du site ChantierTracker. Reconnecte-toi à Internet pour l'ouvrir, ou retrouve-la plus tard à cette adresse :</string>
-    <string name="legal_page_cannot_open_title">Impossible d'ouvrir la page</string>
-    <string name="legal_page_cannot_open_message">Aucun navigateur n'a pu afficher « %1$s ». Tu peux la consulter à cette adresse :</string>
+    <string name="legal_updated_on">Mis à jour le %1$s</string>
+    <string name="legal_saved_copy">Tu es hors ligne : voici la dernière version reçue sur cet appareil.</string>
+    <string name="legal_loading">Chargement du document</string>
+    <string name="legal_unavailable_offline_title">Document indisponible hors ligne</string>
+    <string name="legal_unavailable_offline_message">Ce document n'a encore jamais été chargé sur cet appareil. Connecte-toi à Internet, puis réessaie.</string>
+    <string name="legal_unavailable_error_title">Impossible de charger le document</string>
+    <string name="legal_unavailable_error_message">Le serveur n'a pas répondu. Réessaie dans un instant.</string>
+    <string name="legal_retry">Réessayer</string>
+    <string name="legal_link_offline_title">Tu es hors ligne</string>
+    <string name="legal_link_offline_message">Ce lien mène à une page web. Reconnecte-toi à Internet pour l'ouvrir, ou retrouve-la plus tard à cette adresse :</string>
+    <string name="legal_link_cannot_open_title">Impossible d'ouvrir le lien</string>
+    <string name="legal_link_cannot_open_page_message">Aucun navigateur n'a pu afficher cette page. Tu peux la consulter à cette adresse :</string>
+    <string name="legal_link_cannot_open_mail_message">Aucune application de mail n'est configurée sur cet appareil. Tu peux écrire à cette adresse :</string>
 </resources>

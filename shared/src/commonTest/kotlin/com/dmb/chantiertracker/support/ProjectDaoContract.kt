@@ -428,6 +428,11 @@ suspend fun verifyLocalDataDaoContract(db: AppDatabase) {
     db.planUsageDao().upsert(com.dmb.chantiertracker.data.local.db.PlanUsageEntity(plan = "FREE", projectsLimit = 1, refreshedAt = 1L))
     db.editorIdentityDao().upsert(com.dmb.chantiertracker.data.local.db.EditorIdentityEntity(siret = "123", refreshedAt = 1L))
     db.stockDao().replaceCounters("proj-1", listOf(com.dmb.chantiertracker.data.local.db.MaterialStockEntity("proj-1", 7, 12.0, 0.0)), refreshedAt = 1L)
+    val legalText = com.dmb.chantiertracker.data.local.db.LegalDocumentEntity(
+        document = "terms-of-use", requestedLanguage = "fr", language = "fr", fallback = false, title = "CGU",
+        content = "## 1. Objet", version = 1, publishedOn = "2026-10-25", receivedAt = 1L,
+    )
+    db.legalDocumentDao().upsert(legalText)
 
     assertEquals(7, dao.countUnsynced(), "project, stage, entry, material, both lines and the photo are pending")
 
@@ -446,6 +451,7 @@ suspend fun verifyLocalDataDaoContract(db: AppDatabase) {
     assertNull(db.editorIdentityDao().observe().first())
     assertNull(db.stockDao().findSnapshot("proj-1"), "the server stock belongs to the account too")
     assertTrue(db.stockDao().observeCounters("proj-1").first().isEmpty())
+    assertEquals(legalText, db.legalDocumentDao().observe("terms-of-use", "fr").first(), "the legal texts are public: kept for the next account")
 }
 
 

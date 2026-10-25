@@ -44,7 +44,9 @@ import com.dmb.chantiertracker.presentation.navigation.AdminCreateUserRoute
 import com.dmb.chantiertracker.presentation.navigation.AdminStatsRoute
 import com.dmb.chantiertracker.presentation.navigation.AdminUsersRoute
 import com.dmb.chantiertracker.presentation.navigation.BillingNotice
-import com.dmb.chantiertracker.presentation.legal.rememberOpenLegalDocument
+import com.dmb.chantiertracker.presentation.legal.LegalDocument
+import com.dmb.chantiertracker.presentation.legal.LegalDocumentScreen
+import com.dmb.chantiertracker.presentation.navigation.LegalDocumentRoute
 import com.dmb.chantiertracker.presentation.account.DeleteAccountScreen
 import com.dmb.chantiertracker.presentation.navigation.BillingRoute
 import com.dmb.chantiertracker.presentation.billing.LocalInAppPaymentsAllowed
@@ -115,7 +117,7 @@ import org.koin.compose.viewmodel.koinViewModel
 
 private enum class MainDestination {
     Projects, Administration, AdminUsers, AdminCreateUser, Settings, CreateProject, ProjectDetail, EditProject, InviteMember, ProjectHistory, ProjectReports, CreateStage, StageDetail, DailyLog,
-    EntrySummary, PurchaseLineForm, ConsumptionLineForm, ReportEntry, Billing, InvitationAccept, SyncIssues, DeleteAccount
+    EntrySummary, PurchaseLineForm, ConsumptionLineForm, ReportEntry, Billing, InvitationAccept, LegalDocumentPage, SyncIssues, DeleteAccount
 }
 
 // ADR-52 — a SUPER_ADMIN can neither own nor join a project (blocked
@@ -232,6 +234,7 @@ fun MainScreen(
         destination?.hasRoute(ReportEntryRoute::class) == true -> MainDestination.ReportEntry
         destination?.hasRoute(BillingRoute::class) == true -> MainDestination.Billing
         destination?.hasRoute(InvitationAcceptRoute::class) == true -> MainDestination.InvitationAccept
+        destination?.hasRoute(LegalDocumentRoute::class) == true -> MainDestination.LegalDocumentPage
         destination?.hasRoute(SyncIssuesRoute::class) == true -> MainDestination.SyncIssues
         destination?.hasRoute(DeleteAccountRoute::class) == true -> MainDestination.DeleteAccount
         else -> MainDestination.Projects
@@ -327,6 +330,13 @@ fun MainScreen(
                 )
                 MainDestination.InvitationAccept -> DetailTopBar(
                     title = stringResource(Res.string.invitation_accept_title),
+                    onBack = { navController.popBackStack() },
+                )
+                MainDestination.LegalDocumentPage -> DetailTopBar(
+                    title = backStackEntry?.toRoute<LegalDocumentRoute>()
+                        ?.let { LegalDocument.fromSlug(it.document) }
+                        ?.let { stringResource(it.link) }
+                        .orEmpty(),
                     onBack = { navController.popBackStack() },
                 )
                 MainDestination.SyncIssues -> DetailTopBar(
@@ -429,7 +439,12 @@ fun MainScreen(
                 )
             }
             composable<SettingsRoute> {
-                SettingsScreen(onOpenLegalDocument = rememberOpenLegalDocument())
+                SettingsScreen(onOpenLegalDocument = { navController.navigate(LegalDocumentRoute(it.slug)) })
+            }
+            composable<LegalDocumentRoute> { entry ->
+                LegalDocument.fromSlug(entry.toRoute<LegalDocumentRoute>().document)?.let { document ->
+                    LegalDocumentScreen(document)
+                }
             }
             if (paymentsAllowed) {
                 composable<BillingRoute> { entry ->

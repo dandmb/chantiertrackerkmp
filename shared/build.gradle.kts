@@ -73,6 +73,7 @@ kotlin {
             implementation(libs.filekit.core)
             implementation(libs.filekit.dialogs.compose)
             implementation(libs.koalaplot.core)
+            implementation(libs.jetbrains.markdown)
 
             implementation(libs.compose.runtime)
             implementation(libs.compose.foundation)
