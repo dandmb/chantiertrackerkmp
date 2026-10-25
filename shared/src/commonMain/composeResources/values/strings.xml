@@ -679,8 +679,17 @@
     <string name="legal_link_privacy">Privacy</string>
     <string name="legal_link_cookies">Cookies</string>
     <string name="legal_link_account_deletion">Account deletion</string>
-    <string name="legal_page_offline_title">You are offline</string>
-    <string name="legal_page_offline_message">“%1$s” is a page of the ChantierTracker website. Reconnect to the Internet to open it, or find it later at this address:</string>
-    <string name="legal_page_cannot_open_title">The page could not be opened</string>
-    <string name="legal_page_cannot_open_message">No browser could display “%1$s”. You can read it at this address:</string>
+    <string name="legal_updated_on">Updated on %1$s</string>
+    <string name="legal_saved_copy">You are offline: this is the last version received on this device.</string>
+    <string name="legal_loading">Loading the document</string>
+    <string name="legal_unavailable_offline_title">Document not available offline</string>
+    <string name="legal_unavailable_offline_message">This document has never been loaded on this device. Connect to the Internet, then try again.</string>
+    <string name="legal_unavailable_error_title">The document could not be loaded</string>
+    <string name="legal_unavailable_error_message">The server did not answer. Try again in a moment.</string>
+    <string name="legal_retry">Try again</string>
+    <string name="legal_link_offline_title">You are offline</string>
+    <string name="legal_link_offline_message">This link leads to a web page. Reconnect to the Internet to open it, or find it later at this address:</string>
+    <string name="legal_link_cannot_open_title">The link could not be opened</string>
+    <string name="legal_link_cannot_open_page_message">No browser could display this page. You can read it at this address:</string>
+    <string name="legal_link_cannot_open_mail_message">No mail app is set up on this device. You can write to this address:</string>
 </resources>

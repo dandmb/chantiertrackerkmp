@@ -1308,6 +1308,64 @@ class MigrationTest {
         assertEquals("INTEGER" to false, v17.getValue("attachments").getValue("uploadedById"), "nullable: unknown for the rows already on the device")
         v16.forEach { (table, columns) -> columns.forEach { (name, type) -> assertEquals(type, v17.getValue(table).getValue(name), "$table.$name unchanged") } }
     }
+
+    @Test
+    fun the_exported_v18_schema_adds_only_the_table_of_the_legal_documents_received() {
+        fun columnsByTable(version: Int): Map<String, Map<String, Pair<String, Boolean>>> =
+            exportedSchema(version)["entities"]!!.jsonArray.associate { entity ->
+                entity.jsonObject["tableName"]!!.jsonPrimitive.content to entity.jsonObject["fields"]!!.jsonArray.associate { field ->
+                    val f = field.jsonObject
+                    f["columnName"]!!.jsonPrimitive.content to (f["affinity"]!!.jsonPrimitive.content to (f["notNull"]?.jsonPrimitive?.content == "true"))
+                }
+            }
+        val v17 = columnsByTable(17)
+        val v18 = columnsByTable(18)
+
+        assertEquals(v17.keys + "legal_documents", v18.keys, "one table added, none removed")
+        assertEquals(
+            mapOf(
+                "document" to ("TEXT" to true), "requestedLanguage" to ("TEXT" to true), "language" to ("TEXT" to true),
+                "fallback" to ("INTEGER" to true), "title" to ("TEXT" to true), "content" to ("TEXT" to true),
+                "version" to ("INTEGER" to true), "publishedOn" to ("TEXT" to true), "receivedAt" to ("INTEGER" to true),
+            ),
+            v18.getValue("legal_documents"),
+        )
+        val primaryKey = exportedSchema(18)["entities"]!!.jsonArray.single { it.jsonObject["tableName"]!!.jsonPrimitive.content == "legal_documents" }
+            .jsonObject["primaryKey"]!!.jsonObject["columnNames"]!!.jsonArray.map { it.jsonPrimitive.content }
+        assertEquals(listOf("document", "requestedLanguage"), primaryKey, "one text per document and per language asked")
+        v17.forEach { (table, columns) -> assertEquals(columns, v18.getValue(table), "$table unchanged") }
+    }
+
+    @Test
+    fun migrating_a_real_v17_database_keeps_every_row_and_starts_with_no_legal_document() = runTest {
+        val v17Path = dir.resolve("migration-v17.db").absolutePathString()
+        BundledSQLiteDriver().open(v17Path).use { c ->
+            createFromExportedSchema(c, version = 17)
+            c.execSQL(
+                "INSERT INTO projects (localId, serverId, name, currency, timezone, status, syncStatus, pendingOp, locallyModifiedAt, localVersion, awaitsServerVersion) " +
+                    "VALUES ('p-v17', 42, 'Chantier v17', 'EUR', 'Europe/Paris', 'IN_PROGRESS', 'PENDING', 'UPDATE', 1000, 4, 0)",
+            )
+            c.execSQL("INSERT INTO editor_identity (id, siret, refreshedAt) VALUES (0, '123 456 789 00012', 1000)")
+        }
+
+        val db = Room.databaseBuilder<AppDatabase>(name = v17Path).buildChantierDatabase()
+        try {
+            assertEquals(4L, db.projectDao().findByLocalId("p-v17")?.localVersion, "pending work kept")
+            assertEquals("123 456 789 00012", db.editorIdentityDao().observe().first()?.siret)
+            assertEquals(null, db.legalDocumentDao().observe("terms-of-use", "fr").first())
+
+            val received = LegalDocumentEntity(
+                document = "terms-of-use", requestedLanguage = "en", language = "fr", fallback = true, title = "Conditions Générales d'Utilisation",
+                content = "## 1. Objet", version = 2, publishedOn = "2026-10-25", receivedAt = 5_000L,
+            )
+            db.legalDocumentDao().upsert(received)
+            db.legalDocumentDao().upsert(received.copy(version = 3))
+            assertEquals(received.copy(version = 3), db.legalDocumentDao().observe("terms-of-use", "en").first())
+            assertEquals(null, db.legalDocumentDao().observe("terms-of-use", "fr").first())
+        } finally {
+            db.close()
+        }
+    }
 }
 
 private fun seedARealV14Database(c: androidx.sqlite.SQLiteConnection) {

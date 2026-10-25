@@ -25,7 +25,11 @@ import com.dmb.chantiertracker.data.remote.EditorIdentityApi
 import com.dmb.chantiertracker.data.local.db.EditorIdentityDao
 import com.dmb.chantiertracker.data.repository.EditorIdentityRepositoryImpl
 import com.dmb.chantiertracker.domain.repository.EditorIdentityRepository
-import com.dmb.chantiertracker.presentation.legal.LegalLinksViewModel
+import com.dmb.chantiertracker.presentation.legal.LegalDocumentViewModel
+import com.dmb.chantiertracker.data.remote.LegalDocumentsApi
+import com.dmb.chantiertracker.data.local.db.LegalDocumentDao
+import com.dmb.chantiertracker.data.repository.LegalDocumentRepositoryImpl
+import com.dmb.chantiertracker.domain.repository.LegalDocumentRepository
 import com.dmb.chantiertracker.core.AppConfig
 import com.dmb.chantiertracker.data.AuthStateHolder
 import com.dmb.chantiertracker.data.local.AttachmentFileStore
@@ -181,6 +185,7 @@ val networkModule: Module = module {
     singleOf(::BillingApi)
     singleOf(::AdminApi)
     singleOf(::EditorIdentityApi)
+    singleOf(::LegalDocumentsApi)
 }
 
 val syncModule: Module = module {
@@ -196,6 +201,7 @@ val syncModule: Module = module {
     single<AttachmentDao> { get<AppDatabase>().attachmentDao() }
     single<InvitationDao> { get<AppDatabase>().invitationDao() }
     single<EditorIdentityDao> { get<AppDatabase>().editorIdentityDao() }
+    single<LegalDocumentDao> { get<AppDatabase>().legalDocumentDao() }
     single<LocalDataDao> { get<AppDatabase>().localDataDao() }
     single<StockDao> { get<AppDatabase>().stockDao() }
     single<MaterialAdoptionDao> { get<AppDatabase>().materialAdoptionDao() }
@@ -271,6 +277,7 @@ val dataModule: Module = module {
     single<BillingRepository> { billingRepositoryFor(get(), inAppPaymentsAllowed) }
     single<AdminRepository> { AdminRepositoryImpl(get()) }
     single<EditorIdentityRepository> { EditorIdentityRepositoryImpl(get(), get()) }
+    single<LegalDocumentRepository> { LegalDocumentRepositoryImpl(get(), get()) }
 }
 
 val presentationModule: Module = module {
@@ -314,7 +321,7 @@ val presentationModule: Module = module {
     viewModelOf(::AdminCreateUserViewModel)
     viewModelOf(::AdminStatsViewModel)
     viewModelOf(::InvitationAcceptViewModel)
-    viewModelOf(::LegalLinksViewModel)
+    viewModelOf(::LegalDocumentViewModel)
 }
 
 fun appModules(): List<Module> = listOf(

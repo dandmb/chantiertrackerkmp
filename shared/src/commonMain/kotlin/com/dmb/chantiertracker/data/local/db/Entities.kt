@@ -462,3 +462,17 @@ data class MaterialMergeEntity(
     @PrimaryKey val mergedLocalId: String,
     val keptLocalId: String,
 )
+
+// Last text received per document and asked language; public, so kept across accounts (not in eraseAll).
+@Entity(tableName = "legal_documents", primaryKeys = ["document", "requestedLanguage"])
+data class LegalDocumentEntity(
+    val document: String,
+    val requestedLanguage: String,
+    val language: String,
+    val fallback: Boolean,
+    val title: String,
+    val content: String,
+    val version: Int,
+    val publishedOn: String,
+    val receivedAt: Long,
+)

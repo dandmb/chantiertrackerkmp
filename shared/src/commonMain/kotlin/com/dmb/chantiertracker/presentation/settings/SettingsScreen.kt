@@ -26,7 +26,6 @@ import com.dmb.chantiertracker.presentation.DetailSectionDivider
 import com.dmb.chantiertracker.presentation.ResponsiveContent
 import com.dmb.chantiertracker.presentation.i18n.AppLanguage
 import com.dmb.chantiertracker.presentation.legal.LegalDocument
-import com.dmb.chantiertracker.presentation.main.OpenInNewIcon
 import com.dmb.chantiertracker.presentation.theme.ThemeMode
 import com.dmb.chantiertracker.resources.Res
 import com.dmb.chantiertracker.resources.settings_about
@@ -84,7 +83,7 @@ fun SettingsScreen(
             DetailSection(stringResource(Res.string.settings_about)) {
                 DetailInfoRow(stringResource(Res.string.settings_version), viewModel.appVersion)
                 LegalDocument.entries.forEach { document ->
-                    ClickableListRow(onClick = { onOpenLegalDocument(document) }, trailingIcon = OpenInNewIcon) {
+                    ClickableListRow(onClick = { onOpenLegalDocument(document) }) {
                         Text(
                             stringResource(document.label),
                             style = MaterialTheme.typography.bodyLarge,

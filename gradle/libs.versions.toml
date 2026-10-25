@@ -48,6 +48,9 @@ filekit = "0.15.0"
 # cascade into the androidx-core/connectivity ceilings noted above).
 koalaplot = "0.12.1"
 # Crash reports of the Play Store build only (R6). BoM 35.0.2 brings firebase-crashlytics 21.0.0.
+# Legal documents served as Markdown (feat/legal-documents). JetBrains' own CommonMark parser,
+# pure Kotlin on every target, no dependency besides the stdlib; rendered by our own composables.
+jetbrainsMarkdown = "0.7.18"
 firebaseBom = "35.0.2"
 firebaseCrashlyticsPlugin = "3.0.8"
 
@@ -114,6 +117,7 @@ filekit-core = { module = "io.github.vinceglb:filekit-core", version.ref = "file
 filekit-dialogs-compose = { module = "io.github.vinceglb:filekit-dialogs-compose", version.ref = "filekit" }
 
 koalaplot-core = { module = "io.github.koalaplot:koalaplot-core", version.ref = "koalaplot" }
+jetbrains-markdown = { module = "org.jetbrains:markdown", version.ref = "jetbrainsMarkdown" }
 
 firebase-bom = { module = "com.google.firebase:firebase-bom", version.ref = "firebaseBom" }
 firebase-crashlytics = { module = "com.google.firebase:firebase-crashlytics" }
