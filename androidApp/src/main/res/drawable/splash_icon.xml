@@ -4,8 +4,23 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <group android:translateX="30" android:translateY="30" android:scaleX="2" android:scaleY="2">
+    <group android:translateX="20.075" android:translateY="29.275" android:scaleX="0.575" android:scaleY="0.575">
         <path android:fillColor="#FFFFFF"
-            android:pathData="M13.7829,15.1718l2.1213,-2.1213l5.9963,5.9963l-2.1213,2.1213zM17.5,10c1.93,0 3.5,-1.57 3.5,-3.5c0,-0.58 -0.16,-1.12 -0.41,-1.6l-2.7,2.7l-1.49,-1.49l2.7,-2.7c-0.48,-0.25 -1.02,-0.41 -1.6,-0.41C15.57,3 14,4.57 14,6.5c0,0.41 0.08,0.8 0.21,1.16l-1.85,1.85l-1.78,-1.78l0.71,-0.71l-1.41,-1.41L12,3.49c-1.17,-1.17 -3.07,-1.17 -4.24,0L4.22,7.03l1.41,1.41L2.81,8.44l-0.71,0.71l3.54,3.54l0.71,-0.71L6.35,9.15l1.41,1.41l0.71,-0.71l1.78,1.78l-7.41,7.41l2.12,2.12L16.34,9.79c0.36,0.13 0.75,0.21 1.16,0.21z"/>
+            android:pathData="M100,9 L100,4 L85.509,4 L92.424,8.322 L92,9 Z M90.491,9 L84,4.943 L77.509,9 Z M74.491,9 L68,4.943 L61.509,9 Z M58.491,9 L52,4.943 L45.509,9 Z M40,4 L40,9 L44,9 L43.576,8.322 L50.491,4 Z M53.509,4 L60,8.057 L66.491,4 Z M69.509,4 L76,8.057 L82.491,4 Z" />
+        <path android:fillColor="#FFD400"
+            android:pathData="M81.5,9 H84.5 V15 H81.5 Z M79,14 H87 V19 H79 Z" />
+        <path android:strokeColor="#FFD400"
+            android:strokeWidth="3.5"
+            android:strokeLineCap="round"
+            android:pathData="M83,19 V22 a5,5 0 1,1 -8,3" />
+        <path android:strokeColor="#FFD400"
+            android:strokeWidth="2"
+            android:pathData="M83,28 L76,35 M83,28 L92,35" />
+        <path android:fillColor="#FFD400"
+            android:pathData="M74,35 H94 V43 H74 Z" />
+        <path android:fillColor="#FFFFFF"
+            android:pathData="M44,18 L76,46 L68,46 L44,25 L20,46 L12,46 Z" />
+        <path android:fillColor="#FFFFFF"
+            android:pathData="M18,74 H42 V82 H18 Z M46,74 H70 V82 H46 Z M18,63 H30 V71 H18 Z M33,63 H57 V71 H33 Z M60,63 H70 V71 H60 Z M18,52 H42 V60 H18 Z" />
     </group>
 </vector>

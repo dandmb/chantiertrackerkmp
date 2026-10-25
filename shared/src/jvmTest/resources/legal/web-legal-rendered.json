@@ -356,6 +356,10 @@
      {
       "type": "paragraph",
       "text": "Données techniques : adresse IP, journaux de connexion, données de navigation nécessaires au fonctionnement et à la sécurité du Service."
+     },
+     {
+      "type": "paragraph",
+      "text": "Rapports de plantage de l'application Android : identifiant numérique du compte, version de l'application, caractéristiques de l'appareil et trace technique du plantage (voir section 8)."
      }
     ]
    },
@@ -373,7 +377,7 @@
     "blocks": [
      {
       "type": "paragraph",
-      "text": "Les traitements reposent selon les cas sur : l'exécution du contrat ; le consentement (pour les cookies non essentiels) ; l'intérêt légitime (sécurité) ; le respect d'obligations légales (comptables et fiscales)."
+      "text": "Les traitements reposent selon les cas sur : l'exécution du contrat ; le consentement (pour les cookies non essentiels) ; l'intérêt légitime (sécurité, stabilité de l'application) ; le respect d'obligations légales (comptables et fiscales)."
      }
     ]
    },
@@ -395,7 +399,7 @@
     "blocks": [
      {
       "type": "paragraph",
-      "text": "Supabase Inc. (base de données) ; Cloudflare, Inc. (stockage des photos et vidéos) ; Stripe, Inc. (paiements) ; Resend (envoi d'e-mails transactionnels) ; Functional Software, Inc. (Sentry — suivi des erreurs techniques, avec filtrage des données sensibles avant envoi, voir section 7) ; Vercel Inc. et [À COMPLÉTER : raison sociale et adresse exacte de l'hébergeur du VPS, actuellement Hetzner Online GmbH, Industriestr. 25, 91710 Gunzenhausen, Allemagne — à confirmer selon le contrat] (hébergement)."
+      "text": "Supabase Inc. (base de données) ; Cloudflare, Inc. (stockage des photos et vidéos) ; Stripe, Inc. (paiements) ; Resend (envoi d'e-mails transactionnels) ; Functional Software, Inc. (Sentry — suivi des erreurs techniques, avec filtrage des données sensibles avant envoi, voir section 7) ; Google LLC (Firebase Crashlytics — rapports de plantage de l'application Android, voir section 8) ; Vercel Inc. et [À COMPLÉTER : raison sociale et adresse exacte de l'hébergeur du VPS, actuellement Hetzner Online GmbH, Industriestr. 25, 91710 Gunzenhausen, Allemagne — à confirmer selon le contrat] (hébergement)."
      },
      {
       "type": "paragraph",
@@ -413,7 +417,28 @@
     ]
    },
    {
-    "title": "8. Vos droits",
+    "title": "8. Suivi des plantages de l'application Android (Crashlytics)",
+    "blocks": [
+     {
+      "type": "paragraph",
+      "text": "L'application Android publiée sur Google Play utilise Firebase Crashlytics, un service de Google LLC, pour signaler ses plantages. Quand l'application se ferme de façon inattendue, un rapport est envoyé à Crashlytics avec : l'identifiant numérique de votre compte (s'il est connecté) ; la version de l'application ; le modèle de l'appareil, la version d'Android et l'état de l'appareil au moment du plantage (mémoire, espace disque, orientation) ; la trace technique du plantage. Le rapport ne contient ni votre nom, ni votre adresse e-mail, ni le contenu de vos projets."
+     },
+     {
+      "type": "paragraph",
+      "text": "Finalité : détecter et corriger les plantages de l'application. Base légale : l'intérêt légitime à fournir une application stable."
+     },
+     {
+      "type": "paragraph",
+      "text": "Durée de conservation : les rapports de plantage et les identifiants qui leur sont associés sont conservés 90 jours par Crashlytics, puis supprimés."
+     },
+     {
+      "type": "paragraph",
+      "text": "Transfert hors de l'Union européenne : ces données peuvent être traitées aux États-Unis par Google LLC. Ce transfert est encadré par les clauses contractuelles types de la Commission européenne et par le cadre de protection des données UE–États-Unis, auquel Google LLC adhère."
+     }
+    ]
+   },
+   {
+    "title": "9. Vos droits",
     "blocks": [
      {
       "type": "paragraph",
@@ -422,7 +447,7 @@
     ]
    },
    {
-    "title": "9. Sécurité des données",
+    "title": "10. Sécurité des données",
     "blocks": [
      {
       "type": "paragraph",
@@ -431,7 +456,7 @@
     ]
    },
    {
-    "title": "10. Modification de la présente politique",
+    "title": "11. Modification de la présente politique",
     "blocks": [
      {
       "type": "paragraph",

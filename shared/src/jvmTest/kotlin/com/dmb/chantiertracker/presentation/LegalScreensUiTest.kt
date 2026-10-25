@@ -228,7 +228,7 @@ class LegalScreensUiTest {
 
             document.value = LegalDocument.PrivacyPolicy
             waitForIdle()
-            onNodeWithText("1.", substring = true).assertExists()
+            onNodeWithText("1. Responsable du traitement").assertExists()
             onNodeWithText("Aucune offre payante pour le moment").assertDoesNotExist()
         }
     }

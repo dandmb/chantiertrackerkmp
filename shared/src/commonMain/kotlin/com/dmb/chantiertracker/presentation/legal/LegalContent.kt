@@ -50,6 +50,8 @@ import com.dmb.chantiertracker.resources.legal_ph_semi_flex_price_cgv
 import com.dmb.chantiertracker.resources.legal_ph_support_contact_email
 import com.dmb.chantiertracker.resources.legal_privacy_s10_body
 import com.dmb.chantiertracker.resources.legal_privacy_s10_title
+import com.dmb.chantiertracker.resources.legal_privacy_s11_body
+import com.dmb.chantiertracker.resources.legal_privacy_s11_title
 import com.dmb.chantiertracker.resources.legal_privacy_s1_body
 import com.dmb.chantiertracker.resources.legal_privacy_s1_title
 import com.dmb.chantiertracker.resources.legal_privacy_s2_body
@@ -190,6 +192,7 @@ enum class LegalDocument(val label: StringResource, val link: StringResource, va
             LegalSectionContent(Res.string.legal_privacy_s8_title, Res.string.legal_privacy_s8_body),
             LegalSectionContent(Res.string.legal_privacy_s9_title, Res.string.legal_privacy_s9_body),
             LegalSectionContent(Res.string.legal_privacy_s10_title, Res.string.legal_privacy_s10_body),
+            LegalSectionContent(Res.string.legal_privacy_s11_title, Res.string.legal_privacy_s11_body),
         ),
     ),
     CookiePolicy(
