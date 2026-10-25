@@ -504,10 +504,6 @@
         <item quantity="one">Too many attempts. Try again in %1$d minute.</item>
         <item quantity="other">Too many attempts. Try again in %1$d minutes.</item>
     </plurals>
-    <string name="legal_terms_of_sale_provisional_s1_title">No paid plan for the time being</string>
-    <string name="legal_terms_of_sale_provisional_s1_body">The Service is currently offered in its free plan only. No paid plan is available at this time.</string>
-    <string name="legal_terms_of_sale_provisional_s2_title">Publication of the terms of sale</string>
-    <string name="legal_terms_of_sale_provisional_s2_body">The General Terms of Sale will be published on this page when paid plans open, before any subscription is possible.\nUse of the Service remains governed by the General Terms of Use.</string>
     <string name="logout_sending">Sending your entries before signing out…</string>
     <string name="logout_blocked_title">Some entries have not been sent yet</string>
     <string name="logout_blocked_message">Not sent yet: %1$s. Reconnect to the Internet to send it before signing out.</string>
@@ -671,4 +667,20 @@
         <item quantity="one">%1$d pending invitation will be deleted.</item>
         <item quantity="other">%1$d pending invitations will be deleted.</item>
     </plurals>
+    <string name="legal_doc_notice">Legal notice</string>
+    <string name="legal_doc_terms_of_use">Terms of use</string>
+    <string name="legal_doc_terms_of_sale">Terms of sale</string>
+    <string name="legal_doc_privacy">Privacy policy</string>
+    <string name="legal_doc_cookies">Cookie policy</string>
+    <string name="legal_doc_account_deletion">Account deletion</string>
+    <string name="legal_link_notice">Legal notice</string>
+    <string name="legal_link_terms_of_use">Terms</string>
+    <string name="legal_link_terms_of_sale">Sales terms</string>
+    <string name="legal_link_privacy">Privacy</string>
+    <string name="legal_link_cookies">Cookies</string>
+    <string name="legal_link_account_deletion">Account deletion</string>
+    <string name="legal_page_offline_title">You are offline</string>
+    <string name="legal_page_offline_message">“%1$s” is a page of the ChantierTracker website. Reconnect to the Internet to open it, or find it later at this address:</string>
+    <string name="legal_page_cannot_open_title">The page could not be opened</string>
+    <string name="legal_page_cannot_open_message">No browser could display “%1$s”. You can read it at this address:</string>
 </resources>

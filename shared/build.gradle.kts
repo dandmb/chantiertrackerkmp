@@ -55,6 +55,7 @@ kotlin {
             implementation(libs.connectivity.device)
             implementation(libs.androidx.media3.exoplayer)
             implementation(libs.androidx.media3.ui)
+            implementation(libs.androidx.browser)
         }
         iosMain.dependencies {
             implementation(libs.ktor.client.darwin)

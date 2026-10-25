@@ -20,9 +20,8 @@ import com.dmb.chantiertracker.presentation.auth.reset.ResetPasswordScreen
 import com.dmb.chantiertracker.presentation.auth.verify.VerifyEmailScreen
 import com.dmb.chantiertracker.presentation.auth.welcome.WelcomeScreen
 import com.dmb.chantiertracker.presentation.billing.paidPlansAreOffered
-import com.dmb.chantiertracker.presentation.legal.StandaloneLegalDocumentScreen
-import com.dmb.chantiertracker.presentation.legal.legalDocumentFromArg
-import com.dmb.chantiertracker.presentation.legal.toArg
+import com.dmb.chantiertracker.presentation.legal.LegalLinksViewModel
+import com.dmb.chantiertracker.presentation.legal.rememberOpenLegalDocument
 import com.dmb.chantiertracker.presentation.main.MainScreen
 import com.dmb.chantiertracker.presentation.onboarding.OnboardingScreen
 import com.dmb.chantiertracker.presentation.splash.SplashScreen
@@ -31,7 +30,7 @@ import org.koin.compose.viewmodel.koinViewModel
 private enum class AuthStartPoint { Onboarding, Welcome, Login }
 
 @Composable
-fun RootNavHost(viewModel: RootViewModel = koinViewModel()) {
+fun RootNavHost(viewModel: RootViewModel = koinViewModel(), legalLinks: LegalLinksViewModel = koinViewModel()) {
     val authState by viewModel.authState.collectAsStateWithLifecycle()
     val hasLoggedInBefore by viewModel.hasLoggedInBefore.collectAsStateWithLifecycle()
     val hasSeenOnboarding by viewModel.hasSeenOnboarding.collectAsStateWithLifecycle()
@@ -58,17 +57,22 @@ fun RootNavHost(viewModel: RootViewModel = koinViewModel()) {
             },
             onOnboardingFinished = viewModel::markOnboardingSeen,
             startNotice = if (sessionNotice == SessionNotice.AccountDeleted) LoginNotice.AccountDeleted else null,
+            legalLinks = legalLinks,
         )
     }
 }
 
 @Composable
-private fun AuthNavHost(startPoint: AuthStartPoint, onOnboardingFinished: () -> Unit, startNotice: LoginNotice? = null) {
+private fun AuthNavHost(
+    startPoint: AuthStartPoint,
+    onOnboardingFinished: () -> Unit,
+    startNotice: LoginNotice? = null,
+    legalLinks: LegalLinksViewModel,
+) {
     val navController = rememberNavController()
     val neverLoggedIn = startPoint != AuthStartPoint.Login
     val paidPlansOffered = paidPlansAreOffered()
-    val openLegalDocument: (com.dmb.chantiertracker.presentation.legal.LegalDocument) -> Unit =
-        { navController.navigate(LegalDocumentRoute(it.toArg())) }
+    val openLegalDocument = rememberOpenLegalDocument(legalLinks)
 
     NavHost(
         navController = navController,
@@ -160,11 +164,6 @@ private fun AuthNavHost(startPoint: AuthStartPoint, onOnboardingFinished: () -> 
                 onCancelVerification = { navController.backToLogin(neverLoggedIn) },
                 onBack = { navController.popBackStack() },
             )
-        }
-        composable<LegalDocumentRoute> { entry ->
-            legalDocumentFromArg(entry.toRoute<LegalDocumentRoute>().document)?.let { document ->
-                StandaloneLegalDocumentScreen(document, onBack = { navController.popBackStack() })
-            }
         }
         composable<ForgotPasswordRoute> {
             ForgotPasswordScreen(

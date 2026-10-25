@@ -30,15 +30,12 @@ import com.dmb.chantiertracker.presentation.auth.welcome.WelcomeScreen
 import androidx.compose.foundation.pager.rememberPagerState
 import com.dmb.chantiertracker.presentation.i18n.AppEnvironment
 import com.dmb.chantiertracker.presentation.i18n.customAppLocale
-import com.dmb.chantiertracker.presentation.legal.LegalDocument
-import com.dmb.chantiertracker.presentation.legal.StandaloneLegalDocumentScreen
 import com.dmb.chantiertracker.presentation.navigation.LoginNotice
 import com.dmb.chantiertracker.presentation.onboarding.ONBOARDING_PAGES
 import com.dmb.chantiertracker.presentation.onboarding.OnboardingScreenContent
 import com.dmb.chantiertracker.presentation.theme.AppTheme
 import com.dmb.chantiertracker.support.FakeAuthRepository
 import com.dmb.chantiertracker.support.FakeBillingRepository
-import com.dmb.chantiertracker.support.legalVm
 import com.dmb.chantiertracker.support.FakeCheckoutLauncher
 import com.dmb.chantiertracker.support.installTestMainDispatcher
 import com.dmb.chantiertracker.support.resetTestMainDispatcher
@@ -185,26 +182,6 @@ class AuthScreensSnapshotTest {
             }
             snapshot("10-welcome-landscape", locale, landscape = true) {
                 WelcomeScreen(onCreateAccount = {}, onSignIn = {}, onDiscoverPlans = {}, onOpenLegalDocument = {})
-            }
-            snapshot("11-legal-terms-of-use", locale) {
-                StandaloneLegalDocumentScreen(LegalDocument.TermsOfUse, onBack = {}, viewModel = legalVm())
-            }
-            // ADR-67 — no provider here, so billing reads UNKNOWN: the provisional CGV.
-            snapshot("11b-legal-terms-of-sale-billing-closed", locale) {
-                StandaloneLegalDocumentScreen(LegalDocument.TermsOfSale, onBack = {}, viewModel = legalVm())
-            }
-            snapshot("12b-legal-notice-filled-identity", locale) {
-                StandaloneLegalDocumentScreen(
-                    LegalDocument.LegalNotice,
-                    onBack = {},
-                    viewModel = legalVm(com.dmb.chantiertracker.support.filledEditorIdentity),
-                )
-            }
-            snapshot("12-legal-notice-dark", locale, dark = true) {
-                StandaloneLegalDocumentScreen(LegalDocument.LegalNotice, onBack = {}, viewModel = legalVm())
-            }
-            snapshot("13-legal-privacy-landscape", locale, landscape = true) {
-                StandaloneLegalDocumentScreen(LegalDocument.PrivacyPolicy, onBack = {}, viewModel = legalVm())
             }
         }
     }
