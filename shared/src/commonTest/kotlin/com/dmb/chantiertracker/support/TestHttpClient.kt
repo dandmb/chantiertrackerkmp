@@ -4,6 +4,7 @@ import com.dmb.chantiertracker.data.local.TokenStorage
 import com.dmb.chantiertracker.data.remote.configureChantierTrackerClient
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
+import io.ktor.client.engine.mock.MockEngineConfig
 import io.ktor.client.engine.mock.MockRequestHandleScope
 import io.ktor.client.engine.mock.respond
 import io.ktor.client.request.HttpRequestData
@@ -11,6 +12,7 @@ import io.ktor.client.request.HttpResponseData
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
+import kotlinx.coroutines.CoroutineDispatcher
 
 const val TEST_BASE_URL = "https://api.chantiertracker.test/api/v1"
 
@@ -75,15 +77,21 @@ fun MockRequestHandleScope.respondWhileRedeploying(answer: RedeployAnswer = Rede
 class RecordingMockClient(
     tokenStorage: TokenStorage,
     onSessionExpired: suspend () -> Unit = {},
+    dispatcher: CoroutineDispatcher? = null,
     handler: suspend MockRequestHandleScope.(HttpRequestData) -> HttpResponseData,
 ) {
     val requests = mutableListOf<HttpRequestData>()
 
     val client: HttpClient = HttpClient(
-        MockEngine { request ->
-            requests += request
-            handler(request)
-        },
+        MockEngine(
+            MockEngineConfig().apply {
+                this.dispatcher = dispatcher
+                addHandler { request ->
+                    requests += request
+                    handler(request)
+                }
+            },
+        ),
     ) {
         configureChantierTrackerClient(
             tokenStorage = tokenStorage,

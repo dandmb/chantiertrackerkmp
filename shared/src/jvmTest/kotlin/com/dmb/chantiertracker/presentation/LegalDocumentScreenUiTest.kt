@@ -69,7 +69,9 @@ import kotlin.test.assertTrue
 @OptIn(ExperimentalTestApi::class, ExperimentalCoroutinesApi::class)
 class LegalDocumentScreenUiTest {
 
-    @BeforeTest fun setUp() { Dispatchers.setMain(UnconfinedTestDispatcher()) }
+    private val testDispatcher = UnconfinedTestDispatcher()
+
+    @BeforeTest fun setUp() { Dispatchers.setMain(testDispatcher) }
 
     @AfterTest fun tearDown() {
         customAppLocale = null
@@ -95,7 +97,7 @@ class LegalDocumentScreenUiTest {
 
     private val connectivity = FakeConnectivityObserver(initiallyOnline = true)
     private var serverReachable = true
-    private val client = RecordingMockClient(FakeTokenStorage(null)) { request ->
+    private val client = RecordingMockClient(FakeTokenStorage(null), dispatcher = testDispatcher) { request ->
         if (!serverReachable) throw RuntimeException("no connection")
         val path = request.url.encodedPath
         val document = path.substringAfter("legal-documents/").substringBefore('/')
@@ -133,8 +135,10 @@ class LegalDocumentScreenUiTest {
     private fun ComposeUiTest.mountScreen(document: LegalDocument = LegalDocument.TermsOfUse, locale: String = "fr", vm: LegalDocumentViewModel = viewModel()) =
         mount(locale) { LegalDocumentScreen(document, viewModel = vm) }
 
-    private fun ComposeUiTest.awaitText(text: String) =
-        waitUntil(timeoutMillis = 5_000L) { onAllNodes(hasText(text, substring = true)).fetchSemanticsNodes().isNotEmpty() }
+    private fun ComposeUiTest.assertShows(text: String) {
+        waitForIdle()
+        assertTrue(onAllNodes(hasText(text, substring = true)).fetchSemanticsNodes().isNotEmpty(), "not shown: $text")
+    }
 
     private fun ComposeUiTest.annotatedTextContaining(text: String): AnnotatedString =
         onNodeWithText(text, substring = true).fetchSemanticsNode().config.getOrNull(SemanticsProperties.Text)!!.single()
@@ -163,10 +167,10 @@ class LegalDocumentScreenUiTest {
     fun a_link_of_the_welcome_screen_opens_the_native_screen_with_the_server_title_and_date() = runComposeUiTest {
         val vm = viewModel()
         mount { RootNavHost(welcomeStartingRoot(), legalDocumentViewModel = { remember { vm } }) }
-        awaitText("Créer un compte")
+        assertShows("Créer un compte")
 
         onNodeWithText("CGU").performClick()
-        awaitText("Mis à jour le 25-10-2026")
+        assertShows("Mis à jour le 25-10-2026")
 
         onNodeWithText("Conditions Générales d'Utilisation").assertIsDisplayed()
         onNodeWithText("1. Objet").assertIsDisplayed()
@@ -177,13 +181,13 @@ class LegalDocumentScreenUiTest {
     @Test
     fun the_six_links_of_the_welcome_screen_ask_for_their_own_document() = runComposeUiTest {
         mount { RootNavHost(welcomeStartingRoot(), legalDocumentViewModel = { remember { viewModel() } }) }
-        awaitText("Créer un compte")
+        assertShows("Créer un compte")
 
         listOf("Mentions légales", "CGU", "CGV", "Confidentialité", "Cookies", "Suppression du compte").forEach { link ->
             onNodeWithText(link).performClick()
-            awaitText("Mis à jour le")
+            assertShows("Mis à jour le")
             onNodeWithContentDescription("Retour").performClick()
-            awaitText("Créer un compte")
+            assertShows("Créer un compte")
         }
 
         assertEquals(
@@ -195,7 +199,7 @@ class LegalDocumentScreenUiTest {
     @Test
     fun an_english_phone_reads_the_english_text_with_its_english_date_line() = runComposeUiTest {
         mountScreen(locale = "en")
-        awaitText("Updated on 25-10-2026")
+        assertShows("Updated on 25-10-2026")
 
         onNodeWithText("This English translation is provided for convenience", substring = true).assertIsDisplayed()
         onNodeWithText("1. Purpose").assertIsDisplayed()
@@ -205,7 +209,7 @@ class LegalDocumentScreenUiTest {
     @Test
     fun the_french_and_english_texts_still_to_be_completed_are_highlighted() = runComposeUiTest {
         mountScreen()
-        awaitText("[À COMPLÉTER : nom et prénom]")
+        assertShows("[À COMPLÉTER : nom et prénom]")
 
         val french = annotatedTextContaining("[À COMPLÉTER : nom et prénom]")
         val pending = french.text.indexOf("[À COMPLÉTER")
@@ -219,7 +223,7 @@ class LegalDocumentScreenUiTest {
     @Test
     fun the_english_pending_text_is_highlighted_too() = runComposeUiTest {
         mountScreen(locale = "en")
-        awaitText("[TO BE COMPLETED: first and last name]")
+        assertShows("[TO BE COMPLETED: first and last name]")
 
         val english = annotatedTextContaining("[TO BE COMPLETED")
         assertTrue(english.spanStyles.any { it.item.background == Yellow }, "highlighted: ${english.spanStyles}")
@@ -228,7 +232,7 @@ class LegalDocumentScreenUiTest {
     @Test
     fun a_web_link_of_the_text_opens_in_the_in_app_tab_and_a_mail_link_in_the_mail_app() = runComposeUiTest {
         mountScreen()
-        awaitText("Lire les CGV.")
+        assertShows("Lire les CGV.")
 
         tapInside("Lire les CGV.", "CGV")
         tapInside("Écrire à dpo@chantiertracker.com.", "dpo@chantiertracker.com")
@@ -240,11 +244,11 @@ class LegalDocumentScreenUiTest {
     @Test
     fun offline_a_web_link_of_the_text_gives_its_address_instead_of_opening() = runComposeUiTest {
         mountScreen()
-        awaitText("Lire les CGV.")
+        assertShows("Lire les CGV.")
         connectivity.setOnline(false)
 
         tapInside("Lire les CGV.", "CGV")
-        awaitText("Tu es hors ligne")
+        assertShows("Tu es hors ligne")
 
         onNodeWithText("https://chantiertracker.com/cgv").assertIsDisplayed()
         assertEquals(emptyList(), webOpened)
@@ -265,7 +269,7 @@ class LegalDocumentScreenUiTest {
             ),
         )
         mountScreen(vm = LegalDocumentViewModel(LegalDocumentRepositoryImpl(LegalDocumentsApi(client.client), saved, MutableClock(5_000L)), connectivity))
-        awaitText("Texte enregistré.")
+        assertShows("Texte enregistré.")
 
         onNodeWithText("Tu es hors ligne : voici la dernière version reçue sur cet appareil.").assertIsDisplayed()
         onNodeWithText("Mis à jour le 01-10-2026").assertIsDisplayed()
@@ -276,13 +280,13 @@ class LegalDocumentScreenUiTest {
         connectivity.setOnline(false)
         serverReachable = false
         mountScreen()
-        awaitText("Document indisponible hors ligne")
+        assertShows("Document indisponible hors ligne")
         onNodeWithText("Ce document n'a encore jamais été chargé sur cet appareil. Connecte-toi à Internet, puis réessaie.").assertIsDisplayed()
 
         connectivity.setOnline(true)
         serverReachable = true
         onNodeWithText("Réessayer").performClick()
-        awaitText("1. Objet")
+        assertShows("1. Objet")
 
         onNodeWithText("Document indisponible hors ligne").assertDoesNotExist()
     }
