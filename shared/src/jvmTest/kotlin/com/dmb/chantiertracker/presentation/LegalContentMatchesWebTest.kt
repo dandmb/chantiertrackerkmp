@@ -65,7 +65,7 @@ class LegalContentMatchesWebTest {
             val webSections = web.getValue(webKeyByDocument.getValue(document)).jsonObject.getValue("sections").jsonArray
             assertEquals(webSections.size, document.sections.size, "section count of $document")
         }
-        assertEquals(listOf(7, 10, 10, 10, 4), LegalDocument.entries.map { it.sections.size })
+        assertEquals(listOf(7, 10, 10, 11, 4), LegalDocument.entries.map { it.sections.size })
     }
 
     @Test

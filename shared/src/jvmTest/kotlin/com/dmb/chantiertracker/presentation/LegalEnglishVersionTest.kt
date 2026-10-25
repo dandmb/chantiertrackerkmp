@@ -58,7 +58,7 @@ class LegalEnglishVersionTest {
 
     @Test
     fun each_document_has_the_same_numbered_sections_as_the_french_one() {
-        assertEquals(listOf(7, 10, 10, 10, 4), LegalDocument.entries.map { it.sections.size })
+        assertEquals(listOf(7, 10, 10, 11, 4), LegalDocument.entries.map { it.sections.size })
 
         allSections().forEach { (document, section) ->
             assertEquals(
