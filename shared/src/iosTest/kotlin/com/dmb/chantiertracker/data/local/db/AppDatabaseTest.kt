@@ -3,6 +3,10 @@ package com.dmb.chantiertracker.data.local.db
 import androidx.room.Room
 import com.dmb.chantiertracker.support.verifyAttachmentDaoContract
 import com.dmb.chantiertracker.support.verifyDailyLogDaoContract
+import com.dmb.chantiertracker.support.verifyEditorIdentityDaoContract
+import com.dmb.chantiertracker.support.verifyLocalDataDaoContract
+import com.dmb.chantiertracker.support.verifyFindPendingSkipsRowsDeletedOnServer
+import com.dmb.chantiertracker.support.verifyStockDaoContract
 import com.dmb.chantiertracker.support.verifyInvitationDaoContract
 import com.dmb.chantiertracker.support.verifyMaterialAndLineDaoContract
 import com.dmb.chantiertracker.support.verifyPlanUsageDaoContract
@@ -38,6 +42,10 @@ class AppDatabaseTest {
         val db = Room.inMemoryDatabaseBuilder<AppDatabase>().buildChantierDatabase()
         try {
             verifyPlanUsageDaoContract(db)
+            verifyEditorIdentityDaoContract(db)
+            verifyLocalDataDaoContract(db)
+            verifyFindPendingSkipsRowsDeletedOnServer(db)
+            verifyStockDaoContract(db)
         } finally {
             db.close()
         }
@@ -78,6 +86,56 @@ class AppDatabaseTest {
         val db = Room.inMemoryDatabaseBuilder<AppDatabase>().buildChantierDatabase()
         try {
             verifyInvitationDaoContract(db)
+        } finally {
+            db.close()
+        }
+    }
+
+    @Test
+    fun sync_issue_contract_holds_on_ios() = runTest {
+        val db = Room.inMemoryDatabaseBuilder<AppDatabase>().buildChantierDatabase()
+        try {
+            com.dmb.chantiertracker.support.verifySyncIssueContract(db)
+        } finally {
+            db.close()
+        }
+    }
+
+    @Test
+    fun awaited_server_version_is_silent_contract_holds_on_ios() = runTest {
+        val db = Room.inMemoryDatabaseBuilder<AppDatabase>().buildChantierDatabase()
+        try {
+            com.dmb.chantiertracker.support.verifyAwaitedServerVersionIsSilentContract(db)
+        } finally {
+            db.close()
+        }
+    }
+
+    @Test
+    fun material_merge_contract_holds_on_ios() = runTest {
+        val db = Room.inMemoryDatabaseBuilder<AppDatabase>().buildChantierDatabase()
+        try {
+            com.dmb.chantiertracker.support.verifyMaterialMergeContract(db)
+        } finally {
+            db.close()
+        }
+    }
+
+    @Test
+    fun local_version_contract_holds_on_ios() = runTest {
+        val db = Room.inMemoryDatabaseBuilder<AppDatabase>().buildChantierDatabase()
+        try {
+            com.dmb.chantiertracker.support.verifyLocalVersionContract(db)
+        } finally {
+            db.close()
+        }
+    }
+
+    @Test
+    fun sync_issue_actions_contract_holds_on_ios() = runTest {
+        val db = Room.inMemoryDatabaseBuilder<AppDatabase>().buildChantierDatabase()
+        try {
+            com.dmb.chantiertracker.support.verifySyncIssueActionsContract(db)
         } finally {
             db.close()
         }

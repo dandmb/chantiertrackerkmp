@@ -14,6 +14,7 @@ import com.dmb.chantiertracker.support.fakeUploadFile
 import com.dmb.chantiertracker.support.localAttachment
 import com.dmb.chantiertracker.support.localDailyEntry
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -112,52 +113,171 @@ class AttachmentRepositoryImplTest {
         assertTrue(fileStore.deletedPaths.isEmpty())
     }
 
-    // ─── video (online only, ADR-35) ─────────────────────────────────────────
+    // ─── video (queued like a photo, sent by the engine) ─────────────────────
+
+    private class VideoThatMustNotBeOpened(private val bytes: Long) : com.dmb.chantiertracker.domain.model.UploadFile {
+        var opened = 0
+        override val name = "chantier.mov"
+        override val mimeType = "video/quicktime"
+        override fun size(): Long = bytes
+        override fun openSource(): kotlinx.io.RawSource {
+            opened++
+            return kotlinx.io.Buffer()
+        }
+    }
+
+    private class SourceCutAfter(private val bytesBeforeTheCut: Int) : kotlinx.io.RawSource {
+        private var given = 0
+        override fun readAtMostTo(sink: kotlinx.io.Buffer, byteCount: Long): Long {
+            if (given >= bytesBeforeTheCut) throw kotlinx.io.IOException("the process died during the copy")
+            val now = minOf(byteCount.toInt(), bytesBeforeTheCut - given, 512)
+            sink.write(ByteArray(now) { 7 })
+            given += now
+            return now.toLong()
+        }
+        override fun close() = Unit
+    }
 
     @Test
-    fun upload_video_sends_the_raw_file_then_stores_the_transcoded_mp4_locally_as_synced() = runTest {
+    fun a_video_is_copied_locally_and_queued_like_a_photo_without_any_network_call() = runTest {
+        val dao = FakeAttachmentDao()
+        val fileStore = FakeAttachmentFileStore()
+        val syncer = FakeSyncer()
+        val entryDao = FakeDailyEntryDao(listOf(localDailyEntry("purchase-1", serverId = null)))
+        val backend = FakeProjectBackend()
+        val bytes = ByteArray(4_000) { 7 }
+
+        val added = runCatching {
+            repo(dao, fileStore, syncer, entryDao = entryDao, backend = backend).addVideo("purchase-1", fakeUploadFile(bytes, name = "site.mov", mimeType = "video/quicktime"))
+        }
+
+        assertEquals(null, added.exceptionOrNull(), "even on an entry the server does not know yet")
+        val row = dao.findByLocalId(added.getOrThrow().localId)!!
+        assertEquals(
+            listOf<Any?>(SyncStatus.PENDING, PendingOp.CREATE, null, "site.mov", "video/quicktime", 4_000L),
+            listOf(row.syncStatus, row.pendingOp, row.serverId, row.originalName, row.mimeType, row.sizeBytes),
+        )
+        assertEquals(bytes.toList(), fileStore.readBytes(row.localPath).toList(), "the raw video is kept on the device until it is sent")
+        assertEquals(emptyList(), backend.receivedMethods, "nothing is sent from here: the engine does it")
+        assertEquals(1, syncer.requestCount)
+    }
+
+    @Test
+    fun a_video_heavier_than_the_server_accepts_is_refused_before_any_copy() = runTest {
         val dao = FakeAttachmentDao()
         val fileStore = FakeAttachmentFileStore()
         val entryDao = FakeDailyEntryDao(listOf(localDailyEntry("purchase-1", serverId = 909L)))
-        val backend = FakeProjectBackend().apply { attachmentUploadDurationSeconds = 45 }
-
-        val video = repo(dao = dao, fileStore = fileStore, entryDao = entryDao, backend = backend)
-            .uploadVideo("purchase-1", fakeUploadFile(ByteArray(4_000) { 7 }, name = "site.mov", mimeType = "video/quicktime"))
-
-        assertTrue(video.isVideo)
-        assertEquals("video/mp4", video.mimeType, "the server transcodes it")
-        assertEquals(45, video.durationSeconds)
-
-        val row = dao.findByLocalId(video.localId)!!
-        assertEquals(SyncStatus.SYNCED, row.syncStatus, "no PENDING queue — it uploaded now (ADR-35)")
-        assertEquals(PendingOp.NONE, row.pendingOp)
-        assertTrue(row.serverId != null)
-        assertEquals(listOf(byteArrayOf(9, 9, 9).toList()), listOf(fileStore.readBytes(row.localPath).toList()), "the small transcoded file is what's kept locally")
-        val created = backend.attachments.single()
-        assertEquals("video/mp4", created.mimeType)
-    }
-
-    @Test
-    fun upload_video_on_an_entry_that_has_not_synced_yet_fails_without_a_network_call() = runTest {
-        val entryDao = FakeDailyEntryDao(listOf(localDailyEntry("purchase-1", serverId = null)))
         val backend = FakeProjectBackend()
+        val tooHeavy = VideoThatMustNotBeOpened(com.dmb.chantiertracker.domain.model.MAX_VIDEO_BYTES + 1)
 
-        assertFailsWith<DomainException.NotFound> {
-            repo(entryDao = entryDao, backend = backend).uploadVideo("purchase-1", fakeUploadFile(byteArrayOf(1, 2)))
-        }
-        assertTrue(backend.attachments.isEmpty())
+        val refused = runCatching { repo(dao, fileStore, entryDao = entryDao, backend = backend).addVideo("purchase-1", tooHeavy) }
+
+        assertEquals<Any?>(DomainException.FileTooLarge, refused.exceptionOrNull())
+        assertEquals(listOf<Any>(0, emptySet<String>(), 0, emptyList<String>()), listOf(tooHeavy.opened, fileStore.storedPaths, dao.count(), backend.receivedMethods), "not read, not copied, not queued, not sent")
     }
 
     @Test
-    fun upload_video_surfaces_a_server_refusal() = runTest {
-        val entryDao = FakeDailyEntryDao(listOf(localDailyEntry("purchase-1", serverId = 909L)))
-        val backend = FakeProjectBackend().apply {
-            attachmentUploadRejection = io.ktor.http.HttpStatusCode.Forbidden to
-                "Vous avez atteint la limite de vidéos de votre plan."
+    fun a_photo_above_forty_megapixels_is_refused_when_it_is_taken_before_any_copy() = runTest {
+        val dao = FakeAttachmentDao()
+        val fileStore = FakeAttachmentFileStore()
+        val backend = FakeProjectBackend()
+        val syncer = FakeSyncer()
+
+        val refused = runCatching {
+            repo(dao, fileStore, syncer, backend = backend).addAttachment("purchase-1", com.dmb.chantiertracker.data.local.aJpegHeader(8000, 6000), "chantier.jpg", "image/jpeg")
         }
 
-        assertFailsWith<DomainException.PlanLimitReached> {
-            repo(entryDao = entryDao, backend = backend).uploadVideo("purchase-1", fakeUploadFile(byteArrayOf(1, 2)))
+        assertEquals<Any?>(DomainException.ImageTooLarge, refused.exceptionOrNull())
+        assertEquals(listOf<Any>(emptySet<String>(), 0, emptyList<String>(), 0), listOf(fileStore.storedPaths, dao.count(), backend.receivedMethods, syncer.requestCount), "not copied, not queued, not sent")
+    }
+
+    @Test
+    fun a_photo_of_forty_megapixels_or_of_unknown_size_is_queued_as_usual() = runTest {
+        val atTheLimit = FakeAttachmentDao()
+        val unknownSize = FakeAttachmentDao()
+
+        repo(atTheLimit).addAttachment("purchase-1", com.dmb.chantiertracker.data.local.aJpegHeader(8000, 5000), "limite.jpg", "image/jpeg")
+        repo(unknownSize).addAttachment("purchase-1", byteArrayOf(1, 2, 3), "inconnue.heic", "image/heic")
+
+        assertEquals(listOf(1, 1), listOf(atTheLimit.count(), unknownSize.count()))
+    }
+
+    @Test
+    fun a_video_of_exactly_the_server_limit_is_accepted() = runTest {
+        val dao = FakeAttachmentDao()
+        val atTheLimit = object : com.dmb.chantiertracker.domain.model.UploadFile by fakeUploadFile(byteArrayOf(1, 2, 3), name = "limite.mp4") {
+            override fun size(): Long = com.dmb.chantiertracker.domain.model.MAX_VIDEO_BYTES
         }
+
+        val added = runCatching { repo(dao).addVideo("purchase-1", atTheLimit) }
+
+        assertEquals(null, added.exceptionOrNull())
+        assertEquals(1, dao.count())
+    }
+
+    @Test
+    fun the_server_limit_for_a_video_is_200_megabytes() {
+        assertEquals(200L * 1024 * 1024, com.dmb.chantiertracker.domain.model.MAX_VIDEO_BYTES)
+    }
+
+    @Test
+    fun a_copy_cut_short_queues_nothing() = runTest {
+        val dao = FakeAttachmentDao()
+        val fileStore = FakeAttachmentFileStore()
+        val syncer = FakeSyncer()
+        val cut = object : com.dmb.chantiertracker.domain.model.UploadFile {
+            override val name = "chantier.mov"
+            override val mimeType = "video/quicktime"
+            override fun size(): Long = 10_000
+            override fun openSource(): kotlinx.io.RawSource = SourceCutAfter(2_000)
+        }
+
+        val added = runCatching { repo(dao, fileStore, syncer).addVideo("purchase-1", cut) }
+
+        assertTrue(added.isFailure, "the copy did not finish")
+        assertEquals(0, dao.count(), "no row points to half a video")
+        assertEquals(0, syncer.requestCount)
+        assertEquals(listOf(2_000L), fileStore.storedPaths.map { fileStore.sizeOf(it) }, "what was written stays as a file nobody refers to, for the cleaner")
+    }
+
+    @Test
+    fun leaving_the_screen_during_the_copy_does_not_lose_the_video() = runTest {
+        val dao = FakeAttachmentDao()
+        val fileStore = FakeAttachmentFileStore()
+        val copyStarted = kotlinx.coroutines.CompletableDeferred<Unit>()
+        val letTheCopyGoOn = kotlinx.coroutines.CompletableDeferred<Unit>()
+        fileStore.beforeSavingFrom = {
+            copyStarted.complete(Unit)
+            letTheCopyGoOn.await()
+        }
+        val repository = repo(dao, fileStore)
+        val screen = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Default)
+        val adding = screen.launch { runCatching { repository.addVideo("purchase-1", fakeUploadFile(ByteArray(3_000) { 7 }, name = "site.mov", mimeType = "video/quicktime")) } }
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { kotlinx.coroutines.withTimeoutOrNull(5_000) { copyStarted.await() } }
+
+        adding.cancel()
+        letTheCopyGoOn.complete(Unit)
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+            kotlinx.coroutines.withTimeoutOrNull(5_000) { while (dao.count() == 0) kotlinx.coroutines.delay(10) }
+        }
+
+        assertEquals(1, dao.count(), "the video the user chose is queued even though the screen is gone")
+        assertEquals(listOf(3_000L), fileStore.storedPaths.map { fileStore.sizeOf(it) })
+    }
+
+    @Test
+    fun a_video_being_sent_shows_how_far_it_is_and_the_others_show_nothing() = runTest {
+        val dao = FakeAttachmentDao(
+            listOf(
+                localAttachment("sending", entryLocalId = "e1"),
+                localAttachment("waiting", entryLocalId = "e1"),
+            ),
+        )
+        val syncer = FakeSyncer()
+        syncer.progressOfUploads.value = mapOf("sending" to 0.4f)
+
+        val attachments = repo(dao, syncer = syncer).observeAttachments("e1").first()
+
+        assertEquals(mapOf<String, Float?>("sending" to 0.4f, "waiting" to null), attachments.associate { it.localId to it.uploadProgress })
     }
 }

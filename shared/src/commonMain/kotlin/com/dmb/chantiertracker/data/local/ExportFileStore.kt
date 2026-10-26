@@ -1,5 +1,6 @@
 package com.dmb.chantiertracker.data.local
 
+import io.github.vinceglb.filekit.exists
 import io.github.vinceglb.filekit.FileKit
 import io.github.vinceglb.filekit.cacheDir
 import io.github.vinceglb.filekit.createDirectories
@@ -21,6 +22,8 @@ interface ExportFileStore {
      * returns the absolute path.
      */
     suspend fun save(bytes: ByteArray, fileName: String): String
+
+    suspend fun deleteAll()
 }
 
 // `FileKit.cacheDir` exists identically on Android/iOS/Desktop — no
@@ -36,6 +39,10 @@ class FileKitExportFileStore : ExportFileStore {
         val file = dir / fileName
         file.write(bytes)
         return file.path
+    }
+
+    override suspend fun deleteAll() {
+        if (dir.exists()) dir.list().forEach { it.delete(mustExist = false) }
     }
 
     private companion object {

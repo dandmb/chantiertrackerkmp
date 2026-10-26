@@ -1,5 +1,7 @@
 package com.dmb.chantiertracker.presentation.main
 
+import com.dmb.chantiertracker.domain.model.SyncIssueItem
+import com.dmb.chantiertracker.presentation.sync.SyncIssueMarkersProvider
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -42,11 +44,13 @@ import com.dmb.chantiertracker.presentation.navigation.AdminCreateUserRoute
 import com.dmb.chantiertracker.presentation.navigation.AdminStatsRoute
 import com.dmb.chantiertracker.presentation.navigation.AdminUsersRoute
 import com.dmb.chantiertracker.presentation.navigation.BillingNotice
+import com.dmb.chantiertracker.presentation.legal.LegalDocument
 import com.dmb.chantiertracker.presentation.legal.LegalDocumentScreen
-import com.dmb.chantiertracker.presentation.legal.legalDocumentFromArg
-import com.dmb.chantiertracker.presentation.legal.toArg
-import com.dmb.chantiertracker.presentation.navigation.BillingRoute
 import com.dmb.chantiertracker.presentation.navigation.LegalDocumentRoute
+import com.dmb.chantiertracker.presentation.account.DeleteAccountScreen
+import com.dmb.chantiertracker.presentation.navigation.BillingRoute
+import com.dmb.chantiertracker.presentation.billing.LocalInAppPaymentsAllowed
+import com.dmb.chantiertracker.presentation.navigation.DeleteAccountRoute
 import com.dmb.chantiertracker.presentation.navigation.ConsumptionLineFormRoute
 import com.dmb.chantiertracker.presentation.navigation.CreateProjectRoute
 import com.dmb.chantiertracker.presentation.navigation.CreateStageRoute
@@ -63,6 +67,11 @@ import com.dmb.chantiertracker.presentation.navigation.PurchaseLineFormRoute
 import com.dmb.chantiertracker.presentation.navigation.ReportEntryRoute
 import com.dmb.chantiertracker.presentation.navigation.SettingsRoute
 import com.dmb.chantiertracker.presentation.navigation.StageDetailRoute
+import com.dmb.chantiertracker.presentation.navigation.SyncIssuesRoute
+import com.dmb.chantiertracker.presentation.navigation.reviewRoute
+import com.dmb.chantiertracker.presentation.navigation.fixRoute
+import com.dmb.chantiertracker.presentation.sync.SyncIssueCountViewModel
+import com.dmb.chantiertracker.presentation.sync.SyncIssuesScreen
 import com.dmb.chantiertracker.presentation.logs.ConsumptionLineFormScreen
 import com.dmb.chantiertracker.presentation.logs.DailyLogScreen
 import com.dmb.chantiertracker.presentation.logs.EntrySummaryScreen
@@ -85,6 +94,7 @@ import com.dmb.chantiertracker.presentation.settings.SettingsScreen
 import com.dmb.chantiertracker.presentation.stages.create.CreateStageScreen
 import com.dmb.chantiertracker.presentation.stages.detail.StageDetailScreen
 import com.dmb.chantiertracker.resources.Res
+import com.dmb.chantiertracker.resources.delete_account_title
 import com.dmb.chantiertracker.resources.admin_create_user_title
 import com.dmb.chantiertracker.resources.admin_users_create
 import com.dmb.chantiertracker.resources.admin_users_title
@@ -101,12 +111,13 @@ import com.dmb.chantiertracker.resources.projects_new
 import com.dmb.chantiertracker.resources.report_entry_title
 import com.dmb.chantiertracker.resources.reports_title
 import com.dmb.chantiertracker.resources.stage_detail_title
+import com.dmb.chantiertracker.resources.sync_issues_title
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 
 private enum class MainDestination {
     Projects, Administration, AdminUsers, AdminCreateUser, Settings, CreateProject, ProjectDetail, EditProject, InviteMember, ProjectHistory, ProjectReports, CreateStage, StageDetail, DailyLog,
-    EntrySummary, PurchaseLineForm, ConsumptionLineForm, ReportEntry, Billing, InvitationAccept, LegalDocumentPage
+    EntrySummary, PurchaseLineForm, ConsumptionLineForm, ReportEntry, Billing, InvitationAccept, LegalDocumentPage, SyncIssues, DeleteAccount
 }
 
 // ADR-52 — a SUPER_ADMIN can neither own nor join a project (blocked
@@ -131,10 +142,30 @@ private fun tabsFor(globalRole: GlobalRole): List<MainTab> =
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MainScreen(globalRole: GlobalRole, viewModel: MainViewModel = koinViewModel()) {
+fun MainScreen(
+    globalRole: GlobalRole,
+    viewModel: MainViewModel = koinViewModel(),
+    syncIssueCountViewModel: SyncIssueCountViewModel = koinViewModel(),
+) {
     val navController = rememberNavController()
     val account by viewModel.state.collectAsStateWithLifecycle()
+    val syncIssueCount by syncIssueCountViewModel.count.collectAsStateWithLifecycle()
     val startDestination = remember(globalRole) { startDestinationFor(globalRole) }
+    val openSyncIssues: () -> Unit = { navController.navigate(SyncIssuesRoute()) { launchSingleTop = true } }
+    val openSyncIssue: (SyncIssueItem) -> Unit = remember(navController) { { item -> navController.navigate(item.reviewRoute()) { launchSingleTop = true } } }
+
+    account.logoutPrompt?.let { prompt ->
+        LogoutPromptDialog(
+            prompt = prompt,
+            onRetry = viewModel::retryLogout,
+            onLogoutAnyway = viewModel::logoutDespiteRefusedWrites,
+            onDismiss = viewModel::dismissLogoutPrompt,
+            onSeeDetails = {
+                viewModel.dismissLogoutPrompt()
+                openSyncIssues()
+            },
+        )
+    }
     val tabs = remember(globalRole) { tabsFor(globalRole) }
 
     // ADR-51 point 4 — a chantiertracker:// deep link (Stripe checkout/portal
@@ -143,9 +174,11 @@ fun MainScreen(globalRole: GlobalRole, viewModel: MainViewModel = koinViewModel(
     // onNewIntent, iOS onOpenURL) feeds into. BillingScreen itself already
     // refreshes on entry (BillingViewModel.init), so simply landing on
     // BillingRoute is all that's needed beyond the one-shot success banner.
+    val paymentsAllowed = LocalInAppPaymentsAllowed.current
     val deepLinkDispatcher = koinInject<CheckoutDeepLinkDispatcher>()
     val pendingDeepLink by deepLinkDispatcher.pending.collectAsStateWithLifecycle()
     LaunchedEffect(pendingDeepLink) {
+        if (!paymentsAllowed) return@LaunchedEffect
         val notice = when (pendingDeepLink) {
             CheckoutDeepLink.CheckoutSuccess -> BillingNotice.CheckoutSucceeded.toArg()
             CheckoutDeepLink.CheckoutCancelled, CheckoutDeepLink.PortalReturn -> null
@@ -202,6 +235,8 @@ fun MainScreen(globalRole: GlobalRole, viewModel: MainViewModel = koinViewModel(
         destination?.hasRoute(BillingRoute::class) == true -> MainDestination.Billing
         destination?.hasRoute(InvitationAcceptRoute::class) == true -> MainDestination.InvitationAccept
         destination?.hasRoute(LegalDocumentRoute::class) == true -> MainDestination.LegalDocumentPage
+        destination?.hasRoute(SyncIssuesRoute::class) == true -> MainDestination.SyncIssues
+        destination?.hasRoute(DeleteAccountRoute::class) == true -> MainDestination.DeleteAccount
         else -> MainDestination.Projects
     }
     val currentTab = when (current) {
@@ -299,9 +334,13 @@ fun MainScreen(globalRole: GlobalRole, viewModel: MainViewModel = koinViewModel(
                 )
                 MainDestination.LegalDocumentPage -> DetailTopBar(
                     title = backStackEntry?.toRoute<LegalDocumentRoute>()
-                        ?.let { legalDocumentFromArg(it.document) }
-                        ?.let { stringResource(it.label) }
+                        ?.let { LegalDocument.fromSlug(it.document) }
+                        ?.let { stringResource(it.link) }
                         .orEmpty(),
+                    onBack = { navController.popBackStack() },
+                )
+                MainDestination.SyncIssues -> DetailTopBar(
+                    title = stringResource(Res.string.sync_issues_title),
                     onBack = { navController.popBackStack() },
                 )
                 MainDestination.AdminUsers -> DetailTopBar(
@@ -312,12 +351,24 @@ fun MainScreen(globalRole: GlobalRole, viewModel: MainViewModel = koinViewModel(
                     title = stringResource(Res.string.admin_create_user_title),
                     onBack = { navController.popBackStack() },
                 )
+                MainDestination.DeleteAccount -> DetailTopBar(
+                    title = stringResource(Res.string.delete_account_title),
+                    onBack = { navController.popBackStack() },
+                )
                 else -> AppTopBar(
                     userName = account.userName,
                     email = account.email,
                     plan = account.plan,
-                    onSubscription = { navController.navigate(BillingRoute()) },
+                    isFounder = account.isFounder,
+                    onSubscription = if (paymentsAllowed) {
+                        { navController.navigate(BillingRoute()) }
+                    } else {
+                        null
+                    },
                     onLogout = viewModel::logout,
+                    onDeleteAccount = { navController.navigate(DeleteAccountRoute) },
+                    syncIssueCount = syncIssueCount,
+                    onOpenSyncIssues = openSyncIssues,
                     leadingActions = {
                         if (current == MainDestination.Projects) {
                             val sortHolder = koinInject<ProjectSortHolder>()
@@ -349,13 +400,24 @@ fun MainScreen(globalRole: GlobalRole, viewModel: MainViewModel = koinViewModel(
     // serves both branches of the width-based layout further down, with no
     // duplication of the ~25-destination graph.
     val navHostContent: @Composable (PaddingValues) -> Unit = { padding ->
+        SyncIssueMarkersProvider(onOpen = openSyncIssue) {
         NavHost(
             navController = navController,
             startDestination = startDestination,
             modifier = Modifier.padding(padding),
         ) {
             composable<ProjectsRoute> {
-                ProjectsScreen(onProjectClick = { localId -> navController.navigate(ProjectDetailRoute(localId)) })
+                ProjectsScreen(
+                    onProjectClick = { localId -> navController.navigate(ProjectDetailRoute(localId)) },
+                    syncIssueCount = syncIssueCount,
+                    onOpenSyncIssues = openSyncIssues,
+                )
+            }
+            composable<SyncIssuesRoute> { entry ->
+                SyncIssuesScreen(
+                    onFix = { item -> item.fixRoute()?.let { route -> navController.navigate(route) } },
+                    focusKey = entry.toRoute<SyncIssuesRoute>().focusKey,
+                )
             }
             composable<AdminStatsRoute> {
                 AdminStatsScreen(
@@ -369,14 +431,25 @@ fun MainScreen(globalRole: GlobalRole, viewModel: MainViewModel = koinViewModel(
             composable<AdminCreateUserRoute> {
                 AdminCreateUserScreen(onCreated = { navController.popBackStack() })
             }
+            composable<DeleteAccountRoute> {
+                DeleteAccountScreen(
+                    onCancel = { navController.popBackStack() },
+                    onManageUsers = { navController.navigate(AdminUsersRoute) },
+                    onManageSubscription = { navController.navigate(BillingRoute()) },
+                )
+            }
             composable<SettingsRoute> {
-                SettingsScreen(onOpenLegalDocument = { navController.navigate(LegalDocumentRoute(it.toArg())) })
+                SettingsScreen(onOpenLegalDocument = { navController.navigate(LegalDocumentRoute(it.slug)) })
             }
             composable<LegalDocumentRoute> { entry ->
-                legalDocumentFromArg(entry.toRoute<LegalDocumentRoute>().document)?.let { LegalDocumentScreen(it) }
+                LegalDocument.fromSlug(entry.toRoute<LegalDocumentRoute>().document)?.let { document ->
+                    LegalDocumentScreen(document)
+                }
             }
-            composable<BillingRoute> { entry ->
-                BillingScreen(notice = BillingNotice.fromArg(entry.toRoute<BillingRoute>().notice))
+            if (paymentsAllowed) {
+                composable<BillingRoute> { entry ->
+                    BillingScreen(notice = BillingNotice.fromArg(entry.toRoute<BillingRoute>().notice))
+                }
             }
             composable<CreateProjectRoute> {
                 CreateProjectScreen(
@@ -504,6 +577,7 @@ fun MainScreen(globalRole: GlobalRole, viewModel: MainViewModel = koinViewModel(
                     onTitleResolved = { formTitle = it },
                 )
             }
+        }
         }
     }
 

@@ -1,5 +1,6 @@
 package com.dmb.chantiertracker.di
 
+import com.dmb.chantiertracker.data.local.OrphanAttachmentFileCleaner
 import com.dmb.chantiertracker.data.sync.BackgroundSync
 import com.dmb.chantiertracker.data.sync.SyncEngine
 import com.dmb.chantiertracker.presentation.settings.AppSettings
@@ -15,6 +16,7 @@ fun initKoin(appDeclaration: KoinApplication.() -> Unit = {}) {
     koin.get<AppSettings>().applyPersistedLanguage()
     // Begin watching connectivity and draining the offline queue for the app's lifetime.
     koin.get<SyncEngine>().start()
+    koin.get<OrphanAttachmentFileCleaner>().start()
     // Register the OS-level catch-up job (WorkManager / BGTaskScheduler; no-op on Desktop).
     koin.get<BackgroundSync>().ensurePeriodicSync()
 }

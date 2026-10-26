@@ -67,6 +67,61 @@ class AccountRepositoryImplTest {
         assertEquals(true, usage.hasStripeCustomer)
     }
 
+    // ADR-66 — a founder on FREE: the limits are the server's combined values
+    // (Semi-Flex floor with half the photos: 150, not 300), stored as received, never recomputed.
+    @Test
+    fun refresh_stores_the_founder_status_alongside_the_combined_limits() = runTest {
+        val r = repo {
+            """{"plan":"FREE","isFounder":true,"projectsUsed":1,"projectsLimit":3,"photosUsed":10,"photosLimit":150,
+                |"videosUsed":0,"videosLimit":5,"videoDurationLimitSeconds":120,"supervisorsUsed":0,
+                |"supervisorsLimit":3,"historyDaysLimit":180,"hasStripeCustomer":false}""".trimMargin()
+        }
+
+        r.refreshPlanUsage()
+
+        val usage = r.observePlanUsage().first()!!
+        assertEquals(Plan.FREE, usage.plan)
+        assertEquals(true, usage.isFounder)
+        assertEquals(180, usage.maxHistoryDays(), "six months on a FREE plan: the server's combined window, not the plan's 30 days")
+        assertEquals(3, usage.projectsLimit)
+        assertEquals(150, usage.photosLimit)
+        assertEquals(5, usage.videosLimit)
+        assertEquals(3, usage.supervisorsLimit)
+    }
+
+    @Test
+    fun a_backend_that_predates_the_founders_program_reads_as_not_a_founder() = runTest {
+        val r = repo { """{"plan":"FREE","projectsLimit":1}""" }
+
+        r.refreshPlanUsage()
+
+        assertEquals(false, r.observePlanUsage().first()!!.isFounder)
+    }
+
+    // null is a real answer here ("unlimited") and must not be confused with a
+    // backend that does not send the field at all.
+    @Test
+    fun an_explicit_null_history_limit_means_unlimited() = runTest {
+        val r = repo { """{"plan":"FREE","projectsLimit":1,"historyDaysLimit":null}""" }
+
+        r.refreshPlanUsage()
+
+        val usage = r.observePlanUsage().first()!!
+        assertEquals(true, usage.historyDaysLimitKnown)
+        assertNull(usage.maxHistoryDays())
+    }
+
+    @Test
+    fun a_backend_that_does_not_send_the_history_limit_leaves_the_plan_mirror_in_charge() = runTest {
+        val r = repo { """{"plan":"FREE","projectsLimit":1}""" }
+
+        r.refreshPlanUsage()
+
+        val usage = r.observePlanUsage().first()!!
+        assertEquals(false, usage.historyDaysLimitKnown)
+        assertEquals(30, usage.maxHistoryDays())
+    }
+
     @Test
     fun a_null_limit_means_unlimited() = runTest {
         val r = repo { """{"plan":"LIBERTE","projectsLimit":null}""" }
@@ -96,6 +151,9 @@ class AccountRepositoryImplTest {
         assertEquals(0, usage.videosLimit)
         assertEquals(null, usage.planExpiresAt)
         assertEquals(false, usage.hasStripeCustomer)
+        assertEquals(false, usage.isFounder)
+        assertEquals(false, usage.historyDaysLimitKnown)
+        assertEquals(30, usage.maxHistoryDays())
     }
 
     @Test

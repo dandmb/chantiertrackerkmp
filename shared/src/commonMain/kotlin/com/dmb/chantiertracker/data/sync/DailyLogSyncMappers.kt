@@ -43,7 +43,9 @@ fun DailyEntryDto.toSyncedEntity(
         locallyModifiedAt = remoteMillis ?: previous?.locallyModifiedAt ?: syncedAt,
         lastSyncedAt = syncedAt,
         remoteUpdatedAt = remoteMillis,
-        lastSyncError = null,
+        lastSyncError = previous.keptDeleteRefusal(),
+        serverErrorCode = previous.keptDeleteRefusalCode(),
+        localVersion = previous?.localVersion ?: 0,
     )
 }
 
@@ -72,7 +74,10 @@ fun PurchaseLineDto.toSyncedEntity(
     locallyModifiedAt = previous?.locallyModifiedAt ?: syncedAt,
     lastSyncedAt = syncedAt,
     remoteUpdatedAt = parseServerTimestampMillis(createdAt),
-    lastSyncError = null,
+    lastSyncError = previous.keptDeleteRefusal(),
+        serverErrorCode = previous.keptDeleteRefusalCode(),
+        localVersion = previous?.localVersion ?: 0,
+    serverQuantity = quantity,
 )
 
 fun PurchaseLineEntity.toCreateRequest(materialServerId: Long) = CreatePurchaseLineRequestDto(
@@ -108,7 +113,10 @@ fun ConsumptionLineDto.toSyncedEntity(
     locallyModifiedAt = previous?.locallyModifiedAt ?: syncedAt,
     lastSyncedAt = syncedAt,
     remoteUpdatedAt = parseServerTimestampMillis(createdAt),
-    lastSyncError = null,
+    lastSyncError = previous.keptDeleteRefusal(),
+        serverErrorCode = previous.keptDeleteRefusalCode(),
+        localVersion = previous?.localVersion ?: 0,
+    serverQuantity = quantity,
 )
 
 fun ConsumptionLineEntity.toCreateRequest(materialServerId: Long) = CreateConsumptionLineRequestDto(
@@ -136,10 +144,13 @@ fun AttachmentDto.toSyncedEntity(
     sizeBytes = size ?: previous?.sizeBytes ?: 0L,
     durationSeconds = durationSeconds ?: previous?.durationSeconds,
     uploadedAt = parseServerTimestampMillis(uploadedAt) ?: previous?.uploadedAt ?: syncedAt,
+    uploadedById = uploadedById ?: previous?.uploadedById,
     syncStatus = SyncStatus.SYNCED,
     pendingOp = PendingOp.NONE,
     locallyModifiedAt = previous?.locallyModifiedAt ?: syncedAt,
     lastSyncedAt = syncedAt,
     remoteUpdatedAt = parseServerTimestampMillis(uploadedAt),
-    lastSyncError = null,
+    lastSyncError = previous.keptDeleteRefusal(),
+        serverErrorCode = previous.keptDeleteRefusalCode(),
+        localVersion = previous?.localVersion ?: 0,
 )

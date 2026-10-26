@@ -9,7 +9,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -19,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.dmb.chantiertracker.presentation.AppOutlinedTextField
 import com.dmb.chantiertracker.presentation.DateField
 import com.dmb.chantiertracker.presentation.ResponsiveContent
 import com.dmb.chantiertracker.presentation.parseIsoDateOrNull
@@ -63,7 +63,7 @@ fun CreateStageScreen(
         ) {
             state.formError?.let { ErrorBanner(it.localizedText()) }
 
-            OutlinedTextField(
+            AppOutlinedTextField(
                 value = state.name,
                 onValueChange = viewModel::onNameChange,
                 modifier = Modifier.fillMaxWidth(),
@@ -74,7 +74,7 @@ fun CreateStageScreen(
                 enabled = !state.isSubmitting,
             )
 
-            OutlinedTextField(
+            AppOutlinedTextField(
                 value = state.description,
                 onValueChange = viewModel::onDescriptionChange,
                 modifier = Modifier.fillMaxWidth(),
@@ -84,7 +84,7 @@ fun CreateStageScreen(
             )
 
             if (state.canSetBudget) {
-                OutlinedTextField(
+                AppOutlinedTextField(
                     value = state.estimatedBudget,
                     onValueChange = viewModel::onBudgetChange,
                     modifier = Modifier.fillMaxWidth(),

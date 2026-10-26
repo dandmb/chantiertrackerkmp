@@ -99,6 +99,7 @@
     <string name="plan_semi_flex">Semi-Flex plan</string>
     <string name="plan_liberte">Liberté plan</string>
     <string name="plan_unknown">—</string>
+    <string name="plan_with_founder">%1$s · Founder</string>
 
     <string name="projects_empty_title">No projects yet</string>
     <string name="projects_empty_body">Create your first project, then invite whoever follows the site — or do it all yourself if you prefer.</string>
@@ -159,6 +160,7 @@
     <string name="invite_member_hint">The invitee will join this project as a Supervisor.</string>
     <string name="invite_member_submit">Send invitation</string>
     <string name="invite_member_limit">You have reached your plan's supervisors-per-project limit. Upgrade to a higher tier to invite more.</string>
+    <string name="invite_member_limit_no_upgrade">You have reached your plan's supervisors-per-project limit.</string>
 
     <string name="incoming_invitation_body">You have a pending invitation to join %1$s as %2$s.</string>
     <string name="incoming_invitation_body_with_inviter">You have a pending invitation to join %1$s as %2$s, sent by %3$s.</string>
@@ -182,6 +184,9 @@
     <string name="history_next">Next</string>
     <string name="history_limit_free">History is limited to the last 30 days. Upgrade to Semi-flex or Liberté for a longer history.</string>
     <string name="history_limit_semi_flex">History is limited to the last 6 months. Upgrade to Liberté for unlimited history.</string>
+    <string name="history_limit_30_days">History is limited to the last 30 days.</string>
+    <string name="history_limit_6_months">History is limited to the last 6 months.</string>
+    <string name="history_limit_days">History is limited to the last %1$d days.</string>
     <string name="history_action_creation">Creation</string>
     <string name="history_action_modification">Modification</string>
     <string name="history_action_deletion">Deletion</string>
@@ -195,9 +200,12 @@
     <string name="detail_export_share">Share</string>
     <string name="detail_export_regenerate">Regenerate</string>
     <string name="detail_export_upgrade">Upgrade to Semi-flex or Liberté to export this project to PDF.</string>
+    <string name="detail_export_unavailable">PDF export is not available for this project.</string>
 
     <string name="billing_title">Subscription</string>
     <string name="billing_plan_section">Current plan</string>
+    <string name="billing_founder_badge">Founder</string>
+    <string name="billing_founder_explanation">You are one of our first users. This permanent status gives you at least the benefits of the Semi-Flex plan (with half the photos), whatever your plan: your actual limits are the ones shown below.</string>
     <string name="billing_next_due">Next due date: %1$s</string>
     <string name="billing_usage_section">Usage</string>
     <string name="billing_usage_projects">%1$d/%2$d projects used</string>
@@ -342,7 +350,8 @@
     <string name="attachment_video_delete">Delete video</string>
     <string name="attachment_delete_confirm_title">Delete this attachment?</string>
     <string name="attachment_delete_confirm_body">This file will be permanently deleted.</string>
-    <string name="video_upload_in_progress">Uploading video…</string>
+    <string name="video_upload_progress">Uploading video: %1$d%</string>
+    <string name="video_too_heavy">The video is %1$d MB, the limit is %2$d MB. Shorten it or record it at a lower quality.</string>
     <string name="attachment_finalizing">Finishing up…</string>
     <string name="attachments_loading">Loading attachments…</string>
     <string name="video_upload_error">Couldn't upload this video.</string>
@@ -367,6 +376,9 @@
 
     <string name="stock_available">Available: %1$s %2$s</string>
     <string name="stock_none_available">No material available in stock</string>
+    <string name="stock_refreshed_at">Stock as of %1$s</string>
+    <string name="stock_not_verified_offline">Stock not verified offline: the server will check it when sending</string>
+    <string name="stock_not_loaded">Stock not loaded yet</string>
     <string name="stock_already_used">already added, edit the existing line</string>
 
     <string name="validation_date_format">Use the format YYYY-MM-DD.</string>
@@ -377,6 +389,9 @@
     <string name="validation_quantity_positive">Quantity must be greater than 0.</string>
     <string name="validation_unit_price_required">Unit price is required.</string>
     <string name="validation_unit_price_not_negative">Price must not be negative.</string>
+    <string name="validation_amount_two_decimals">At most 2 digits after the decimal point.</string>
+    <string name="validation_quantity_too_large">The quantity can have at most 10 digits before the decimal point.</string>
+    <string name="validation_unit_price_too_large">The unit price can have at most 13 digits before the decimal point.</string>
     <string name="validation_stock_exceeded">Not enough stock: %1$s available</string>
 
     <string name="settings_language">Language</string>
@@ -406,10 +421,15 @@
     <string name="error_account_not_verified">Your account isn't activated yet. Check your email.</string>
     <string name="error_account_locked">Account locked after too many attempts. Try again later.</string>
     <string name="error_invalid_current_password">Your current password is incorrect.</string>
-    <string name="error_invalid_code">That code is invalid or has expired.</string>
+    <string name="error_invalid_code">That code is invalid or has expired. After several attempts, request a new code.</string>
     <string name="error_validation">Please check the information you entered.</string>
     <string name="error_rate_limited">Too many requests. Please try again shortly.</string>
+    <string name="error_creation_in_progress">Your previous request is still being processed. Try again in a moment.</string>
     <string name="error_plan_limit">You've reached your plan's project limit. Upgrade to a higher tier to create more.</string>
+    <string name="error_duplicate_material">A material with this name already exists in this project.</string>
+    <string name="error_file_too_large">This file is too large to be sent.</string>
+    <string name="error_plan_limit_no_upgrade">You've reached your plan's project limit.</string>
+    <string name="error_billing_not_open">Paid plans are not open yet.</string>
     <string name="error_forbidden">You're not allowed to do that.</string>
     <string name="error_not_found">This project no longer exists, or you don't have access to it.</string>
     <string name="error_network">Can't reach the server. Check your connection.</string>
@@ -484,4 +504,192 @@
         <item quantity="one">Too many attempts. Try again in %1$d minute.</item>
         <item quantity="other">Too many attempts. Try again in %1$d minutes.</item>
     </plurals>
+    <string name="logout_sending">Sending your entries before signing out…</string>
+    <string name="logout_blocked_title">Some entries have not been sent yet</string>
+    <string name="logout_blocked_message">Not sent yet: %1$s. Reconnect to the Internet to send it before signing out.</string>
+    <string name="logout_retry">Retry</string>
+    <string name="logout_refused_title">Entries refused by the server</string>
+    <string name="logout_refused_message">Refused by the server, or waiting on a refused item: %1$s. None of this will be sent, and all of it will be erased if another account signs in on this device.</string>
+    <string name="logout_anyway">Sign out anyway</string>
+    <string name="list_separator">,</string>
+    <string name="list_last_separator">and</string>
+    <plurals name="unsent_projects">
+        <item quantity="one">%1$d project</item>
+        <item quantity="other">%1$d projects</item>
+    </plurals>
+    <plurals name="unsent_stages">
+        <item quantity="one">%1$d stage</item>
+        <item quantity="other">%1$d stages</item>
+    </plurals>
+    <plurals name="unsent_materials">
+        <item quantity="one">%1$d material</item>
+        <item quantity="other">%1$d materials</item>
+    </plurals>
+    <plurals name="unsent_entries">
+        <item quantity="one">%1$d entry</item>
+        <item quantity="other">%1$d entries</item>
+    </plurals>
+    <plurals name="unsent_lines">
+        <item quantity="one">%1$d line</item>
+        <item quantity="other">%1$d lines</item>
+    </plurals>
+    <plurals name="unsent_attachments">
+        <item quantity="one">%1$d attachment</item>
+        <item quantity="other">%1$d attachments</item>
+    </plurals>
+    <string name="sync_issues_title">Entries to review</string>
+    <string name="sync_issues_intro">Each item says why it was not accepted and what you can do.</string>
+    <string name="sync_issues_empty_title">Nothing to review</string>
+    <string name="sync_issues_empty_body">The server has not refused any of your entries.</string>
+    <string name="sync_issues_banner_body">The server did not accept everything.</string>
+    <string name="sync_issues_open">See details</string>
+    <plurals name="sync_issues_count">
+        <item quantity="one">%1$d item to review</item>
+        <item quantity="other">%1$d items to review</item>
+    </plurals>
+    <plurals name="sync_issues_badge">
+        <item quantity="one">Entries to review: %1$d item</item>
+        <item quantity="other">Entries to review: %1$d items</item>
+    </plurals>
+    <string name="sync_issues_badge_overflow">99+</string>
+    <string name="sync_group_stage">Stage: %1$s</string>
+    <string name="sync_group_day">Day of %1$s</string>
+    <string name="sync_item_project">Project</string>
+    <string name="sync_item_stage">Stage</string>
+    <string name="sync_item_material">Material: %1$s</string>
+    <string name="sync_item_entry">Entry</string>
+    <string name="sync_item_entry_purchase">Purchases entry</string>
+    <string name="sync_item_entry_work">Work entry</string>
+    <string name="sync_item_purchase_line">Purchase line: %1$s, %2$s %3$s</string>
+    <string name="sync_item_consumption_line">Consumption: %1$s, %2$s %3$s</string>
+    <string name="sync_item_attachment">Attachment: %1$s</string>
+    <string name="sync_status_refused">Refused by the server</string>
+    <string name="sync_status_update_refused">Change refused</string>
+    <string name="sync_status_delete_refused">Deletion refused</string>
+    <string name="sync_status_deleted_on_server">Deleted on the server</string>
+    <string name="sync_status_blocked">Waiting</string>
+    <string name="sync_marker_open">See in Entries to review</string>
+    <string name="sync_reason_plan_limit">Your plan's limit has been reached.</string>
+    <string name="sync_reason_project_or_stage_inactive">The project is suspended or completed, or the stage is completed.</string>
+    <string name="sync_reason_entry_date_restricted">A supervisor can only enter data for the current day.</string>
+    <string name="sync_reason_insufficient_role">This action is reserved for a project administrator.</string>
+    <string name="sync_reason_insufficient_stock">There is not enough stock available.</string>
+    <string name="sync_reason_stock_consumed">This stock has already been used.</string>
+    <string name="sync_reason_duplicate_entry">An entry of this type already exists for this day.</string>
+    <string name="sync_reason_duplicate_material">A material with this name already exists.</string>
+    <string name="sync_reason_invalid_value">One of the values entered is not accepted.</string>
+    <string name="sync_reason_file_refused">The file is not accepted (duration, format or size).</string>
+    <string name="sync_reason_unknown">The server refused this item.</string>
+    <string name="sync_reason_deleted_on_server">This item was deleted on the server, or you no longer have access to it.</string>
+    <string name="sync_reason_delete_refused">The deletion was refused: the item has been restored. %1$s</string>
+    <string name="sync_reason_blocked">Waiting: depends on a refused item.</string>
+    <string name="sync_waiting_on_project_named">Waiting: depends on the project “%1$s”, which was refused.</string>
+    <string name="sync_waiting_on_project">Waiting: depends on the project, which was refused.</string>
+    <string name="sync_waiting_on_stage_named">Waiting: depends on the stage “%1$s”, which was refused.</string>
+    <string name="sync_waiting_on_stage">Waiting: depends on the stage, which was refused.</string>
+    <string name="sync_waiting_on_material_named">Waiting: depends on the material “%1$s”, which was refused.</string>
+    <string name="sync_waiting_on_material">Waiting: depends on the material, which was refused.</string>
+    <string name="sync_waiting_on_purchase_entry">Waiting: depends on the purchases entry of %1$s, which was refused.</string>
+    <string name="sync_waiting_on_work_entry">Waiting: depends on the work entry of %1$s, which was refused.</string>
+    <string name="sync_waiting_on_entry">Waiting: depends on the entry, which was refused.</string>
+    <string name="sync_typed_versus_server">You entered %1$s; the server kept %2$s.</string>
+    <string name="sync_hint_plan_limit">Change your plan or delete a project, then retry.</string>
+    <string name="sync_hint_project_or_stage_inactive">Ask a project administrator to reopen the project or the stage, then retry.</string>
+    <string name="sync_hint_insufficient_role">Ask a project administrator to do it, or to give you administrator rights, then retry.</string>
+    <string name="sync_issue_retry">Retry</string>
+    <string name="sync_issue_retrying">Sending…</string>
+    <string name="sync_retry_accepted">Sent: the server accepted it.</string>
+    <string name="sync_retry_still_refused">Still refused by the server.</string>
+    <string name="sync_retry_not_sent">Could not send right now. Check your connection, then retry.</string>
+    <string name="sync_action_fix">Fix</string>
+    <string name="sync_action_revert">Undo my change</string>
+    <string name="sync_action_discard">Discard</string>
+    <string name="sync_action_acknowledge">Got it</string>
+    <string name="sync_action_working">Working…</string>
+    <string name="sync_revert_offline">Offline: the server value is not known on this device. Reconnect to undo your change.</string>
+    <string name="sync_discard_title">Discard this item?</string>
+    <string name="sync_discard_body">It was never saved on the server. It will be deleted from this device.</string>
+    <string name="sync_discard_file">The file will be deleted from this device too.</string>
+    <string name="sync_acknowledge_title">Remove this item from the list?</string>
+    <string name="sync_acknowledge_body">It will be deleted from this device.</string>
+    <string name="sync_notice_discarded">Item discarded: it is deleted from this device.</string>
+    <string name="sync_notice_acknowledged">Item removed from the list.</string>
+    <string name="sync_notice_reverted">Change undone: the server value is back.</string>
+    <string name="sync_notice_revert_needs_connection">Cannot undo while offline. Reconnect, then try again.</string>
+    <string name="sync_notice_revert_failed">Cannot undo right now. Try again later.</string>
+    <string name="sync_notice_revert_gone_on_server">This item was deleted on the server. Your change can no longer be undone.</string>
+    <plurals name="sync_linked_removed">
+        <item quantity="one">1 linked entry will be deleted too.</item>
+        <item quantity="other">%1$d linked entries will be deleted too.</item>
+    </plurals>
+    <string name="error_service_unavailable">The service is temporarily unavailable. Try again in a few minutes.</string>
+    <string name="error_image_too_large">Photo too large (more than 40 megapixels).</string>
+    <string name="sync_reason_image_too_large">Photo too large (more than 40 megapixels).</string>
+    <string name="sync_waiting_on_purchase_entry_and_material">Waiting: depends on the purchases entry of %1$s and on the material “%2$s”, which were refused.</string>
+    <string name="sync_waiting_on_work_entry_and_material">Waiting: depends on the work entry of %1$s and on the material “%2$s”, which were refused.</string>
+    <string name="sync_waiting_on_entry_and_material">Waiting: depends on the entry and on the material “%1$s”, which were refused.</string>
+    <string name="field_invalid_input">Invalid input</string>
+    <string name="error_deletion_last_super_admin">There is no other super administrator: create another one before deleting your account.</string>
+    <string name="error_deletion_subscription_renewing">Your subscription still renews: cancel it from the subscription settings, then delete your account.</string>
+    <string name="menu_delete_account">Delete my account</string>
+    <string name="delete_account_title">Delete my account</string>
+    <string name="delete_account_offline">You are offline. Deleting the account happens online: reconnect to the Internet to continue.</string>
+    <string name="delete_account_blocked_title">Deletion not possible for now</string>
+    <string name="delete_account_manage_users">Manage users</string>
+    <string name="error_deletion_subscription_renewing_outside_app">You have an ongoing subscription: it must be cancelled before you delete your account.</string>
+    <string name="sync_hint_plan_limit_no_upgrade">Delete a project, then try again.</string>
+    <string name="delete_account_manage_subscription">Manage the subscription</string>
+    <string name="delete_account_projects_title">Projects deleted</string>
+    <string name="delete_account_no_project">You don't own any project.</string>
+    <string name="delete_account_projects_intro">The projects you own are deleted with all their content: stages, days, purchases, stock, photos and videos.</string>
+    <string name="delete_account_member_with_role">%1$s (%2$s)</string>
+    <string name="delete_account_list_and">%1$s and %2$s</string>
+    <string name="delete_account_role_admin">administrator</string>
+    <string name="delete_account_role_supervisor">supervisor</string>
+    <string name="delete_account_left_title">Projects you leave</string>
+    <string name="delete_account_left_intro">These projects stay with their owner. You will no longer have access.</string>
+    <string name="delete_account_good_to_know">Good to know</string>
+    <string name="delete_account_founder">You lose your Founder status: it is not given back, even if you create a new account.</string>
+    <string name="delete_account_contributions">What you entered in other people's projects stays with them, under the name “Deleted user”.</string>
+    <string name="delete_account_sessions">All your sessions are closed, and a confirmation e-mail goes to your address.</string>
+    <string name="delete_account_confirm_title">Confirm the deletion</string>
+    <string name="delete_account_password_prompt">Enter your password to confirm it's really you.</string>
+    <string name="delete_account_understood">I understand the deletion is final: my account and my projects cannot be recovered.</string>
+    <string name="delete_account_submit">Delete my account for good</string>
+    <string name="delete_account_submitting">Deleting…</string>
+    <string name="delete_account_wrong_password">Wrong password.</string>
+    <string name="login_notice_account_deleted">Your account has been deleted.</string>
+    <plurals name="delete_account_lost_access">
+        <item quantity="one">%1$s will lose access.</item>
+        <item quantity="other">%1$s will lose access.</item>
+    </plurals>
+    <plurals name="delete_account_invitations">
+        <item quantity="one">%1$d pending invitation will be deleted.</item>
+        <item quantity="other">%1$d pending invitations will be deleted.</item>
+    </plurals>
+    <string name="legal_doc_notice">Legal notice</string>
+    <string name="legal_doc_terms_of_use">Terms of use</string>
+    <string name="legal_doc_terms_of_sale">Terms of sale</string>
+    <string name="legal_doc_privacy">Privacy policy</string>
+    <string name="legal_doc_cookies">Cookie policy</string>
+    <string name="legal_doc_account_deletion">Account deletion</string>
+    <string name="legal_link_notice">Legal notice</string>
+    <string name="legal_link_terms_of_use">Terms</string>
+    <string name="legal_link_terms_of_sale">Sales terms</string>
+    <string name="legal_link_privacy">Privacy</string>
+    <string name="legal_link_cookies">Cookies</string>
+    <string name="legal_link_account_deletion">Account deletion</string>
+    <string name="legal_updated_on">Updated on %1$s</string>
+    <string name="legal_saved_copy">You are offline: this is the last version received on this device.</string>
+    <string name="legal_loading">Loading the document</string>
+    <string name="legal_unavailable_offline_title">Document not available offline</string>
+    <string name="legal_unavailable_offline_message">This document has never been loaded on this device. Connect to the Internet, then try again.</string>
+    <string name="legal_unavailable_error_title">The document could not be loaded</string>
+    <string name="legal_unavailable_error_message">The server did not answer. Try again in a moment.</string>
+    <string name="legal_retry">Try again</string>
+    <string name="legal_link_offline_title">You are offline</string>
+    <string name="legal_link_offline_message">This link leads to a web page. Reconnect to the Internet to open it, or find it later at this address:</string>
+    <string name="legal_link_cannot_open_title">The link could not be opened</string>
+    <string name="legal_link_cannot_open_page_message">No browser could display this page. You can read it at this address:</string>
+    <string name="legal_link_cannot_open_mail_message">No mail app is set up on this device. You can write to this address:</string>
 </resources>

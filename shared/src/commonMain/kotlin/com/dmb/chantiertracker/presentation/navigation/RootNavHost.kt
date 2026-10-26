@@ -1,6 +1,7 @@
 package com.dmb.chantiertracker.presentation.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
@@ -8,6 +9,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
+import com.dmb.chantiertracker.data.session.SessionNotice
 import com.dmb.chantiertracker.domain.model.AuthState
 import com.dmb.chantiertracker.presentation.auth.changepassword.ChangePasswordScreen
 import com.dmb.chantiertracker.presentation.auth.forgot.ForgotPasswordScreen
@@ -17,9 +19,10 @@ import com.dmb.chantiertracker.presentation.auth.register.RegisterScreen
 import com.dmb.chantiertracker.presentation.auth.reset.ResetPasswordScreen
 import com.dmb.chantiertracker.presentation.auth.verify.VerifyEmailScreen
 import com.dmb.chantiertracker.presentation.auth.welcome.WelcomeScreen
+import com.dmb.chantiertracker.presentation.billing.paidPlansAreOffered
+import com.dmb.chantiertracker.presentation.legal.LegalDocument
+import com.dmb.chantiertracker.presentation.legal.LegalDocumentViewModel
 import com.dmb.chantiertracker.presentation.legal.StandaloneLegalDocumentScreen
-import com.dmb.chantiertracker.presentation.legal.legalDocumentFromArg
-import com.dmb.chantiertracker.presentation.legal.toArg
 import com.dmb.chantiertracker.presentation.main.MainScreen
 import com.dmb.chantiertracker.presentation.onboarding.OnboardingScreen
 import com.dmb.chantiertracker.presentation.splash.SplashScreen
@@ -28,10 +31,14 @@ import org.koin.compose.viewmodel.koinViewModel
 private enum class AuthStartPoint { Onboarding, Welcome, Login }
 
 @Composable
-fun RootNavHost(viewModel: RootViewModel = koinViewModel()) {
+fun RootNavHost(
+    viewModel: RootViewModel = koinViewModel(),
+    legalDocumentViewModel: @Composable () -> LegalDocumentViewModel = { koinViewModel() },
+) {
     val authState by viewModel.authState.collectAsStateWithLifecycle()
     val hasLoggedInBefore by viewModel.hasLoggedInBefore.collectAsStateWithLifecycle()
     val hasSeenOnboarding by viewModel.hasSeenOnboarding.collectAsStateWithLifecycle()
+    val sessionNotice by viewModel.sessionNotice.collectAsStateWithLifecycle()
 
     // Read here, not inside MainViewModel's own (async-populated) state: the
     // Projects↔Administration tab swap (ADR-52) decides MainScreen's NavHost
@@ -47,28 +54,36 @@ fun RootNavHost(viewModel: RootViewModel = koinViewModel()) {
         authenticatedUser != null -> MainScreen(globalRole = authenticatedUser.globalRole)
         else -> AuthNavHost(
             startPoint = when {
+                sessionNotice == SessionNotice.AccountDeleted -> AuthStartPoint.Login
                 hasLoggedInBefore == true -> AuthStartPoint.Login
                 hasSeenOnboarding == true -> AuthStartPoint.Welcome
                 else -> AuthStartPoint.Onboarding
             },
             onOnboardingFinished = viewModel::markOnboardingSeen,
+            startNotice = if (sessionNotice == SessionNotice.AccountDeleted) LoginNotice.AccountDeleted else null,
+            legalDocumentViewModel = legalDocumentViewModel,
         )
     }
 }
 
 @Composable
-private fun AuthNavHost(startPoint: AuthStartPoint, onOnboardingFinished: () -> Unit) {
+private fun AuthNavHost(
+    startPoint: AuthStartPoint,
+    onOnboardingFinished: () -> Unit,
+    startNotice: LoginNotice? = null,
+    legalDocumentViewModel: @Composable () -> LegalDocumentViewModel,
+) {
     val navController = rememberNavController()
     val neverLoggedIn = startPoint != AuthStartPoint.Login
-    val openLegalDocument: (com.dmb.chantiertracker.presentation.legal.LegalDocument) -> Unit =
-        { navController.navigate(LegalDocumentRoute(it.toArg())) }
+    val paidPlansOffered = paidPlansAreOffered()
+    val openLegalDocument: (LegalDocument) -> Unit = { navController.navigate(LegalDocumentRoute(it.slug)) }
 
     NavHost(
         navController = navController,
         startDestination = when (startPoint) {
             AuthStartPoint.Onboarding -> OnboardingRoute
             AuthStartPoint.Welcome -> WelcomeRoute
-            AuthStartPoint.Login -> LoginRoute()
+            AuthStartPoint.Login -> LoginRoute(notice = startNotice?.toArg())
         },
     ) {
         composable<OnboardingRoute> {
@@ -86,18 +101,28 @@ private fun AuthNavHost(startPoint: AuthStartPoint, onOnboardingFinished: () -> 
             WelcomeScreen(
                 onCreateAccount = { navController.navigate(RegisterRoute()) },
                 onSignIn = { navController.navigate(LoginRoute()) },
-                onDiscoverPlans = { navController.navigate(PlanSelectionRoute) },
+                onDiscoverPlans = if (paidPlansOffered) {
+                    { navController.navigate(PlanSelectionRoute) }
+                } else {
+                    null
+                },
                 onOpenLegalDocument = openLegalDocument,
             )
         }
         composable<PlanSelectionRoute> {
-            PlanSelectionScreen(
-                onSelectPlan = { plan, cycle ->
-                    navController.navigate(RegisterRoute(checkoutPlan = plan.name, checkoutCycle = cycle.name))
-                },
-                onContinueFree = { navController.navigate(RegisterRoute()) },
-                onBack = { navController.popBackStack() },
-            )
+            // The switch can close (or a refresh can fail) while this screen is
+            // on the back stack — it then leaves rather than keep showing prices.
+            if (paidPlansOffered) {
+                PlanSelectionScreen(
+                    onSelectPlan = { plan, cycle ->
+                        navController.navigate(RegisterRoute(checkoutPlan = plan.name, checkoutCycle = cycle.name))
+                    },
+                    onContinueFree = { navController.navigate(RegisterRoute()) },
+                    onBack = { navController.popBackStack() },
+                )
+            } else {
+                LaunchedEffect(Unit) { navController.popBackStack(PlanSelectionRoute, inclusive = true) }
+            }
         }
         composable<LoginRoute> { entry ->
             val route = entry.toRoute<LoginRoute>()
@@ -145,8 +170,8 @@ private fun AuthNavHost(startPoint: AuthStartPoint, onOnboardingFinished: () -> 
             )
         }
         composable<LegalDocumentRoute> { entry ->
-            legalDocumentFromArg(entry.toRoute<LegalDocumentRoute>().document)?.let { document ->
-                StandaloneLegalDocumentScreen(document, onBack = { navController.popBackStack() })
+            LegalDocument.fromSlug(entry.toRoute<LegalDocumentRoute>().document)?.let { document ->
+                StandaloneLegalDocumentScreen(document, onBack = { navController.popBackStack() }, viewModel = legalDocumentViewModel())
             }
         }
         composable<ForgotPasswordRoute> {

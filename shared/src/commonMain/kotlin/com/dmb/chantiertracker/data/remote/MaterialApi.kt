@@ -15,11 +15,12 @@ import io.ktor.http.contentType
 
 class MaterialApi(private val client: HttpClient) {
 
-    suspend fun list(projectId: Long): PageDto<MaterialDto> =
-        client.get(ApiRoutes.projectMaterials(projectId)).body()
+    suspend fun list(projectId: Long, page: Int, size: Int): PageDto<MaterialDto> =
+        client.get(ApiRoutes.projectMaterials(projectId)) { sortedByIdPage(page, size) }.body()
 
-    suspend fun create(projectId: Long, body: CreateMaterialRequestDto): MaterialDto =
+    suspend fun create(projectId: Long, body: CreateMaterialRequestDto, idempotencyKey: String?): MaterialDto =
         client.post(ApiRoutes.projectMaterials(projectId)) {
+            idempotencyKey(idempotencyKey)
             contentType(ContentType.Application.Json)
             setBody(body)
         }.body()

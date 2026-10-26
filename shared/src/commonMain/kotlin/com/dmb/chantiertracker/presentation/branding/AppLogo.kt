@@ -1,80 +1,75 @@
 package com.dmb.chantiertracker.presentation.branding
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.graphics.vector.path
+import androidx.compose.ui.graphics.vector.PathParser
+import androidx.compose.ui.graphics.vector.group
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.dmb.chantiertracker.presentation.theme.Terracotta
+import com.dmb.chantiertracker.presentation.theme.Ink
+import com.dmb.chantiertracker.presentation.theme.Yellow
+
+internal data class LogoPath(val pathData: String, val color: Color, val strokeWidth: Float = 0f, val roundCap: Boolean = false)
+
+internal const val LogoScale = 0.575f
+internal const val LogoTranslateX = 20.075f
+internal const val LogoTranslateY = 29.275f
+
+internal val LogoPaths: List<LogoPath> = listOf(
+    LogoPath(
+        "M100,9 L100,4 L85.509,4 L92.424,8.322 L92,9 Z M90.491,9 L84,4.943 L77.509,9 Z M74.491,9 L68,4.943 L61.509,9 Z " +
+            "M58.491,9 L52,4.943 L45.509,9 Z M40,4 L40,9 L44,9 L43.576,8.322 L50.491,4 Z M53.509,4 L60,8.057 L66.491,4 Z " +
+            "M69.509,4 L76,8.057 L82.491,4 Z",
+        Color.White,
+    ),
+    LogoPath("M81.5,9 H84.5 V15 H81.5 Z M79,14 H87 V19 H79 Z", Yellow),
+    LogoPath("M83,19 V22 a5,5 0 1,1 -8,3", Yellow, strokeWidth = 3.5f, roundCap = true),
+    LogoPath("M83,28 L76,35 M83,28 L92,35", Yellow, strokeWidth = 2f),
+    LogoPath("M74,35 H94 V43 H74 Z", Yellow),
+    LogoPath("M44,18 L76,46 L68,46 L44,25 L20,46 L12,46 Z", Color.White),
+    LogoPath(
+        "M18,74 H42 V82 H18 Z M46,74 H70 V82 H46 Z M18,63 H30 V71 H18 Z M33,63 H57 V71 H33 Z M60,63 H70 V71 H60 Z " +
+            "M18,52 H42 V60 H18 Z",
+        Color.White,
+    ),
+)
 
 val AppGlyph: ImageVector = ImageVector.Builder(
     name = "AppGlyph",
-    defaultWidth = 24.dp,
-    defaultHeight = 24.dp,
-    viewportWidth = 24f,
-    viewportHeight = 24f,
+    defaultWidth = 108.dp,
+    defaultHeight = 108.dp,
+    viewportWidth = 108f,
+    viewportHeight = 108f,
 ).apply {
-    path(fill = SolidColor(Color.White)) {
-        moveToRelative(13.7829f, 15.1718f)
-        lineToRelative(2.1213f, -2.1213f)
-        lineToRelative(5.9963f, 5.9963f)
-        lineToRelative(-2.1213f, 2.1213f)
-        close()
-        moveTo(17.5f, 10f)
-        curveToRelative(1.93f, 0f, 3.5f, -1.57f, 3.5f, -3.5f)
-        curveToRelative(0f, -0.58f, -0.16f, -1.12f, -0.41f, -1.6f)
-        lineToRelative(-2.7f, 2.7f)
-        lineToRelative(-1.49f, -1.49f)
-        lineToRelative(2.7f, -2.7f)
-        curveToRelative(-0.48f, -0.25f, -1.02f, -0.41f, -1.6f, -0.41f)
-        curveTo(15.57f, 3f, 14f, 4.57f, 14f, 6.5f)
-        curveToRelative(0f, 0.41f, 0.08f, 0.8f, 0.21f, 1.16f)
-        lineToRelative(-1.85f, 1.85f)
-        lineToRelative(-1.78f, -1.78f)
-        lineToRelative(0.71f, -0.71f)
-        lineToRelative(-1.41f, -1.41f)
-        lineTo(12f, 3.49f)
-        curveToRelative(-1.17f, -1.17f, -3.07f, -1.17f, -4.24f, 0f)
-        lineTo(4.22f, 7.03f)
-        lineToRelative(1.41f, 1.41f)
-        lineTo(2.81f, 8.44f)
-        lineToRelative(-0.71f, 0.71f)
-        lineToRelative(3.54f, 3.54f)
-        lineToRelative(0.71f, -0.71f)
-        lineTo(6.35f, 9.15f)
-        lineToRelative(1.41f, 1.41f)
-        lineToRelative(0.71f, -0.71f)
-        lineToRelative(1.78f, 1.78f)
-        lineToRelative(-7.41f, 7.41f)
-        lineToRelative(2.12f, 2.12f)
-        lineTo(16.34f, 9.79f)
-        curveToRelative(0.36f, 0.13f, 0.75f, 0.21f, 1.16f, 0.21f)
-        close()
+    group(scaleX = LogoScale, scaleY = LogoScale, translationX = LogoTranslateX, translationY = LogoTranslateY) {
+        LogoPaths.forEach { logoPath ->
+            val nodes = PathParser().parsePathString(logoPath.pathData).toNodes()
+            if (logoPath.strokeWidth > 0f) {
+                addPath(
+                    pathData = nodes,
+                    stroke = SolidColor(logoPath.color),
+                    strokeLineWidth = logoPath.strokeWidth,
+                    strokeLineCap = if (logoPath.roundCap) StrokeCap.Round else StrokeCap.Butt,
+                )
+            } else {
+                addPath(pathData = nodes, fill = SolidColor(logoPath.color))
+            }
+        }
     }
 }.build()
 
 @Composable
-fun AppLogo(size: androidx.compose.ui.unit.Dp, modifier: Modifier = Modifier) {
-    Box(
-        modifier = modifier
-            .size(size)
-            .background(Terracotta, RoundedCornerShape(size * 0.18f)),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(
-            imageVector = AppGlyph,
-            contentDescription = null,
-            tint = Color.White,
-            modifier = Modifier.size(size * 0.58f).padding(0.dp),
-        )
-    }
+fun AppLogo(size: Dp, modifier: Modifier = Modifier) {
+    Image(
+        imageVector = AppGlyph,
+        contentDescription = null,
+        modifier = modifier.size(size).background(Ink),
+    )
 }

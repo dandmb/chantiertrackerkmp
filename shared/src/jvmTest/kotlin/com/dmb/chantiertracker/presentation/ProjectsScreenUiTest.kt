@@ -44,11 +44,11 @@ class ProjectsScreenUiTest {
             AppEnvironment { AppTheme { ProjectsScreen(onProjectClick = {}, viewModel = vm) } }
         }
         waitForIdle()
-        val baseline = repo.refreshCount
+        val baseline = repo.log.count { it == "refreshAtTheUsersRequest" }
 
         onNodeWithText("Villa Vidal").performTouchInput { swipeDown(startY = centerY, endY = centerY + 900f) }
         waitForIdle()
 
-        assertTrue(repo.refreshCount > baseline, "le geste tirer-pour-rafraîchir déclenche une synchro (repo.refresh)")
+        assertTrue(repo.log.count { it == "refreshAtTheUsersRequest" } > baseline, "le geste tirer-pour-rafraîchir déclenche une synchro demandée par l'utilisateur")
     }
 }

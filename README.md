@@ -5,8 +5,9 @@ chantier à distance (rôles propriétaire / délégué).
 
 Cette app consomme l'API REST existante de ChantierTracker
 (`https://api.chantiertracker.com/api/v1`) ; le backend Spring Boot et le
-frontend web React sont déjà en production. Architecture **online-first** : les
-données viennent de l'API, pas de persistance locale.
+frontend web React sont déjà en production. Architecture **offline-first** : la
+base locale (Room) est la source de vérité, synchronisée avec l'API en
+arrière-plan.
 
 ## Stack
 

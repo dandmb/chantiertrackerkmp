@@ -22,14 +22,24 @@ sealed class DomainException : Exception() {
     // AuthRepositoryImpl.changePassword, same posture as other local remaps
     // (BillingRepositoryImpl, AdminRepositoryImpl).
     data object InvalidCurrentPassword : DomainException()
+    data class AccountDeletionBlocked(val blocker: DeletionBlocker) : DomainException()
     data object InvalidCode : DomainException()
     data object Validation : DomainException()
     data class RateLimited(val retryAfterSeconds: Int? = null) : DomainException()
+    data class CreationInProgress(val retryAfterSeconds: Int? = null) : DomainException()
     data object PlanLimitReached : DomainException()
+    data object DuplicateMaterial : DomainException()
+    data object FileTooLarge : DomainException()
+    data object ImageTooLarge : DomainException()
+    data object BillingNotOpen : DomainException()
     data object Forbidden : DomainException()
     data object NotFound : DomainException()
     data object Network : DomainException()
+    data object ServiceUnavailable : DomainException()
     data object Unexpected : DomainException()
 
     override val message: String get() = this::class.simpleName ?: "DomainException"
 }
+
+fun DomainException.isUnreachableServer(): Boolean =
+    this is DomainException.Network || this is DomainException.ServiceUnavailable || this is DomainException.Unexpected || this is DomainException.RateLimited

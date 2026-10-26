@@ -8,6 +8,7 @@ import com.dmb.chantiertracker.data.remote.apiCall
 import com.dmb.chantiertracker.data.remote.dto.CreateInvitationRequestDto
 import com.dmb.chantiertracker.data.remote.dto.InvitationDetailsDto
 import com.dmb.chantiertracker.data.remote.dto.PendingInvitationDto
+import com.dmb.chantiertracker.data.remote.OnlineCreationKeys
 import com.dmb.chantiertracker.data.sync.Syncer
 import com.dmb.chantiertracker.domain.model.DomainException
 import com.dmb.chantiertracker.domain.model.IncomingInvitation
@@ -32,12 +33,15 @@ class InvitationRepositoryImpl(
     private val syncer: Syncer,
 ) : InvitationRepository {
 
+    private val creationKeys = OnlineCreationKeys()
+
     override fun observeInvitations(projectLocalId: String): Flow<List<Invitation>> =
         dao.observeForProject(projectLocalId).map { rows -> rows.map(InvitationEntity::toInvitation) }
 
     override suspend fun invite(projectLocalId: String, email: String) {
         val serverId = projectDao.findByLocalId(projectLocalId)?.serverId ?: throw DomainException.NotFound
-        apiCall { api.create(serverId, CreateInvitationRequestDto(email = email, role = ProjectRole.SUPERVISOR.name)) }
+        val request = CreateInvitationRequestDto(email = email, role = ProjectRole.SUPERVISOR.name)
+        creationKeys.send(serverId to request) { key -> api.create(serverId, request, key) }
         syncer.syncProject(projectLocalId)
     }
 
@@ -101,5 +105,6 @@ private fun String.toInvitationStatus(): InvitationStatus = when (uppercase()) {
     "PENDING" -> InvitationStatus.PENDING
     "ACCEPTED" -> InvitationStatus.ACCEPTED
     "EXPIRED" -> InvitationStatus.EXPIRED
+    "DECLINED" -> InvitationStatus.DECLINED
     else -> InvitationStatus.UNKNOWN
 }

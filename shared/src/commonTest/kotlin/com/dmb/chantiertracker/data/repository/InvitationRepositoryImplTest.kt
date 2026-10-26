@@ -53,6 +53,15 @@ class InvitationRepositoryImplTest {
     }
 
     @Test
+    fun a_declined_invitation_maps_to_declined_not_unknown() = runTest {
+        val dao = FakeInvitationDao(
+            listOf(localInvitation(1, projectLocalId = "p1", role = "SUPERVISOR", status = "DECLINED")),
+        )
+
+        assertEquals(InvitationStatus.DECLINED, repo(dao).observeInvitations("p1").first().single().status)
+    }
+
+    @Test
     fun known_role_and_status_strings_map_through() = runTest {
         val dao = FakeInvitationDao(
             listOf(localInvitation(1, projectLocalId = "p1", role = "SUPERVISOR", status = "PENDING")),

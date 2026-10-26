@@ -1,5 +1,9 @@
 package com.dmb.chantiertracker.presentation.projects.detail
 
+import com.dmb.chantiertracker.domain.model.SyncIssueTarget
+import com.dmb.chantiertracker.presentation.AppOutlinedButton
+import com.dmb.chantiertracker.presentation.CapitalTitle
+import com.dmb.chantiertracker.presentation.sync.SyncIssueMarker
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -17,7 +21,6 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -39,6 +42,7 @@ import com.dmb.chantiertracker.domain.model.ProjectMember
 import com.dmb.chantiertracker.domain.model.ProjectRole
 import com.dmb.chantiertracker.domain.model.ProjectStatus
 import com.dmb.chantiertracker.domain.model.Stage
+import com.dmb.chantiertracker.domain.model.ownerCanExportPdf
 import com.dmb.chantiertracker.presentation.ClickableListRow
 import com.dmb.chantiertracker.presentation.ConfirmActionDialog
 import com.dmb.chantiertracker.presentation.DetailEmptyHint
@@ -129,7 +133,7 @@ fun ProjectDetailScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center,
                     )
-                    OutlinedButton(onClick = viewModel::retry) {
+                    AppOutlinedButton(onClick = viewModel::retry) {
                         Text(stringResource(Res.string.projects_retry))
                     }
                 }
@@ -201,11 +205,10 @@ private fun DetailContent(
         // Mirrors the web (ProjectDetailPage.tsx): export lives above the
         // section grid entirely, a standalone project-level action, never
         // grouped under "Informations" — same placement regardless of
-        // column count. Owner's plan unknown until the first detail pull
-        // (ADR-33) — same as the web, which renders nothing until
-        // `project.ownerPlan` is set.
-        detail.ownerPlan?.let { ownerPlan ->
-            ExportSection(projectLocalId = detail.localId, ownerPlan = ownerPlan)
+        // column count. Unknown until the first detail pull (ADR-33) — same
+        // as the web, which renders nothing until `project.ownerPlan` is set.
+        detail.ownerCanExportPdf()?.let { canExport ->
+            ExportSection(projectLocalId = detail.localId, canExport = canExport)
             DetailSectionDivider()
         }
 
@@ -398,14 +401,13 @@ private fun ProjectHeader(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.Top,
         ) {
-            Text(
+            CapitalTitle(
                 text = detail.name,
                 style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.weight(1f),
             )
             if (canEdit) {
-                OutlinedButton(onClick = onEditProject) {
+                AppOutlinedButton(onClick = onEditProject) {
                     Icon(EditIcon, contentDescription = null, modifier = Modifier.size(18.dp))
                     Text(
                         text = stringResource(Res.string.detail_edit_project),
@@ -459,11 +461,11 @@ private fun DangerZone(projectName: String, isDeleting: Boolean, onDeleteConfirm
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        OutlinedButton(
+        AppOutlinedButton(
             onClick = { showDialog = true },
             enabled = !isDeleting,
             colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.error),
+            border = BorderStroke(2.dp, MaterialTheme.colorScheme.error),
         ) {
             Text(stringResource(Res.string.detail_delete_project))
         }
@@ -483,7 +485,7 @@ private fun DangerZone(projectName: String, isDeleting: Boolean, onDeleteConfirm
 
 @Composable
 private fun StageRow(stage: Stage, currency: String, onClick: () -> Unit) {
-    ClickableListRow(onClick = onClick) {
+    ClickableListRow(onClick = onClick, footer = { SyncIssueMarker(SyncIssueTarget.STAGE, stage.localId) }) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(
                 text = stage.name,

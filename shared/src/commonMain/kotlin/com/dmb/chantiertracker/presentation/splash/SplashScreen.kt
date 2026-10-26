@@ -1,12 +1,12 @@
 package com.dmb.chantiertracker.presentation.splash
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -17,7 +17,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.dmb.chantiertracker.presentation.branding.AppGlyph
-import com.dmb.chantiertracker.presentation.theme.Terracotta
+import com.dmb.chantiertracker.presentation.theme.Ink
 import com.dmb.chantiertracker.resources.Res
 import com.dmb.chantiertracker.resources.app_name
 import com.dmb.chantiertracker.resources.splash_tagline
@@ -25,21 +25,19 @@ import org.jetbrains.compose.resources.stringResource
 
 @Composable
 fun SplashScreen() {
-    Surface(modifier = Modifier.fillMaxSize(), color = Terracotta) {
+    Surface(modifier = Modifier.fillMaxSize(), color = Ink) {
         Column(
             modifier = Modifier.fillMaxSize().padding(32.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
-            Icon(
+            Image(
                 imageVector = AppGlyph,
                 contentDescription = null,
-                tint = Color.White,
-                modifier = Modifier.size(96.dp),
+                modifier = Modifier.size(240.dp),
             )
             Text(
-                text = stringResource(Res.string.app_name),
-                modifier = Modifier.padding(top = 24.dp),
+                text = stringResource(Res.string.app_name).uppercase(),
                 style = MaterialTheme.typography.headlineSmall,
                 color = Color.White,
             )

@@ -39,7 +39,9 @@ fun StageDto.toSyncedEntity(
         locallyModifiedAt = remoteMillis ?: previous?.locallyModifiedAt ?: syncedAt,
         lastSyncedAt = syncedAt,
         remoteUpdatedAt = remoteMillis,
-        lastSyncError = null,
+        lastSyncError = previous.keptDeleteRefusal(),
+        serverErrorCode = previous.keptDeleteRefusalCode(),
+        localVersion = previous?.localVersion ?: 0,
     )
 }
 

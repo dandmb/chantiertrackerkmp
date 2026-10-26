@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -17,6 +16,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dmb.chantiertracker.domain.model.DomainException
+import com.dmb.chantiertracker.presentation.AppOutlinedTextField
 import com.dmb.chantiertracker.presentation.ResponsiveContent
 import com.dmb.chantiertracker.presentation.auth.components.AuthPrimaryButton
 import com.dmb.chantiertracker.presentation.auth.components.ErrorBanner
@@ -63,7 +63,7 @@ fun CreateProjectScreen(
             }
             state.formError?.let { ErrorBanner(it.localizedText()) }
 
-            OutlinedTextField(
+            AppOutlinedTextField(
                 value = state.name,
                 onValueChange = viewModel::onNameChange,
                 modifier = Modifier.fillMaxWidth(),
@@ -74,7 +74,7 @@ fun CreateProjectScreen(
                 enabled = !locked,
             )
 
-            OutlinedTextField(
+            AppOutlinedTextField(
                 value = state.description,
                 onValueChange = viewModel::onDescriptionChange,
                 modifier = Modifier.fillMaxWidth(),
@@ -83,7 +83,7 @@ fun CreateProjectScreen(
                 enabled = !locked,
             )
 
-            OutlinedTextField(
+            AppOutlinedTextField(
                 value = state.location,
                 onValueChange = viewModel::onLocationChange,
                 modifier = Modifier.fillMaxWidth(),
@@ -92,7 +92,7 @@ fun CreateProjectScreen(
                 enabled = !locked,
             )
 
-            OutlinedTextField(
+            AppOutlinedTextField(
                 value = state.currency,
                 onValueChange = viewModel::onCurrencyChange,
                 modifier = Modifier.fillMaxWidth(),

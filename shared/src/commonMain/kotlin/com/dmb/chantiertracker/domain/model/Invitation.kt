@@ -1,6 +1,6 @@
 package com.dmb.chantiertracker.domain.model
 
-enum class InvitationStatus { PENDING, ACCEPTED, EXPIRED, UNKNOWN }
+enum class InvitationStatus { PENDING, ACCEPTED, EXPIRED, DECLINED, UNKNOWN }
 
 /**
  * A pending (or past) invitation to join a project as a member. Read-through

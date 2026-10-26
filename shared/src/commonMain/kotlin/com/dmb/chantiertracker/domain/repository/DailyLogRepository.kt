@@ -1,5 +1,6 @@
 package com.dmb.chantiertracker.domain.repository
 
+import com.dmb.chantiertracker.domain.model.CreatedDailyEntry
 import com.dmb.chantiertracker.domain.model.DailyEntry
 import com.dmb.chantiertracker.domain.model.DailyLog
 import com.dmb.chantiertracker.domain.model.DailyLogDetail
@@ -12,15 +13,15 @@ interface DailyLogRepository {
 
     /**
      * Writes the day (creating it locally if it doesn't exist yet) and its
-     * PURCHASE entry immediately, and returns the day's stable local id.
+     * PURCHASE entry immediately, and returns the stable local ids of both.
      * Idempotent: if a PURCHASE entry already exists that day, no new entry
-     * is created and the existing day's id is returned. Sync happens in the
-     * background.
+     * is created and the existing day and entry are returned. Sync happens
+     * in the background.
      */
-    suspend fun createPurchaseEntry(stageLocalId: String, date: String): String
+    suspend fun createPurchaseEntry(stageLocalId: String, date: String): CreatedDailyEntry
 
     /** Same as [createPurchaseEntry], for the WORK entry. */
-    suspend fun createWorkEntry(stageLocalId: String, date: String): String
+    suspend fun createWorkEntry(stageLocalId: String, date: String): CreatedDailyEntry
 
     /** Applies the summary edit to the local store immediately, flagged pending. Sync happens in the background. */
     suspend fun updateEntry(entryLocalId: String, summary: String)

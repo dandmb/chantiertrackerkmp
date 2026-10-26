@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import com.dmb.chantiertracker.domain.model.AdminUser
 import com.dmb.chantiertracker.domain.model.Plan
 import com.dmb.chantiertracker.domain.model.PlanSource
+import com.dmb.chantiertracker.presentation.CapitalTitle
 import com.dmb.chantiertracker.presentation.DateField
 import com.dmb.chantiertracker.presentation.auth.components.ErrorBanner
 import com.dmb.chantiertracker.presentation.auth.plans.tabLabelRes
@@ -50,7 +51,7 @@ fun AssignPlanDialog(user: AdminUser, onDismiss: () -> Unit, onConfirm: (Plan, S
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(stringResource(Res.string.admin_plan_dialog_title, user.email)) },
+        title = { CapitalTitle(stringResource(Res.string.admin_plan_dialog_title, user.email)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 if (stripeActive) {

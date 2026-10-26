@@ -1,5 +1,9 @@
 package com.dmb.chantiertracker.presentation.logs
 
+import com.dmb.chantiertracker.domain.model.SyncIssueTarget
+import com.dmb.chantiertracker.presentation.AppOutlinedButton
+import com.dmb.chantiertracker.presentation.sync.SyncIssueMarker
+import com.dmb.chantiertracker.presentation.sync.SyncIssueMarkerStyle
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -27,7 +31,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -47,6 +50,8 @@ import androidx.compose.ui.graphics.decodeToImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -68,6 +73,7 @@ import com.dmb.chantiertracker.presentation.WidthSizeClass
 import com.dmb.chantiertracker.presentation.format.formatAmount
 import com.dmb.chantiertracker.presentation.format.formatMoney
 import com.dmb.chantiertracker.presentation.formatIsoDate
+import com.dmb.chantiertracker.presentation.billing.paidPlansAreOffered
 import com.dmb.chantiertracker.presentation.i18n.localizedText
 import com.dmb.chantiertracker.presentation.main.AddIcon
 import com.dmb.chantiertracker.presentation.main.FlagIcon
@@ -96,7 +102,8 @@ import com.dmb.chantiertracker.resources.attachments_title
 import com.dmb.chantiertracker.resources.video_play
 import com.dmb.chantiertracker.resources.video_too_long_no_upgrade
 import com.dmb.chantiertracker.resources.video_too_long_upgrade
-import com.dmb.chantiertracker.resources.video_upload_in_progress
+import com.dmb.chantiertracker.resources.video_too_heavy
+import com.dmb.chantiertracker.resources.video_upload_progress
 import com.dmb.chantiertracker.resources.consumption_line_delete_confirm_body
 import com.dmb.chantiertracker.resources.consumption_line_delete_confirm_title
 import com.dmb.chantiertracker.resources.consumption_lines_empty
@@ -165,7 +172,7 @@ fun DailyLogScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center,
                     )
-                    OutlinedButton(onClick = viewModel::retry) { Text(stringResource(Res.string.projects_retry)) }
+                    AppOutlinedButton(onClick = viewModel::retry) { Text(stringResource(Res.string.projects_retry)) }
                 }
                 state.detail != null -> DailyLogContent(
                     state = state,
@@ -361,6 +368,7 @@ private fun EntrySection(
             }
             DetailEmptyHint(emptyHint)
         } else {
+            SyncIssueMarker(SyncIssueTarget.ENTRY, entry.localId)
             val summary = entry.summary?.takeIf { it.isNotBlank() }
             Text(
                 text = summary ?: stringResource(
@@ -447,6 +455,8 @@ private fun PurchaseLinesSubSection(
                     isAdmin = isAdmin,
                     onEdit = { onEdit(line) },
                     onDelete = { pendingDelete = line },
+                    target = SyncIssueTarget.PURCHASE_LINE,
+                    localId = line.localId,
                 )
             }
         }
@@ -499,6 +509,8 @@ private fun ConsumptionLinesSubSection(
                     isAdmin = isAdmin,
                     onEdit = { onEdit(line) },
                     onDelete = { pendingDelete = line },
+                    target = SyncIssueTarget.CONSUMPTION_LINE,
+                    localId = line.localId,
                 )
             }
         }
@@ -527,11 +539,14 @@ private fun LineRow(
     isAdmin: Boolean,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
+    target: SyncIssueTarget,
+    localId: String,
 ) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(title, style = MaterialTheme.typography.bodyMedium)
             Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            SyncIssueMarker(target, localId)
         }
         if (canEdit) {
             IconButton(onClick = onEdit) { Icon(EditIcon, contentDescription = stringResource(Res.string.entry_edit), modifier = Modifier.size(18.dp)) }
@@ -626,20 +641,11 @@ private fun AttachmentsSection(
             }
         }
 
-        upload?.let { up ->
-            val fraction = up.fraction?.takeIf { up.stage == AttachmentUploadUi.Stage.Uploading }
+        if (upload != null) {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                if (fraction != null) {
-                    LinearProgressIndicator(progress = { fraction }, modifier = Modifier.fillMaxWidth())
-                } else {
-                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-                }
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
                 Text(
-                    text = if (fraction != null) {
-                        "${stringResource(Res.string.video_upload_in_progress)} ${(fraction * 100).roundToInt()}%"
-                    } else {
-                        stringResource(Res.string.attachment_finalizing)
-                    },
+                    text = stringResource(Res.string.attachment_finalizing),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -650,9 +656,17 @@ private fun AttachmentsSection(
             Text(stringResource(Res.string.attachment_upload_error), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
         }
         state.videoTooLong?.let { tooLong ->
-            val res = if (tooLong.hasUpgrade) Res.string.video_too_long_upgrade else Res.string.video_too_long_no_upgrade
+            val suggestUpgrade = tooLong.hasUpgrade && paidPlansAreOffered()
+            val res = if (suggestUpgrade) Res.string.video_too_long_upgrade else Res.string.video_too_long_no_upgrade
             Text(
                 stringResource(res, tooLong.actual, tooLong.limit),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+            )
+        }
+        state.videoTooHeavy?.let { tooHeavy ->
+            Text(
+                stringResource(Res.string.video_too_heavy, tooHeavy.actualMegabytes.toInt(), tooHeavy.limitMegabytes.toInt()),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.error,
             )
@@ -680,7 +694,7 @@ private fun AttachmentsSection(
                     AttachmentThumbnail(
                         attachment = attachment,
                         bitmap = if (attachment.isVideo) null else thumbnails[attachment.localPath],
-                        canEdit = canEdit,
+                        canEdit = state.canDelete(attachment),
                         onClick = { zoomedAttachment = attachment },
                         onDelete = { pendingDelete = attachment },
                     )
@@ -711,6 +725,20 @@ private fun AttachmentsSection(
 
 @Composable
 private fun AttachmentThumbnail(
+    attachment: Attachment,
+    bitmap: ImageBitmap?,
+    canEdit: Boolean,
+    onClick: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        AttachmentThumbnailFace(attachment, bitmap, canEdit, onClick, onDelete)
+        SyncIssueMarker(SyncIssueTarget.ATTACHMENT, attachment.localId, style = SyncIssueMarkerStyle.ICON_ONLY)
+    }
+}
+
+@Composable
+private fun AttachmentThumbnailFace(
     attachment: Attachment,
     bitmap: ImageBitmap?,
     canEdit: Boolean,
@@ -775,6 +803,13 @@ private fun VideoThumbnailFace(attachment: Attachment) {
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 2.dp),
+            )
+        }
+        attachment.uploadProgress?.let { sent ->
+            val description = stringResource(Res.string.video_upload_progress, (sent * 100).roundToInt())
+            LinearProgressIndicator(
+                progress = { sent },
+                modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().semantics { contentDescription = description },
             )
         }
     }

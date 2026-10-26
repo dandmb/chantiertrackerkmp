@@ -13,7 +13,6 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -33,8 +32,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dmb.chantiertracker.domain.model.HistoryActionType
 import com.dmb.chantiertracker.domain.model.HistorySort
 import com.dmb.chantiertracker.domain.model.ModificationHistoryItem
-import com.dmb.chantiertracker.domain.model.Plan
+import com.dmb.chantiertracker.presentation.AppOutlinedButton
 import com.dmb.chantiertracker.presentation.ResponsiveContent
+import com.dmb.chantiertracker.presentation.billing.historyRetentionNotice
 import com.dmb.chantiertracker.presentation.formatIsoDateTime
 import com.dmb.chantiertracker.presentation.i18n.localizedText
 import com.dmb.chantiertracker.resources.Res
@@ -42,8 +42,6 @@ import com.dmb.chantiertracker.resources.history_action_creation
 import com.dmb.chantiertracker.resources.history_action_deletion
 import com.dmb.chantiertracker.resources.history_action_modification
 import com.dmb.chantiertracker.resources.history_empty
-import com.dmb.chantiertracker.resources.history_limit_free
-import com.dmb.chantiertracker.resources.history_limit_semi_flex
 import com.dmb.chantiertracker.resources.history_next
 import com.dmb.chantiertracker.resources.history_page
 import com.dmb.chantiertracker.resources.history_prev
@@ -84,7 +82,7 @@ fun ProjectHistoryScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             textAlign = TextAlign.Center,
                         )
-                        OutlinedButton(onClick = viewModel::retry) {
+                        AppOutlinedButton(onClick = viewModel::retry) {
                             Text(stringResource(Res.string.history_retry))
                         }
                     }
@@ -131,10 +129,10 @@ fun ProjectHistoryScreen(
                 }
             }
 
-            retentionNotice(state.ownerPlan)?.let { notice ->
+            historyRetentionNotice(state.ownerMaxHistoryDays)?.let { notice ->
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 Text(
-                    text = stringResource(notice),
+                    text = notice,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
@@ -191,10 +189,3 @@ private fun actionLabel(action: HistoryActionType): StringResource = when (actio
     HistoryActionType.DELETION -> Res.string.history_action_deletion
 }
 
-// Mirrors the backend's PlanLimitService.maxHistoryDays / the web's
-// formatHistoryLimitNotice — LIBERTE (and an unknown/absent plan) shows nothing.
-private fun retentionNotice(ownerPlan: Plan?): StringResource? = when (ownerPlan) {
-    Plan.FREE -> Res.string.history_limit_free
-    Plan.SEMI_FLEX -> Res.string.history_limit_semi_flex
-    Plan.LIBERTE, Plan.UNKNOWN, null -> null
-}

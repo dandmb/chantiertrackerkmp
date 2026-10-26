@@ -12,6 +12,9 @@ import kotlinx.serialization.Serializable
 data class CheckoutRequestDto(val plan: String, val billingCycle: String, val platform: String = "MOBILE")
 
 @Serializable
+data class BillingStatusDto(val billingOpen: Boolean)
+
+@Serializable
 data class CheckoutResponseDto(val checkoutUrl: String)
 
 @Serializable

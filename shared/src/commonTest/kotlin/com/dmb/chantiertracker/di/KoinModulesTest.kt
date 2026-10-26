@@ -38,6 +38,7 @@ class KoinModulesTest {
         single<BuildInfo> { FakeBuildInfo(isDebug = true) }
         single<TokenStorage> { FakeTokenStorage() }
         single<OnboardingStore> { FakeOnboardingStore() }
+        single<com.dmb.chantiertracker.data.local.AppPreferences> { com.dmb.chantiertracker.support.FakeAppPreferences() }
     }
 
     // Stands in for syncModule without a real Room DB (unavailable on the Android host test JVM).
@@ -46,7 +47,14 @@ class KoinModulesTest {
         single<ProjectDao> { FakeProjectDao() }
         single<StageDao> { FakeStageDao() }
         single<PlanUsageDao> { FakePlanUsageDao() }
+        single<com.dmb.chantiertracker.data.local.db.EditorIdentityDao> { com.dmb.chantiertracker.support.FakeEditorIdentityDao() }
         single<Syncer> { FakeSyncer() }
+        single<com.dmb.chantiertracker.data.local.db.LocalDataDao> { com.dmb.chantiertracker.support.FakeLocalDataDao() }
+        single<com.dmb.chantiertracker.data.local.db.StockDao> { com.dmb.chantiertracker.support.FakeStockDao() }
+        single<com.dmb.chantiertracker.data.local.db.MaterialAdoptionDao> { com.dmb.chantiertracker.support.FakeMaterialAdoptionDao() }
+        single<com.dmb.chantiertracker.data.local.AttachmentFileStore> { com.dmb.chantiertracker.support.FakeAttachmentFileStore() }
+        single<com.dmb.chantiertracker.data.local.ExportFileStore> { com.dmb.chantiertracker.support.FakeExportFileStore() }
+        single { com.dmb.chantiertracker.presentation.sync.SyncStateHolder() }
     }
 
     @Test
@@ -63,9 +71,12 @@ class KoinModulesTest {
         assertNotNull(koin.get<StageApi>())
         assertNotNull(koin.get<AccountApi>())
         assertNotNull(koin.get<AuthRepository>())
+        assertNotNull(koin.get<com.dmb.chantiertracker.domain.repository.SignOutRepository>())
+        assertNotNull(koin.get<com.dmb.chantiertracker.data.session.LocalDataEraser>())
         assertNotNull(koin.get<ProjectRepository>())
         assertNotNull(koin.get<StageRepository>())
         assertNotNull(koin.get<AccountRepository>())
+        assertNotNull(koin.get<com.dmb.chantiertracker.domain.repository.EditorIdentityRepository>())
 
         koin.close()
     }

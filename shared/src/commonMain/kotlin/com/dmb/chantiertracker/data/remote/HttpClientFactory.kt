@@ -4,6 +4,7 @@ import com.dmb.chantiertracker.data.local.AuthTokens
 import com.dmb.chantiertracker.data.local.TokenStorage
 import com.dmb.chantiertracker.data.remote.dto.LoginResponseDto
 import com.dmb.chantiertracker.data.remote.dto.RefreshTokenRequestDto
+import com.dmb.chantiertracker.domain.model.DomainException
 import io.ktor.client.HttpClient
 import io.ktor.client.HttpClientConfig
 import io.ktor.client.call.body
@@ -35,6 +36,8 @@ val AppJson: Json = Json {
 }
 
 // Extension sur HttpClientConfig pour être partagée entre createHttpClient et les tests (MockEngine).
+private const val SERVER_ERROR = 500
+
 fun HttpClientConfig<*>.configureChantierTrackerClient(
     tokenStorage: TokenStorage,
     baseUrl: String,
@@ -85,6 +88,8 @@ fun HttpClientConfig<*>.configureChantierTrackerClient(
                     val fresh = response.body<LoginResponseDto>()
                     tokenStorage.save(AuthTokens(fresh.accessToken, fresh.refreshToken))
                     BearerTokens(fresh.accessToken, fresh.refreshToken)
+                } else if (response.comesFromAnUnavailableApi() || response.status.value >= SERVER_ERROR) {
+                    throw DomainException.ServiceUnavailable
                 } else {
                     tokenStorage.clear()
                     onSessionExpired()

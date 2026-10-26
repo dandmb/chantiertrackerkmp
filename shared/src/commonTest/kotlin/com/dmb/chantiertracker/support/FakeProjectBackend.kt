@@ -10,6 +10,10 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpMethod
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
+import io.ktor.http.content.TextContent
+import io.ktor.http.isSuccess
+import io.ktor.utils.io.ByteReadChannel
+import io.ktor.utils.io.toByteArray
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.contentOrNull
@@ -24,6 +28,8 @@ class ServerProject(
     var timezone: String = "UTC",
     var ownerId: Long = 1L,
     var ownerPlan: String = "FREE",
+    /** Raw `"ownerIsFounder":…,` JSON members, as a founder-aware backend adds them to the detail. */
+    var ownerEntitlementsJson: String = "",
     var status: String = "IN_PROGRESS",
     var createdAt: String = "2026-01-01T09:00:00",
     var updatedAt: String = "2026-01-01T09:00:00",
@@ -113,6 +119,7 @@ class ServerAttachment(
     val mimeType: String = "image/jpeg",
     val bytes: ByteArray = byteArrayOf(1, 2, 3),
     val durationSeconds: Int? = null,
+    val uploadedById: Long = 1L,
 )
 
 /**
@@ -134,6 +141,9 @@ class FakeProjectBackend {
     val invitations = mutableListOf<ServerInvitation>()
     val myPendingInvitations = mutableListOf<ServerPendingInvitation>()
     var planLimitReached = false
+    var plan = "FREE"
+    var planIsFounder = false
+    var planProjectsLimit: Int? = 1
     /** When set, POST /invitations/{token}/accept answers this status. */
     var acceptStatus: HttpStatusCode? = null
     var nextId = 100L
@@ -149,15 +159,28 @@ class FakeProjectBackend {
     var attachmentUploadDurationSeconds: Int? = 30
     /** When set, `POST /entries/{id}/attachments` answers this status + message (plan refusal, too long…). */
     var attachmentUploadRejection: Pair<HttpStatusCode, String>? = null
+    var attachmentUploadRejectionCode: String? = null
 
     /** When true, POST purchase/consumption line answers 409 (mirrors InsufficientStockException). */
     var lineWriteConflict = false
 
     /** When set, every DELETE (project, stage, entry, purchase/consumption line, attachment) answers this status (403 = a demoted ADMIN, 500 = transient). */
     var deleteStatus: HttpStatusCode? = null
+    var deleteRefusalCode: String? = null
+
+    /** When set, every PATCH (project, stage, material, entry, purchase/consumption line) answers this status with [updateRefusalCode]. */
+    var updateStatus: HttpStatusCode? = null
+    var updateRefusalCode: String? = null
 
     /** When true, GET/POST/DELETE on invitations answers 403 (mirrors a non-ADMIN caller). */
     var invitationsForbidden = false
+
+    val goneOnServer = mutableListOf<Regex>()
+    val forbiddenOnServer = mutableListOf<Regex>()
+
+    var stockStatus: HttpStatusCode? = null
+
+    var listPageFailure: Pair<Int, HttpStatusCode>? = null
 
     fun seedInvitation(i: ServerInvitation) = i.also { invitations += it }
     fun seedPendingForMe(i: ServerPendingInvitation) = i.also { myPendingInvitations += it }
@@ -174,6 +197,30 @@ class FakeProjectBackend {
     /** When true, PATCH/DELETE on a stage answers 403 (mirrors a non-ADMIN pushing a stage edit). */
     var stageWriteForbidden = false
     val receivedMethods = mutableListOf<String>()
+    /** "METHOD /path" → the Authorization header it carried, in arrival order. */
+    val receivedAuthorizations = mutableListOf<Pair<String, String?>>()
+    /** Runs before a request is answered — lets a test hold a sync pass mid-flight. */
+    var beforeHandle: (suspend (HttpRequestData) -> Unit)? = null
+    var refuseOnce: ((HttpRequestData) -> Boolean)? = null
+    var refuseWith: ((HttpRequestData) -> ServerRefusal?)? = null
+    var uploadsLeftBeforeRateLimit: Int? = null
+    var rateLimitRetryAfterSeconds: Int? = 3
+    var rateLimitedUploads = 0
+    var cutTheNetworkFor: ((HttpRequestData) -> Boolean)? = null
+    /** Answers like the reverse proxy while the API is being redeployed: a 404 that is not the backend's problem format. */
+    var redeployingFor: ((HttpRequestData) -> Boolean)? = null
+    var redeployAnswer: RedeployAnswer = RedeployAnswer.PROXY_TEXT
+    /** Every POST on a route that accepts `Idempotency-Key`, with the key it carried (null when absent). */
+    val receivedIdempotencyKeys = mutableListOf<Pair<String, String?>>()
+    /** Answers 409 IDEMPOTENCY_KEY_IN_PROGRESS (Retry-After: 10), as the backend does while the first call still runs. */
+    var idempotencyInProgressFor: ((HttpRequestData) -> Boolean)? = null
+    var replayedCreations = 0
+    /** The account the backend records as the author of an uploaded attachment. */
+    var uploaderId = 1L
+    private class CompletedCreation(val path: String, val body: String?, val status: HttpStatusCode, val headers: io.ktor.http.Headers, val bytes: ByteArray)
+    private val completedCreations = mutableMapOf<Pair<String, String>, CompletedCreation>()
+    var loseTheAnswerOf: ((HttpRequestData) -> Boolean)? = null
+    var holdTheAnswerOf: (suspend (HttpRequestData) -> Unit)? = null
 
     fun seed(project: ServerProject) = project.also { projects += it }
 
@@ -199,10 +246,70 @@ class FakeProjectBackend {
     fun consumptionLineApi() = com.dmb.chantiertracker.data.remote.ConsumptionLineApi(client(sharedTokenStorage))
     fun attachmentApi() = com.dmb.chantiertracker.data.remote.AttachmentApi(client(sharedTokenStorage))
     fun invitationApi() = com.dmb.chantiertracker.data.remote.InvitationApi(client(sharedTokenStorage))
+    fun stockApi() = com.dmb.chantiertracker.data.remote.StockApi(client(sharedTokenStorage))
+    fun accountApi() = com.dmb.chantiertracker.data.remote.AccountApi(client(sharedTokenStorage))
 
     private suspend fun MockRequestHandleScope.handle(request: HttpRequestData): HttpResponseData {
         val path = request.url.encodedPath.removePrefix("/api/v1")
         receivedMethods += "${request.method.value} $path"
+        if (cutTheNetworkFor?.invoke(request) == true) throw kotlinx.io.IOException("network cut")
+        if (redeployingFor?.invoke(request) == true) return respondWhileRedeploying(redeployAnswer)
+        val answer = idempotentAnswer(request, path) ?: answer(request, path)
+        holdTheAnswerOf?.invoke(request)
+        if (loseTheAnswerOf?.invoke(request) == true) throw kotlinx.io.IOException("answer lost")
+        return answer
+    }
+
+    // Mirrors the backend's IdempotencyFilter (BE-2, BE-4): scope = route + key, a completed
+    // creation is replayed, the same key with another path or body is a 422, a malformed key a 400.
+    private suspend fun MockRequestHandleScope.idempotentAnswer(request: HttpRequestData, path: String): HttpResponseData? {
+        if (request.method != HttpMethod.Post) return null
+        val route = IDEMPOTENT_ROUTES.firstOrNull { it.matches(path) } ?: return null
+        val key = request.headers["Idempotency-Key"]
+        receivedIdempotencyKeys += "POST $path" to key
+        if (key == null) return null
+        if (!VALID_IDEMPOTENCY_KEY.matches(key)) {
+            return respondProblem(HttpStatusCode.BadRequest, "Idempotency-Key invalide.", code = "INVALID_IDEMPOTENCY_KEY")
+        }
+        if (idempotencyInProgressFor?.invoke(request) == true) {
+            return respondProblem(
+                HttpStatusCode.Conflict, "Requête déjà en cours.", code = "IDEMPOTENCY_KEY_IN_PROGRESS",
+                extraHeaders = mapOf(HttpHeaders.RetryAfter to "10"),
+            )
+        }
+        val body = (request.body as? TextContent)?.text
+        completedCreations[route.pattern to key]?.let { done ->
+            if (done.path != path || done.body != body) {
+                return respondProblem(HttpStatusCode.UnprocessableEntity, "Clé déjà utilisée.", code = "IDEMPOTENCY_KEY_REUSED")
+            }
+            replayedCreations++
+            return respond(done.bytes, done.status, io.ktor.http.headers { appendAll(done.headers); append("Idempotent-Replayed", "true") })
+        }
+        val answer = answer(request, path)
+        if (!answer.statusCode.isSuccess()) return answer
+        val bytes = (answer.body as ByteReadChannel).toByteArray()
+        completedCreations[route.pattern to key] = CompletedCreation(path, body, answer.statusCode, answer.headers, bytes)
+        return respond(bytes, answer.statusCode, answer.headers)
+    }
+
+    private suspend fun MockRequestHandleScope.answer(request: HttpRequestData, path: String): HttpResponseData {
+        receivedAuthorizations += "${request.method.value} $path" to request.headers[io.ktor.http.HttpHeaders.Authorization]
+        beforeHandle?.invoke(request)
+        refuseWith?.invoke(request)?.let { refusal ->
+            return respondProblem(
+                refusal.status, refusal.detail, errors = if (refusal.withFieldErrors) mapOf("champ" to "invalide") else null, code = refusal.code,
+                extraHeaders = refusal.retryAfterSeconds?.let { mapOf(HttpHeaders.RetryAfter to it.toString()) }.orEmpty(),
+            )
+        }
+        if (refuseOnce?.invoke(request) == true) {
+            refuseOnce = null
+            return respondProblem(HttpStatusCode.Forbidden, "Accès refusé.", code = "PROJECT_INSUFFICIENT_ROLE")
+        }
+        if (goneOnServer.any { it.containsMatchIn(path) }) return respondProblem(HttpStatusCode.NotFound, "Introuvable.", code = "NOT_FOUND")
+        if (forbiddenOnServer.any { it.containsMatchIn(path) }) return respondProblem(HttpStatusCode.Forbidden, "Accès refusé.", code = "PROJECT_INSUFFICIENT_ROLE")
+        if (request.method == HttpMethod.Patch) {
+            updateStatus?.let { return respondProblem(it, "Modification refusée.", code = updateRefusalCode) }
+        }
         val idInPath = Regex("""/projects/(\d+)$""").find(path)?.groupValues?.get(1)?.toLong()
         val membersProjectId = Regex("""/projects/(\d+)/members$""").find(path)?.groupValues?.get(1)?.toLong()
         val invitationsProjectId = Regex("""/projects/(\d+)/invitations$""").find(path)?.groupValues?.get(1)?.toLong()
@@ -226,18 +333,31 @@ class FakeProjectBackend {
         val consumptionLineId = Regex("""/consumption-lines/(\d+)$""").find(path)?.groupValues?.get(1)?.toLong()
         val attachmentsEntryId = Regex("""/entries/(\d+)/attachments$""").find(path)?.groupValues?.get(1)?.toLong()
         val attachmentId = Regex("""/attachments/(\d+)$""").find(path)?.groupValues?.get(1)?.toLong()
+        val stockProjectId = Regex("""/projects/(\d+)/stock$""").find(path)?.groupValues?.get(1)?.toLong()
 
         return when {
+            request.method == HttpMethod.Get && path == "/users/me/plan-usage" ->
+                respond(
+                    """{"plan":${plan.q()},"isFounder":$planIsFounder,"projectsUsed":${projects.size},"projectsLimit":$planProjectsLimit}""",
+                    HttpStatusCode.OK,
+                    headersOf(io.ktor.http.HttpHeaders.ContentType, "application/json"),
+                )
+
+            request.method == HttpMethod.Get && stockProjectId != null -> {
+                stockStatus?.let { return respondProblem(it, "Stock indisponible.") }
+                respondPage(request, stockOf(stockProjectId))
+            }
+
             request.method == HttpMethod.Get && stagesProjectId != null -> {
                 if (projects.none { it.id == stagesProjectId }) {
-                    return respondProblem(HttpStatusCode.NotFound, "Projet introuvable.")
+                    return respondProblem(HttpStatusCode.NotFound, "Projet introuvable.", code = "PROJECT_ACCESS_DENIED")
                 }
-                respondJson(stagesPageJson(stagesProjectId))
+                respondPage(request, stages.filter { it.projectId == stagesProjectId }.map { it.id to stageJson(it) })
             }
 
             request.method == HttpMethod.Post && stagesProjectId != null -> {
                 if (projects.none { it.id == stagesProjectId }) {
-                    return respondProblem(HttpStatusCode.NotFound, "Projet introuvable.")
+                    return respondProblem(HttpStatusCode.NotFound, "Projet introuvable.", code = "PROJECT_ACCESS_DENIED")
                 }
                 val body = request.jsonBody()
                 val created = ServerStage(
@@ -256,16 +376,16 @@ class FakeProjectBackend {
 
             request.method == HttpMethod.Get && stageId != null -> {
                 val stage = stages.firstOrNull { it.id == stageId }
-                    ?: return respondProblem(HttpStatusCode.NotFound, "Étape introuvable.")
+                    ?: return respondProblem(HttpStatusCode.NotFound, "Étape introuvable.", code = "STAGE_NOT_FOUND")
                 respondJson(stageJson(stage))
             }
 
             request.method == HttpMethod.Patch && stageId != null -> {
                 if (stageWriteForbidden) {
-                    return respondProblem(HttpStatusCode.Forbidden, "Action réservée à un administrateur.")
+                    return respondProblem(HttpStatusCode.Forbidden, "Action réservée à un administrateur.", code = "PROJECT_INSUFFICIENT_ROLE")
                 }
                 val stage = stages.firstOrNull { it.id == stageId }
-                    ?: return respondProblem(HttpStatusCode.NotFound, "Étape introuvable.")
+                    ?: return respondProblem(HttpStatusCode.NotFound, "Étape introuvable.", code = "STAGE_NOT_FOUND")
                 val body = request.jsonBody()
                 body.string("name")?.let { stage.name = it }
                 body.string("description")?.let { stage.description = it }
@@ -277,7 +397,7 @@ class FakeProjectBackend {
             }
 
             request.method == HttpMethod.Delete && stageId != null -> {
-                deleteStatus?.let { return respondProblem(it, "Suppression refusée.") }
+                deleteStatus?.let { return respondProblem(it, "Suppression refusée.", code = deleteRefusalCode) }
                 if (stageWriteForbidden) {
                     return respondProblem(HttpStatusCode.Forbidden, "Action réservée à un administrateur.")
                 }
@@ -287,10 +407,13 @@ class FakeProjectBackend {
 
             // ─── materials ───────────────────────────────────────────────────
             request.method == HttpMethod.Get && materialsProjectId != null ->
-                respondJson(pageOf(materials.filter { it.projectId == materialsProjectId }.map(::materialJson)))
+                respondPage(request, materials.filter { it.projectId == materialsProjectId }.map { it.id to materialJson(it) })
 
             request.method == HttpMethod.Post && materialsProjectId != null -> {
                 val body = request.jsonBody()
+                if (materials.any { it.projectId == materialsProjectId && it.name == body.string("name") }) {
+                    return respondProblem(HttpStatusCode.Conflict, "Un matériau portant ce nom existe déjà dans ce projet.", code = "DUPLICATE_MATERIAL")
+                }
                 val created = ServerMaterial(nextMaterialId++, materialsProjectId, body.string("name") ?: "", body.string("unit") ?: "")
                 materials += created
                 respondJson(materialJson(created), HttpStatusCode.Created)
@@ -298,7 +421,7 @@ class FakeProjectBackend {
 
             request.method == HttpMethod.Patch && materialId != null -> {
                 val m = materials.firstOrNull { it.id == materialId }
-                    ?: return respondProblem(HttpStatusCode.NotFound, "Matériau introuvable.")
+                    ?: return respondProblem(HttpStatusCode.NotFound, "Matériau introuvable.", code = "MATERIAL_NOT_FOUND")
                 val body = request.jsonBody()
                 body.string("name")?.let { m.name = it }
                 body.string("unit")?.let { m.unit = it }
@@ -307,7 +430,7 @@ class FakeProjectBackend {
 
             // ─── daily logs / entries ────────────────────────────────────────
             request.method == HttpMethod.Get && stageLogsId != null ->
-                respondJson(pageOf(logs.filter { it.stageId == stageLogsId }.map(::logSummaryJson)))
+                respondPage(request, logs.filter { it.stageId == stageLogsId }.sortedByDescending { it.date }.map { it.id to logSummaryJson(it) })
 
             request.method == HttpMethod.Post && purchaseEntryMatch != null ->
                 createEntry(purchaseEntryMatch[1].toLong(), purchaseEntryMatch[2], "PURCHASE", request)
@@ -317,30 +440,30 @@ class FakeProjectBackend {
 
             request.method == HttpMethod.Get && logDetailId != null -> {
                 val log = logs.firstOrNull { it.id == logDetailId }
-                    ?: return respondProblem(HttpStatusCode.NotFound, "Journée introuvable.")
+                    ?: return respondProblem(HttpStatusCode.NotFound, "Journée introuvable.", code = "DAILY_LOG_NOT_FOUND")
                 respondJson(logDetailJson(log))
             }
 
             request.method == HttpMethod.Patch && entryId != null -> {
                 val e = entries.firstOrNull { it.id == entryId }
-                    ?: return respondProblem(HttpStatusCode.NotFound, "Entrée introuvable.")
+                    ?: return respondProblem(HttpStatusCode.NotFound, "Entrée introuvable.", code = "DAILY_ENTRY_NOT_FOUND")
                 e.summary = request.jsonBody().string("summary")
                 e.modifiedAt = patchAppliedAt
                 respondJson(entryJson(e))
             }
 
             request.method == HttpMethod.Delete && entryId != null -> {
-                deleteStatus?.let { return respondProblem(it, "Suppression refusée.") }
+                deleteStatus?.let { return respondProblem(it, "Suppression refusée.", code = deleteRefusalCode) }
                 entries.removeAll { it.id == entryId }
                 respondJson("", HttpStatusCode.NoContent)
             }
 
             // ─── purchase lines ──────────────────────────────────────────────
             request.method == HttpMethod.Get && purchaseLinesEntryId != null ->
-                respondJson(pageOf(purchaseLines.filter { it.entryId == purchaseLinesEntryId }.map(::purchaseLineJson)))
+                respondPage(request, purchaseLines.filter { it.entryId == purchaseLinesEntryId }.map { it.id to purchaseLineJson(it) })
 
             request.method == HttpMethod.Post && purchaseLinesEntryId != null -> {
-                if (lineWriteConflict) return respondProblem(HttpStatusCode.Conflict, "Stock insuffisant.")
+                if (lineWriteConflict) return respondProblem(HttpStatusCode.Conflict, "Stock insuffisant.", code = "INSUFFICIENT_STOCK")
                 val body = request.jsonBody()
                 val created = ServerPurchaseLine(
                     id = nextLineId++,
@@ -356,7 +479,7 @@ class FakeProjectBackend {
 
             request.method == HttpMethod.Patch && purchaseLineId != null -> {
                 val l = purchaseLines.firstOrNull { it.id == purchaseLineId }
-                    ?: return respondProblem(HttpStatusCode.NotFound, "Ligne introuvable.")
+                    ?: return respondProblem(HttpStatusCode.NotFound, "Ligne introuvable.", code = "PURCHASE_LINE_NOT_FOUND")
                 val body = request.jsonBody()
                 body.number("quantity")?.let { l.quantity = it }
                 body.number("unitPrice")?.let { l.unitPrice = it }
@@ -365,17 +488,17 @@ class FakeProjectBackend {
             }
 
             request.method == HttpMethod.Delete && purchaseLineId != null -> {
-                deleteStatus?.let { return respondProblem(it, "Suppression refusée.") }
+                deleteStatus?.let { return respondProblem(it, "Suppression refusée.", code = deleteRefusalCode) }
                 purchaseLines.removeAll { it.id == purchaseLineId }
                 respondJson("", HttpStatusCode.NoContent)
             }
 
             // ─── consumption lines ───────────────────────────────────────────
             request.method == HttpMethod.Get && consumptionLinesEntryId != null ->
-                respondJson(pageOf(consumptionLines.filter { it.entryId == consumptionLinesEntryId }.map(::consumptionLineJson)))
+                respondPage(request, consumptionLines.filter { it.entryId == consumptionLinesEntryId }.map { it.id to consumptionLineJson(it) })
 
             request.method == HttpMethod.Post && consumptionLinesEntryId != null -> {
-                if (lineWriteConflict) return respondProblem(HttpStatusCode.Conflict, "Stock insuffisant.")
+                if (lineWriteConflict) return respondProblem(HttpStatusCode.Conflict, "Stock insuffisant.", code = "INSUFFICIENT_STOCK")
                 val body = request.jsonBody()
                 val created = ServerConsumptionLine(
                     id = nextLineId++,
@@ -389,33 +512,45 @@ class FakeProjectBackend {
 
             request.method == HttpMethod.Patch && consumptionLineId != null -> {
                 val l = consumptionLines.firstOrNull { it.id == consumptionLineId }
-                    ?: return respondProblem(HttpStatusCode.NotFound, "Ligne introuvable.")
+                    ?: return respondProblem(HttpStatusCode.NotFound, "Ligne introuvable.", code = "CONSUMPTION_LINE_NOT_FOUND")
                 request.jsonBody().number("quantity")?.let { l.quantity = it }
                 respondJson(consumptionLineJson(l))
             }
 
             request.method == HttpMethod.Delete && consumptionLineId != null -> {
-                deleteStatus?.let { return respondProblem(it, "Suppression refusée.") }
+                deleteStatus?.let { return respondProblem(it, "Suppression refusée.", code = deleteRefusalCode) }
                 consumptionLines.removeAll { it.id == consumptionLineId }
                 respondJson("", HttpStatusCode.NoContent)
             }
 
             // ─── attachments ─────────────────────────────────────────────────
             request.method == HttpMethod.Get && attachmentsEntryId != null ->
-                respondJson(pageOf(attachments.filter { it.entryId == attachmentsEntryId }.map(::attachmentJson)))
+                respondPage(request, attachments.filter { it.entryId == attachmentsEntryId }.map { it.id to attachmentJson(it) })
 
             request.method == HttpMethod.Post && attachmentsEntryId != null -> {
-                attachmentUploadRejection?.let { (status, detail) -> return respondProblem(status, detail) }
-                val isVideo = request.body.toByteArray().decodeToString().contains("Content-Type: video/")
+                attachmentUploadRejection?.let { (status, detail) -> return respondProblem(status, detail, code = attachmentUploadRejectionCode) }
+                uploadsLeftBeforeRateLimit?.let { left ->
+                    if (left <= 0) {
+                        rateLimitedUploads++
+                        return respondProblem(
+                            HttpStatusCode.TooManyRequests, "Trop de requêtes. Réessayez plus tard.", code = "RATE_LIMITED",
+                            extraHeaders = rateLimitRetryAfterSeconds?.let { mapOf(HttpHeaders.RetryAfter to it.toString()) }.orEmpty(),
+                        )
+                    }
+                    uploadsLeftBeforeRateLimit = left - 1
+                }
+                val body = request.body.toByteArray().decodeToString()
+                val isVideo = body.contains("Content-Type: video/")
+                val fileName = Regex("filename=\"?([^\";\r\n]+)").find(body)?.groupValues?.get(1) ?: if (isVideo) "clip.mp4" else "photo.jpg"
                 val created = if (isVideo) {
                     // Mirrors the backend: the raw upload is transcoded to a small MP4.
                     ServerAttachment(
                         nextAttachmentId++, attachmentsEntryId,
-                        originalName = "clip.mp4", mimeType = "video/mp4",
-                        bytes = byteArrayOf(9, 9, 9), durationSeconds = attachmentUploadDurationSeconds,
+                        originalName = fileName, mimeType = "video/mp4",
+                        bytes = byteArrayOf(9, 9, 9), durationSeconds = attachmentUploadDurationSeconds, uploadedById = uploaderId,
                     )
                 } else {
-                    ServerAttachment(nextAttachmentId++, attachmentsEntryId)
+                    ServerAttachment(nextAttachmentId++, attachmentsEntryId, originalName = fileName, uploadedById = uploaderId)
                 }
                 attachments += created
                 respondJson(attachmentJson(created), HttpStatusCode.Created)
@@ -423,29 +558,29 @@ class FakeProjectBackend {
 
             request.method == HttpMethod.Get && attachmentId != null -> {
                 val a = attachments.firstOrNull { it.id == attachmentId }
-                    ?: return respondProblem(HttpStatusCode.NotFound, "Justificatif introuvable.")
+                    ?: return respondProblem(HttpStatusCode.NotFound, "Justificatif introuvable.", code = "ATTACHMENT_NOT_FOUND")
                 respond(a.bytes, HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, a.mimeType))
             }
 
             request.method == HttpMethod.Delete && attachmentId != null -> {
-                deleteStatus?.let { return respondProblem(it, "Suppression refusée.") }
+                deleteStatus?.let { return respondProblem(it, "Suppression refusée.", code = deleteRefusalCode) }
                 attachments.removeAll { it.id == attachmentId }
                 respondJson("", HttpStatusCode.NoContent)
             }
 
-            request.method == HttpMethod.Get && path == "/projects" -> respondJson(pageJson())
+            request.method == HttpMethod.Get && path == "/projects" -> respondPage(request, projects.map { it.id to listItemJson(it) })
 
             request.method == HttpMethod.Get && membersProjectId != null -> {
                 if (projects.none { it.id == membersProjectId }) {
-                    return respondProblem(HttpStatusCode.NotFound, "Projet introuvable.")
+                    return respondProblem(HttpStatusCode.NotFound, "Projet introuvable.", code = "PROJECT_ACCESS_DENIED")
                 }
-                respondJson(membersPageJson(membersProjectId))
+                respondPage(request, membersOf(membersProjectId))
             }
 
             // ─── invitations (ADMIN only) ────────────────────────────────────
             request.method == HttpMethod.Get && invitationsProjectId != null -> {
                 if (invitationsForbidden) return respondProblem(HttpStatusCode.Forbidden, "Action réservée à un administrateur.")
-                respondJson(pageOf(invitations.filter { it.projectId == invitationsProjectId }.map(::invitationJson)))
+                respondPage(request, invitations.filter { it.projectId == invitationsProjectId }.map { it.id to invitationJson(it) })
             }
 
             request.method == HttpMethod.Post && invitationsProjectId != null -> {
@@ -467,7 +602,7 @@ class FakeProjectBackend {
             request.method == HttpMethod.Delete && invitationId != null -> {
                 if (invitationsForbidden) return respondProblem(HttpStatusCode.Forbidden, "Action réservée à un administrateur.")
                 if (invitations.none { it.id == invitationId }) {
-                    return respondProblem(HttpStatusCode.NotFound, "Invitation introuvable.")
+                    return respondProblem(HttpStatusCode.NotFound, "Invitation introuvable.", code = "INVITATION_NOT_FOUND")
                 }
                 invitations.removeAll { it.id == invitationId }
                 respondJson("", HttpStatusCode.NoContent)
@@ -480,14 +615,14 @@ class FakeProjectBackend {
 
             request.method == HttpMethod.Get && detailsToken != null -> {
                 val invitation = myPendingInvitations.firstOrNull { it.token == detailsToken }
-                    ?: return respondProblem(HttpStatusCode.NotFound, "Invitation introuvable.")
+                    ?: return respondProblem(HttpStatusCode.NotFound, "Invitation introuvable.", code = "INVITATION_NOT_FOUND")
                 respondJson(invitationDetailsJson(invitation))
             }
 
             request.method == HttpMethod.Post && acceptToken != null -> {
                 acceptStatus?.let { return respondProblem(it, "Cette invitation n'est plus valide.") }
                 if (myPendingInvitations.none { it.token == acceptToken }) {
-                    return respondProblem(HttpStatusCode.NotFound, "Invitation introuvable.")
+                    return respondProblem(HttpStatusCode.NotFound, "Invitation introuvable.", code = "INVITATION_NOT_FOUND")
                 }
                 myPendingInvitations.removeAll { it.token == acceptToken }
                 respondJson("""{"message":"Invitation acceptée avec succès."}""")
@@ -495,7 +630,7 @@ class FakeProjectBackend {
 
             request.method == HttpMethod.Post && declineToken != null -> {
                 if (myPendingInvitations.none { it.token == declineToken }) {
-                    return respondProblem(HttpStatusCode.NotFound, "Invitation introuvable.")
+                    return respondProblem(HttpStatusCode.NotFound, "Invitation introuvable.", code = "INVITATION_NOT_FOUND")
                 }
                 myPendingInvitations.removeAll { it.token == declineToken }
                 respondJson("", HttpStatusCode.NoContent)
@@ -503,13 +638,13 @@ class FakeProjectBackend {
 
             request.method == HttpMethod.Get && idInPath != null -> {
                 val project = projects.firstOrNull { it.id == idInPath }
-                    ?: return respondProblem(HttpStatusCode.NotFound, "Projet introuvable.")
+                    ?: return respondProblem(HttpStatusCode.NotFound, "Projet introuvable.", code = "PROJECT_ACCESS_DENIED")
                 respondJson(detailJson(project))
             }
 
             request.method == HttpMethod.Post && path == "/projects" -> {
                 if (planLimitReached) {
-                    return respondProblem(HttpStatusCode.Forbidden, "Vous avez atteint la limite de projets de votre formule.")
+                    return respondProblem(HttpStatusCode.Forbidden, "Vous avez atteint la limite de projets de votre formule.", code = "PLAN_LIMIT_EXCEEDED")
                 }
                 val body = request.jsonBody()
                 val created = ServerProject(
@@ -528,7 +663,7 @@ class FakeProjectBackend {
 
             request.method == HttpMethod.Patch && idInPath != null -> {
                 val project = projects.firstOrNull { it.id == idInPath }
-                    ?: return respondProblem(HttpStatusCode.NotFound, "Projet introuvable.")
+                    ?: return respondProblem(HttpStatusCode.NotFound, "Projet introuvable.", code = "PROJECT_ACCESS_DENIED")
                 val body = request.jsonBody()
                 body.string("name")?.let { project.name = it }
                 body.string("description")?.let { project.description = it }
@@ -541,28 +676,61 @@ class FakeProjectBackend {
             }
 
             request.method == HttpMethod.Delete && idInPath != null -> {
-                deleteStatus?.let { return respondProblem(it, "Suppression refusée.") }
+                deleteStatus?.let { return respondProblem(it, "Suppression refusée.", code = deleteRefusalCode) }
                 projects.removeAll { it.id == idInPath }
                 respondJson("", HttpStatusCode.NoContent)
             }
 
-            else -> respondProblem(HttpStatusCode.NotFound, "route inconnue: $path")
+            else -> respondProblem(HttpStatusCode.NotFound, "route inconnue: $path", code = "NO_RESOURCE_FOUND")
         }
     }
+
+    private fun entryStillOnServer(entryId: Long): Boolean {
+        val entry = entries.firstOrNull { it.id == entryId } ?: return false
+        val log = logs.firstOrNull { it.id == entry.dailyLogId } ?: return false
+        return stages.isEmpty() || stages.any { it.id == log.stageId }
+    }
+
+    private fun stockOf(projectId: Long): List<Pair<Long, String>> =
+        materials.filter { it.projectId == projectId }.mapNotNull { m ->
+            val bought = purchaseLines.filter { it.materialId == m.id && entryStillOnServer(it.entryId) }
+            val used = consumptionLines.filter { it.materialId == m.id && entryStillOnServer(it.entryId) }
+            if (bought.isEmpty() && used.isEmpty()) return@mapNotNull null
+            val quantityIn = bought.sumOf { it.quantity }
+            val quantityOut = used.sumOf { it.quantity }
+            m.id to """{"id":${m.id},"projectId":$projectId,"materialId":${m.id},"materialName":${m.name.q()},"unit":${m.unit.q()},""" +
+                """"quantityIn":$quantityIn,"quantityOut":$quantityOut,"available":${quantityIn - quantityOut}}"""
+        }
 
     /** The `updatedAt` a PATCH stamps on the server row — overridable per test. */
     var patchAppliedAt: String = "2026-09-02T12:00:00"
 
-    private fun pageJson(): String =
-        """{"content":[${projects.joinToString(",") { listItemJson(it) }}],"totalElements":${projects.size}}"""
-
-    private fun membersPageJson(projectId: Long): String {
-        val list = members[projectId].orEmpty()
-        val items = list.joinToString(",") {
-            """{"userId":${it.userId},"name":${it.name.q()},"email":${it.email.q()},"role":${it.role.q()}}"""
+    private fun MockRequestHandleScope.respondPage(request: HttpRequestData, rows: List<Pair<Long, String>>): HttpResponseData {
+        val number = request.url.parameters["page"]?.toInt() ?: 0
+        val size = (request.url.parameters["size"]?.toInt() ?: DEFAULT_PAGE_SIZE).coerceAtMost(MAX_PAGE_SIZE)
+        val sort = request.url.parameters["sort"]
+        listPageFailure?.let { (failingPage, status) -> if (failingPage == number) return respondProblem(status, "Page indisponible.") }
+        val ordered = when (sort) {
+            null -> rows
+            "id", "id,asc" -> rows.sortedBy { it.first }
+            "id,desc" -> rows.sortedByDescending { it.first }
+            else -> return respondProblem(HttpStatusCode.BadRequest, "Tri invalide : '$sort'.")
         }
-        return """{"content":[$items],"totalElements":${list.size}}"""
+        val content = ordered.drop(number * size).take(size).map { it.second }
+        val totalPages = if (ordered.isEmpty()) 0 else (ordered.size + size - 1) / size
+        val sortJson = """{"empty":${sort == null},"sorted":${sort != null},"unsorted":${sort == null}}"""
+        return respondJson(
+            """{"content":[${content.joinToString(",")}],"empty":${content.isEmpty()},"first":${number == 0},"last":${number >= totalPages - 1},""" +
+                """"number":$number,"numberOfElements":${content.size},""" +
+                """"pageable":{"offset":${number * size},"pageNumber":$number,"pageSize":$size,"paged":true,"sort":$sortJson,"unpaged":false},""" +
+                """"size":$size,"sort":$sortJson,"totalElements":${ordered.size},"totalPages":$totalPages}""",
+        )
     }
+
+    private fun membersOf(projectId: Long): List<Pair<Long, String>> =
+        members[projectId].orEmpty().map {
+            it.userId to """{"userId":${it.userId},"name":${it.name.q()},"email":${it.email.q()},"role":${it.role.q()}}"""
+        }
 
     private fun listItemJson(p: ServerProject): String = """
         {"id":${p.id},"name":${p.name.q()},"description":${p.description.q()},"location":${p.location.q()},
@@ -573,14 +741,9 @@ class FakeProjectBackend {
     private fun detailJson(p: ServerProject): String = """
         {"id":${p.id},"name":${p.name.q()},"description":${p.description.q()},"location":${p.location.q()},
          "currency":${p.currency.q()},"timezone":${p.timezone.q()},"ownerId":${p.ownerId},"ownerPlan":${p.ownerPlan.q()},
-         "status":${p.status.q()},"createdAt":${p.createdAt.q()},"updatedAt":${p.updatedAt.q()},
+         ${p.ownerEntitlementsJson}"status":${p.status.q()},"createdAt":${p.createdAt.q()},"updatedAt":${p.updatedAt.q()},
          "totalEstimatedBudget":null,"totalSpent":null}
     """.trimIndent()
-
-    private fun stagesPageJson(projectId: Long): String {
-        val list = stages.filter { it.projectId == projectId }
-        return """{"content":[${list.joinToString(",") { stageJson(it) }}],"totalElements":${list.size}}"""
-    }
 
     private fun stageJson(s: ServerStage): String = """
         {"id":${s.id},"projectId":${s.projectId},"name":${s.name.q()},"description":${s.description.q()},
@@ -607,9 +770,6 @@ class FakeProjectBackend {
         entries += created
         return respondJson(entryJson(created), HttpStatusCode.Created)
     }
-
-    private fun pageOf(items: List<String>): String =
-        """{"content":[${items.joinToString(",")}],"totalElements":${items.size}}"""
 
     private fun materialJson(m: ServerMaterial): String =
         """{"id":${m.id},"projectId":${m.projectId},"name":${m.name.q()},"unit":${m.unit.q()}}"""
@@ -652,8 +812,11 @@ class FakeProjectBackend {
 
     private fun attachmentJson(a: ServerAttachment): String =
         """{"id":${a.id},"entryId":${a.entryId},"originalName":${a.originalName.q()},"mimeType":${a.mimeType.q()},
-            "size":${a.bytes.size},"durationSeconds":${a.durationSeconds ?: "null"},"uploadedById":1,"uploadedAt":"2026-01-01T09:00:00"}"""
+            "size":${a.bytes.size},"durationSeconds":${a.durationSeconds ?: "null"},"uploadedById":${a.uploadedById},"uploadedAt":"2026-01-01T09:00:00"}"""
 }
+
+private const val DEFAULT_PAGE_SIZE = 20
+private const val MAX_PAGE_SIZE = 100
 
 private val json = Json { ignoreUnknownKeys = true }
 
@@ -665,3 +828,14 @@ private fun JsonObject.string(key: String): String? = this[key]?.jsonPrimitive?.
 private fun JsonObject.number(key: String): Double? = this[key]?.jsonPrimitive?.contentOrNull?.toDoubleOrNull()
 
 private fun String?.q(): String = if (this == null) "null" else "\"" + replace("\"", "\\\"") + "\""
+
+class ServerRefusal(val status: HttpStatusCode, val code: String?, val withFieldErrors: Boolean = false, val detail: String = "Refusé.", val retryAfterSeconds: Int? = null)
+
+private val VALID_IDEMPOTENCY_KEY = Regex("^[A-Za-z0-9._:-]{1,128}$")
+
+private val IDEMPOTENT_ROUTES = listOf(
+    "^/projects$", "^/projects/[^/]+/stages$", "^/projects/[^/]+/materials$", "^/projects/[^/]+/invitations$",
+    "^/stages/[^/]+/logs/[^/]+/purchases$", "^/stages/[^/]+/logs/[^/]+/works$",
+    "^/entries/[^/]+/purchase-lines$", "^/entries/[^/]+/consumption-lines$", "^/entries/[^/]+/attachments$",
+    "^/entries/[^/]+/reports$", "^/admin/users$",
+).map(::Regex)

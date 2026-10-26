@@ -6,6 +6,7 @@ import com.dmb.chantiertracker.domain.model.DomainException
 import com.dmb.chantiertracker.domain.model.Invitation
 import com.dmb.chantiertracker.domain.model.ProjectDetail
 import com.dmb.chantiertracker.domain.model.ProjectMember
+import com.dmb.chantiertracker.domain.model.ownerMaxSupervisorsPerProject
 import com.dmb.chantiertracker.domain.repository.InvitationRepository
 import com.dmb.chantiertracker.domain.repository.ProjectRepository
 import com.dmb.chantiertracker.presentation.auth.validateEmail
@@ -52,7 +53,7 @@ class InviteMemberViewModel(
             ) { detail, members, invitations -> atLimit(detail, members, invitations) }
                 .collect { reached -> _state.update { it.copy(atSupervisorLimit = reached) } }
         }
-        // Pull the detail so ownerPlan (the limit's basis) is as fresh as possible.
+        // Pull the detail so the owner's cap (the limit's basis) is as fresh as possible.
         viewModelScope.launch { projectRepository.refreshProject(projectLocalId) }
     }
 
@@ -88,5 +89,5 @@ class InviteMemberViewModel(
         detail: ProjectDetail?,
         members: List<ProjectMember>,
         invitations: List<Invitation>,
-    ): Boolean = SupervisorLimit.isReached(detail?.ownerPlan, members, invitations)
+    ): Boolean = SupervisorLimit.isReached(detail?.ownerMaxSupervisorsPerProject(), members, invitations)
 }

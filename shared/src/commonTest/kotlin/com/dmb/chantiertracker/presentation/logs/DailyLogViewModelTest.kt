@@ -65,11 +65,12 @@ class DailyLogViewModelTest {
         status: ProjectStatus = ProjectStatus.IN_PROGRESS,
         members: List<ProjectMember> = emptyList(),
         ownerPlan: com.dmb.chantiertracker.domain.model.Plan? = null,
+        ownerEntitlements: com.dmb.chantiertracker.domain.model.ProjectOwnerEntitlements? = null,
     ) = FakeProjectRepository(
         detail = ProjectDetail(
             localId = "p1", name = "Villa", description = null, location = null,
             currency = "EUR", timezone = "Europe/Paris", status = status, ownerId = ownerId,
-            ownerPlan = ownerPlan,
+            ownerPlan = ownerPlan, ownerEntitlements = ownerEntitlements,
         ),
         members = members,
     )
@@ -256,6 +257,26 @@ class DailyLogViewModelTest {
         assertEquals("createWorkEntry:s1:2026-03-10", logs.log.last())
     }
 
+    @Test
+    fun adding_an_entry_keeps_showing_the_same_day_whatever_ids_the_repository_returns() = runTest {
+        val logs = FakeDailyLogRepository(detail = logDetail(date = "2026-03-10")).apply {
+            createdPurchaseDayId = "another-day"
+            createdPurchaseEntryId = "the-purchase-entry"
+        }
+        val v = vm(logs)
+        v.load("log-1")
+        advanceUntilIdle()
+        val before = v.state.value
+
+        v.addEntry(EntryType.PURCHASE)
+        v.addEntry(EntryType.UNKNOWN)
+        advanceUntilIdle()
+
+        assertEquals(listOf("createPurchaseEntry:s1:2026-03-10"), logs.log.filter { it.startsWith("create") }, "one creation, on the day shown")
+        assertEquals(before.detail, v.state.value.detail, "the screen follows the repository flow, not the returned ids")
+        assertEquals(before.isMissing, v.state.value.isMissing)
+    }
+
     // ─── isAdmin / materials / stock / lines exposure ───────────────────────
 
     @Test
@@ -403,6 +424,37 @@ class DailyLogViewModelTest {
         assertTrue(flexVm.state.value.canAddVideo)
     }
 
+    // ADR-66 lot 2 — a founder owner still on FREE: videos are on, capped at 2 minutes.
+    @Test
+    fun a_founder_owner_on_the_free_plan_gets_the_add_video_affordance() = runTest {
+        val founderProject = projectRepo(
+            ownerId = 1L, ownerPlan = Plan.FREE,
+            ownerEntitlements = com.dmb.chantiertracker.support.founderOnFreeEntitlements,
+        )
+        val v = vm(FakeDailyLogRepository(detail = logDetail()), projects = founderProject)
+        v.load("log-1"); advanceUntilIdle()
+
+        assertTrue(v.state.value.canAddVideo)
+    }
+
+    @Test
+    fun a_founder_owner_on_the_free_plan_is_pre_checked_against_the_two_minute_limit() = runTest {
+        val attachments = FakeAttachmentRepository()
+        val founderProject = projectRepo(
+            ownerId = 1L, ownerPlan = Plan.FREE,
+            ownerEntitlements = com.dmb.chantiertracker.support.founderOnFreeEntitlements,
+        )
+        val v = vm(FakeDailyLogRepository(detail = logDetail()), projects = founderProject, attachments = attachments)
+        v.load("log-1"); advanceUntilIdle()
+
+        v.onVideoSelected("e1", com.dmb.chantiertracker.support.fakeUploadFile(com.dmb.chantiertracker.support.mp4Bytes(180.0), name = "long.mp4"))
+        advanceUntilIdle()
+
+        assertNotNull(v.state.value.videoTooLong)
+        assertEquals("2 min 00 s", v.state.value.videoTooLong!!.limit)
+        assertTrue(attachments.log.isEmpty(), "the repository is never called for a too-long clip")
+    }
+
     @Test
     fun a_video_over_the_plan_duration_limit_is_blocked_before_any_upload() = runTest {
         val logs = FakeDailyLogRepository(detail = logDetail())
@@ -421,17 +473,17 @@ class DailyLogViewModelTest {
     }
 
     @Test
-    fun a_video_within_the_limit_is_uploaded_with_progress_and_then_appears() = runTest {
+    fun a_video_within_the_limits_is_queued_and_then_appears() = runTest {
         val purchaseEntry = DailyEntry("e1", "log-1", EntryType.PURCHASE, summary = null)
         val logs = FakeDailyLogRepository(detail = logDetail(entries = listOf(purchaseEntry)))
-        val attachments = FakeAttachmentRepository().apply { uploadVideoProgressSteps = listOf(0.25f, 0.75f, 1f) }
+        val attachments = FakeAttachmentRepository()
         val v = vm(logs, projects = projectRepo(ownerId = 1L, ownerPlan = Plan.SEMI_FLEX), attachments = attachments)
         v.load("log-1"); advanceUntilIdle()
 
         v.onVideoSelected("e1", com.dmb.chantiertracker.support.fakeUploadFile(com.dmb.chantiertracker.support.mp4Bytes(30.0), name = "clip.mp4"))
         advanceUntilIdle()
 
-        assertEquals("uploadVideo:e1:clip.mp4:video/mp4:${com.dmb.chantiertracker.support.mp4Bytes(30.0).size}", attachments.log.single())
+        assertEquals("addVideo:e1:clip.mp4:video/mp4:${com.dmb.chantiertracker.support.mp4Bytes(30.0).size}", attachments.log.single())
         assertNull(v.state.value.attachmentUpload, "indicator cleared once done")
         assertNull(v.state.value.videoTooLong)
         assertEquals(listOf("video/mp4"), v.state.value.attachments.map { it.mimeType })
@@ -443,14 +495,14 @@ class DailyLogViewModelTest {
         val logs = FakeDailyLogRepository(detail = logDetail(entries = listOf(purchaseEntry)))
         // observeAttachments emits the new row only on emitDeferredRows() — like
         // Room, whose Flow re-emits asynchronously after dao.upsert() returns.
-        // Without ADR-39, the indicator cleared on uploadVideo() return, leaving a
+        // Without ADR-39, the indicator cleared when the repository returned, leaving a
         // visible window of "done" + empty list.
         val attachments = FakeAttachmentRepository().apply { deferListEmission = true }
         val v = vm(logs, projects = projectRepo(ownerId = 1L, ownerPlan = Plan.SEMI_FLEX), attachments = attachments)
         v.load("log-1"); advanceUntilIdle()
 
         v.onVideoSelected("e1", com.dmb.chantiertracker.support.fakeUploadFile(com.dmb.chantiertracker.support.mp4Bytes(30.0)))
-        runCurrent() // upload finished; the row has NOT propagated to the list yet
+        runCurrent() // the copy finished; the row has NOT propagated to the list yet
 
         assertTrue(v.state.value.attachments.isEmpty(), "the row is not in the list yet")
         assertEquals(
@@ -503,10 +555,10 @@ class DailyLogViewModelTest {
     }
 
     @Test
-    fun a_video_upload_failure_surfaces_the_error_and_clears_the_progress_bar() = runTest {
+    fun a_video_that_could_not_be_kept_surfaces_the_error_and_clears_the_indicator() = runTest {
         val logs = FakeDailyLogRepository(detail = logDetail())
         val attachments = FakeAttachmentRepository().apply {
-            uploadVideoError = com.dmb.chantiertracker.domain.model.DomainException.Network
+            addVideoError = com.dmb.chantiertracker.domain.model.DomainException.Unexpected
         }
         val v = vm(logs, projects = projectRepo(ownerId = 1L, ownerPlan = Plan.LIBERTE), attachments = attachments)
         v.load("log-1"); advanceUntilIdle()
@@ -514,7 +566,51 @@ class DailyLogViewModelTest {
         v.onVideoSelected("e1", com.dmb.chantiertracker.support.fakeUploadFile(com.dmb.chantiertracker.support.mp4Bytes(10.0), name = "clip.mp4"))
         advanceUntilIdle()
 
-        assertEquals(com.dmb.chantiertracker.domain.model.DomainException.Network, v.state.value.attachmentError)
+        assertEquals(com.dmb.chantiertracker.domain.model.DomainException.Unexpected, v.state.value.attachmentError)
         assertNull(v.state.value.attachmentUpload)
+    }
+
+    private fun aVideoWeighing(bytes: Long) = object : com.dmb.chantiertracker.domain.model.UploadFile by com.dmb.chantiertracker.support.fakeUploadFile(com.dmb.chantiertracker.support.mp4Bytes(10.0), name = "clip.mp4") {
+        override fun size(): Long = bytes
+    }
+
+    @Test
+    fun a_video_heavier_than_the_server_accepts_is_refused_with_its_weight_before_any_copy() = runTest {
+        val purchaseEntry = DailyEntry("e1", "log-1", EntryType.PURCHASE, summary = null)
+        val logs = FakeDailyLogRepository(detail = logDetail(entries = listOf(purchaseEntry)))
+        val attachments = FakeAttachmentRepository()
+        val v = vm(logs, projects = projectRepo(ownerId = 1L, ownerPlan = Plan.LIBERTE), attachments = attachments)
+        v.load("log-1"); advanceUntilIdle()
+
+        v.onVideoSelected("e1", aVideoWeighing(260L * 1024 * 1024))
+        advanceUntilIdle()
+
+        assertEquals(VideoWeightCheck.TooHeavy(actualMegabytes = 260, limitMegabytes = 200), v.state.value.videoTooHeavy)
+        assertTrue(attachments.log.isEmpty(), "the repository is never called for a video the server would refuse")
+        assertNull(v.state.value.attachmentUpload)
+        assertNull(v.state.value.attachmentError)
+    }
+
+    @Test
+    fun a_video_one_byte_over_the_limit_is_shown_as_over_it_not_as_equal_to_it() {
+        assertEquals(VideoWeightCheck.TooHeavy(actualMegabytes = 201, limitMegabytes = 200), VideoLimit.checkWeight(200L * 1024 * 1024 + 1))
+        assertEquals<VideoWeightCheck>(VideoWeightCheck.Ok, VideoLimit.checkWeight(200L * 1024 * 1024))
+    }
+
+    @Test
+    fun choosing_another_video_clears_the_too_heavy_message() = runTest {
+        val purchaseEntry = DailyEntry("e1", "log-1", EntryType.PURCHASE, summary = null)
+        val logs = FakeDailyLogRepository(detail = logDetail(entries = listOf(purchaseEntry)))
+        val attachments = FakeAttachmentRepository()
+        val v = vm(logs, projects = projectRepo(ownerId = 1L, ownerPlan = Plan.LIBERTE), attachments = attachments)
+        v.load("log-1"); advanceUntilIdle()
+        v.onVideoSelected("e1", aVideoWeighing(260L * 1024 * 1024))
+        advanceUntilIdle()
+
+        v.onVideoSelected("e1", aVideoWeighing(5L * 1024 * 1024))
+        advanceUntilIdle()
+
+        assertNull(v.state.value.videoTooHeavy)
+        assertEquals(1, attachments.log.size)
     }
 }

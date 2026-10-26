@@ -85,7 +85,7 @@ class ProjectsViewModel(
         viewModelScope.launch {
             _isRefreshing.value = true
             try {
-                projectRepository.refresh()
+                projectRepository.refreshAtTheUsersRequest()
             } finally {
                 _isRefreshing.value = false
             }

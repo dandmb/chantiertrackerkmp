@@ -3,6 +3,7 @@ package com.dmb.chantiertracker.data.repository
 import com.dmb.chantiertracker.data.local.db.PendingOp
 import com.dmb.chantiertracker.data.local.db.SyncStatus
 import com.dmb.chantiertracker.data.sync.AppCoroutineScope
+import com.dmb.chantiertracker.domain.model.CreatedDailyEntry
 import com.dmb.chantiertracker.domain.model.EntryType
 import com.dmb.chantiertracker.support.FakeDailyEntryDao
 import com.dmb.chantiertracker.support.FakeDailyLogDao
@@ -72,7 +73,7 @@ class DailyLogRepositoryImplTest {
         val syncer = FakeSyncer()
         val r = repo(logDao, syncer = syncer, clock = MutableClock(4_242L))
 
-        val logLocalId = r.createPurchaseEntry("s1", "2026-09-05")
+        val logLocalId = r.createPurchaseEntry("s1", "2026-09-05").dailyLogLocalId
 
         val log = logDao.findByLocalId(logLocalId)!!
         assertEquals("s1", log.stageLocalId)
@@ -90,7 +91,7 @@ class DailyLogRepositoryImplTest {
         val first = r.createPurchaseEntry("s1", "2026-09-05")
         val second = r.createPurchaseEntry("s1", "2026-09-05")
 
-        assertEquals(first, second, "the same day is reused, not duplicated")
+        assertEquals(first, second, "the same day and the same entry are returned, nothing is duplicated")
         assertEquals(1, entryDao.stored.size, "no duplicate PURCHASE entry created")
         assertEquals(1, syncer.requestCount, "the second call is a no-op — no sync nudge")
     }
@@ -101,12 +102,86 @@ class DailyLogRepositoryImplTest {
         val entryDao = FakeDailyEntryDao(logsByLocalId = { logDao.stored.associate { it.localId to it.stageLocalId } })
         val r = repo(logDao, entryDao)
 
-        val purchaseDayId = r.createPurchaseEntry("s1", "2026-09-05")
-        val workDayId = r.createWorkEntry("s1", "2026-09-05")
+        val purchaseDayId = r.createPurchaseEntry("s1", "2026-09-05").dailyLogLocalId
+        val workDayId = r.createWorkEntry("s1", "2026-09-05").dailyLogLocalId
 
         assertEquals(purchaseDayId, workDayId, "both entry types land on the same day")
         assertEquals(1, logDao.stored.size)
         assertEquals(setOf("PURCHASE", "WORK"), entryDao.stored.map { it.type }.toSet())
+    }
+
+    private fun daysOf(logDao: FakeDailyLogDao) = { logDao.stored.associate { it.localId to it.stageLocalId } }
+
+    @Test
+    fun creating_an_entry_on_a_new_day_returns_the_day_and_the_entry_just_created() = runTest {
+        val logDao = FakeDailyLogDao()
+        val entryDao = FakeDailyEntryDao(logsByLocalId = daysOf(logDao))
+        val r = repo(logDao, entryDao)
+
+        val created = r.createWorkEntry("s1", "2026-09-05")
+
+        val day = logDao.stored.single()
+        val entry = entryDao.stored.single()
+        assertEquals(CreatedDailyEntry(dailyLogLocalId = day.localId, entryLocalId = entry.localId), created)
+        assertTrue(created.entryLocalId != created.dailyLogLocalId, "the entry has its own id, it is not the day")
+        assertEquals(listOf<Any?>("WORK", day.localId), listOf(entry.type, entry.dailyLogLocalId))
+        assertEquals(EntryType.WORK, r.observeEntry(created.entryLocalId).first()?.type, "the returned id opens the entry")
+    }
+
+    @Test
+    fun creating_an_entry_on_an_existing_day_returns_that_day_and_the_new_entry_not_the_other_entry_of_the_day() = runTest {
+        val logDao = FakeDailyLogDao(listOf(localDailyLog("log-1", stageLocalId = "s1", date = "2026-09-05")))
+        val entryDao = FakeDailyEntryDao(listOf(localDailyEntry("e-purchase", dailyLogLocalId = "log-1", type = "PURCHASE")), logsByLocalId = daysOf(logDao))
+        val r = repo(logDao, entryDao)
+
+        val created = r.createWorkEntry("s1", "2026-09-05")
+
+        val work = entryDao.stored.single { it.type == "WORK" }
+        assertEquals(CreatedDailyEntry("log-1", work.localId), created)
+        assertTrue(created.entryLocalId != "e-purchase", "the purchase entry of the same day is another entry")
+        assertEquals(1, logDao.stored.size, "no second day")
+    }
+
+    @Test
+    fun asking_for_an_entry_that_already_exists_returns_the_existing_entry_of_that_very_day_and_type() = runTest {
+        val logDao = FakeDailyLogDao(
+            listOf(localDailyLog("log-1", stageLocalId = "s1", date = "2026-09-05"), localDailyLog("log-2", stageLocalId = "s1", date = "2026-09-06")),
+        )
+        val entryDao = FakeDailyEntryDao(
+            listOf(
+                localDailyEntry("e-purchase", dailyLogLocalId = "log-1", type = "PURCHASE"),
+                localDailyEntry("e-work", dailyLogLocalId = "log-1", type = "WORK"),
+                localDailyEntry("e-next-day", dailyLogLocalId = "log-2", type = "PURCHASE"),
+            ),
+            logsByLocalId = daysOf(logDao),
+        )
+        val syncer = FakeSyncer()
+        val r = repo(logDao, entryDao, syncer)
+
+        assertEquals(CreatedDailyEntry("log-1", "e-purchase"), r.createPurchaseEntry("s1", "2026-09-05"))
+        assertEquals(CreatedDailyEntry("log-1", "e-work"), r.createWorkEntry("s1", "2026-09-05"))
+        assertEquals(CreatedDailyEntry("log-2", "e-next-day"), r.createPurchaseEntry("s1", "2026-09-06"))
+
+        assertEquals(3, entryDao.stored.size, "nothing is created")
+        assertEquals(0, syncer.requestCount)
+    }
+
+    @Test
+    fun current_behaviour_not_a_rule_an_entry_waiting_to_be_deleted_is_not_reused_and_a_second_one_is_asked_for_the_same_day_and_type() = runTest {
+        val logDao = FakeDailyLogDao(listOf(localDailyLog("log-1", stageLocalId = "s1", date = "2026-09-05")))
+        val entryDao = FakeDailyEntryDao(
+            listOf(localDailyEntry("e-deleting", dailyLogLocalId = "log-1", type = "PURCHASE", serverId = 30, pendingOp = PendingOp.DELETE)),
+            logsByLocalId = daysOf(logDao),
+        )
+        val r = repo(logDao, entryDao)
+
+        val created = r.createPurchaseEntry("s1", "2026-09-05")
+
+        assertTrue(created.entryLocalId != "e-deleting")
+        assertEquals(
+            listOf("PURCHASE" to PendingOp.DELETE, "PURCHASE" to PendingOp.CREATE), entryDao.stored.map { it.type to it.pendingOp },
+            "two rows for one (day, type): the in-memory double accepts it, the real table has a unique index on that pair",
+        )
     }
 
     @Test

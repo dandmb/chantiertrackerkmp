@@ -7,8 +7,10 @@ import com.dmb.chantiertracker.domain.model.HistorySort
 import com.dmb.chantiertracker.domain.model.ModificationHistoryItem
 import com.dmb.chantiertracker.domain.model.Plan
 import com.dmb.chantiertracker.domain.model.ProjectDetail
+import com.dmb.chantiertracker.domain.model.ProjectOwnerEntitlements
 import com.dmb.chantiertracker.domain.model.ProjectStatus
 import com.dmb.chantiertracker.support.FakeHistoryRepository
+import com.dmb.chantiertracker.support.ownerEntitlements
 import com.dmb.chantiertracker.support.FakeProjectRepository
 import com.dmb.chantiertracker.support.installTestMainDispatcher
 import com.dmb.chantiertracker.support.resetTestMainDispatcher
@@ -39,11 +41,14 @@ class ProjectHistoryViewModelTest {
         isFirst = index == 0, isLast = index == total - 1, totalElements = total * 20,
     )
 
-    private fun projectRepo(ownerPlan: Plan? = null) = FakeProjectRepository(
+    private fun projectRepo(
+        ownerPlan: Plan? = null,
+        ownerEntitlements: ProjectOwnerEntitlements? = null,
+    ) = FakeProjectRepository(
         detail = ProjectDetail(
             localId = "p1", name = "Villa", description = null, location = null,
             currency = "EUR", timezone = "Europe/Paris", status = ProjectStatus.IN_PROGRESS,
-            ownerId = 1L, ownerPlan = ownerPlan,
+            ownerId = 1L, ownerPlan = ownerPlan, ownerEntitlements = ownerEntitlements,
         ),
     )
 
@@ -65,14 +70,26 @@ class ProjectHistoryViewModelTest {
     }
 
     @Test
-    fun it_surfaces_the_owner_plan_for_the_retention_notice() = runTest {
+    fun without_server_entitlements_the_retention_window_falls_back_on_the_owner_plan() = runTest {
         val history = FakeHistoryRepository(listOf(page(0, 1, listOf(item(1)))))
         val vm = ProjectHistoryViewModel(history, projectRepo(ownerPlan = Plan.FREE))
 
         vm.load("p1")
         advanceUntilIdle()
 
-        assertEquals(Plan.FREE, vm.state.value.ownerPlan)
+        assertEquals(30, vm.state.value.ownerMaxHistoryDays)
+    }
+
+    @Test
+    fun a_founder_owner_on_the_free_plan_gets_the_window_the_server_combined() = runTest {
+        val history = FakeHistoryRepository(listOf(page(0, 1, listOf(item(1)))))
+        val founderOnFree = ownerEntitlements(isFounder = true, canExportPdf = true, maxHistoryDays = 180)
+        val vm = ProjectHistoryViewModel(history, projectRepo(ownerPlan = Plan.FREE, ownerEntitlements = founderOnFree))
+
+        vm.load("p1")
+        advanceUntilIdle()
+
+        assertEquals(180, vm.state.value.ownerMaxHistoryDays)
     }
 
     @Test

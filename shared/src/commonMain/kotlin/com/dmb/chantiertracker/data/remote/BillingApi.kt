@@ -1,6 +1,7 @@
 package com.dmb.chantiertracker.data.remote
 
 import com.dmb.chantiertracker.data.remote.dto.BillingPortalResponseDto
+import com.dmb.chantiertracker.data.remote.dto.BillingStatusDto
 import com.dmb.chantiertracker.data.remote.dto.CheckoutRequestDto
 import com.dmb.chantiertracker.data.remote.dto.CheckoutResponseDto
 import io.ktor.client.HttpClient
@@ -13,6 +14,11 @@ import io.ktor.http.ContentType
 import io.ktor.http.contentType
 
 class BillingApi(private val client: HttpClient) {
+
+    // GET /billing/status — public on the backend: also called before any
+    // account exists (WelcomeScreen), so it must work without a token.
+    suspend fun status(): BillingStatusDto =
+        client.get(ApiRoutes.BILLING_STATUS).body()
 
     // POST /billing/checkout — starts a hosted Stripe Checkout session for
     // the given plan/cycle; the caller opens checkoutUrl in the system

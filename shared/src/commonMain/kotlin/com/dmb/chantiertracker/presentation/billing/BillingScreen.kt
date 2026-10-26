@@ -3,15 +3,18 @@ package com.dmb.chantiertracker.presentation.billing
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -33,6 +36,8 @@ import com.dmb.chantiertracker.presentation.i18n.localizedText
 import com.dmb.chantiertracker.presentation.main.labelRes
 import com.dmb.chantiertracker.presentation.navigation.BillingNotice
 import com.dmb.chantiertracker.resources.Res
+import com.dmb.chantiertracker.resources.billing_founder_badge
+import com.dmb.chantiertracker.resources.billing_founder_explanation
 import com.dmb.chantiertracker.resources.billing_manage_subscription
 import com.dmb.chantiertracker.resources.billing_next_due
 import com.dmb.chantiertracker.resources.billing_no_action
@@ -49,8 +54,6 @@ import com.dmb.chantiertracker.resources.billing_usage_section
 import com.dmb.chantiertracker.resources.billing_usage_supervisors
 import com.dmb.chantiertracker.resources.billing_usage_supervisors_unlimited
 import com.dmb.chantiertracker.resources.billing_usage_videos
-import com.dmb.chantiertracker.resources.history_limit_free
-import com.dmb.chantiertracker.resources.history_limit_semi_flex
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -109,7 +112,10 @@ fun BillingScreen(
 @Composable
 private fun PlanSection(usage: PlanUsage) {
     DetailSection(stringResource(Res.string.billing_plan_section)) {
-        Text(stringResource(usage.plan.labelRes()), style = MaterialTheme.typography.headlineSmall)
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(stringResource(usage.plan.labelRes()), style = MaterialTheme.typography.headlineSmall)
+            if (usage.isFounder) FounderBadge()
+        }
         usage.planExpiresAt?.let { expiresAt ->
             Text(
                 text = stringResource(Res.string.billing_next_due, formatIsoDateTime(expiresAt)),
@@ -117,6 +123,27 @@ private fun PlanSection(usage: PlanUsage) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
+        // Explains why the usage below exceeds what the plan named above
+        // normally allows (a founder on FREE keeps the Semi-Flex limits, with half the photos).
+        if (usage.isFounder) {
+            Text(
+                text = stringResource(Res.string.billing_founder_explanation),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@Composable
+private fun FounderBadge() {
+    Surface(color = MaterialTheme.colorScheme.secondaryContainer, shape = RoundedCornerShape(50)) {
+        Text(
+            text = stringResource(Res.string.billing_founder_badge),
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSecondaryContainer,
+        )
     }
 }
 
@@ -149,7 +176,7 @@ private fun UsageSection(usage: PlanUsage) {
             label = stringResource(Res.string.billing_usage_supervisors, usage.supervisorsUsed, usage.supervisorsLimit ?: 0),
             unlimitedLabel = stringResource(Res.string.billing_usage_supervisors_unlimited),
         )
-        historyLimitNotice(usage.plan)?.let { notice ->
+        historyRetentionNotice(usage.maxHistoryDays())?.let { notice ->
             Text(notice, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
@@ -175,13 +202,6 @@ private fun CountUsageRow(used: Int, limit: Int?, label: String, unlimitedLabel:
 }
 
 @Composable
-private fun historyLimitNotice(plan: Plan): String? = when (plan) {
-    Plan.FREE -> stringResource(Res.string.history_limit_free)
-    Plan.SEMI_FLEX -> stringResource(Res.string.history_limit_semi_flex)
-    Plan.LIBERTE, Plan.UNKNOWN -> null
-}
-
-@Composable
 private fun ActionsSection(
     usage: PlanUsage,
     isProcessing: Boolean,
@@ -189,7 +209,9 @@ private fun ActionsSection(
     onManageSubscription: () -> Unit,
     onSubscribe: (Plan, BillingCycle) -> Unit,
 ) {
-    val targets = upgradeTargets(usage.plan)
+    // ADR-66 — no tier to buy unless billing is confirmed open; the Stripe
+    // portal below stays reachable regardless, like on the backend.
+    val targets = if (paidPlansAreOffered()) upgradeTargets(usage.plan) else emptyList()
     val visibility = resolveBillingActionsVisibility(usage.plan, usage.hasStripeCustomer, targets.isNotEmpty())
 
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {

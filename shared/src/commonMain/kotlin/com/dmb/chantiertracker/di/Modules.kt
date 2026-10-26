@@ -1,11 +1,42 @@
 package com.dmb.chantiertracker.di
 
+import com.dmb.chantiertracker.data.repository.AccountDeletionRepositoryImpl
+import com.dmb.chantiertracker.data.session.SessionNotices
+import com.dmb.chantiertracker.domain.repository.AccountDeletionRepository
+import com.dmb.chantiertracker.presentation.account.DeleteAccountViewModel
+import com.dmb.chantiertracker.presentation.sync.SyncState
+import com.dmb.chantiertracker.data.local.db.LocalDataDao
+import com.dmb.chantiertracker.data.session.LocalDataEraser
+import com.dmb.chantiertracker.data.session.LocalDataOwnerStore
+import com.dmb.chantiertracker.data.session.LocalDataOwnership
+import com.dmb.chantiertracker.data.session.LocalDataWiper
+import com.dmb.chantiertracker.data.session.RoomUnsyncedWriteCounter
+import com.dmb.chantiertracker.data.session.UnsyncedWriteCounter
+import com.dmb.chantiertracker.data.repository.SignOutRepositoryImpl
+import com.dmb.chantiertracker.data.repository.SyncIssueRepositoryImpl
+import com.dmb.chantiertracker.data.local.db.SyncIssueDao
+import com.dmb.chantiertracker.data.local.db.SyncIssueLocalActions
+import com.dmb.chantiertracker.domain.repository.SyncIssueRepository
+import com.dmb.chantiertracker.presentation.sync.SyncIssueCountViewModel
+import com.dmb.chantiertracker.presentation.sync.SyncIssueMarkersViewModel
+import com.dmb.chantiertracker.presentation.sync.SyncIssuesViewModel
+import com.dmb.chantiertracker.domain.repository.SignOutRepository
+import com.dmb.chantiertracker.data.remote.EditorIdentityApi
+import com.dmb.chantiertracker.data.local.db.EditorIdentityDao
+import com.dmb.chantiertracker.data.repository.EditorIdentityRepositoryImpl
+import com.dmb.chantiertracker.domain.repository.EditorIdentityRepository
+import com.dmb.chantiertracker.presentation.legal.LegalDocumentViewModel
+import com.dmb.chantiertracker.data.remote.LegalDocumentsApi
+import com.dmb.chantiertracker.data.local.db.LegalDocumentDao
+import com.dmb.chantiertracker.data.repository.LegalDocumentRepositoryImpl
+import com.dmb.chantiertracker.domain.repository.LegalDocumentRepository
 import com.dmb.chantiertracker.core.AppConfig
 import com.dmb.chantiertracker.data.AuthStateHolder
 import com.dmb.chantiertracker.data.local.AttachmentFileStore
 import com.dmb.chantiertracker.data.local.ExportFileStore
 import com.dmb.chantiertracker.data.local.FileKitAttachmentFileStore
 import com.dmb.chantiertracker.data.local.FileKitExportFileStore
+import com.dmb.chantiertracker.data.local.OrphanAttachmentFileCleaner
 import com.dmb.chantiertracker.data.local.TokenStorage
 import com.dmb.chantiertracker.data.local.db.AppDatabase
 import com.dmb.chantiertracker.data.local.db.AttachmentDao
@@ -13,11 +44,13 @@ import com.dmb.chantiertracker.data.local.db.InvitationDao
 import com.dmb.chantiertracker.data.local.db.ConsumptionLineDao
 import com.dmb.chantiertracker.data.local.db.DailyEntryDao
 import com.dmb.chantiertracker.data.local.db.DailyLogDao
+import com.dmb.chantiertracker.data.local.db.MaterialAdoptionDao
 import com.dmb.chantiertracker.data.local.db.MaterialDao
 import com.dmb.chantiertracker.data.local.db.PlanUsageDao
 import com.dmb.chantiertracker.data.local.db.ProjectDao
 import com.dmb.chantiertracker.data.local.db.PurchaseLineDao
 import com.dmb.chantiertracker.data.local.db.StageDao
+import com.dmb.chantiertracker.data.local.db.StockDao
 import com.dmb.chantiertracker.data.local.db.buildChantierDatabase
 import androidx.room.RoomDatabase
 import com.dmb.chantiertracker.data.remote.AccountApi
@@ -35,6 +68,7 @@ import com.dmb.chantiertracker.data.remote.PurchaseLineApi
 import com.dmb.chantiertracker.data.remote.ExportApi
 import com.dmb.chantiertracker.data.remote.ReportApi
 import com.dmb.chantiertracker.data.remote.StageApi
+import com.dmb.chantiertracker.data.remote.StockApi
 import com.dmb.chantiertracker.data.remote.createHttpClient
 import com.dmb.chantiertracker.data.remote.httpClientEngine
 import com.dmb.chantiertracker.data.sync.AppCoroutineScope
@@ -45,7 +79,8 @@ import com.dmb.chantiertracker.presentation.sync.SyncStateHolder
 import com.dmb.chantiertracker.data.repository.AccountRepositoryImpl
 import com.dmb.chantiertracker.data.repository.AttachmentRepositoryImpl
 import com.dmb.chantiertracker.data.repository.AdminRepositoryImpl
-import com.dmb.chantiertracker.data.repository.BillingRepositoryImpl
+import com.dmb.chantiertracker.data.repository.billingRepositoryFor
+import com.dmb.chantiertracker.core.inAppPaymentsAllowed
 import com.dmb.chantiertracker.data.repository.InvitationRepositoryImpl
 import com.dmb.chantiertracker.data.repository.AuthRepositoryImpl
 import com.dmb.chantiertracker.data.repository.ConsumptionLineRepositoryImpl
@@ -138,6 +173,7 @@ val networkModule: Module = module {
     singleOf(::StageApi)
     singleOf(::AccountApi)
     singleOf(::MaterialApi)
+    singleOf(::StockApi)
     singleOf(::DailyLogApi)
     singleOf(::PurchaseLineApi)
     singleOf(::ConsumptionLineApi)
@@ -148,6 +184,8 @@ val networkModule: Module = module {
     singleOf(::ExportApi)
     singleOf(::BillingApi)
     singleOf(::AdminApi)
+    singleOf(::EditorIdentityApi)
+    singleOf(::LegalDocumentsApi)
 }
 
 val syncModule: Module = module {
@@ -162,6 +200,13 @@ val syncModule: Module = module {
     single<ConsumptionLineDao> { get<AppDatabase>().consumptionLineDao() }
     single<AttachmentDao> { get<AppDatabase>().attachmentDao() }
     single<InvitationDao> { get<AppDatabase>().invitationDao() }
+    single<EditorIdentityDao> { get<AppDatabase>().editorIdentityDao() }
+    single<LegalDocumentDao> { get<AppDatabase>().legalDocumentDao() }
+    single<LocalDataDao> { get<AppDatabase>().localDataDao() }
+    single<StockDao> { get<AppDatabase>().stockDao() }
+    single<MaterialAdoptionDao> { get<AppDatabase>().materialAdoptionDao() }
+    single<SyncIssueDao> { get<AppDatabase>().syncIssueDao() }
+    single<SyncIssueLocalActions> { get<AppDatabase>().syncIssueActionDao() }
     single<AttachmentFileStore> { FileKitAttachmentFileStore(newFileName = { kotlin.uuid.Uuid.random().toString() }) }
     single<ExportFileStore> { FileKitExportFileStore() }
     single { AppCoroutineScope() }
@@ -173,6 +218,7 @@ val syncModule: Module = module {
             stageDao = get(),
             stageApi = get(),
             materialDao = get(),
+            materialAdoptionDao = get(),
             materialApi = get(),
             dailyLogDao = get(),
             dailyEntryDao = get(),
@@ -186,22 +232,41 @@ val syncModule: Module = module {
             attachmentFileStore = get(),
             invitationDao = get(),
             invitationApi = get(),
+            accountApi = get(),
+            stockApi = get(),
+            stockDao = get(),
             connectivity = get(),
+            awaitedServerVersions = get<SyncIssueLocalActions>(),
             syncState = get(),
             scope = get<AppCoroutineScope>(),
             backgroundSync = get(),
         )
     }
     single<Syncer> { get<SyncEngine>() }
+    single { OrphanAttachmentFileCleaner(get(), get(), get(), get<AppCoroutineScope>()) }
 }
 
 val dataModule: Module = module {
-    single<AuthRepository> { AuthRepositoryImpl(get(), get<TokenStorage>(), get(), get()) }
+    single { LocalDataOwnerStore(get()) }
+    single<UnsyncedWriteCounter> { RoomUnsyncedWriteCounter(get()) }
+    single<LocalDataEraser> {
+        LocalDataWiper(get(), get(), get()) {
+            get<SyncStateHolder>().update(SyncState.Idle)
+            get<CheckoutDeepLinkDispatcher>().consume()
+            get<InvitationDeepLinkDispatcher>().consume()
+        }
+    }
+    single { LocalDataOwnership(get(), get(), get()) }
+    single<AuthRepository> { AuthRepositoryImpl(get(), get<TokenStorage>(), get(), get(), get(), get()) }
+    single<SignOutRepository> { SignOutRepositoryImpl(get(), get(), get()) }
+    single<SyncIssueRepository> { SyncIssueRepositoryImpl(get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get()) }
     single<ProjectRepository> { ProjectRepositoryImpl(get(), get(), get<AppCoroutineScope>()) }
     single<StageRepository> { StageRepositoryImpl(get(), get(), get<AppCoroutineScope>()) }
     single<AccountRepository> { AccountRepositoryImpl(get(), get()) }
+    single { SessionNotices() }
+    single<AccountDeletionRepository> { AccountDeletionRepositoryImpl(get(), get<TokenStorage>(), get(), get(), get(), get(), get()) }
     single<DailyLogRepository> { DailyLogRepositoryImpl(get(), get(), get(), get<AppCoroutineScope>()) }
-    single<MaterialRepository> { MaterialRepositoryImpl(get(), get(), get(), get(), get<AppCoroutineScope>()) }
+    single<MaterialRepository> { MaterialRepositoryImpl(get(), get(), get(), get(), get(), get<AppCoroutineScope>()) }
     single<PurchaseLineRepository> { PurchaseLineRepositoryImpl(get(), get(), get<AppCoroutineScope>()) }
     single<ConsumptionLineRepository> { ConsumptionLineRepositoryImpl(get(), get(), get<AppCoroutineScope>()) }
     single<AttachmentRepository> { AttachmentRepositoryImpl(get(), get(), get(), get(), get(), get<AppCoroutineScope>()) }
@@ -209,8 +274,10 @@ val dataModule: Module = module {
     single<HistoryRepository> { HistoryRepositoryImpl(get(), get()) }
     single<ReportRepository> { ReportRepositoryImpl(get(), get(), get()) }
     single<ExportRepository> { ExportRepositoryImpl(get(), get(), get()) }
-    single<BillingRepository> { BillingRepositoryImpl(get()) }
+    single<BillingRepository> { billingRepositoryFor(get(), inAppPaymentsAllowed) }
     single<AdminRepository> { AdminRepositoryImpl(get()) }
+    single<EditorIdentityRepository> { EditorIdentityRepositoryImpl(get(), get()) }
+    single<LegalDocumentRepository> { LegalDocumentRepositoryImpl(get(), get()) }
 }
 
 val presentationModule: Module = module {
@@ -227,6 +294,9 @@ val presentationModule: Module = module {
     viewModelOf(::ResetPasswordViewModel)
     viewModelOf(::ChangePasswordViewModel)
     viewModelOf(::MainViewModel)
+    viewModelOf(::SyncIssuesViewModel)
+    viewModelOf(::SyncIssueCountViewModel)
+    viewModelOf(::SyncIssueMarkersViewModel)
     viewModelOf(::ProjectsViewModel)
     viewModelOf(::CreateProjectViewModel)
     viewModelOf(::ProjectDetailViewModel)
@@ -246,10 +316,12 @@ val presentationModule: Module = module {
     viewModelOf(::ConsumptionLineFormViewModel)
     viewModelOf(::SettingsViewModel)
     viewModelOf(::BillingViewModel)
+    viewModelOf(::DeleteAccountViewModel)
     viewModelOf(::AdminUsersViewModel)
     viewModelOf(::AdminCreateUserViewModel)
     viewModelOf(::AdminStatsViewModel)
     viewModelOf(::InvitationAcceptViewModel)
+    viewModelOf(::LegalDocumentViewModel)
 }
 
 fun appModules(): List<Module> = listOf(

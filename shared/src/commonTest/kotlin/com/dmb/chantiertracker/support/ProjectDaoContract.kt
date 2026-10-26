@@ -1,5 +1,7 @@
 package com.dmb.chantiertracker.support
 
+import com.dmb.chantiertracker.data.local.db.MaterialStockEntity
+
 import com.dmb.chantiertracker.data.local.db.AppDatabase
 import com.dmb.chantiertracker.data.local.db.DailyLogEntity
 import com.dmb.chantiertracker.data.local.db.PendingOp
@@ -8,8 +10,10 @@ import com.dmb.chantiertracker.data.local.db.ProjectEntity
 import com.dmb.chantiertracker.data.local.db.ProjectMemberEntity
 import com.dmb.chantiertracker.data.local.db.StageEntity
 import com.dmb.chantiertracker.data.local.db.SyncStatus
+import com.dmb.chantiertracker.domain.model.SyncIssueTarget
 import kotlinx.coroutines.flow.first
 import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -207,7 +211,7 @@ suspend fun verifyDailyLogDaoContract(db: AppDatabase) {
  * [com.dmb.chantiertracker.data.local.db.PurchaseLineDao] and
  * [com.dmb.chantiertracker.data.local.db.ConsumptionLineDao] on a real
  * [AppDatabase] — in particular the join chain (line → entry → log → stage →
- * project) that `observeLinesForProject` relies on for stock (ADR-28).
+ * project) that `observeStockMovements` relies on for stock (ADR-71).
  */
 suspend fun verifyMaterialAndLineDaoContract(db: AppDatabase) {
     val projectDao = db.projectDao()
@@ -231,6 +235,11 @@ suspend fun verifyMaterialAndLineDaoContract(db: AppDatabase) {
 
     assertEquals(listOf("Ciment", "Fer"), materialDao.observeMaterialsForProject("proj-a").first().map { it.name })
     assertEquals("m-ciment", materialDao.findByProjectAndName("proj-a", "ciment")?.localId, "name lookup is case-insensitive")
+    assertNull(materialDao.findByProjectAndNameExactly("proj-a", "ciment"), "the exact lookup follows the unique index")
+    assertEquals("m-ciment", materialDao.findByProjectAndNameExactly("proj-a", "Ciment")?.localId)
+    materialDao.upsert(localMaterial("m-clash", projectLocalId = "proj-a", name = "Ciment", unit = "sac", serverId = 99))
+    assertNull(materialDao.findByLocalId("m-clash"), "Room's @Upsert silently stores nothing when the (project, name) unique index refuses the row")
+    assertEquals(2, materialDao.findForProject("proj-a").size)
     assertNull(materialDao.findByProjectAndName("proj-a", "Ciment introuvable"))
 
     purchaseDao.upsert(localPurchaseLine("pl-in-scope", entryLocalId = "entry-purchase", materialLocalId = "m-ciment", quantity = 100.0, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
@@ -239,17 +248,32 @@ suspend fun verifyMaterialAndLineDaoContract(db: AppDatabase) {
 
     assertEquals(listOf("pl-in-scope"), purchaseDao.observeLinesForEntry("entry-purchase").first().map { it.localId }, "pending delete hidden")
     assertEquals(
-        listOf("pl-in-scope"),
-        purchaseDao.observeLinesForProject("proj-a").first().map { it.localId },
-        "the join resolves through daily_entries/daily_logs/stages to the project",
+        listOf(999.0),
+        purchaseDao.observeStockMovements("proj-a").first().map { it.quantity },
+        "the join resolves to the project; only the lines that still move the stock (the pending delete), not the synced one",
     )
-    assertTrue(purchaseDao.observeLinesForProject("proj-b").first().isEmpty(), "a line on proj-a never leaks into proj-b's stock")
-    assertEquals(listOf("cl-in-scope"), consumptionDao.observeLinesForProject("proj-a").first().map { it.localId })
+    assertTrue(purchaseDao.observeStockMovements("proj-b").first().isEmpty(), "a line on proj-a never leaks into proj-b's stock")
+    assertTrue(consumptionDao.observeStockMovements("proj-a").first().isEmpty(), "a synced consumption is already in the server counter")
     assertEquals(listOf("pl-deleted"), purchaseDao.findPending().map { it.localId })
 
-    // Deleting the parent entry cascades to its lines; the material itself is untouched.
+    stageDao.upsert(sampleStage("stage-a", "proj-a").copy(pendingOp = PendingOp.DELETE, syncStatus = SyncStatus.PENDING))
+    val underDeletingStage = consumptionDao.observeStockMovements("proj-a").first().single()
+    assertEquals(true, underDeletingStage.parentDeleting, "a line under a stage being deleted will be released by the server")
+    assertEquals(40.0, underDeletingStage.quantity)
+
+    db.materialAdoptionDao().mergeInto("m-fer", localMaterial("m-ciment", projectLocalId = "proj-a", name = "Ciment", unit = "sac", serverId = 7, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+    assertNull(materialDao.findByLocalId("m-fer"), "the duplicate is gone")
+    assertEquals(7L, materialDao.findByLocalId("m-ciment")?.serverId)
+
+    purchaseDao.upsert(localPurchaseLine("pl-fer", entryLocalId = "entry-purchase", materialLocalId = "m-ciment", quantity = 1.0))
+    materialDao.upsert(localMaterial("m-dup", projectLocalId = "proj-a", name = "Ciment bis", unit = "sac"))
+    consumptionDao.upsert(localConsumptionLine("cl-dup", entryLocalId = "entry-work", materialLocalId = "m-dup", quantity = 1.0))
+    db.materialAdoptionDao().mergeInto("m-dup", materialDao.findByLocalId("m-ciment")!!)
+    assertEquals("m-ciment", consumptionDao.findByLocalId("cl-dup")?.materialLocalId, "the duplicate's lines move to the kept material")
+    assertNull(materialDao.findByLocalId("m-dup"))
+
     entryDao.deleteByLocalId("entry-purchase")
-    assertTrue("purchase lines cascade-deleted with their entry") { purchaseDao.observeLinesForProject("proj-a").first().isEmpty() }
+    assertTrue("purchase lines cascade-deleted with their entry") { purchaseDao.findForEntry("entry-purchase").isEmpty() }
     assertEquals("Ciment", materialDao.findByLocalId("m-ciment")?.name, "materials are never cascade-deleted")
 }
 
@@ -364,4 +388,638 @@ suspend fun verifyPlanUsageDaoContract(db: AppDatabase) {
     assertNull(row.supervisorsLimit)
     assertEquals("2026-10-08T12:00:00", row.planExpiresAt)
     assertEquals(true, row.hasStripeCustomer)
+}
+
+suspend fun verifyEditorIdentityDaoContract(db: AppDatabase) {
+    val dao = db.editorIdentityDao()
+
+    assertNull(dao.observe().first())
+
+    dao.upsert(com.dmb.chantiertracker.data.local.db.EditorIdentityEntity(refreshedAt = 1_000L))
+    assertNull(dao.observe().first()?.siret, "nothing filled in yet: every field null")
+
+    // Single row, id = 0: a later fetch replaces it, nulls included.
+    dao.upsert(
+        com.dmb.chantiertracker.data.local.db.EditorIdentityEntity(
+            firstName = "Jean", lastName = "Martin", siret = "123 456 789 00012",
+            hostingProviderName = "Hetzner Online GmbH", refreshedAt = 2_000L,
+        ),
+    )
+    dao.upsert(com.dmb.chantiertracker.data.local.db.EditorIdentityEntity(firstName = "Jean", refreshedAt = 3_000L))
+    val row = dao.observe().first()
+    assertEquals("Jean", row?.firstName)
+    assertNull(row?.siret, "a field cleared on the backend is cleared here too")
+    assertEquals(3_000L, row?.refreshedAt)
+}
+
+suspend fun verifyLocalDataDaoContract(db: AppDatabase) {
+    val dao = db.localDataDao()
+    assertEquals(0, dao.countUnsynced())
+
+    db.projectDao().upsert(localProject("proj-1"))
+    db.projectDao().upsertMembers(listOf(com.dmb.chantiertracker.data.local.db.ProjectMemberEntity("proj-1", 7, "Jean", "j@x.dev", "ADMIN")))
+    db.stageDao().upsert(localStage("stage-1", projectLocalId = "proj-1"))
+    db.dailyLogDao().upsert(localDailyLog("log-1", stageLocalId = "stage-1"))
+    db.dailyEntryDao().upsert(localDailyEntry("entry-1", dailyLogLocalId = "log-1"))
+    db.materialDao().upsert(localMaterial("material-1", projectLocalId = "proj-1"))
+    db.purchaseLineDao().upsert(localPurchaseLine("pl-1", entryLocalId = "entry-1", materialLocalId = "material-1"))
+    db.consumptionLineDao().upsert(localConsumptionLine("cl-1", entryLocalId = "entry-1", materialLocalId = "material-1"))
+    db.attachmentDao().upsert(localAttachment("att-1", entryLocalId = "entry-1"))
+    db.planUsageDao().upsert(com.dmb.chantiertracker.data.local.db.PlanUsageEntity(plan = "FREE", projectsLimit = 1, refreshedAt = 1L))
+    db.editorIdentityDao().upsert(com.dmb.chantiertracker.data.local.db.EditorIdentityEntity(siret = "123", refreshedAt = 1L))
+    db.stockDao().replaceCounters("proj-1", listOf(com.dmb.chantiertracker.data.local.db.MaterialStockEntity("proj-1", 7, 12.0, 0.0)), refreshedAt = 1L)
+    val legalText = com.dmb.chantiertracker.data.local.db.LegalDocumentEntity(
+        document = "terms-of-use", requestedLanguage = "fr", language = "fr", fallback = false, title = "CGU",
+        content = "## 1. Objet", version = 1, publishedOn = "2026-10-25", receivedAt = 1L,
+    )
+    db.legalDocumentDao().upsert(legalText)
+
+    assertEquals(7, dao.countUnsynced(), "project, stage, entry, material, both lines and the photo are pending")
+
+    dao.eraseAll()
+
+    assertEquals(0, dao.countUnsynced())
+    assertTrue(db.projectDao().findAll().isEmpty())
+    assertTrue(db.projectDao().observeMembers("proj-1").first().isEmpty())
+    assertNull(db.stageDao().findByLocalId("stage-1"))
+    assertNull(db.dailyEntryDao().findByLocalId("entry-1"))
+    assertNull(db.materialDao().findByLocalId("material-1"))
+    assertNull(db.purchaseLineDao().findByLocalId("pl-1"))
+    assertNull(db.consumptionLineDao().findByLocalId("cl-1"))
+    assertNull(db.attachmentDao().findByLocalId("att-1"))
+    assertNull(db.planUsageDao().observe().first(), "the plan usage belongs to the account too")
+    assertNull(db.editorIdentityDao().observe().first())
+    assertNull(db.stockDao().findSnapshot("proj-1"), "the server stock belongs to the account too")
+    assertTrue(db.stockDao().observeCounters("proj-1").first().isEmpty())
+    assertEquals(legalText, db.legalDocumentDao().observe("terms-of-use", "fr").first(), "the legal texts are public: kept for the next account")
+}
+
+
+suspend fun verifyFindPendingSkipsRowsDeletedOnServer(db: AppDatabase) {
+    val rejected = com.dmb.chantiertracker.data.sync.SyncError.REJECTED
+    val gone = com.dmb.chantiertracker.data.sync.SyncError.DELETED_ON_SERVER
+    fun <T> Triple<T, T, T>.all() = listOf(first, second, third)
+
+    Triple("proj-p" to null, "proj-r" to rejected, "proj-d" to gone).all().forEach { (id, error) ->
+        db.projectDao().upsert(localProject(id, syncStatus = if (error == null) SyncStatus.PENDING else SyncStatus.CONFLICTED, lastSyncError = error))
+    }
+    Triple("st-p" to null, "st-r" to rejected, "st-d" to gone).all().forEach { (id, error) ->
+        db.stageDao().upsert(localStage(id, projectLocalId = "proj-p", syncStatus = if (error == null) SyncStatus.PENDING else SyncStatus.CONFLICTED, lastSyncError = error))
+    }
+    db.dailyLogDao().upsert(localDailyLog("log-1", stageLocalId = "st-p"))
+    db.dailyLogDao().upsert(localDailyLog("log-2", stageLocalId = "st-p", date = "2026-09-06"))
+    db.dailyEntryDao().upsert(localDailyEntry("e-p", dailyLogLocalId = "log-1", type = "PURCHASE"))
+    db.dailyEntryDao().upsert(localDailyEntry("e-r", dailyLogLocalId = "log-1", type = "WORK", syncStatus = SyncStatus.CONFLICTED, lastSyncError = rejected))
+    db.dailyEntryDao().upsert(localDailyEntry("e-d", dailyLogLocalId = "log-2", syncStatus = SyncStatus.CONFLICTED, lastSyncError = gone))
+    Triple("m-p" to null, "m-r" to rejected, "m-d" to gone).all().forEach { (id, error) ->
+        db.materialDao().upsert(localMaterial(id, projectLocalId = "proj-p").copy(syncStatus = if (error == null) SyncStatus.PENDING else SyncStatus.CONFLICTED, lastSyncError = error))
+    }
+    Triple("pl-p" to null, "pl-r" to rejected, "pl-d" to gone).all().forEach { (id, error) ->
+        db.purchaseLineDao().upsert(localPurchaseLine(id, entryLocalId = "e-p", materialLocalId = "m-p").copy(syncStatus = if (error == null) SyncStatus.PENDING else SyncStatus.CONFLICTED, lastSyncError = error))
+    }
+    Triple("cl-p" to null, "cl-r" to rejected, "cl-d" to gone).all().forEach { (id, error) ->
+        db.consumptionLineDao().upsert(localConsumptionLine(id, entryLocalId = "e-r", materialLocalId = "m-p").copy(syncStatus = if (error == null) SyncStatus.PENDING else SyncStatus.CONFLICTED, lastSyncError = error))
+    }
+    Triple("att-p" to null, "att-r" to rejected, "att-d" to gone).all().forEach { (id, error) ->
+        db.attachmentDao().upsert(localAttachment(id, entryLocalId = "e-p").copy(syncStatus = if (error == null) SyncStatus.PENDING else SyncStatus.CONFLICTED, lastSyncError = error))
+    }
+
+    assertEquals(listOf("proj-p", "proj-r"), db.projectDao().findPending().map { it.localId }.sorted())
+    assertEquals(listOf("st-p", "st-r"), db.stageDao().findPending().map { it.localId }.sorted())
+    assertEquals(listOf("e-p", "e-r"), db.dailyEntryDao().findPending().map { it.localId }.sorted())
+    assertEquals(listOf("m-p", "m-r"), db.materialDao().findPending().map { it.localId }.sorted())
+    assertEquals(listOf("pl-p", "pl-r"), db.purchaseLineDao().findPending().map { it.localId }.sorted())
+    assertEquals(listOf("cl-p", "cl-r"), db.consumptionLineDao().findPending().map { it.localId }.sorted())
+    assertEquals(listOf("att-p", "att-r"), db.attachmentDao().findPending().map { it.localId }.sorted())
+    assertEquals(21, db.localDataDao().countUnsynced(), "rows deleted on the server still count as unsent: signing out warns about them")
+}
+
+suspend fun verifyStockDaoContract(db: AppDatabase) {
+    val dao = db.stockDao()
+    db.projectDao().upsert(localProject("proj-s", serverId = 50, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+    db.stageDao().upsert(localStage("stage-s", projectLocalId = "proj-s", serverId = 51, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+    db.dailyLogDao().upsert(localDailyLog("log-s", stageLocalId = "stage-s"))
+    db.dailyEntryDao().upsert(localDailyEntry("entry-s", dailyLogLocalId = "log-s", serverId = 52, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+    db.materialDao().upsert(localMaterial("mat-s", projectLocalId = "proj-s", serverId = 7, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+    val synced = localPurchaseLine("pl-s", entryLocalId = "entry-s", materialLocalId = "mat-s", quantity = 5.0, serverId = 60, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED).copy(serverQuantity = 5.0)
+
+    assertTrue(!dao.recordPurchaseLineSynced("proj-s", 7, synced, previousServerQuantity = null), "a line deleted on the device meanwhile is not written back")
+    assertNull(db.purchaseLineDao().findByLocalId("pl-s"))
+    db.purchaseLineDao().upsert(localPurchaseLine("pl-s", entryLocalId = "entry-s", materialLocalId = "mat-s", quantity = 5.0))
+    assertTrue(!dao.recordPurchaseLineSynced("proj-s", 7, synced.copy(localVersion = 3), previousServerQuantity = null), "nor a line changed on the device since it was read")
+    assertNull(db.purchaseLineDao().findByLocalId("pl-s")?.serverQuantity)
+    assertTrue(dao.recordPurchaseLineSynced("proj-s", 7, synced, previousServerQuantity = null))
+    assertEquals(5.0, db.purchaseLineDao().findByLocalId("pl-s")?.serverQuantity, "the line is written even when no stock was loaded")
+    assertTrue(dao.observeCounters("proj-s").first().isEmpty(), "nothing to correct before the first load")
+
+    dao.replaceCounters("proj-s", listOf(MaterialStockEntity("proj-s", 7, 12.0, 2.0)), refreshedAt = 3_000L)
+    assertEquals(3_000L, dao.observeSnapshot("proj-s").first()?.refreshedAt)
+    dao.recordPurchaseLineSynced("proj-s", 7, synced.copy(quantity = 8.0, serverQuantity = 8.0), previousServerQuantity = 5.0)
+    assertEquals(15.0, dao.findCounter("proj-s", 7)?.quantityIn, "the server's own +3 is mirrored in the same transaction")
+    db.consumptionLineDao().upsert(localConsumptionLine("cl-s", entryLocalId = "entry-s", materialLocalId = "mat-s", quantity = 2.0, serverId = 61, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+    val consumption = db.consumptionLineDao().findByLocalId("cl-s")!!
+    val outBefore = dao.findCounter("proj-s", 7)?.quantityOut
+    val inBefore = dao.findCounter("proj-s", 7)?.quantityIn
+    assertTrue(!dao.recordConsumptionLineSynced("proj-s", 7, consumption.copy(localVersion = 9, quantity = 1.0, serverQuantity = 1.0), previousServerQuantity = 2.0), "a consumption changed on the device since it was read is not written")
+    assertTrue(!dao.recordConsumptionLineDeleted("proj-s", 7, consumption.copy(localVersion = 9), serverQuantity = 2.0), "nor deleted")
+    assertTrue(!dao.recordPurchaseLineDeleted("proj-s", 7, db.purchaseLineDao().findByLocalId("pl-s")!!.copy(localVersion = 9), serverQuantity = 8.0), "nor is a purchase")
+    assertEquals(consumption, db.consumptionLineDao().findByLocalId("cl-s"))
+    assertNotNull(db.purchaseLineDao().findByLocalId("pl-s"))
+    assertEquals(listOf(inBefore, outBefore), dao.findCounter("proj-s", 7).let { listOf(it?.quantityIn, it?.quantityOut) }, "and the counters do not move")
+    dao.recordConsumptionLineDeleted("proj-s", 7, consumption, serverQuantity = 2.0)
+    assertNull(db.consumptionLineDao().findByLocalId("cl-s"))
+    assertEquals(0.0, dao.findCounter("proj-s", 7)?.quantityOut)
+
+    assertTrue(dao.findProjectsNeedingRefresh().isEmpty())
+    dao.markNeedsRefresh("proj-s")
+    assertEquals(listOf("proj-s"), dao.findProjectsNeedingRefresh())
+    dao.replaceCounters("proj-s", listOf(MaterialStockEntity("proj-s", 7, 20.0, 1.0)), refreshedAt = 4_000L)
+    assertTrue(dao.findProjectsNeedingRefresh().isEmpty(), "a reload clears the flag")
+    assertEquals(listOf(20.0), dao.observeCounters("proj-s").first().map { it.quantityIn }, "a reload replaces the counters")
+
+    db.projectDao().deleteByLocalId("proj-s")
+    assertNull(dao.findSnapshot("proj-s"), "cascade with the project")
+    assertTrue(dao.observeCounters("proj-s").first().isEmpty())
+}
+
+suspend fun verifySyncIssueContract(db: AppDatabase) {
+    val rejected = com.dmb.chantiertracker.data.sync.SyncError.REJECTED
+    val gone = com.dmb.chantiertracker.data.sync.SyncError.DELETED_ON_SERVER
+    val updateRefused = com.dmb.chantiertracker.data.sync.SyncError.UPDATE_REFUSED
+    val fileRefused = com.dmb.chantiertracker.data.sync.SyncError.FILE_REFUSED
+
+    db.projectDao().upsert(localProject("p-ok", serverId = 1, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+    db.projectDao().upsert(localProject("p-refused", syncStatus = SyncStatus.CONFLICTED, lastSyncError = com.dmb.chantiertracker.data.sync.SyncError.PLAN_LIMIT).copy(serverErrorCode = "PLAN_LIMIT_EXCEEDED"))
+    db.projectDao().upsert(localProject("p-ghost", serverId = 3, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.CONFLICTED, lastSyncError = gone))
+    db.projectDao().upsert(localProject("p-edit", serverId = 4, pendingOp = PendingOp.UPDATE, syncStatus = SyncStatus.CONFLICTED, lastSyncError = updateRefused))
+
+    db.stageDao().upsert(localStage("st-ok", projectLocalId = "p-ok", serverId = 10, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+    db.stageDao().upsert(localStage("st-waiting", projectLocalId = "p-ok"))
+    db.stageDao().upsert(localStage("st-under-refused", projectLocalId = "p-refused"))
+    db.stageDao().upsert(localStage("st-refused", projectLocalId = "p-ok", syncStatus = SyncStatus.CONFLICTED, lastSyncError = rejected))
+    db.stageDao().upsert(localStage("st-ghost", projectLocalId = "p-ghost", serverId = 13, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.CONFLICTED, lastSyncError = gone))
+    db.stageDao().upsert(localStage("st-under-edit", projectLocalId = "p-edit"))
+
+    db.materialDao().upsert(localMaterial("m-ok", projectLocalId = "p-ok", name = "Ciment", serverId = 20, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+    db.materialDao().upsert(localMaterial("m-under-refused", projectLocalId = "p-refused", name = "Sable"))
+    db.materialDao().upsert(localMaterial("m-refused", projectLocalId = "p-ok", name = "Gravier").copy(syncStatus = SyncStatus.CONFLICTED, lastSyncError = rejected))
+
+    listOf("l-ok" to "st-ok", "l-waiting" to "st-waiting", "l-under-refused" to "st-under-refused", "l-refused" to "st-refused", "l-ghost" to "st-ghost")
+        .forEach { (log, stage) -> db.dailyLogDao().upsert(localDailyLog(log, stageLocalId = stage)) }
+    db.dailyEntryDao().upsert(localDailyEntry("e-ok", dailyLogLocalId = "l-ok", serverId = 30, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+    db.dailyEntryDao().upsert(localDailyEntry("e-refused", dailyLogLocalId = "l-ok", type = "WORK", syncStatus = SyncStatus.CONFLICTED, lastSyncError = rejected))
+    db.dailyEntryDao().upsert(localDailyEntry("e-under-waiting-stage", dailyLogLocalId = "l-waiting"))
+    db.dailyEntryDao().upsert(localDailyEntry("e-under-refused-project", dailyLogLocalId = "l-under-refused"))
+    db.dailyEntryDao().upsert(localDailyEntry("e-under-refused-stage", dailyLogLocalId = "l-refused"))
+    db.dailyEntryDao().upsert(localDailyEntry("e-ghost", dailyLogLocalId = "l-ghost", serverId = 34, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.CONFLICTED, lastSyncError = gone))
+
+    db.purchaseLineDao().upsert(localPurchaseLine("pl-waiting", entryLocalId = "e-ok", materialLocalId = "m-ok"))
+    db.purchaseLineDao().upsert(localPurchaseLine("pl-under-refused-entry", entryLocalId = "e-refused", materialLocalId = "m-ok"))
+    db.purchaseLineDao().upsert(localPurchaseLine("pl-with-refused-material", entryLocalId = "e-ok", materialLocalId = "m-refused"))
+    db.purchaseLineDao().upsert(localPurchaseLine("pl-deep", entryLocalId = "e-under-refused-project", materialLocalId = "m-under-refused"))
+    db.purchaseLineDao().upsert(localPurchaseLine("pl-edit", entryLocalId = "e-ok", materialLocalId = "m-ok", serverId = 40, pendingOp = PendingOp.UPDATE, syncStatus = SyncStatus.CONFLICTED).copy(lastSyncError = updateRefused))
+    db.purchaseLineDao().upsert(localPurchaseLine("pl-on-ghost", entryLocalId = "e-ghost", materialLocalId = "m-ok", syncStatus = SyncStatus.CONFLICTED).copy(lastSyncError = gone))
+    db.consumptionLineDao().upsert(localConsumptionLine("cl-under-refused-entry", entryLocalId = "e-refused", materialLocalId = "m-ok"))
+    db.consumptionLineDao().upsert(localConsumptionLine("cl-waiting", entryLocalId = "e-ok", materialLocalId = "m-ok"))
+    db.attachmentDao().upsert(localAttachment("a-under-refused-entry", entryLocalId = "e-refused"))
+    db.attachmentDao().upsert(localAttachment("a-waiting", entryLocalId = "e-ok"))
+    db.attachmentDao().upsert(localAttachment("a-too-large", entryLocalId = "e-ok").copy(syncStatus = SyncStatus.CONFLICTED, lastSyncError = fileRefused, serverErrorCode = "ATTACHMENT_TOO_LARGE"))
+
+    assertEquals(listOf("st-under-refused"), db.stageDao().observeBlockedByParent().first(), "a stage under a refused project; not one under a project whose edit was refused")
+    assertEquals(listOf("m-under-refused"), db.materialDao().observeBlockedByParent().first())
+    assertEquals(
+        listOf("e-under-refused-project", "e-under-refused-stage"),
+        db.dailyEntryDao().observeBlockedByParent().first().sorted(),
+        "an entry under a refused stage, or under a stage itself waiting on a refused project; not one under a stage that is simply waiting",
+    )
+    assertEquals(
+        listOf("pl-deep", "pl-under-refused-entry", "pl-with-refused-material"),
+        db.purchaseLineDao().observeBlockedByParent().first().sorted(),
+    )
+    assertEquals(listOf("cl-under-refused-entry"), db.consumptionLineDao().observeBlockedByParent().first())
+    assertEquals(listOf("a-under-refused-entry"), db.attachmentDao().observeBlockedByParent().first())
+
+    assertEquals(listOf("p-refused"), db.projectDao().findPending().map { it.localId }, "a refused edit and a ghost wait for the user, a refused creation is sent again")
+    assertEquals(listOf("pl-deep", "pl-under-refused-entry", "pl-waiting", "pl-with-refused-material"), db.purchaseLineDao().findPending().map { it.localId }.sorted())
+    assertEquals(listOf("a-under-refused-entry", "a-waiting"), db.attachmentDao().findPending().map { it.localId }.sorted(), "a refused file is not uploaded again")
+
+    val unsent = db.localDataDao().countUnsentByKind()
+    assertEquals(2, unsent.projects, "the refused creation and the refused edit; the ghost project is already on the server")
+    assertEquals(4, unsent.stages, "the ghost stage does not count")
+    assertEquals(2, unsent.materials)
+    assertEquals(4, unsent.entries, "the ghost entry does not count")
+    assertEquals(8, unsent.lines)
+    assertEquals(3, unsent.attachments)
+    assertEquals(26, db.localDataDao().countUnsynced(), "the raw count still sees the three ghosts (ADR-69 erase guard)")
+
+    assertEquals("PLAN_LIMIT_EXCEEDED", db.projectDao().findByLocalId("p-refused")?.serverErrorCode)
+    assertEquals("ATTACHMENT_TOO_LARGE", db.attachmentDao().findByLocalId("a-too-large")?.serverErrorCode)
+
+    verifySyncIssueListContract(db)
+}
+
+private suspend fun verifySyncIssueListContract(db: AppDatabase) {
+    val updateRefused = com.dmb.chantiertracker.data.sync.SyncError.UPDATE_REFUSED
+    db.stageDao().upsert(
+        localStage("st-delete-refused", projectLocalId = "p-ok", name = "Toiture", serverId = 14, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED, lastSyncError = com.dmb.chantiertracker.data.sync.SyncError.REJECTED)
+            .copy(serverErrorCode = "PROJECT_INSUFFICIENT_ROLE"),
+    )
+
+    val unsettled = db.syncIssueDao().observeUnsettled().first().associateBy { it.localId }
+
+    assertEquals(
+        setOf(
+            "p-refused", "p-edit",
+            "st-waiting", "st-under-refused", "st-refused", "st-under-edit", "st-delete-refused",
+            "m-under-refused", "m-refused",
+            "e-refused", "e-under-waiting-stage", "e-under-refused-project", "e-under-refused-stage",
+            "pl-waiting", "pl-under-refused-entry", "pl-with-refused-material", "pl-deep", "pl-edit", "pl-on-ghost",
+            "cl-under-refused-entry", "cl-waiting",
+            "a-under-refused-entry", "a-waiting", "a-too-large",
+        ),
+        unsettled.keys,
+        "everything not settled, the refused delete included; the three ghosts and the synced rows are left out",
+    )
+
+    val project = unsettled.getValue("p-refused")
+    assertEquals(SyncIssueTarget.PROJECT, project.target)
+    assertEquals(listOf("p-refused", "Chantier p-refused", null, null, null), listOf(project.projectLocalId, project.projectName, project.stageLocalId, project.dailyLogLocalId, project.logDate))
+    assertEquals("PLAN_LIMIT_EXCEEDED", project.serverErrorCode)
+
+    val refusedDelete = unsettled.getValue("st-delete-refused")
+    assertEquals(SyncIssueTarget.STAGE, refusedDelete.target)
+    assertEquals(listOf(SyncStatus.SYNCED, PendingOp.NONE, "PROJECT_INSUFFICIENT_ROLE"), listOf(refusedDelete.syncStatus, refusedDelete.pendingOp, refusedDelete.serverErrorCode))
+    assertEquals(listOf("p-ok", "st-delete-refused", "Toiture"), listOf(refusedDelete.projectLocalId, refusedDelete.stageLocalId, refusedDelete.stageName))
+
+    val material = unsettled.getValue("m-refused")
+    assertEquals(SyncIssueTarget.MATERIAL, material.target)
+    assertEquals(listOf("p-ok", "Gravier", "unité", null), listOf(material.projectLocalId, material.label, material.unit, material.stageLocalId))
+
+    val entry = unsettled.getValue("e-refused")
+    assertEquals(SyncIssueTarget.ENTRY, entry.target)
+    assertEquals(listOf("p-ok", "st-ok", "l-ok", "2026-09-05", "WORK"), listOf(entry.projectLocalId, entry.stageLocalId, entry.dailyLogLocalId, entry.logDate, entry.entryType))
+
+    val deepLine = unsettled.getValue("pl-deep")
+    assertEquals(SyncIssueTarget.PURCHASE_LINE, deepLine.target)
+    assertEquals(
+        listOf("p-refused", "Chantier p-refused", "st-under-refused", "Étape st-under-refused", "l-under-refused", "PURCHASE", "Sable", "unité"),
+        listOf(deepLine.projectLocalId, deepLine.projectName, deepLine.stageLocalId, deepLine.stageName, deepLine.dailyLogLocalId, deepLine.entryType, deepLine.label, deepLine.unit),
+    )
+    assertEquals(1.0, deepLine.quantity)
+
+    assertEquals(SyncIssueTarget.CONSUMPTION_LINE, unsettled.getValue("cl-under-refused-entry").target)
+    assertEquals("WORK", unsettled.getValue("cl-under-refused-entry").entryType)
+
+    val file = unsettled.getValue("a-too-large")
+    assertEquals(SyncIssueTarget.ATTACHMENT, file.target)
+    assertEquals(listOf("p-ok", "st-ok", "l-ok", "photo-a-too-large.jpg", "ATTACHMENT_TOO_LARGE"), listOf(file.projectLocalId, file.stageLocalId, file.dailyLogLocalId, file.label, file.serverErrorCode))
+
+    db.purchaseLineDao().upsert(db.purchaseLineDao().findByLocalId("pl-edit")!!.copy(serverErrorCode = "STOCK_CONSUMED", quantity = 3.0, serverQuantity = 10.0))
+    val refusedEdit = db.syncIssueDao().observeUnsettled().first().single { it.localId == "pl-edit" }
+    assertEquals(listOf(3.0, 10.0), listOf(refusedEdit.quantity, refusedEdit.serverQuantity))
+
+    db.syncIssueDao().sendRefusedUpdateAgain(SyncIssueTarget.PURCHASE_LINE, "pl-edit")
+    val queued = db.purchaseLineDao().findByLocalId("pl-edit")!!
+    assertEquals<List<Any?>>(listOf(SyncStatus.PENDING, PendingOp.UPDATE, null, null), listOf(queued.syncStatus, queued.pendingOp, queued.lastSyncError, queued.serverErrorCode))
+    assertTrue(db.purchaseLineDao().findPending().any { it.localId == "pl-edit" }, "back in the queue of the next pass")
+
+    db.syncIssueDao().freezeUnsentUpdateAgain(SyncIssueTarget.PURCHASE_LINE, "pl-edit", "STOCK_CONSUMED")
+    val frozen = db.purchaseLineDao().findByLocalId("pl-edit")!!
+    assertEquals(listOf(SyncStatus.CONFLICTED, updateRefused, "STOCK_CONSUMED"), listOf(frozen.syncStatus, frozen.lastSyncError, frozen.serverErrorCode))
+
+    db.syncIssueDao().sendRefusedUpdateAgain(SyncIssueTarget.PROJECT, "p-edit")
+    assertEquals(SyncStatus.PENDING, db.projectDao().findByLocalId("p-edit")!!.syncStatus)
+    db.syncIssueDao().freezeUnsentUpdateAgain(SyncIssueTarget.PROJECT, "p-edit", null)
+    assertEquals(updateRefused, db.projectDao().findByLocalId("p-edit")!!.lastSyncError)
+
+    db.syncIssueDao().sendRefusedUpdateAgain(SyncIssueTarget.PROJECT, "p-refused")
+    assertEquals(SyncStatus.CONFLICTED, db.projectDao().findByLocalId("p-refused")!!.syncStatus, "a refused creation is not an update to send again")
+    db.syncIssueDao().freezeUnsentUpdateAgain(SyncIssueTarget.STAGE, "st-waiting", "X")
+    assertEquals(SyncStatus.PENDING, db.stageDao().findByLocalId("st-waiting")!!.syncStatus, "a creation waiting to be sent is never frozen")
+
+    val before = db.localDataDao().countUnsentByKind()
+    db.projectDao().upsert(localProject("p-no-error", serverId = 90, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.PENDING))
+    db.stageDao().upsert(localStage("st-no-error", projectLocalId = "p-ok", serverId = 91, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.PENDING))
+    db.materialDao().upsert(localMaterial("m-no-error", projectLocalId = "p-ok", name = "Chaux", serverId = 92, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.PENDING))
+    db.dailyEntryDao().upsert(localDailyEntry("e-no-error", dailyLogLocalId = "l-waiting", type = "WORK", serverId = 93, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.PENDING))
+    val after = db.localDataDao().countUnsentByKind()
+    assertEquals(
+        listOf(before.projects + 1, before.stages + 1, before.materials + 1, before.entries + 1),
+        listOf(after.projects, after.stages, after.materials, after.entries),
+        "an unsent row with no sync error at all is not a ghost: it must be counted",
+    )
+}
+
+suspend fun verifySyncIssueActionsContract(db: AppDatabase) {
+    val rejected = com.dmb.chantiertracker.data.sync.SyncError.REJECTED
+    val gone = com.dmb.chantiertracker.data.sync.SyncError.DELETED_ON_SERVER
+    val updateRefused = com.dmb.chantiertracker.data.sync.SyncError.UPDATE_REFUSED
+    val actions = db.syncIssueActionDao()
+    val synced = SyncStatus.SYNCED
+    val refused = SyncStatus.CONFLICTED
+
+    db.projectDao().upsert(localProject("p-refused", syncStatus = refused, lastSyncError = com.dmb.chantiertracker.data.sync.SyncError.PLAN_LIMIT))
+    db.stageDao().upsert(localStage("s1", projectLocalId = "p-refused"))
+    db.stageDao().upsert(localStage("s2", projectLocalId = "p-refused"))
+    db.materialDao().upsert(localMaterial("m1", projectLocalId = "p-refused", name = "Sable"))
+    db.dailyLogDao().upsert(localDailyLog("l1", stageLocalId = "s1"))
+    db.dailyEntryDao().upsert(localDailyEntry("e1", dailyLogLocalId = "l1", type = "PURCHASE"))
+    db.dailyEntryDao().upsert(localDailyEntry("e2", dailyLogLocalId = "l1", type = "WORK"))
+    db.purchaseLineDao().upsert(localPurchaseLine("pl1", entryLocalId = "e1", materialLocalId = "m1"))
+    db.consumptionLineDao().upsert(localConsumptionLine("cl1", entryLocalId = "e2", materialLocalId = "m1"))
+    db.attachmentDao().upsert(localAttachment("a1", entryLocalId = "e1", localPath = "files/a1.jpg"))
+
+    db.projectDao().upsert(localProject("p-ok", serverId = 1, pendingOp = PendingOp.NONE, syncStatus = synced))
+    db.stageDao().upsert(localStage("s-ok", projectLocalId = "p-ok", serverId = 10, pendingOp = PendingOp.NONE, syncStatus = synced))
+    db.stageDao().upsert(localStage("s-delete-refused", projectLocalId = "p-ok", serverId = 11, pendingOp = PendingOp.NONE, syncStatus = synced, lastSyncError = rejected).copy(serverErrorCode = "PROJECT_INSUFFICIENT_ROLE"))
+    db.materialDao().upsert(localMaterial("m-ok", projectLocalId = "p-ok", name = "Ciment", serverId = 20, pendingOp = PendingOp.NONE, syncStatus = synced))
+    db.materialDao().upsert(localMaterial("m-refused", projectLocalId = "p-ok", name = "Gravier").copy(syncStatus = refused, lastSyncError = rejected))
+    db.dailyLogDao().upsert(localDailyLog("l-ok", stageLocalId = "s-ok", date = "2026-09-05", serverId = 800))
+    db.dailyLogDao().upsert(localDailyLog("l-two", stageLocalId = "s-ok", date = "2026-09-06", serverId = 801))
+    db.dailyLogDao().upsert(localDailyLog("l-local", stageLocalId = "s-ok", date = "2026-09-07"))
+    db.dailyLogDao().upsert(localDailyLog("l-gone", stageLocalId = "s-ok", date = "2026-09-08", serverId = 803))
+    db.dailyEntryDao().upsert(localDailyEntry("e-ok", dailyLogLocalId = "l-ok", type = "PURCHASE", serverId = 30, pendingOp = PendingOp.NONE, syncStatus = synced))
+    db.dailyEntryDao().upsert(localDailyEntry("e-ok-work", dailyLogLocalId = "l-ok", type = "WORK", serverId = 31, pendingOp = PendingOp.NONE, syncStatus = synced))
+    db.dailyEntryDao().upsert(localDailyEntry("e-refused", dailyLogLocalId = "l-two", type = "WORK", syncStatus = refused, lastSyncError = rejected))
+    db.dailyEntryDao().upsert(localDailyEntry("e-local-day", dailyLogLocalId = "l-local", type = "PURCHASE", syncStatus = refused, lastSyncError = rejected))
+    db.dailyEntryDao().upsert(localDailyEntry("e-gone", dailyLogLocalId = "l-gone", type = "PURCHASE", serverId = 77, pendingOp = PendingOp.UPDATE, syncStatus = refused, lastSyncError = gone))
+    db.purchaseLineDao().upsert(localPurchaseLine("pl-ok", entryLocalId = "e-ok", materialLocalId = "m-ok", serverId = 40, pendingOp = PendingOp.NONE, syncStatus = synced))
+    db.purchaseLineDao().upsert(localPurchaseLine("pl-with-refused-material", entryLocalId = "e-ok", materialLocalId = "m-refused"))
+    db.purchaseLineDao().upsert(localPurchaseLine("pl-on-gone", entryLocalId = "e-gone", materialLocalId = "m-ok"))
+    db.purchaseLineDao().upsert(
+        localPurchaseLine("pl-change", entryLocalId = "e-ok", materialLocalId = "m-ok", quantity = 3.0, serverId = 41, pendingOp = PendingOp.UPDATE, syncStatus = refused)
+            .copy(lastSyncError = updateRefused, serverErrorCode = "STOCK_CONSUMED", serverQuantity = 10.0),
+    )
+    db.consumptionLineDao().upsert(localConsumptionLine("cl-under-refused", entryLocalId = "e-refused", materialLocalId = "m-ok"))
+    db.consumptionLineDao().upsert(
+        localConsumptionLine("cl-change", entryLocalId = "e-ok-work", materialLocalId = "m-ok", quantity = 50.0, serverId = 60, pendingOp = PendingOp.UPDATE, syncStatus = refused)
+            .copy(lastSyncError = updateRefused, serverErrorCode = "INSUFFICIENT_STOCK", serverQuantity = 2.0),
+    )
+    db.consumptionLineDao().upsert(
+        localConsumptionLine("cl-change-unknown", entryLocalId = "e-ok-work", materialLocalId = "m-ok", quantity = 9.0, serverId = 61, pendingOp = PendingOp.UPDATE, syncStatus = refused)
+            .copy(lastSyncError = updateRefused, serverQuantity = null),
+    )
+    db.attachmentDao().upsert(localAttachment("a-refused", entryLocalId = "e-ok", localPath = "files/af.jpg").copy(syncStatus = refused, lastSyncError = com.dmb.chantiertracker.data.sync.SyncError.FILE_REFUSED))
+
+    assertEquals(8, actions.countLinked(SyncIssueTarget.PROJECT, "p-refused"), "2 stages, 1 material, 2 entries, 2 lines, 1 file")
+    assertEquals(5, actions.countLinked(SyncIssueTarget.STAGE, "s1"), "2 entries, 2 lines, 1 file")
+    assertEquals(0, actions.countLinked(SyncIssueTarget.STAGE, "s2"))
+    assertEquals(2, actions.countLinked(SyncIssueTarget.ENTRY, "e1"))
+    assertEquals(2, actions.countLinked(SyncIssueTarget.MATERIAL, "m1"))
+    assertEquals(1, actions.countLinked(SyncIssueTarget.ENTRY, "e-refused"))
+    assertEquals(1, actions.countLinked(SyncIssueTarget.MATERIAL, "m-refused"))
+    assertEquals(1, actions.countLinked(SyncIssueTarget.ENTRY, "e-gone"))
+    assertEquals(0, actions.countLinked(SyncIssueTarget.PURCHASE_LINE, "pl1"))
+    assertEquals(0, actions.countLinked(SyncIssueTarget.ATTACHMENT, "a-refused"))
+
+    assertEquals(emptyList(), actions.removeLocally(SyncIssueTarget.PURCHASE_LINE, "pl-change"), "a refused change exists on the server: never removed")
+    assertNotNull(db.purchaseLineDao().findByLocalId("pl-change"))
+    assertEquals(emptyList(), actions.removeLocally(SyncIssueTarget.STAGE, "s-ok"))
+    assertEquals(emptyList(), actions.removeLocally(SyncIssueTarget.PROJECT, "p-ok"))
+    assertEquals(emptyList(), actions.removeLocally(SyncIssueTarget.STAGE, "s-delete-refused"))
+    assertEquals(emptyList(), actions.removeLocally(SyncIssueTarget.ENTRY, "e1"), "an entry simply waiting is not removed on its own")
+    assertNotNull(db.dailyEntryDao().findByLocalId("e1"))
+    assertEquals(emptyList(), actions.removeLocally(SyncIssueTarget.ENTRY, "does-not-exist"))
+    assertNotNull(db.stageDao().findByLocalId("s-ok"))
+    assertNotNull(db.projectDao().findByLocalId("p-ok"))
+
+    assertEquals(listOf("files/af.jpg"), actions.removeLocally(SyncIssueTarget.ATTACHMENT, "a-refused"), "the file to delete is handed back")
+    assertNull(db.attachmentDao().findByLocalId("a-refused"))
+    assertEquals(emptyList(), actions.removeLocally(SyncIssueTarget.ATTACHMENT, "a-refused"), "a second call finds nothing and does nothing")
+
+    actions.removeLocally(SyncIssueTarget.MATERIAL, "m-refused")
+    assertNull(db.materialDao().findByLocalId("m-refused"))
+    assertNull(db.purchaseLineDao().findByLocalId("pl-with-refused-material"), "the line that needed the refused material goes with it")
+    assertNotNull(db.purchaseLineDao().findByLocalId("pl-ok"))
+
+    actions.removeLocally(SyncIssueTarget.ENTRY, "e-refused")
+    assertNull(db.dailyEntryDao().findByLocalId("e-refused"))
+    assertNull(db.consumptionLineDao().findByLocalId("cl-under-refused"))
+    assertNotNull(db.dailyLogDao().findByLocalId("l-two"), "a day the server knows is kept")
+
+    actions.removeLocally(SyncIssueTarget.ENTRY, "e-local-day")
+    assertNull(db.dailyEntryDao().findByLocalId("e-local-day"))
+    assertNull(db.dailyLogDao().findByLocalId("l-local"), "a day that only existed for the discarded entry goes with it")
+
+    actions.removeLocally(SyncIssueTarget.ENTRY, "e-gone")
+    assertNull(db.dailyEntryDao().findByLocalId("e-gone"), "what was deleted on the server can be purged even with a server id")
+    assertNull(db.purchaseLineDao().findByLocalId("pl-on-gone"))
+
+    assertEquals(listOf("files/a1.jpg"), actions.removeLocally(SyncIssueTarget.PROJECT, "p-refused"))
+    assertNull(db.projectDao().findByLocalId("p-refused"))
+    assertEquals(listOf<Any?>(null, null, null, null, null, null, null, null, null), listOf(
+        db.stageDao().findByLocalId("s1"), db.stageDao().findByLocalId("s2"), db.materialDao().findByLocalId("m1"), db.dailyLogDao().findByLocalId("l1"),
+        db.dailyEntryDao().findByLocalId("e1"), db.dailyEntryDao().findByLocalId("e2"), db.purchaseLineDao().findByLocalId("pl1"),
+        db.consumptionLineDao().findByLocalId("cl1"), db.attachmentDao().findByLocalId("a1"),
+    ))
+    assertEquals(emptyList(), actions.removeLocally(SyncIssueTarget.PROJECT, "p-refused"))
+
+    assertEquals(emptyList(), db.projectDao().findPending().map { it.localId }, "nothing removed is left in the queue of the next pass")
+    assertEquals(emptyList(), db.stageDao().findPending().map { it.localId })
+    assertEquals(emptyList(), db.materialDao().findPending().map { it.localId })
+    assertEquals(emptyList(), db.dailyEntryDao().findPending().map { it.localId })
+    assertEquals(emptyList(), db.purchaseLineDao().findPending().map { it.localId })
+    assertEquals(emptyList(), db.consumptionLineDao().findPending().map { it.localId })
+    assertEquals(emptyList(), db.attachmentDao().findPending().map { it.localId })
+    assertEquals(
+        setOf("s-delete-refused", "pl-change", "cl-change", "cl-change-unknown"),
+        db.syncIssueDao().observeUnsettled().first().map { it.localId }.toSet(),
+        "only what was not acted upon is still to review",
+    )
+    assertEquals(listOf("e-ok", "e-ok-work"), db.dailyEntryDao().findForLog("l-ok").map { it.localId }.sorted(), "the synced entries are untouched")
+
+    assertEquals(emptyList(), actions.rowsAwaitingServerVersion())
+    actions.awaitServerVersion(SyncIssueTarget.PURCHASE_LINE, "pl-change")
+    assertEquals(updateRefused, db.purchaseLineDao().findByLocalId("pl-change")!!.lastSyncError, "only a refused delete awaits its server version")
+    actions.awaitServerVersion(SyncIssueTarget.STAGE, "s-delete-refused")
+    actions.awaitServerVersion(SyncIssueTarget.STAGE, "s-delete-refused")
+    val awaited = db.stageDao().findByLocalId("s-delete-refused")!!
+    assertEquals<List<Any?>>(listOf(synced, PendingOp.NONE, null, null, true), listOf(awaited.syncStatus, awaited.pendingOp, awaited.lastSyncError, awaited.serverErrorCode, awaited.awaitsServerVersion))
+    assertEquals(listOf(com.dmb.chantiertracker.data.local.db.AwaitedRow(SyncIssueTarget.STAGE, "s-delete-refused")), actions.rowsAwaitingServerVersion())
+    assertTrue("s-delete-refused" !in db.syncIssueDao().observeUnsettled().first().map { it.localId }, "what awaits its server version is no longer to review")
+    assertEquals(emptyList(), db.stageDao().findPending().map { it.localId }, "and is never queued for a push")
+    actions.stopAwaitingServerVersion(SyncIssueTarget.PURCHASE_LINE, "pl-change")
+    assertEquals(updateRefused, db.purchaseLineDao().findByLocalId("pl-change")!!.lastSyncError)
+    actions.stopAwaitingServerVersion(SyncIssueTarget.STAGE, "s-delete-refused")
+    actions.stopAwaitingServerVersion(SyncIssueTarget.STAGE, "s-delete-refused")
+    assertNull(db.stageDao().findByLocalId("s-delete-refused")!!.lastSyncError)
+    assertEquals(emptyList(), actions.rowsAwaitingServerVersion())
+
+    assertTrue(!actions.restoreKnownServerValue(SyncIssueTarget.PURCHASE_LINE, "pl-change"), "the price and supplier the server holds are not on the device")
+    assertEquals(3.0, db.purchaseLineDao().findByLocalId("pl-change")!!.quantity)
+    assertTrue(!actions.restoreKnownServerValue(SyncIssueTarget.CONSUMPTION_LINE, "cl-change-unknown"))
+    assertEquals(9.0, db.consumptionLineDao().findByLocalId("cl-change-unknown")!!.quantity)
+    assertTrue(actions.restoreKnownServerValue(SyncIssueTarget.CONSUMPTION_LINE, "cl-change"))
+    val restored = db.consumptionLineDao().findByLocalId("cl-change")!!
+    assertEquals<List<Any?>>(listOf(2.0, synced, PendingOp.NONE, null, null), listOf(restored.quantity, restored.syncStatus, restored.pendingOp, restored.lastSyncError, restored.serverErrorCode))
+    assertTrue(!actions.restoreKnownServerValue(SyncIssueTarget.CONSUMPTION_LINE, "cl-change"), "restoring twice changes nothing more")
+    assertEquals(setOf("pl-change", "cl-change-unknown"), db.syncIssueDao().observeUnsettled().first().map { it.localId }.toSet())
+}
+
+
+suspend fun verifyAwaitedServerVersionIsSilentContract(db: AppDatabase) {
+    val rejected = com.dmb.chantiertracker.data.sync.SyncError.REJECTED
+    val synced = SyncStatus.SYNCED
+    val none = PendingOp.NONE
+    val code = "PROJECT_INSUFFICIENT_ROLE"
+    val actions = db.syncIssueActionDao()
+
+    db.projectDao().upsert(localProject("p", serverId = 1, pendingOp = none, syncStatus = synced, lastSyncError = rejected).copy(serverErrorCode = code))
+    db.stageDao().upsert(localStage("s", projectLocalId = "p", serverId = 10, pendingOp = none, syncStatus = synced, lastSyncError = rejected).copy(serverErrorCode = code))
+    db.materialDao().upsert(localMaterial("m", projectLocalId = "p", name = "Ciment", serverId = 20, pendingOp = none, syncStatus = synced).copy(lastSyncError = rejected, serverErrorCode = code))
+    db.dailyLogDao().upsert(localDailyLog("l", stageLocalId = "s", date = "2026-09-05", serverId = 800))
+    db.dailyEntryDao().upsert(localDailyEntry("e-purchase", dailyLogLocalId = "l", type = "PURCHASE", serverId = 30, pendingOp = none, syncStatus = synced, lastSyncError = rejected).copy(serverErrorCode = code))
+    db.dailyEntryDao().upsert(localDailyEntry("e-work", dailyLogLocalId = "l", type = "WORK", serverId = 31, pendingOp = none, syncStatus = synced))
+    db.purchaseLineDao().upsert(localPurchaseLine("pl", entryLocalId = "e-purchase", materialLocalId = "m", serverId = 40, pendingOp = none, syncStatus = synced).copy(lastSyncError = rejected, serverErrorCode = code))
+    db.consumptionLineDao().upsert(localConsumptionLine("cl", entryLocalId = "e-work", materialLocalId = "m", serverId = 50, pendingOp = none, syncStatus = synced).copy(lastSyncError = rejected, serverErrorCode = code))
+    val refusedDeletes = listOf(
+        SyncIssueTarget.PROJECT to "p", SyncIssueTarget.STAGE to "s", SyncIssueTarget.MATERIAL to "m",
+        SyncIssueTarget.ENTRY to "e-purchase", SyncIssueTarget.PURCHASE_LINE to "pl", SyncIssueTarget.CONSUMPTION_LINE to "cl",
+    )
+    assertEquals(refusedDeletes.map { it.second }.toSet(), db.syncIssueDao().observeUnsettled().first().map { it.localId }.toSet(), "all six are to review before got it")
+
+    refusedDeletes.forEach { (target, localId) -> actions.awaitServerVersion(target, localId) }
+
+    assertEquals(refusedDeletes.toSet(), actions.rowsAwaitingServerVersion().map { it.target to it.localId }.toSet())
+    assertEquals(
+        listOf<String?>(null, null, null, null, null, null),
+        listOf(
+            db.projectDao().findByLocalId("p")!!.lastSyncError, db.stageDao().findByLocalId("s")!!.lastSyncError, db.materialDao().findByLocalId("m")!!.lastSyncError,
+            db.dailyEntryDao().findByLocalId("e-purchase")!!.lastSyncError, db.purchaseLineDao().findByLocalId("pl")!!.lastSyncError,
+            db.consumptionLineDao().findByLocalId("cl")!!.lastSyncError,
+        ),
+    )
+    assertEquals(
+        listOf(true, true, true, true, true, true),
+        listOf(
+            db.projectDao().findByLocalId("p")!!.awaitsServerVersion, db.stageDao().findByLocalId("s")!!.awaitsServerVersion, db.materialDao().findByLocalId("m")!!.awaitsServerVersion,
+            db.dailyEntryDao().findByLocalId("e-purchase")!!.awaitsServerVersion, db.purchaseLineDao().findByLocalId("pl")!!.awaitsServerVersion,
+            db.consumptionLineDao().findByLocalId("cl")!!.awaitsServerVersion,
+        ),
+        "the note lives in its own column, the error column is empty",
+    )
+    assertEquals(emptyList(), db.syncIssueDao().observeUnsettled().first().map { it.target to it.localId }, "nothing awaited is listed to review")
+    assertEquals(0, db.localDataDao().countUnsynced(), "nor counted as unsent when signing out")
+    assertEquals(com.dmb.chantiertracker.data.local.db.UnsentCounts(0, 0, 0, 0, 0, 0), db.localDataDao().countUnsentByKind())
+    assertEquals(emptyList(), db.projectDao().findPending().map { it.localId }, "nor queued for a push")
+    assertEquals(emptyList(), db.stageDao().findPending().map { it.localId })
+    assertEquals(emptyList(), db.materialDao().findPending().map { it.localId })
+    assertEquals(emptyList(), db.dailyEntryDao().findPending().map { it.localId })
+    assertEquals(emptyList(), db.purchaseLineDao().findPending().map { it.localId })
+    assertEquals(emptyList(), db.consumptionLineDao().findPending().map { it.localId })
+    assertEquals(emptyList(), db.stageDao().observeBlockedByParent().first(), "nor seen as a refused parent holding its children back")
+    assertEquals(emptyList(), db.materialDao().observeBlockedByParent().first())
+    assertEquals(emptyList(), db.dailyEntryDao().observeBlockedByParent().first())
+    assertEquals(emptyList(), db.purchaseLineDao().observeBlockedByParent().first())
+    assertEquals(emptyList(), db.consumptionLineDao().observeBlockedByParent().first())
+}
+
+private suspend fun <E : com.dmb.chantiertracker.data.local.db.LocallyVersioned<E>> assertLocalVersionRule(
+    dao: com.dmb.chantiertracker.data.local.db.LocalChangesDao<E>,
+    localId: String,
+    what: String,
+    edit: (E) -> E,
+) {
+    val read = dao.findByLocalId(localId)!!
+    assertEquals(0L, read.localVersion, "$what: a new row starts at version zero")
+    assertTrue(dao.writeIfUnchanged(read), "$what: a row nobody touched takes what the sync pass writes")
+    assertEquals(0L, dao.findByLocalId(localId)!!.localVersion, "$what: a write of the sync pass does not count as a local change")
+
+    assertEquals(read, dao.changeLocally(localId, edit), "$what: the change is given the row as it was")
+    val edited = dao.findByLocalId(localId)!!
+    assertEquals(edit(read).withLocalVersion(1), edited, "$what: a local change is stored with the next version")
+    assertTrue(!dao.writeIfUnchanged(read), "$what: the copy read before the change is refused")
+    assertTrue(!dao.deleteIfUnchanged(read), "$what: and cannot delete the row either")
+    assertEquals(edited, dao.findByLocalId(localId), "$what: the local change is intact")
+
+    assertTrue(dao.keepLocalChange(localId) { it })
+    assertEquals(edited, dao.findByLocalId(localId), "$what: keeping the local change leaves its version alone")
+    dao.changeLocally(localId, edit)
+    assertEquals(2L, dao.findByLocalId(localId)!!.localVersion, "$what: every local change counts")
+    assertTrue(!dao.writeIfUnchanged(edited), "$what: version 1 is refused once version 2 exists")
+
+    val latest = dao.findByLocalId(localId)!!
+    assertTrue(dao.deleteIfUnchanged(latest), "$what: an untouched row can be deleted by the sync pass")
+    assertNull(dao.findByLocalId(localId))
+    assertTrue(!dao.writeIfUnchanged(latest), "$what: a row deleted meanwhile is never written back")
+    assertTrue(!dao.keepLocalChange(localId) { it })
+    assertNull(dao.findByLocalId(localId))
+    assertNull(dao.changeLocally(localId, edit), "$what: changing a missing row does nothing")
+
+    dao.upsert(latest)
+    assertEquals(latest, dao.changeLocally(localId) { null }, "$what: a local change can be a deletion")
+    assertNull(dao.findByLocalId(localId))
+}
+
+suspend fun verifyLocalVersionContract(db: AppDatabase) {
+    db.projectDao().upsert(localProject("p", serverId = 1, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+    db.projectDao().upsert(localProject("p-own"))
+    db.stageDao().upsert(localStage("s", projectLocalId = "p", serverId = 10, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+    db.stageDao().upsert(localStage("s-own", projectLocalId = "p"))
+    db.materialDao().upsert(localMaterial("m", projectLocalId = "p", name = "Ciment", serverId = 20, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+    db.materialDao().upsert(localMaterial("m-own", projectLocalId = "p", name = "Sable"))
+    db.dailyLogDao().upsert(localDailyLog("l", stageLocalId = "s", date = "2026-09-05", serverId = 800))
+    db.dailyLogDao().upsert(localDailyLog("l-own", stageLocalId = "s", date = "2026-09-06"))
+    db.dailyEntryDao().upsert(localDailyEntry("e", dailyLogLocalId = "l", type = "PURCHASE", serverId = 30, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
+    db.dailyEntryDao().upsert(localDailyEntry("e-own", dailyLogLocalId = "l-own", type = "WORK"))
+    db.purchaseLineDao().upsert(localPurchaseLine("pl", entryLocalId = "e", materialLocalId = "m"))
+    db.consumptionLineDao().upsert(localConsumptionLine("cl", entryLocalId = "e", materialLocalId = "m"))
+    db.attachmentDao().upsert(localAttachment("a", entryLocalId = "e"))
+
+    assertLocalVersionRule(db.attachmentDao(), "a", "attachment") { it.copy(originalName = it.originalName + "+") }
+    assertLocalVersionRule(db.consumptionLineDao(), "cl", "consumption line") { it.copy(quantity = it.quantity + 1) }
+    assertLocalVersionRule(db.purchaseLineDao(), "pl", "purchase line") { it.copy(quantity = it.quantity + 1) }
+    assertLocalVersionRule(db.dailyEntryDao(), "e-own", "entry") { it.copy(summary = it.summary.orEmpty() + "+") }
+    assertLocalVersionRule(db.materialDao(), "m-own", "material") { it.copy(unit = it.unit + "+") }
+    assertLocalVersionRule(db.stageDao(), "s-own", "stage") { it.copy(name = it.name + "+") }
+    assertLocalVersionRule(db.projectDao(), "p-own", "project") { it.copy(name = it.name + "+") }
+    assertEquals(listOf("e"), db.dailyEntryDao().findForLog("l").map { it.localId }, "the rest of the site is untouched")
+}
+
+suspend fun verifyMaterialMergeContract(db: AppDatabase) {
+    val synced = SyncStatus.SYNCED
+    val none = PendingOp.NONE
+    db.projectDao().upsert(localProject("p", serverId = 1, pendingOp = none, syncStatus = synced))
+    db.stageDao().upsert(localStage("s", projectLocalId = "p", serverId = 10, pendingOp = none, syncStatus = synced))
+    db.dailyLogDao().upsert(localDailyLog("l", stageLocalId = "s", date = "2026-09-05", serverId = 800))
+    db.dailyEntryDao().upsert(localDailyEntry("e", dailyLogLocalId = "l", type = "PURCHASE", serverId = 30, pendingOp = none, syncStatus = synced))
+    db.dailyEntryDao().upsert(localDailyEntry("e-work", dailyLogLocalId = "l", type = "WORK", serverId = 31, pendingOp = none, syncStatus = synced))
+    db.materialDao().upsert(localMaterial("m-first", projectLocalId = "p", name = "Sable"))
+    db.materialDao().upsert(localMaterial("m-second", projectLocalId = "p", name = "sable", serverId = 20, pendingOp = none, syncStatus = synced))
+    db.materialDao().upsert(localMaterial("m-third", projectLocalId = "p", name = "Sable fin", serverId = 21, pendingOp = none, syncStatus = synced))
+    db.purchaseLineDao().upsert(localPurchaseLine("pl-before", entryLocalId = "e", materialLocalId = "m-first"))
+    assertNull(db.purchaseLineDao().survivorOfMergedMaterial("m-first"), "nothing merged yet")
+
+    db.materialAdoptionDao().mergeInto("m-first", db.materialDao().findByLocalId("m-second")!!.copy(name = "Sable"))
+
+    assertNull(db.materialDao().findByLocalId("m-first"))
+    assertEquals("m-second", db.purchaseLineDao().findByLocalId("pl-before")!!.materialLocalId, "the lines of the duplicate follow")
+    assertEquals(listOf("m-second", "m-second"), listOf(db.purchaseLineDao().survivorOfMergedMaterial("m-first"), db.consumptionLineDao().survivorOfMergedMaterial("m-first")))
+    assertTrue(db.purchaseLineDao().insertNew(localPurchaseLine("pl-late", entryLocalId = "e", materialLocalId = "m-first", quantity = 4.0)), "a line still naming the merged material is stored")
+    assertTrue(db.consumptionLineDao().insertNew(localConsumptionLine("cl-late", entryLocalId = "e-work", materialLocalId = "m-first")))
+    assertEquals(
+        listOf("m-second", "m-second"),
+        listOf(db.purchaseLineDao().findByLocalId("pl-late")!!.materialLocalId, db.consumptionLineDao().findByLocalId("cl-late")!!.materialLocalId),
+        "under the material that survived",
+    )
+    assertEquals(4.0, db.purchaseLineDao().findByLocalId("pl-late")!!.quantity)
+    assertTrue(!db.purchaseLineDao().insertNew(localPurchaseLine("pl-late", entryLocalId = "e", materialLocalId = "m-second", quantity = 9.0)), "inserting never replaces an existing row")
+    assertEquals(4.0, db.purchaseLineDao().findByLocalId("pl-late")!!.quantity)
+    assertTrue(db.purchaseLineDao().insertNew(localPurchaseLine("pl-plain", entryLocalId = "e", materialLocalId = "m-third")))
+    assertEquals("m-third", db.purchaseLineDao().findByLocalId("pl-plain")!!.materialLocalId, "a material that was never merged is left alone")
+
+    db.materialAdoptionDao().mergeInto("m-second", db.materialDao().findByLocalId("m-third")!!)
+
+    assertEquals(
+        listOf("m-third", "m-third"), listOf(db.purchaseLineDao().survivorOfMergedMaterial("m-first"), db.purchaseLineDao().survivorOfMergedMaterial("m-second")),
+        "an earlier merge follows the next one",
+    )
+    assertTrue(db.purchaseLineDao().insertNew(localPurchaseLine("pl-later", entryLocalId = "e", materialLocalId = "m-first")))
+    assertEquals(
+        listOf("m-third", "m-third", "m-third", "m-third"),
+        listOf("pl-before", "pl-late", "pl-later", "pl-plain").map { db.purchaseLineDao().findByLocalId(it)!!.materialLocalId },
+    )
+
+    db.localDataDao().eraseAll()
+    assertNull(db.purchaseLineDao().survivorOfMergedMaterial("m-first"), "erasing the account erases the trace of the merges")
 }

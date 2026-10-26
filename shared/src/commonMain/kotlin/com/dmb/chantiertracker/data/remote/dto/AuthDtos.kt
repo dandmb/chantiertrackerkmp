@@ -47,5 +47,6 @@ data class ProblemDetailDto(
     val title: String? = null,
     val status: Int? = null,
     val detail: String? = null,
+    val code: String? = null,
     @SerialName("errors") val errors: Map<String, String>? = null,
 )

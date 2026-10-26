@@ -10,7 +10,6 @@ import com.dmb.chantiertracker.domain.model.DomainException
 import com.dmb.chantiertracker.domain.model.EntryType
 import com.dmb.chantiertracker.domain.model.Material
 import com.dmb.chantiertracker.domain.model.MaterialStock
-import com.dmb.chantiertracker.domain.model.Plan
 import com.dmb.chantiertracker.domain.model.ProjectStatus
 import com.dmb.chantiertracker.domain.model.PurchaseLine
 import com.dmb.chantiertracker.domain.model.StageStatus
@@ -38,15 +37,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.io.buffered
 
-/**
- * Progress of adding a justificatif (ADR-39).
- * - [Uploading] with a non-null [fraction] → determinate bar (video bytes leaving the device).
- * - [Uploading] with a null [fraction] → indeterminate (a photo, or the video's bytes are all sent).
- * - [Finalizing] → the server response, the transcoded MP4 download, the local write and the
- *   list refresh — shown until the new row is on screen, so "100 %" is never a lie.
- */
-data class AttachmentUploadUi(val stage: Stage, val fraction: Float? = null) {
-    enum class Stage { Uploading, Finalizing }
+data class AttachmentUploadUi(val stage: Stage) {
+    enum class Stage { Finalizing }
 }
 
 data class DailyLogUiState(
@@ -54,6 +46,7 @@ data class DailyLogUiState(
     val detail: DailyLogDetail? = null,
     val canEdit: Boolean = false,
     val isAdmin: Boolean = false,
+    val currentUserId: Long? = null,
     val currency: String? = null,
     val projectLocalId: String? = null,
     val materials: List<Material> = emptyList(),
@@ -67,14 +60,20 @@ data class DailyLogUiState(
     val attachmentUpload: AttachmentUploadUi? = null,
     val attachmentError: DomainException? = null,
     val videoTooLong: VideoDurationCheck.TooLong? = null,
-    // The project OWNER's plan — gates the "Add a video" affordance and the duration pre-check.
-    val ownerPlan: Plan? = null,
+    val videoTooHeavy: VideoWeightCheck.TooHeavy? = null,
+    // The project OWNER's allowance — gates the "Add a video" affordance and the duration pre-check.
+    val ownerVideoLimits: OwnerVideoLimits? = null,
     // Project IN_PROGRESS and stage not COMPLETED — the only server-side gate on
     // creating a report (no date restriction, unlike a line).
     val projectAndStageActive: Boolean = false,
 ) {
     val isMissing: Boolean get() = !isLoading && detail == null
-    val canAddVideo: Boolean get() = VideoLimit.canAdd(ownerPlan)
+
+    // The backend lets a SUPERVISOR delete only what they sent (403 PROJECT_INSUFFICIENT_ROLE
+    // otherwise); an attachment not on the server yet can only be theirs. Unknown author: hidden.
+    fun canDelete(attachment: Attachment): Boolean =
+        canEdit && (isAdmin || !attachment.sentToTheServer || (currentUserId != null && attachment.uploadedById == currentUserId))
+    val canAddVideo: Boolean get() = VideoLimit.canAdd(ownerVideoLimits)
 
     // "Flag an issue" is for a member who can see the entry but can't fix it
     // themselves — mirrors the web's `!isAdmin && !canEdit && projectAndStageActive`.
@@ -88,7 +87,7 @@ private data class LogAccess(
     val isAdmin: Boolean,
     val currency: String?,
     val projectLocalId: String?,
-    val ownerPlan: Plan? = null,
+    val ownerVideoLimits: OwnerVideoLimits? = null,
     val projectAndStageActive: Boolean = false,
 )
 
@@ -120,7 +119,7 @@ class DailyLogViewModel(
             if (projectId == null) {
                 flowOf(emptyList<Material>() to emptyList<MaterialStock>())
             } else {
-                combine(materialRepository.observeMaterials(projectId), materialRepository.observeStock(projectId)) { m, s -> m to s }
+                combine(materialRepository.observeMaterials(projectId), materialRepository.observeStock(projectId)) { m, s -> m to s.materials }
             }
         }
 
@@ -143,6 +142,7 @@ class DailyLogViewModel(
                             detail = access.detail,
                             canEdit = access.canEdit,
                             isAdmin = access.isAdmin,
+                            currentUserId = (authRepository.authState.value as? AuthState.Authenticated)?.user?.id,
                             currency = access.currency,
                             projectLocalId = access.projectLocalId,
                             materials = materialsStock.first,
@@ -150,7 +150,7 @@ class DailyLogViewModel(
                             purchaseLines = lines.first,
                             consumptionLines = lines.second,
                             attachments = lines.third,
-                            ownerPlan = access.ownerPlan,
+                            ownerVideoLimits = access.ownerVideoLimits,
                             projectAndStageActive = access.projectAndStageActive,
                         )
                     }
@@ -188,7 +188,7 @@ class DailyLogViewModel(
                         isAdmin = isAdmin,
                         currency = project?.currency,
                         projectLocalId = projectId,
-                        ownerPlan = project?.ownerPlan,
+                        ownerVideoLimits = project?.ownerVideoLimits(),
                         projectAndStageActive = projectAndStageActive,
                     )
                 }
@@ -231,41 +231,24 @@ class DailyLogViewModel(
         }
     }
 
-    /**
-     * A video was picked from the gallery. The file is **streamed** end to end
-     * (ADR-38) — never read into a ByteArray, which used to blow the Android
-     * heap on a ~2-min clip. Client-side duration pre-check (courtesy — the
-     * server re-asserts), then an **online** upload with progress (ADR-35). A
-     * too-long clip is rejected before any upload.
-     */
     fun onVideoSelected(entryLocalId: String, video: UploadFile) {
-        _state.update { it.copy(attachmentError = null, videoTooLong = null) }
-        val plan = _state.value.ownerPlan
+        _state.update { it.copy(attachmentError = null, videoTooLong = null, videoTooHeavy = null) }
+        val tooHeavy = VideoLimit.checkWeight(video.size()) as? VideoWeightCheck.TooHeavy
+        if (tooHeavy != null) {
+            _state.update { it.copy(videoTooHeavy = tooHeavy) }
+            return
+        }
+        val limits = _state.value.ownerVideoLimits
         viewModelScope.launch {
             // Reads only a bounded prefix of the file (Mp4Duration), so it's
             // cheap enough to run inline — no full read, no ByteArray.
             val duration = runCatching {
                 video.openSource().buffered().use { probeMp4DurationSeconds(it) }
             }.getOrNull()
-            when (val check = VideoLimit.check(plan, duration)) {
+            when (val check = VideoLimit.check(limits, duration)) {
                 is VideoDurationCheck.TooLong -> _state.update { it.copy(videoTooLong = check) }
-                VideoDurationCheck.Ok -> addAttachment(
-                    AttachmentUploadUi(AttachmentUploadUi.Stage.Uploading, fraction = 0f),
-                ) {
-                    attachmentRepository.uploadVideo(entryLocalId, video) { fraction ->
-                        _state.update {
-                            // Bytes all sent, but the server is still transcoding
-                            // and we still have to pull the MP4 back — that's
-                            // Finalizing, not a finished upload.
-                            it.copy(
-                                attachmentUpload = if (fraction >= 1f) {
-                                    AttachmentUploadUi(AttachmentUploadUi.Stage.Finalizing)
-                                } else {
-                                    AttachmentUploadUi(AttachmentUploadUi.Stage.Uploading, fraction)
-                                },
-                            )
-                        }
-                    }
+                VideoDurationCheck.Ok -> addAttachment(AttachmentUploadUi(AttachmentUploadUi.Stage.Finalizing)) {
+                    attachmentRepository.addVideo(entryLocalId, video)
                 }
             }
         }
@@ -277,7 +260,7 @@ class DailyLogViewModel(
     // visible "done but empty" gap (ADR-39). A timeout guards against a Flow
     // that never catches up, so the user is never stuck.
     private fun addAttachment(initial: AttachmentUploadUi, add: suspend () -> Attachment) {
-        _state.update { it.copy(attachmentError = null, videoTooLong = null, attachmentUpload = initial) }
+        _state.update { it.copy(attachmentError = null, videoTooLong = null, videoTooHeavy = null, attachmentUpload = initial) }
         viewModelScope.launch {
             try {
                 val added = add()
@@ -295,7 +278,7 @@ class DailyLogViewModel(
         }
     }
 
-    fun clearAttachmentError() = _state.update { it.copy(attachmentError = null, videoTooLong = null) }
+    fun clearAttachmentError() = _state.update { it.copy(attachmentError = null, videoTooLong = null, videoTooHeavy = null) }
 
     fun deleteAttachment(attachmentLocalId: String) {
         viewModelScope.launch { attachmentRepository.deleteAttachment(attachmentLocalId) }

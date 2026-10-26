@@ -1,9 +1,22 @@
 package com.dmb.chantiertracker.domain.repository
 
+import com.dmb.chantiertracker.domain.model.BillingAvailability
 import com.dmb.chantiertracker.domain.model.BillingCycle
 import com.dmb.chantiertracker.domain.model.Plan
+import kotlinx.coroutines.flow.StateFlow
 
 interface BillingRepository {
+
+    /**
+     * Whether paid tiers may be shown and bought (`GET /billing/status`).
+     * **In memory only, never persisted**: starts `UNKNOWN` on every launch and
+     * falls back to `UNKNOWN` as soon as a refresh fails, so a stale "open"
+     * can never outlive the server switch being closed.
+     */
+    val availability: StateFlow<BillingAvailability>
+
+    /** Never throws — a failure of any kind leaves [availability] at `UNKNOWN`. */
+    suspend fun refreshAvailability()
 
     /**
      * Starts a hosted Stripe Checkout session for [plan]/[billingCycle] and
@@ -14,9 +27,9 @@ interface BillingRepository {
      * per-project — no local/server id to resolve first, unlike
      * `ExportRepository`/`HistoryRepository`.
      *
-     * Throws a `DomainException`: `Network` offline, `Unexpected` otherwise
-     * (the UI never offers this for `FREE` or while a checkout is genuinely
-     * unreachable — `UnsupportedPlanException` shouldn't happen in practice).
+     * Throws a `DomainException`: `Network` offline, `BillingNotOpen` if the
+     * server switch was closed since the last refresh (which also flips
+     * [availability] to `CLOSED`), `Unexpected` otherwise.
      */
     suspend fun startCheckout(plan: Plan, billingCycle: BillingCycle): String
 

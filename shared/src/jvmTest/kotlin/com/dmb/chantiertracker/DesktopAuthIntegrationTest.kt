@@ -7,6 +7,7 @@ import com.dmb.chantiertracker.data.remote.AccountApi
 import com.dmb.chantiertracker.data.remote.AuthApi
 import com.dmb.chantiertracker.data.remote.ProjectApi
 import com.dmb.chantiertracker.data.remote.createHttpClient
+import com.dmb.chantiertracker.data.remote.dto.CreateProjectRequestDto
 import com.dmb.chantiertracker.data.remote.httpClientEngine
 import androidx.room.Room
 import com.dmb.chantiertracker.data.local.db.AppDatabase
@@ -25,6 +26,10 @@ import com.dmb.chantiertracker.domain.model.ProjectRole
 import com.dmb.chantiertracker.domain.model.ProjectStatus
 import com.dmb.chantiertracker.domain.model.UpdateProjectInput
 import com.dmb.chantiertracker.support.FakeConnectivityObserver
+import com.dmb.chantiertracker.support.signInForTheFirstTime
+import com.dmb.chantiertracker.support.retryingOnRateLimit
+import com.dmb.chantiertracker.support.IntegrationBackend
+import com.dmb.chantiertracker.support.DisposableAccounts
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
@@ -44,8 +49,17 @@ import kotlin.test.assertTrue
 
 /**
  * Parcours réel du chemin Desktop (DesktopTokenStorage + engine OkHttp) contre le
- * backend local. Ignoré automatiquement si `localhost:8080` ne répond pas.
+ * backend local (`chantiertracker.integrationBaseUrl`, `localhost:8080` par défaut).
+ * Ignoré automatiquement s'il ne répond pas.
  * Compte requis : mobile-test@local.dev / ChantierTest1234! (créé pendant la vérif).
+ *
+ * Les scénarios qui ont besoin d'un compte neuf le font créer par le super-admin
+ * ([DisposableAccounts], supprimé en fin de test) : un compte créé par un admin ne passe
+ * jamais par la vérification d'e-mail, donc ne prend aucune place fondateur. Passer
+ * `-Dchantiertracker.adminEmail=… -Dchantiertracker.adminPassword=…` (valeurs du `.env`
+ * backend) ; sans elles, ces scénarios sont ignorés. Le seul scénario qui passe par
+ * l'inscription réelle prend une place par construction : il ne tourne qu'avec
+ * `-Dchantiertracker.integrationAllowFounderSeat=true`.
  */
 class DesktopAuthIntegrationTest {
 
@@ -56,11 +70,14 @@ class DesktopAuthIntegrationTest {
     private val client = createHttpClient(
         engine = httpClientEngine(),
         tokenStorage = storage,
-        baseUrl = "http://localhost:8080/api/v1",
+        baseUrl = com.dmb.chantiertracker.support.IntegrationBackend.baseUrl,
         enableLogging = false,
         onSessionExpired = { holder.update(AuthState.Unauthenticated) },
     )
-    private val repo = AuthRepositoryImpl(AuthApi(client), storage, holder, onboarding)
+    private val preferences = com.dmb.chantiertracker.support.FakeAppPreferences()
+    private val repo by lazy {
+        AuthRepositoryImpl(AuthApi(client), storage, holder, onboarding, syncEngine, ownership)
+    }
 
     private val db: AppDatabase = Room.inMemoryDatabaseBuilder<AppDatabase>().buildChantierDatabase()
     private val accountRepo = AccountRepositoryImpl(AccountApi(client), db.planUsageDao())
@@ -72,6 +89,7 @@ class DesktopAuthIntegrationTest {
         stageDao = db.stageDao(),
         stageApi = com.dmb.chantiertracker.data.remote.StageApi(client),
         materialDao = db.materialDao(),
+        materialAdoptionDao = db.materialAdoptionDao(),
         materialApi = com.dmb.chantiertracker.data.remote.MaterialApi(client),
         dailyLogDao = db.dailyLogDao(),
         dailyEntryDao = db.dailyEntryDao(),
@@ -85,14 +103,28 @@ class DesktopAuthIntegrationTest {
         attachmentFileStore = com.dmb.chantiertracker.support.FakeAttachmentFileStore(),
         invitationDao = db.invitationDao(),
         invitationApi = com.dmb.chantiertracker.data.remote.InvitationApi(client),
+        accountApi = com.dmb.chantiertracker.data.remote.AccountApi(client),
+        stockApi = com.dmb.chantiertracker.data.remote.StockApi(client),
+        stockDao = db.stockDao(),
         connectivity = connectivity,
+        awaitedServerVersions = com.dmb.chantiertracker.support.NoAwaitedServerVersion,
         syncState = SyncStateHolder(),
         scope = appScope,
     )
     private val projectRepo = ProjectRepositoryImpl(db.projectDao(), syncEngine, appScope)
+    private val ownership = com.dmb.chantiertracker.data.session.LocalDataOwnership(
+        com.dmb.chantiertracker.data.session.LocalDataOwnerStore(preferences),
+        com.dmb.chantiertracker.data.session.LocalDataWiper(
+            db.localDataDao(), com.dmb.chantiertracker.support.FakeAttachmentFileStore(), com.dmb.chantiertracker.support.FakeExportFileStore(),
+        ) {},
+        com.dmb.chantiertracker.data.session.UnsyncedWriteCounter { db.localDataDao().countUnsynced() },
+    )
+
+    private val accounts = DisposableAccounts()
 
     @AfterTest
     fun cleanUp() {
+        accounts.close()
         client.close()
         db.close()
         dir.toFile().deleteRecursively()
@@ -100,16 +132,10 @@ class DesktopAuthIntegrationTest {
 
     @Test
     fun full_login_bootstrap_logout_against_local_backend() = runBlocking {
-        if (System.getProperty("chantiertracker.integrationTests") != "true") {
-            println("Test d'intégration désactivé (passer -Dchantiertracker.integrationTests=true).")
-            return@runBlocking
-        }
-        if (!backendUp()) {
-            println("Backend localhost:8080 indisponible — test ignoré.")
-            return@runBlocking
-        }
+        com.dmb.chantiertracker.support.skipUnless(com.dmb.chantiertracker.support.IntegrationBackend.enabled, "test contre le vrai backend : -Dchantiertracker.integrationTests=true requis")
+        com.dmb.chantiertracker.support.skipUnless(backendUp(), "backend ${com.dmb.chantiertracker.support.IntegrationBackend.baseUrl} indisponible")
 
-        repo.login("mobile-test@local.dev", "ChantierTest1234!")
+        retryingOnRateLimit { repo.login("mobile-test@local.dev", "ChantierTest1234!") }
 
         val authed = holder.state.value
         assertIs<AuthState.Authenticated>(authed)
@@ -120,10 +146,10 @@ class DesktopAuthIntegrationTest {
 
         // Nouvelle session : bootstrap depuis le token stocké
         val holder2 = AuthStateHolder()
-        val client2 = createHttpClient(httpClientEngine(), storage, "http://localhost:8080/api/v1", false) {
+        val client2 = createHttpClient(httpClientEngine(), storage, com.dmb.chantiertracker.support.IntegrationBackend.baseUrl, false) {
             holder2.update(AuthState.Unauthenticated)
         }
-        val repo2 = AuthRepositoryImpl(AuthApi(client2), storage, holder2, onboarding)
+        val repo2 = AuthRepositoryImpl(AuthApi(client2), storage, holder2, onboarding, syncEngine, ownership)
         repo2.bootstrap()
         assertIs<AuthState.Authenticated>(holder2.state.value)
         client2.close()
@@ -141,49 +167,58 @@ class DesktopAuthIntegrationTest {
     }
 
     @Test
-    fun register_then_reset_password_then_login_with_new_password() = runBlocking {
-        if (System.getProperty("chantiertracker.integrationTests") != "true") {
-            println("Test d'intégration désactivé (passer -Dchantiertracker.integrationTests=true).")
-            return@runBlocking
-        }
-        if (!backendUp()) {
-            println("Backend localhost:8080 indisponible — test ignoré.")
-            return@runBlocking
-        }
+    fun a_new_account_resets_its_password_then_signs_in_with_the_new_one() = runBlocking {
+        com.dmb.chantiertracker.support.skipUnless(com.dmb.chantiertracker.support.IntegrationBackend.enabled, "test contre le vrai backend : -Dchantiertracker.integrationTests=true requis")
+        com.dmb.chantiertracker.support.skipUnless(backendUp(), "backend ${com.dmb.chantiertracker.support.IntegrationBackend.baseUrl} indisponible")
+        com.dmb.chantiertracker.support.skipUnless(IntegrationBackend.adminConfigured, "identifiants super-admin requis (-Dchantiertracker.adminEmail / adminPassword)")
 
-        val email = "reset-flow-${System.currentTimeMillis()}@local.dev"
+        val account = accounts.create("reset-flow", "Reset Flow")
         val firstPassword = "FirstPass1234!"
         val newPassword = "SecondPass5678!"
-
-        repo.register(email, firstPassword, "Reset Flow")
-        val verifyCode = latestCodeFor(email)
-        repo.verifyEmail(email, verifyCode)
-        repo.login(email, firstPassword)
-        assertIs<AuthState.Authenticated>(holder.state.value)
+        repo.signInForTheFirstTime(account, firstPassword)
 
         // Le reset révoque tous les tokens serveur — l'ancien couple est encore sur disque.
-        repo.forgotPassword(email)
-        repo.resetPassword(email, latestCodeFor(email, differentFrom = verifyCode), newPassword)
+        retryingOnRateLimit { repo.forgotPassword(account.email) }
+        val resetCode = latestCodeFor(account.email)
+        retryingOnRateLimit { repo.resetPassword(account.email, resetCode, newPassword) }
 
         // Le cœur du bug #1 : se reconnecter avec le NOUVEAU mot de passe doit réussir.
-        repo.login(email, newPassword)
+        retryingOnRateLimit { repo.login(account.email, newPassword) }
         val authed = holder.state.value
         assertIs<AuthState.Authenticated>(authed)
         assertEquals("Reset Flow", authed.user.name)
     }
 
+    // The only scenario through self-registration: verify-email is what grants a founder
+    // seat, so this one takes a seat on purpose and only runs when explicitly allowed.
+    @Test
+    fun self_registration_then_email_verification_signs_in_as_a_founder() = runBlocking {
+        com.dmb.chantiertracker.support.skipUnless(com.dmb.chantiertracker.support.IntegrationBackend.enabled, "test contre le vrai backend : -Dchantiertracker.integrationTests=true requis")
+        com.dmb.chantiertracker.support.skipUnless(backendUp(), "backend ${com.dmb.chantiertracker.support.IntegrationBackend.baseUrl} indisponible")
+        com.dmb.chantiertracker.support.skipUnless(
+            System.getProperty("chantiertracker.integrationAllowFounderSeat") == "true",
+            "inscription réelle : elle prend une place fondateur (-Dchantiertracker.integrationAllowFounderSeat=true requis)",
+        )
+        com.dmb.chantiertracker.support.skipUnless(IntegrationBackend.adminConfigured, "identifiants super-admin requis (-Dchantiertracker.adminEmail / adminPassword)")
+
+        val email = "self-register-${System.currentTimeMillis()}@local.dev"
+        retryingOnRateLimit { repo.register(email, "SelfPass1234!", "Self Register") }
+        retryingOnRateLimit { repo.verifyEmail(email, latestCodeFor(email)) }
+        retryingOnRateLimit { repo.login(email, "SelfPass1234!") }
+        val authed = holder.state.value
+        assertIs<AuthState.Authenticated>(authed)
+        accounts.track(authed.user.id)
+
+        accountRepo.refreshPlanUsage()
+        println("Inscription réelle : isFounder=${accountRepo.observePlanUsage().first()?.isFounder}")
+    }
+
     @Test
     fun logged_in_user_lists_projects_and_reads_plan() = runBlocking {
-        if (System.getProperty("chantiertracker.integrationTests") != "true") {
-            println("Test d'intégration désactivé (passer -Dchantiertracker.integrationTests=true).")
-            return@runBlocking
-        }
-        if (!backendUp()) {
-            println("Backend localhost:8080 indisponible — test ignoré.")
-            return@runBlocking
-        }
+        com.dmb.chantiertracker.support.skipUnless(com.dmb.chantiertracker.support.IntegrationBackend.enabled, "test contre le vrai backend : -Dchantiertracker.integrationTests=true requis")
+        com.dmb.chantiertracker.support.skipUnless(backendUp(), "backend ${com.dmb.chantiertracker.support.IntegrationBackend.baseUrl} indisponible")
 
-        repo.login("mobile-test@local.dev", "ChantierTest1234!")
+        retryingOnRateLimit { repo.login("mobile-test@local.dev", "ChantierTest1234!") }
         assertIs<AuthState.Authenticated>(holder.state.value)
 
         // Room est la source de vérité : on pull d'abord, puis on lit le store local.
@@ -191,26 +226,26 @@ class DesktopAuthIntegrationTest {
         val projects = projectRepo.observeProjects().first()
         assertTrue(projects.all { it.name.isNotBlank() }, "chaque projet a un nom")
 
-        // `GET /users/me/plan-usage` → persisté en Room, plan connu (compte de test = FREE).
+        // `GET /users/me/plan-usage` → persisté en Room, plan connu (compte de test = FREE, fondateur depuis son inscription).
         accountRepo.refreshPlanUsage()
         val usage = accountRepo.observePlanUsage().first()
         assertTrue(usage != null && usage.plan != Plan.UNKNOWN, "le plan du compte de test doit être reconnu")
-        assertEquals(1, usage!!.projectsLimit, "FREE → 1 projet actif max (PlanLimitService)")
+        assertTrue(usage!!.isFounder, "le compte de test est fondateur")
+        assertEquals(3, usage.projectsLimit, "FREE fondateur → 3 projets actifs max (PlanLimitService)")
     }
 
     @Test
     fun the_free_test_account_is_at_its_project_limit_locally() = runBlocking {
-        if (System.getProperty("chantiertracker.integrationTests") != "true") {
-            println("Test d'intégration désactivé (passer -Dchantiertracker.integrationTests=true).")
-            return@runBlocking
-        }
-        if (!backendUp()) {
-            println("Backend localhost:8080 indisponible — test ignoré.")
-            return@runBlocking
-        }
+        com.dmb.chantiertracker.support.skipUnless(com.dmb.chantiertracker.support.IntegrationBackend.enabled, "test contre le vrai backend : -Dchantiertracker.integrationTests=true requis")
+        com.dmb.chantiertracker.support.skipUnless(backendUp(), "backend ${com.dmb.chantiertracker.support.IntegrationBackend.baseUrl} indisponible")
 
-        repo.login("mobile-test@local.dev", "ChantierTest1234!")
+        com.dmb.chantiertracker.support.skipUnless(IntegrationBackend.adminConfigured, "identifiants super-admin requis (-Dchantiertracker.adminEmail / adminPassword)")
+
+        // Compte neuf créé par l'admin : FREE, jamais fondateur, donc 1 projet actif max.
+        val account = accounts.create("free-limit", "Free Limit")
+        repo.signInForTheFirstTime(account, "FreeLimit1234!")
         val userId = (holder.state.value as AuthState.Authenticated).user.id
+        ProjectApi(client).create(CreateProjectRequestDto("Projet à la limite", null, "Nîmes", "EUR", "Europe/Paris"), idempotencyKey = null)
 
         // Room = source de vérité : on tire la liste + le plan depuis le vrai backend.
         projectRepo.refresh()
@@ -221,27 +256,20 @@ class DesktopAuthIntegrationTest {
 
         assertEquals(Plan.FREE, usage.plan)
         assertEquals(1, usage.projectsLimit)
-        assertEquals(1, activeOwned, "le compte de test possède déjà 1 projet actif")
+        assertEquals(1, activeOwned, "le compte possède 1 projet actif")
         assertTrue(usage.isAtProjectLimit(activeOwned), "limite atteinte → la création doit être bloquée en amont")
     }
 
     @Test
-    fun register_create_project_then_open_its_detail() = runBlocking {
-        if (System.getProperty("chantiertracker.integrationTests") != "true") {
-            println("Test d'intégration désactivé (passer -Dchantiertracker.integrationTests=true).")
-            return@runBlocking
-        }
-        if (!backendUp()) {
-            println("Backend localhost:8080 indisponible — test ignoré.")
-            return@runBlocking
-        }
+    fun a_new_account_creates_a_project_then_opens_its_detail() = runBlocking {
+        com.dmb.chantiertracker.support.skipUnless(com.dmb.chantiertracker.support.IntegrationBackend.enabled, "test contre le vrai backend : -Dchantiertracker.integrationTests=true requis")
+        com.dmb.chantiertracker.support.skipUnless(backendUp(), "backend ${com.dmb.chantiertracker.support.IntegrationBackend.baseUrl} indisponible")
+
+        com.dmb.chantiertracker.support.skipUnless(IntegrationBackend.adminConfigured, "identifiants super-admin requis (-Dchantiertracker.adminEmail / adminPassword)")
 
         // Compte neuf : le compte de test est FREE (1 projet max) et en a déjà un.
-        val email = "project-flow-${System.currentTimeMillis()}@local.dev"
-        repo.register(email, "ProjectPass1234!", "Project Flow")
-        repo.verifyEmail(email, latestCodeFor(email))
-        repo.login(email, "ProjectPass1234!")
-        assertIs<AuthState.Authenticated>(holder.state.value)
+        val account = accounts.create("project-flow", "Project Flow")
+        repo.signInForTheFirstTime(account, "ProjectPass1234!")
 
         // Écriture locale immédiate…
         val localId = projectRepo.createProject(
@@ -270,19 +298,14 @@ class DesktopAuthIntegrationTest {
 
     @Test
     fun create_pull_members_edit_offline_then_delete() = runBlocking {
-        if (System.getProperty("chantiertracker.integrationTests") != "true") {
-            println("Test d'intégration désactivé (passer -Dchantiertracker.integrationTests=true).")
-            return@runBlocking
-        }
-        if (!backendUp()) {
-            println("Backend localhost:8080 indisponible — test ignoré.")
-            return@runBlocking
-        }
+        com.dmb.chantiertracker.support.skipUnless(com.dmb.chantiertracker.support.IntegrationBackend.enabled, "test contre le vrai backend : -Dchantiertracker.integrationTests=true requis")
+        com.dmb.chantiertracker.support.skipUnless(backendUp(), "backend ${com.dmb.chantiertracker.support.IntegrationBackend.baseUrl} indisponible")
 
-        val email = "project-md-${System.currentTimeMillis()}@local.dev"
-        repo.register(email, "ProjectPass1234!", "Project MD")
-        repo.verifyEmail(email, latestCodeFor(email))
-        repo.login(email, "ProjectPass1234!")
+        com.dmb.chantiertracker.support.skipUnless(IntegrationBackend.adminConfigured, "identifiants super-admin requis (-Dchantiertracker.adminEmail / adminPassword)")
+
+        val account = accounts.create("project-md", "Project MD")
+        val email = account.email
+        repo.signInForTheFirstTime(account, "ProjectPass1234!")
 
         val localId = projectRepo.createProject(
             CreateProjectInput("Chantier E2E", null, "Nîmes", null, "Europe/Paris"),
@@ -322,13 +345,17 @@ class DesktopAuthIntegrationTest {
     }
 
     private fun backendUp(): Boolean = runCatching {
-        val conn = URI("http://localhost:8080/actuator/health").toURL().openConnection() as HttpURLConnection
+        val conn = URI(com.dmb.chantiertracker.support.IntegrationBackend.baseUrl.removeSuffix("/api/v1") + "/actuator/health").toURL().openConnection() as HttpURLConnection
         conn.connectTimeout = 1000
         conn.readTimeout = 1000
         conn.responseCode in 200..499
     }.getOrDefault(false)
 
     private fun latestCodeFor(email: String, differentFrom: String? = null): String {
+        // The e-mail's own style carries six-digit colours (#161616): read the code where the
+        // template puts it, then in the link, and only in a plain-text part as a last resort.
+        val codeCell = Regex("""class="ct-code"[^>]*>\s*(\d{6})\s*<""")
+        val codeInTheLink = Regex("""[?&;]code=(\d{6})\b""")
         val sixDigits = Regex("""\b\d{6}\b""")
         repeat(20) {
             val messages = runCatching {
@@ -338,10 +365,11 @@ class DesktopAuthIntegrationTest {
                 val o = el.jsonObject
                 listOf("to", "envelope", "headers").any { key -> o[key]?.toString()?.contains(email) == true }
             }
-            val body = message?.jsonObject?.let { o ->
-                (o["text"] ?: o["html"])?.jsonPrimitive?.contentOrNull
-            }
-            val code = body?.let { sixDigits.find(it)?.value }
+            val html = message?.jsonObject?.get("html")?.jsonPrimitive?.contentOrNull.orEmpty()
+            val text = message?.jsonObject?.get("text")?.jsonPrimitive?.contentOrNull.orEmpty()
+            val code = codeCell.find(html)?.groupValues?.get(1)
+                ?: codeInTheLink.find(html)?.groupValues?.get(1)
+                ?: sixDigits.find(text)?.value
             if (code != null && code != differentFrom) return code
             Thread.sleep(300)
         }

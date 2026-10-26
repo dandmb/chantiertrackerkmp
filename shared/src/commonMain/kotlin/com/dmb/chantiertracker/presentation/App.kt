@@ -6,6 +6,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dmb.chantiertracker.core.BuildInfo
+import com.dmb.chantiertracker.presentation.billing.BillingAvailabilityProvider
 import com.dmb.chantiertracker.presentation.i18n.AppEnvironment
 import com.dmb.chantiertracker.presentation.navigation.RootNavHost
 import com.dmb.chantiertracker.presentation.settings.AppSettings
@@ -29,7 +30,9 @@ fun App() {
     AppEnvironment {
         AppTheme(darkTheme = darkTheme) {
             AppChrome(showStagingBanner = koinInject<BuildInfo>().isStaging) {
-                RootNavHost()
+                BillingAvailabilityProvider {
+                    RootNavHost()
+                }
             }
         }
     }

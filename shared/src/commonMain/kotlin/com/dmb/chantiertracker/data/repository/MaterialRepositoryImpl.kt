@@ -7,24 +7,27 @@ import com.dmb.chantiertracker.data.local.db.MaterialDao
 import com.dmb.chantiertracker.data.local.db.MaterialEntity
 import com.dmb.chantiertracker.data.local.db.PendingOp
 import com.dmb.chantiertracker.data.local.db.PurchaseLineDao
+import com.dmb.chantiertracker.data.local.db.StockDao
 import com.dmb.chantiertracker.data.local.db.SyncStatus
 import com.dmb.chantiertracker.data.sync.AppCoroutineScope
 import com.dmb.chantiertracker.data.sync.Clock
-import com.dmb.chantiertracker.data.sync.SystemClock
 import com.dmb.chantiertracker.data.sync.Syncer
+import com.dmb.chantiertracker.data.sync.SystemClock
+import com.dmb.chantiertracker.data.sync.syncIssue
 import com.dmb.chantiertracker.domain.model.Material
-import com.dmb.chantiertracker.domain.model.MaterialStock
+import com.dmb.chantiertracker.domain.model.ProjectStock
 import com.dmb.chantiertracker.domain.repository.MaterialRepository
+import kotlin.uuid.ExperimentalUuidApi
+import kotlin.uuid.Uuid
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
-import kotlin.uuid.ExperimentalUuidApi
-import kotlin.uuid.Uuid
 
 class MaterialRepositoryImpl(
     private val materialDao: MaterialDao,
     private val purchaseLineDao: PurchaseLineDao,
     private val consumptionLineDao: ConsumptionLineDao,
+    private val stockDao: StockDao,
     private val syncer: Syncer,
     private val scope: AppCoroutineScope,
     private val clock: Clock = SystemClock,
@@ -32,30 +35,19 @@ class MaterialRepositoryImpl(
 ) : MaterialRepository {
 
     override fun observeMaterials(projectLocalId: String): Flow<List<Material>> =
-        materialDao.observeMaterialsForProject(projectLocalId).map { rows -> rows.map(MaterialEntity::toMaterial) }
+        combine(materialDao.observeMaterialsForProject(projectLocalId), materialDao.observeBlockedByParent()) { rows, blocked ->
+            rows.map { it.toMaterial(blockedByParent = it.localId in blocked) }
+        }
 
-    // Available stock is never persisted — always summed from the project's own
-    // purchase/consumption lines, the same "compute, don't store" principle as
-    // a stage's spent budget (see ADR-28). No adjustment bookkeeping needed:
-    // creating, editing or deleting a line is automatically reflected on the
-    // next read, there is nothing to keep in sync with the lines themselves.
-    override fun observeStock(projectLocalId: String): Flow<List<MaterialStock>> =
+    override fun observeStock(projectLocalId: String): Flow<ProjectStock> =
         combine(
             materialDao.observeMaterialsForProject(projectLocalId),
-            purchaseLineDao.observeLinesForProject(projectLocalId),
-            consumptionLineDao.observeLinesForProject(projectLocalId),
-        ) { materials, purchases, consumptions ->
-            val inByMaterial = purchases.groupBy { it.materialLocalId }.mapValues { (_, lines) -> lines.sumOf { it.quantity } }
-            val outByMaterial = consumptions.groupBy { it.materialLocalId }.mapValues { (_, lines) -> lines.sumOf { it.quantity } }
-            materials.map { material ->
-                MaterialStock(
-                    materialLocalId = material.localId,
-                    materialName = material.name,
-                    unit = material.unit,
-                    quantityIn = inByMaterial[material.localId] ?: 0.0,
-                    quantityOut = outByMaterial[material.localId] ?: 0.0,
-                )
-            }
+            stockDao.observeCounters(projectLocalId),
+            stockDao.observeSnapshot(projectLocalId),
+            purchaseLineDao.observeStockMovements(projectLocalId),
+            consumptionLineDao.observeStockMovements(projectLocalId),
+        ) { materials, counters, snapshot, purchases, consumptions ->
+            projectStock(materials, counters, snapshot, purchases, consumptions)
         }
 
     override suspend fun createMaterial(projectLocalId: String, name: String, unit: String): Material {
@@ -63,7 +55,7 @@ class MaterialRepositoryImpl(
         if (existing != null) return existing.toMaterial()
 
         val localId = newLocalId()
-        materialDao.upsert(
+        materialDao.insertNew(
             MaterialEntity(
                 localId = localId,
                 serverId = null,
@@ -83,9 +75,10 @@ class MaterialRepositoryImpl(
     }
 }
 
-internal fun MaterialEntity.toMaterial(): Material = Material(
+internal fun MaterialEntity.toMaterial(blockedByParent: Boolean = false): Material = Material(
     localId = localId,
     projectLocalId = projectLocalId,
     name = name,
     unit = unit,
+    syncIssue = syncIssue(blockedByParent),
 )

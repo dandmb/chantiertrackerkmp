@@ -4,6 +4,7 @@ import com.dmb.chantiertracker.data.local.db.PlanUsageDao
 import com.dmb.chantiertracker.data.local.db.PlanUsageEntity
 import com.dmb.chantiertracker.data.remote.AccountApi
 import com.dmb.chantiertracker.data.remote.apiCall
+import com.dmb.chantiertracker.data.remote.dto.HISTORY_DAYS_LIMIT_NOT_SENT
 import com.dmb.chantiertracker.data.sync.Clock
 import com.dmb.chantiertracker.data.sync.SystemClock
 import com.dmb.chantiertracker.domain.model.Plan
@@ -30,6 +31,7 @@ class AccountRepositoryImpl(
         } catch (e: Throwable) {
             return
         }
+        val historyDaysLimitSent = dto.historyDaysLimit != HISTORY_DAYS_LIMIT_NOT_SENT
         dao.upsert(
             PlanUsageEntity(
                 plan = dto.plan.uppercase(),
@@ -45,6 +47,9 @@ class AccountRepositoryImpl(
                 supervisorsLimit = dto.supervisorsLimit,
                 planExpiresAt = dto.planExpiresAt,
                 hasStripeCustomer = dto.hasStripeCustomer,
+                isFounder = dto.isFounder,
+                historyDaysLimit = dto.historyDaysLimit.takeIf { historyDaysLimitSent },
+                historyDaysLimitKnown = historyDaysLimitSent,
             ),
         )
     }
@@ -70,4 +75,7 @@ internal fun PlanUsageEntity.toPlanUsage(): PlanUsage = PlanUsage(
     supervisorsLimit = supervisorsLimit,
     planExpiresAt = planExpiresAt,
     hasStripeCustomer = hasStripeCustomer ?: false,
+    isFounder = isFounder ?: false,
+    historyDaysLimit = historyDaysLimit,
+    historyDaysLimitKnown = historyDaysLimitKnown ?: false,
 )

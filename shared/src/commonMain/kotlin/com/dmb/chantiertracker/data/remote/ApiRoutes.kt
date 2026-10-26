@@ -12,7 +12,10 @@ object ApiRoutes {
     const val AUTH_CHANGE_PASSWORD = "auth/change-password"
     const val USERS_ME = "users/me"
     const val USERS_ME_PLAN_USAGE = "users/me/plan-usage"
+    const val USERS_ME_DELETION_PREVIEW = "users/me/deletion-preview"
     const val USERS_ME_INVITATIONS = "users/me/invitations"
+    const val BILLING_STATUS = "billing/status"
+    const val EDITOR_IDENTITY = "editor-identity"
     const val BILLING_CHECKOUT = "billing/checkout"
     const val BILLING_PORTAL = "billing/portal"
     const val ADMIN_USERS = "admin/users"
@@ -31,6 +34,7 @@ object ApiRoutes {
     fun stage(id: Long) = "stages/$id"
 
     fun projectMaterials(id: Long) = "projects/$id/materials"
+    fun projectStock(id: Long) = "projects/$id/stock"
     fun material(id: Long) = "materials/$id"
 
     fun stageLogs(stageId: Long) = "stages/$stageId/logs"
@@ -57,4 +61,6 @@ object ApiRoutes {
     fun adminUserResetPassword(id: Long) = "admin/users/$id/reset-password"
     fun adminUserResendActivation(id: Long) = "admin/users/$id/resend-activation"
     fun adminUserPlan(id: Long) = "admin/users/$id/plan"
+
+    fun legalDocument(document: String, language: String) = "legal-documents/$document/$language"
 }

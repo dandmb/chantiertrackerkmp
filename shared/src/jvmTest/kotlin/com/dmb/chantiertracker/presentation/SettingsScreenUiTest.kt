@@ -10,6 +10,7 @@ import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.runComposeUiTest
 import androidx.compose.ui.unit.dp
 import com.dmb.chantiertracker.core.AppConfig
@@ -103,7 +104,7 @@ class SettingsScreenUiTest {
     }
 
     @Test
-    fun the_about_section_lists_the_five_legal_documents_as_clickable_rows() = runComposeUiTest {
+    fun the_about_section_lists_the_six_pages_of_the_site_as_clickable_rows() = runComposeUiTest {
         mount(vm(FakeAppPreferences()))
 
         listOf(
@@ -112,18 +113,20 @@ class SettingsScreenUiTest {
             "Conditions générales de vente",
             "Politique de confidentialité",
             "Politique de cookies",
+            "Suppression du compte",
         ).forEach { onNodeWithText(it).assertExists().assertHasClickAction() }
     }
 
     @Test
-    fun tapping_a_legal_row_opens_the_matching_native_document() = runComposeUiTest {
+    fun tapping_a_legal_row_opens_the_matching_page_of_the_site() = runComposeUiTest {
         val opened = mutableListOf<LegalDocument>()
         mount(vm(FakeAppPreferences()), onOpenLegalDocument = { opened += it })
 
         onNodeWithText("Conditions générales de vente").performClick()
         onNodeWithText("Politique de cookies").performClick()
+        onNodeWithText("Suppression du compte").performScrollTo().performClick()
         waitForIdle()
 
-        assertEquals(listOf(LegalDocument.TermsOfSale, LegalDocument.CookiePolicy), opened)
+        assertEquals(listOf(LegalDocument.TermsOfSale, LegalDocument.CookiePolicy, LegalDocument.AccountDeletion), opened)
     }
 }

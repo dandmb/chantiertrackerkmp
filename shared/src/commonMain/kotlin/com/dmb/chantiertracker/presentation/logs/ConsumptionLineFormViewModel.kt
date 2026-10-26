@@ -18,6 +18,7 @@ data class ConsumptionLineFormUiState(
     val isEdit: Boolean = false,
     val ready: Boolean = false,
     val stock: List<MaterialStock> = emptyList(),
+    val stockRefreshedAt: Long? = null,
     val alreadyUsedMaterialIds: List<String> = emptyList(),
     val selectedMaterialId: String? = null,
     val quantity: String = "",
@@ -29,12 +30,16 @@ data class ConsumptionLineFormUiState(
 ) {
     val selectedStock: MaterialStock? get() = stock.firstOrNull { it.materialLocalId == selectedMaterialId }
 
-    /** Materials with stock left, minus those already consumed today (unless we're editing that very line). */
+    val stockIsLoaded: Boolean get() = stockRefreshedAt != null
+
     val pickable: List<MaterialStock>
-        get() = stock.filter { it.available > 0.0 && (it.materialLocalId == selectedMaterialId || it.materialLocalId !in alreadyUsedMaterialIds) }
+        get() = stock.filter {
+            (!stockIsLoaded || it.available > 0.0) &&
+                (it.materialLocalId == selectedMaterialId || it.materialLocalId !in alreadyUsedMaterialIds)
+        }
 
     val ceiling: Double?
-        get() = selectedMaterialId?.let { availableCeiling(stock, it, editingLineQuantity) }
+        get() = if (stockIsLoaded) selectedMaterialId?.let { availableCeiling(stock, it, editingLineQuantity) } else null
 
     val exceedsStock: Boolean
         get() = ceiling?.let { (parseAmountOrNull(quantity) ?: 0.0) > it } ?: false
@@ -76,7 +81,8 @@ class ConsumptionLineFormViewModel(
                 }
                 _state.update { s ->
                     s.copy(
-                        stock = stock,
+                        stock = stock.materials,
+                        stockRefreshedAt = stock.refreshedAt,
                         alreadyUsedMaterialIds = lines.map { it.materialLocalId },
                         ready = true,
                         isMissing = false,

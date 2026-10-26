@@ -42,6 +42,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.dmb.chantiertracker.presentation.CapitalTitle
 import com.dmb.chantiertracker.presentation.ResponsiveContent
 import com.dmb.chantiertracker.presentation.auth.components.AuthPrimaryButton
 import com.dmb.chantiertracker.resources.Res
@@ -142,11 +143,10 @@ fun OnboardingPage(page: Int, entrance: Float, loop: Float) {
                 else -> BudgetIllustration(illustrationModifier, entrance, loop)
             }
         }
-        Text(
+        CapitalTitle(
             text = stringResource(titleFor(page)),
             modifier = Modifier.fillMaxWidth(),
             style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.SemiBold,
             textAlign = TextAlign.Center,
         )
         Spacer(Modifier.height(12.dp))

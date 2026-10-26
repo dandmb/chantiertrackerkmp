@@ -17,8 +17,9 @@ class ReportApi(private val client: HttpClient) {
 
     // POST /entries/{id}/reports — any project member; 404 if the entry is
     // gone, 403 if the project/stage is inactive.
-    suspend fun create(entryId: Long, body: CreateReportRequestDto): ReportDto =
+    suspend fun create(entryId: Long, body: CreateReportRequestDto, idempotencyKey: String?): ReportDto =
         client.post(ApiRoutes.entryReports(entryId)) {
+            idempotencyKey(idempotencyKey)
             contentType(ContentType.Application.Json)
             setBody(body)
         }.body()

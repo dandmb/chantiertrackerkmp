@@ -2,6 +2,7 @@
 
 package com.dmb.chantiertracker.data.local
 
+import com.dmb.chantiertracker.data.sync.SystemClock
 import kotlinx.coroutines.test.runTest
 import platform.Foundation.NSURL
 import platform.Foundation.NSUUID
@@ -38,6 +39,28 @@ class AttachmentPathIosTest {
             assertTrue(store.readBytes(key).size == 8)
         } finally {
             store.delete(key)
+        }
+    }
+
+    @Test
+    fun the_stored_files_list_every_saved_file_by_its_bare_key_with_the_time_it_was_written() = runTest {
+        val store = FileKitAttachmentFileStore(newFileName = { "ioskeystest-${NSUUID().UUIDString}" })
+        val photo = store.save(byteArrayOf(1, 2, 3), "photo.jpg")
+        val clip = store.save(byteArrayOf(4, 5, 6), "clip.mp4")
+
+        try {
+            val listed = store.storedFiles()
+            assertTrue(listed.map { it.key }.containsAll(listOf(photo, clip)), "saved '$photo' and '$clip', listed $listed")
+            val now = SystemClock.nowEpochMillis()
+            listed.filter { it.key == photo || it.key == clip }.forEach {
+                assertTrue(it.lastModifiedEpochMillis in (now - 60_000L)..(now + 60_000L), "${it.key} written at ${it.lastModifiedEpochMillis}, now $now")
+            }
+            store.delete(photo)
+            val left = store.storedFiles().map { it.key }
+            assertTrue(photo !in left && clip in left)
+        } finally {
+            store.delete(photo)
+            store.delete(clip)
         }
     }
 }

@@ -8,18 +8,20 @@ import com.dmb.chantiertracker.data.local.db.StageEntity
 import com.dmb.chantiertracker.data.local.db.SyncStatus
 import com.dmb.chantiertracker.data.sync.AppCoroutineScope
 import com.dmb.chantiertracker.data.sync.Clock
-import com.dmb.chantiertracker.data.sync.SystemClock
 import com.dmb.chantiertracker.data.sync.Syncer
+import com.dmb.chantiertracker.data.sync.SystemClock
+import com.dmb.chantiertracker.data.sync.syncIssue
 import com.dmb.chantiertracker.domain.model.CreateStageInput
 import com.dmb.chantiertracker.domain.model.Stage
 import com.dmb.chantiertracker.domain.model.StageDetail
 import com.dmb.chantiertracker.domain.model.StageStatus
 import com.dmb.chantiertracker.domain.model.UpdateStageInput
 import com.dmb.chantiertracker.domain.repository.StageRepository
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.map
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 
 class StageRepositoryImpl(
     private val dao: StageDao,
@@ -30,7 +32,9 @@ class StageRepositoryImpl(
 ) : StageRepository {
 
     override fun observeStages(projectLocalId: String): Flow<List<Stage>> =
-        dao.observeStagesForProject(projectLocalId).map { rows -> rows.map(StageEntity::toStage) }
+        combine(dao.observeStagesForProject(projectLocalId), dao.observeBlockedByParent()) { rows, blocked ->
+            rows.map { it.toStage(blockedByParent = it.localId in blocked) }
+        }
 
     override fun observeStage(stageLocalId: String): Flow<StageDetail?> =
         dao.observeStage(stageLocalId).map { it?.toStageDetail() }
@@ -38,7 +42,7 @@ class StageRepositoryImpl(
     override suspend fun createStage(input: CreateStageInput): String {
         val localId = newLocalId()
         val now = clock.nowEpochMillis()
-        dao.upsert(
+        dao.insertNew(
             StageEntity(
                 localId = localId,
                 serverId = null,
@@ -62,8 +66,7 @@ class StageRepositoryImpl(
     }
 
     override suspend fun updateStage(stageLocalId: String, input: UpdateStageInput) {
-        val existing = dao.findByLocalId(stageLocalId) ?: return
-        dao.upsert(
+        dao.changeLocally(stageLocalId) { existing ->
             existing.copy(
                 name = input.name,
                 description = input.description?.ifBlank { null },
@@ -75,25 +78,23 @@ class StageRepositoryImpl(
                 pendingOp = if (existing.pendingOp == PendingOp.CREATE) PendingOp.CREATE else PendingOp.UPDATE,
                 locallyModifiedAt = clock.nowEpochMillis(),
                 lastSyncError = null,
-            ),
-        )
+                serverErrorCode = null,
+            )
+        } ?: return
         syncer.requestSync()
     }
 
     override suspend fun deleteStage(stageLocalId: String) {
-        val existing = dao.findByLocalId(stageLocalId) ?: return
-        if (existing.serverId == null) {
-            dao.deleteByLocalId(stageLocalId)
-            return
-        }
-        dao.upsert(
-            existing.copy(
+        val existing = dao.changeLocally(stageLocalId) { existing ->
+            if (existing.serverId == null) null else existing.copy(
                 syncStatus = SyncStatus.PENDING,
                 pendingOp = PendingOp.DELETE,
                 locallyModifiedAt = clock.nowEpochMillis(),
                 lastSyncError = null,
-            ),
-        )
+                serverErrorCode = null,
+            )
+        } ?: return
+        if (existing.serverId == null) return
         syncer.requestSync()
     }
 
@@ -112,12 +113,13 @@ internal fun String.toStageStatus(): StageStatus = when (uppercase()) {
     else -> StageStatus.UNKNOWN
 }
 
-internal fun StageEntity.toStage(): Stage = Stage(
+internal fun StageEntity.toStage(blockedByParent: Boolean = false): Stage = Stage(
     localId = localId,
     projectLocalId = projectLocalId,
     name = name,
     estimatedBudget = estimatedBudget,
     status = status.toStageStatus(),
+    syncIssue = syncIssue(blockedByParent),
 )
 
 internal fun StageEntity.toStageDetail(): StageDetail = StageDetail(

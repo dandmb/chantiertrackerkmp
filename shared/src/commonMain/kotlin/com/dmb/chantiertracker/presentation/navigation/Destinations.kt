@@ -9,7 +9,8 @@ import kotlinx.serialization.Serializable
  */
 enum class LoginNotice {
     AccountActivated,
-    PasswordReset;
+    PasswordReset,
+    AccountDeleted;
 
     fun toArg(): String = name
 
@@ -69,6 +70,12 @@ data object ProjectsRoute
 
 @Serializable
 data object SettingsRoute
+
+@Serializable
+data object DeleteAccountRoute
+
+@Serializable
+data class SyncIssuesRoute(val focusKey: String? = null)
 
 /**
  * Bannière affichée sur l'écran de facturation après un retour de checkout

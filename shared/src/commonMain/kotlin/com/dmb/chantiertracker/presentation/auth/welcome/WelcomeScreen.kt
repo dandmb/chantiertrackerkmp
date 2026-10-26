@@ -25,11 +25,14 @@ import org.jetbrains.compose.resources.stringResource
 // Sign in first), the plans entry follows as a genuinely highlighted block
 // rather than a small text link — real tap target, filled surface, its own
 // teaser copy — since it is the only pre-account path into monetization.
+//
+// ADR-66 — onDiscoverPlans is null whenever paid tiers are not confirmed open:
+// the block is then left out entirely, not shown disabled.
 @Composable
 fun WelcomeScreen(
     onCreateAccount: () -> Unit,
     onSignIn: () -> Unit,
-    onDiscoverPlans: () -> Unit,
+    onDiscoverPlans: (() -> Unit)?,
     onOpenLegalDocument: (LegalDocument) -> Unit,
 ) {
     AuthScreenLayout(
@@ -40,12 +43,14 @@ fun WelcomeScreen(
         AuthPrimaryButton(text = stringResource(Res.string.welcome_create_account), onClick = onCreateAccount)
         AuthSecondaryButton(text = stringResource(Res.string.welcome_sign_in), onClick = onSignIn)
 
-        Spacer(Modifier.height(8.dp))
-        AuthHighlightCard(
-            title = stringResource(Res.string.welcome_discover_plans),
-            subtitle = stringResource(Res.string.welcome_discover_plans_teaser),
-            onClick = onDiscoverPlans,
-        )
+        if (onDiscoverPlans != null) {
+            Spacer(Modifier.height(8.dp))
+            AuthHighlightCard(
+                title = stringResource(Res.string.welcome_discover_plans),
+                subtitle = stringResource(Res.string.welcome_discover_plans_teaser),
+                onClick = onDiscoverPlans,
+            )
+        }
 
         Spacer(Modifier.height(4.dp))
         AuthLegalFooter(onOpenDocument = onOpenLegalDocument)

@@ -56,6 +56,9 @@ fun formatIsoDateTime(iso: String): String {
     return "$datePart · ${time[0].padStart(2, '0')}:${time[1].take(2).padStart(2, '0')}"
 }
 
+fun formatEpochMillisDateTime(millis: Long, zone: TimeZone = TimeZone.currentSystemDefault()): String =
+    formatIsoDateTime(Instant.fromEpochMilliseconds(millis).toLocalDateTime(zone).toString())
+
 fun todayInSystemZone(): LocalDate = Clock.System.todayIn(TimeZone.currentSystemDefault())
 
 /**

@@ -101,10 +101,60 @@ class FakeSyncer : com.dmb.chantiertracker.data.sync.Syncer {
 
     override fun requestSync() { requestCount++ }
 
+    var exclusiveCount = 0
+        private set
+    var inExclusive = false
+        private set
+
+    val restored = mutableListOf<Pair<com.dmb.chantiertracker.domain.model.SyncIssueTarget, String>>()
+    var restoreOutcome: com.dmb.chantiertracker.data.sync.SyncOutcome = com.dmb.chantiertracker.data.sync.SyncOutcome.Synced
+    var onRestore: (suspend () -> Unit)? = null
+
+    override suspend fun restoreServerVersion(
+        target: com.dmb.chantiertracker.domain.model.SyncIssueTarget,
+        localId: String,
+    ): com.dmb.chantiertracker.data.sync.SyncOutcome {
+        check(!inExclusive) { "the engine takes its own lock: never call it from runExclusive" }
+        restored += target to localId
+        if (restoreOutcome == com.dmb.chantiertracker.data.sync.SyncOutcome.Synced) onRestore?.invoke()
+        return restoreOutcome
+    }
+
+    override suspend fun <T> runExclusive(block: suspend () -> T): T {
+        exclusiveCount++
+        inExclusive = true
+        try {
+            return block()
+        } finally {
+            inExclusive = false
+        }
+    }
+
     override suspend fun syncNow(): com.dmb.chantiertracker.data.sync.SyncOutcome {
         syncCount++
         onSync?.invoke()
         return outcome
+    }
+
+    val progressOfUploads = kotlinx.coroutines.flow.MutableStateFlow<Map<String, Float>>(emptyMap())
+    override val uploadProgress: kotlinx.coroutines.flow.StateFlow<Map<String, Float>> = progressOfUploads
+
+    var syncsAtTheUsersRequest = 0
+        private set
+
+    override suspend fun syncNowAtTheUsersRequest(): com.dmb.chantiertracker.data.sync.SyncOutcome {
+        syncsAtTheUsersRequest++
+        return outcome
+    }
+
+    val sentAgain = mutableListOf<Pair<com.dmb.chantiertracker.domain.model.SyncIssueTarget, String>>()
+
+    override suspend fun syncNowSendingAgain(
+        target: com.dmb.chantiertracker.domain.model.SyncIssueTarget,
+        localId: String,
+    ): com.dmb.chantiertracker.data.sync.SyncOutcome {
+        sentAgain += target to localId
+        return syncNow()
     }
 
     override suspend fun syncProject(localId: String): com.dmb.chantiertracker.data.sync.SyncOutcome {
@@ -185,6 +235,11 @@ class FakeProjectRepository(
     override suspend fun refresh() {
         refreshCount++
         log += "refresh"
+        onRefresh?.invoke()
+    }
+
+    override suspend fun refreshAtTheUsersRequest() {
+        log += "refreshAtTheUsersRequest"
         onRefresh?.invoke()
     }
 
@@ -271,14 +326,17 @@ class FakeDailyLogRepository(
 
     override fun observeEntry(entryLocalId: String) = entryFlow
 
-    override suspend fun createPurchaseEntry(stageLocalId: String, date: String): String {
+    var createdPurchaseEntryId = "entry-purchase-created"
+    var createdWorkEntryId = "entry-work-created"
+
+    override suspend fun createPurchaseEntry(stageLocalId: String, date: String): com.dmb.chantiertracker.domain.model.CreatedDailyEntry {
         log += "createPurchaseEntry:$stageLocalId:$date"
-        return createdPurchaseDayId
+        return com.dmb.chantiertracker.domain.model.CreatedDailyEntry(createdPurchaseDayId, createdPurchaseEntryId)
     }
 
-    override suspend fun createWorkEntry(stageLocalId: String, date: String): String {
+    override suspend fun createWorkEntry(stageLocalId: String, date: String): com.dmb.chantiertracker.domain.model.CreatedDailyEntry {
         log += "createWorkEntry:$stageLocalId:$date"
-        return createdWorkDayId
+        return com.dmb.chantiertracker.domain.model.CreatedDailyEntry(createdWorkDayId, createdWorkEntryId)
     }
 
     override suspend fun updateEntry(entryLocalId: String, summary: String) {
@@ -300,10 +358,11 @@ class FakeDailyLogRepository(
 class FakeMaterialRepository(
     materials: List<com.dmb.chantiertracker.domain.model.Material> = emptyList(),
     stock: List<com.dmb.chantiertracker.domain.model.MaterialStock> = emptyList(),
+    stockRefreshedAt: Long? = 1_700_000_000_000L,
 ) : com.dmb.chantiertracker.domain.repository.MaterialRepository {
 
     val materialsFlow = MutableStateFlow(materials)
-    val stockFlow = MutableStateFlow(stock)
+    val stockFlow = MutableStateFlow(com.dmb.chantiertracker.domain.model.ProjectStock(stock, stockRefreshedAt))
     val log = mutableListOf<String>()
 
     /** Material returned by [createMaterial]; defaults to echoing the requested name/unit under a fixed id. */
@@ -411,25 +470,21 @@ class FakeAttachmentRepository(
         return row
     }
 
-    var uploadVideoError: com.dmb.chantiertracker.domain.model.DomainException? = null
-    var uploadVideoProgressSteps: List<Float> = listOf(0.5f, 1f)
+    var addVideoError: com.dmb.chantiertracker.domain.model.DomainException? = null
 
-    override suspend fun uploadVideo(
+    override suspend fun addVideo(
         entryLocalId: String,
         video: com.dmb.chantiertracker.domain.model.UploadFile,
-        onProgress: (Float) -> Unit,
     ): com.dmb.chantiertracker.domain.model.Attachment {
-        log += "uploadVideo:$entryLocalId:${video.name}:${video.mimeType}:${video.size()}"
-        uploadVideoProgressSteps.forEach(onProgress)
-        uploadVideoError?.let { throw it }
+        log += "addVideo:$entryLocalId:${video.name}:${video.mimeType}:${video.size()}"
+        addVideoError?.let { throw it }
         val stored = com.dmb.chantiertracker.domain.model.Attachment(
             localId = newLocalId,
             entryLocalId = entryLocalId,
             localPath = "fake-attachments/$newLocalId.mp4",
             originalName = video.name,
-            mimeType = "video/mp4",
-            sizeBytes = 1_024L,
-            durationSeconds = 12,
+            mimeType = video.mimeType,
+            sizeBytes = video.size(),
             uploadedAt = 0L,
         )
         publish(stored)
@@ -585,7 +640,22 @@ class FakeExportRepository : com.dmb.chantiertracker.domain.repository.ExportRep
     }
 }
 
-class FakeBillingRepository : com.dmb.chantiertracker.domain.repository.BillingRepository {
+class FakeBillingRepository(
+    initialAvailability: com.dmb.chantiertracker.domain.model.BillingAvailability =
+        com.dmb.chantiertracker.domain.model.BillingAvailability.OPEN,
+) : com.dmb.chantiertracker.domain.repository.BillingRepository {
+    val availabilityFlow = MutableStateFlow(initialAvailability)
+    override val availability: StateFlow<com.dmb.chantiertracker.domain.model.BillingAvailability> = availabilityFlow
+    var refreshAvailabilityCount = 0
+        private set
+    /** Set to have refreshAvailability() also move the flow (mimics the server answer). */
+    var refreshedAvailability: com.dmb.chantiertracker.domain.model.BillingAvailability? = null
+
+    override suspend fun refreshAvailability() {
+        refreshAvailabilityCount++
+        refreshedAvailability?.let { availabilityFlow.value = it }
+    }
+
     val checkoutCalls = mutableListOf<Pair<com.dmb.chantiertracker.domain.model.Plan, com.dmb.chantiertracker.domain.model.BillingCycle>>()
     var portalCalls = 0
         private set
@@ -634,6 +704,14 @@ class FakeExportFileStore : com.dmb.chantiertracker.data.local.ExportFileStore {
     override suspend fun save(bytes: ByteArray, fileName: String): String {
         saved += fileName to bytes.size
         return "/cache/exports/$fileName"
+    }
+
+    var deleteAllCount = 0
+        private set
+
+    override suspend fun deleteAll() {
+        deleteAllCount++
+        saved.clear()
     }
 }
 

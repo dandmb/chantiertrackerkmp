@@ -26,9 +26,11 @@ class FakePurchaseLineDao(
     override fun observeLinesForEntry(entryLocalId: String): Flow<List<PurchaseLineEntity>> =
         lines.map { rows -> rows.values.filter { it.entryLocalId == entryLocalId && it.pendingOp != PendingOp.DELETE } }
 
-    override fun observeLinesForProject(projectLocalId: String): Flow<List<PurchaseLineEntity>> =
+    override fun observeStockMovements(projectLocalId: String): Flow<List<com.dmb.chantiertracker.data.local.db.StockMovementRow>> =
         lines.map { rows ->
-            rows.values.filter { projectForEntry()[it.entryLocalId] == projectLocalId && it.pendingOp != PendingOp.DELETE }
+            rows.values
+                .filter { projectForEntry()[it.entryLocalId] == projectLocalId && it.syncStatus == SyncStatus.PENDING }
+                .map { com.dmb.chantiertracker.data.local.db.StockMovementRow(it.materialLocalId, it.quantity, it.serverQuantity, it.syncStatus, it.pendingOp, parentDeleting = false) }
         }
 
     override suspend fun findByLocalId(localId: String): PurchaseLineEntity? = lines.value[localId]
@@ -37,7 +39,11 @@ class FakePurchaseLineDao(
         lines.value.values.firstOrNull { it.serverId == serverId }
 
     override suspend fun findPending(): List<PurchaseLineEntity> =
-        lines.value.values.filter { it.syncStatus != SyncStatus.SYNCED }
+        lines.value.values.filter { it.syncStatus != SyncStatus.SYNCED && it.lastSyncError !in com.dmb.chantiertracker.data.sync.SyncError.WAITING_FOR_THE_USER }
+
+    val blockedByParent = kotlinx.coroutines.flow.MutableStateFlow<List<String>>(emptyList())
+
+    override fun observeBlockedByParent(): kotlinx.coroutines.flow.Flow<List<String>> = blockedByParent
 
     override suspend fun findForEntry(entryLocalId: String): List<PurchaseLineEntity> =
         lines.value.values.filter { it.entryLocalId == entryLocalId }
@@ -49,4 +55,8 @@ class FakePurchaseLineDao(
     override suspend fun deleteByLocalId(localId: String) {
         lines.value = lines.value - localId
     }
+
+    val mergedMaterials = mutableMapOf<String, String>()
+
+    override suspend fun survivorOfMergedMaterial(materialLocalId: String): String? = mergedMaterials[materialLocalId]
 }

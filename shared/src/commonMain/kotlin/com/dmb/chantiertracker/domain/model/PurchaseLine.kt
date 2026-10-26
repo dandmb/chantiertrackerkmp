@@ -8,6 +8,7 @@ data class PurchaseLine(
     val unitPrice: Double,
     val totalPrice: Double,
     val supplier: String?,
+    val syncIssue: SyncIssue? = null,
 )
 
 data class CreatePurchaseLineInput(
@@ -28,6 +29,7 @@ data class ConsumptionLine(
     val entryLocalId: String,
     val materialLocalId: String,
     val quantity: Double,
+    val syncIssue: SyncIssue? = null,
 )
 
 data class CreateConsumptionLineInput(

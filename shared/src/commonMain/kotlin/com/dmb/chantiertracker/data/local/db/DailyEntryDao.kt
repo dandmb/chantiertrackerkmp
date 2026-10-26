@@ -6,7 +6,7 @@ import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
 
 @Dao
-interface DailyEntryDao {
+interface DailyEntryDao : LocalChangesDao<DailyEntryEntity> {
 
     @Query("SELECT * FROM daily_entries WHERE dailyLogLocalId = :dailyLogLocalId AND pendingOp != 'DELETE'")
     fun observeEntriesForLog(dailyLogLocalId: String): Flow<List<DailyEntryEntity>>
@@ -24,7 +24,7 @@ interface DailyEntryDao {
     fun observeEntry(localId: String): Flow<DailyEntryEntity?>
 
     @Query("SELECT * FROM daily_entries WHERE localId = :localId")
-    suspend fun findByLocalId(localId: String): DailyEntryEntity?
+    override suspend fun findByLocalId(localId: String): DailyEntryEntity?
 
     @Query("SELECT * FROM daily_entries WHERE serverId = :serverId")
     suspend fun findByServerId(serverId: Long): DailyEntryEntity?
@@ -32,15 +32,22 @@ interface DailyEntryDao {
     @Query("SELECT * FROM daily_entries WHERE dailyLogLocalId = :dailyLogLocalId AND type = :type")
     suspend fun findByLogAndType(dailyLogLocalId: String, type: String): DailyEntryEntity?
 
-    @Query("SELECT * FROM daily_entries WHERE syncStatus != 'SYNCED'")
+    @Query("SELECT * FROM daily_entries WHERE syncStatus != 'SYNCED' AND (lastSyncError IS NULL OR lastSyncError NOT IN ('DELETED_ON_SERVER', 'UPDATE_REFUSED', 'FILE_REFUSED'))")
     suspend fun findPending(): List<DailyEntryEntity>
+
+    @Query(
+        """
+        SELECT c.localId FROM daily_entries c JOIN daily_logs l ON l.localId = c.dailyLogLocalId JOIN stages s ON s.localId = l.stageLocalId JOIN projects p ON p.localId = s.projectLocalId WHERE c.syncStatus = 'PENDING' AND (s.serverId IS NULL AND (s.syncStatus = 'CONFLICTED' OR (p.serverId IS NULL AND p.syncStatus = 'CONFLICTED')))
+        """,
+    )
+    fun observeBlockedByParent(): Flow<List<String>>
 
     @Query("SELECT * FROM daily_entries WHERE dailyLogLocalId = :dailyLogLocalId")
     suspend fun findForLog(dailyLogLocalId: String): List<DailyEntryEntity>
 
     @Upsert
-    suspend fun upsert(entry: DailyEntryEntity)
+    override suspend fun upsert(row: DailyEntryEntity)
 
     @Query("DELETE FROM daily_entries WHERE localId = :localId")
-    suspend fun deleteByLocalId(localId: String)
+    override suspend fun deleteByLocalId(localId: String)
 }

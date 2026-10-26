@@ -12,6 +12,8 @@ class FakeAttachmentDao(initial: List<AttachmentEntity> = emptyList()) : Attachm
 
     private val rows = MutableStateFlow(initial.associateBy { it.localId })
 
+    fun count(): Int = rows.value.size
+
     val stored: List<AttachmentEntity> get() = rows.value.values.toList()
 
     override fun observeForEntry(entryLocalId: String): Flow<List<AttachmentEntity>> =
@@ -23,7 +25,13 @@ class FakeAttachmentDao(initial: List<AttachmentEntity> = emptyList()) : Attachm
         rows.value.values.firstOrNull { it.serverId == serverId }
 
     override suspend fun findPending(): List<AttachmentEntity> =
-        rows.value.values.filter { it.syncStatus != SyncStatus.SYNCED }
+        rows.value.values.filter { it.syncStatus != SyncStatus.SYNCED && it.lastSyncError !in com.dmb.chantiertracker.data.sync.SyncError.WAITING_FOR_THE_USER }
+
+    val blockedByParent = kotlinx.coroutines.flow.MutableStateFlow<List<String>>(emptyList())
+
+    override fun observeBlockedByParent(): kotlinx.coroutines.flow.Flow<List<String>> = blockedByParent
+
+    override suspend fun referencedPaths(): List<String> = rows.value.values.map { it.localPath }
 
     override suspend fun findForEntry(entryLocalId: String): List<AttachmentEntity> =
         rows.value.values.filter { it.entryLocalId == entryLocalId }

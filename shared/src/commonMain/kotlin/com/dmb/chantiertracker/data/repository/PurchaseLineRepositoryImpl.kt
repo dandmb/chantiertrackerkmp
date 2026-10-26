@@ -8,16 +8,18 @@ import com.dmb.chantiertracker.data.local.db.PurchaseLineEntity
 import com.dmb.chantiertracker.data.local.db.SyncStatus
 import com.dmb.chantiertracker.data.sync.AppCoroutineScope
 import com.dmb.chantiertracker.data.sync.Clock
-import com.dmb.chantiertracker.data.sync.SystemClock
 import com.dmb.chantiertracker.data.sync.Syncer
+import com.dmb.chantiertracker.data.sync.SystemClock
+import com.dmb.chantiertracker.data.sync.syncIssue
 import com.dmb.chantiertracker.domain.model.CreatePurchaseLineInput
 import com.dmb.chantiertracker.domain.model.PurchaseLine
 import com.dmb.chantiertracker.domain.model.UpdatePurchaseLineInput
 import com.dmb.chantiertracker.domain.repository.PurchaseLineRepository
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.map
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 
 class PurchaseLineRepositoryImpl(
     private val dao: PurchaseLineDao,
@@ -28,12 +30,14 @@ class PurchaseLineRepositoryImpl(
 ) : PurchaseLineRepository {
 
     override fun observeLines(entryLocalId: String): Flow<List<PurchaseLine>> =
-        dao.observeLinesForEntry(entryLocalId).map { rows -> rows.map(PurchaseLineEntity::toPurchaseLine) }
+        combine(dao.observeLinesForEntry(entryLocalId), dao.observeBlockedByParent()) { rows, blocked ->
+            rows.map { it.toPurchaseLine(blockedByParent = it.localId in blocked) }
+        }
 
     override suspend fun createLine(entryLocalId: String, input: CreatePurchaseLineInput): String {
         val localId = newLocalId()
         val now = clock.nowEpochMillis()
-        dao.upsert(
+        dao.insertNew(
             PurchaseLineEntity(
                 localId = localId,
                 serverId = null,
@@ -57,8 +61,7 @@ class PurchaseLineRepositoryImpl(
     }
 
     override suspend fun updateLine(lineLocalId: String, input: UpdatePurchaseLineInput) {
-        val existing = dao.findByLocalId(lineLocalId) ?: return
-        dao.upsert(
+        dao.changeLocally(lineLocalId) { existing ->
             existing.copy(
                 quantity = input.quantity,
                 unitPrice = input.unitPrice,
@@ -68,30 +71,28 @@ class PurchaseLineRepositoryImpl(
                 pendingOp = if (existing.pendingOp == PendingOp.CREATE) PendingOp.CREATE else PendingOp.UPDATE,
                 locallyModifiedAt = clock.nowEpochMillis(),
                 lastSyncError = null,
-            ),
-        )
+                serverErrorCode = null,
+            )
+        } ?: return
         syncer.requestSync()
     }
 
     override suspend fun deleteLine(lineLocalId: String) {
-        val existing = dao.findByLocalId(lineLocalId) ?: return
-        if (existing.serverId == null) {
-            dao.deleteByLocalId(lineLocalId)
-            return
-        }
-        dao.upsert(
-            existing.copy(
+        val existing = dao.changeLocally(lineLocalId) { existing ->
+            if (existing.serverId == null) null else existing.copy(
                 syncStatus = SyncStatus.PENDING,
                 pendingOp = PendingOp.DELETE,
                 locallyModifiedAt = clock.nowEpochMillis(),
                 lastSyncError = null,
-            ),
-        )
+                serverErrorCode = null,
+            )
+        } ?: return
+        if (existing.serverId == null) return
         syncer.requestSync()
     }
 }
 
-internal fun PurchaseLineEntity.toPurchaseLine(): PurchaseLine = PurchaseLine(
+internal fun PurchaseLineEntity.toPurchaseLine(blockedByParent: Boolean = false): PurchaseLine = PurchaseLine(
     localId = localId,
     entryLocalId = entryLocalId,
     materialLocalId = materialLocalId,
@@ -99,4 +100,5 @@ internal fun PurchaseLineEntity.toPurchaseLine(): PurchaseLine = PurchaseLine(
     unitPrice = unitPrice,
     totalPrice = totalPrice,
     supplier = supplier,
+    syncIssue = syncIssue(blockedByParent),
 )

@@ -331,3 +331,116 @@ val MIGRATION_10_11 = object : Migration(10, 11) {
         connection.execSQL("ALTER TABLE `plan_usage` ADD COLUMN `hasStripeCustomer` INTEGER")
     }
 }
+
+/**
+ * v11 → v12 : mode « lancement fondateurs » (ADR-66). `projects` gagne les droits
+ * du propriétaire déjà combinés par le backend (`ownerIsFounder`,
+ * `ownerCanExportPdf`, `ownerMaxHistoryDays`, `ownerMaxVideos`,
+ * `ownerMaxVideoDurationSeconds`, `ownerMaxSupervisorsPerProject`) et `plan_usage`
+ * gagne `isFounder`, `historyDaysLimit` et `historyDaysLimitKnown` (`NULL` y
+ * signifie « illimité » : il faut un marqueur à part pour « jamais reçu »).
+ * Toutes nullables, aucun défaut — une ligne antérieure se lit « jamais reçu »
+ * jusqu'au prochain pull du détail / `refreshPlanUsage()`.
+ */
+val MIGRATION_11_12 = object : Migration(11, 12) {
+    override fun migrate(connection: SQLiteConnection) {
+        connection.execSQL("ALTER TABLE `projects` ADD COLUMN `ownerIsFounder` INTEGER")
+        connection.execSQL("ALTER TABLE `projects` ADD COLUMN `ownerCanExportPdf` INTEGER")
+        connection.execSQL("ALTER TABLE `projects` ADD COLUMN `ownerMaxHistoryDays` INTEGER")
+        connection.execSQL("ALTER TABLE `projects` ADD COLUMN `ownerMaxVideos` INTEGER")
+        connection.execSQL("ALTER TABLE `projects` ADD COLUMN `ownerMaxVideoDurationSeconds` INTEGER")
+        connection.execSQL("ALTER TABLE `projects` ADD COLUMN `ownerMaxSupervisorsPerProject` INTEGER")
+        connection.execSQL("ALTER TABLE `plan_usage` ADD COLUMN `isFounder` INTEGER")
+        connection.execSQL("ALTER TABLE `plan_usage` ADD COLUMN `historyDaysLimit` INTEGER")
+        connection.execSQL("ALTER TABLE `plan_usage` ADD COLUMN `historyDaysLimitKnown` INTEGER")
+    }
+}
+
+/**
+ * v12 → v13 : table `editor_identity` (ADR-68), une seule ligne (`id = 0`) — dernière
+ * identité de l'éditeur connue (`GET /editor-identity`), pour que les pages légales
+ * restent justes hors ligne et avant connexion. Aucune donnée existante touchée.
+ */
+val MIGRATION_12_13 = object : Migration(12, 13) {
+    override fun migrate(connection: SQLiteConnection) {
+        connection.execSQL(
+            "CREATE TABLE IF NOT EXISTS `editor_identity` (`id` INTEGER NOT NULL, `firstName` TEXT, " +
+                "`lastName` TEXT, `companyName` TEXT, `legalStatus` TEXT, `siret` TEXT, `address` TEXT, " +
+                "`contactEmail` TEXT, `vatNumber` TEXT, `hostingProviderName` TEXT, " +
+                "`hostingProviderAddress` TEXT, `refreshedAt` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        )
+    }
+}
+
+/**
+ * v13 → v14 : stock servi par le serveur (ADR-71). Tables `material_stock` (compteurs de
+ * `GET /projects/{id}/stock`, par projet et matériau serveur) et `stock_snapshots` (date du dernier
+ * chargement, et « à recharger »). Les lignes d'achat et de consommation gagnent `serverQuantity`,
+ * la quantité que le serveur détient pour elles ; rattrapée à `quantity` pour toute ligne déjà sur le
+ * serveur (une modification encore en attente garde un écart nul jusqu'à son envoi — approximation
+ * acceptée).
+ */
+val MIGRATION_13_14 = object : Migration(13, 14) {
+    override fun migrate(connection: SQLiteConnection) {
+        connection.execSQL(
+            "CREATE TABLE IF NOT EXISTS `material_stock` (`projectLocalId` TEXT NOT NULL, `materialServerId` INTEGER NOT NULL, " +
+                "`quantityIn` REAL NOT NULL, `quantityOut` REAL NOT NULL, PRIMARY KEY(`projectLocalId`, `materialServerId`), " +
+                "FOREIGN KEY(`projectLocalId`) REFERENCES `projects`(`localId`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        )
+        connection.execSQL("CREATE INDEX IF NOT EXISTS `index_material_stock_projectLocalId` ON `material_stock` (`projectLocalId`)")
+        connection.execSQL(
+            "CREATE TABLE IF NOT EXISTS `stock_snapshots` (`projectLocalId` TEXT NOT NULL, `refreshedAt` INTEGER NOT NULL, " +
+                "`needsRefresh` INTEGER NOT NULL, PRIMARY KEY(`projectLocalId`), " +
+                "FOREIGN KEY(`projectLocalId`) REFERENCES `projects`(`localId`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        )
+        connection.execSQL("ALTER TABLE `purchase_lines` ADD COLUMN `serverQuantity` REAL")
+        connection.execSQL("ALTER TABLE `consumption_lines` ADD COLUMN `serverQuantity` REAL")
+        connection.execSQL("UPDATE `purchase_lines` SET `serverQuantity` = `quantity` WHERE `serverId` IS NOT NULL")
+        connection.execSQL("UPDATE `consumption_lines` SET `serverQuantity` = `quantity` WHERE `serverId` IS NOT NULL")
+    }
+}
+
+val MIGRATION_14_15 = object : Migration(14, 15) {
+    override fun migrate(connection: SQLiteConnection) {
+        listOf("projects", "stages", "materials", "daily_entries", "purchase_lines", "consumption_lines", "attachments").forEach { table ->
+            connection.execSQL("ALTER TABLE `$table` ADD COLUMN `serverErrorCode` TEXT")
+        }
+    }
+}
+
+val MIGRATION_15_16 = object : Migration(15, 16) {
+    override fun migrate(connection: SQLiteConnection) {
+        listOf("projects", "stages", "materials", "daily_entries", "purchase_lines", "consumption_lines", "attachments").forEach { table ->
+            connection.execSQL("ALTER TABLE `$table` ADD COLUMN `localVersion` INTEGER NOT NULL DEFAULT 0")
+        }
+        listOf("projects", "stages", "materials", "daily_entries", "purchase_lines", "consumption_lines").forEach { table ->
+            connection.execSQL("ALTER TABLE `$table` ADD COLUMN `awaitsServerVersion` INTEGER NOT NULL DEFAULT 0")
+            connection.execSQL("UPDATE `$table` SET `awaitsServerVersion` = 1, `lastSyncError` = NULL WHERE `lastSyncError` = 'AWAITING_SERVER_VERSION'")
+        }
+        connection.execSQL(
+            "CREATE TABLE IF NOT EXISTS `material_merges` (`mergedLocalId` TEXT NOT NULL, `keptLocalId` TEXT NOT NULL, PRIMARY KEY(`mergedLocalId`), " +
+                "FOREIGN KEY(`keptLocalId`) REFERENCES `materials`(`localId`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        )
+        connection.execSQL("CREATE INDEX IF NOT EXISTS `index_material_merges_keptLocalId` ON `material_merges` (`keptLocalId`)")
+    }
+}
+
+val MIGRATION_16_17 = object : Migration(16, 17) {
+    override fun migrate(connection: SQLiteConnection) {
+        connection.execSQL("ALTER TABLE `attachments` ADD COLUMN `uploadedById` INTEGER")
+    }
+}
+
+/**
+ * v17 → v18 : textes légaux servis par l'API (feat/legal-documents). Table `legal_documents`, le
+ * dernier texte reçu par document et par langue demandée ; vide jusqu'à la première lecture.
+ */
+val MIGRATION_17_18 = object : Migration(17, 18) {
+    override fun migrate(connection: SQLiteConnection) {
+        connection.execSQL(
+            "CREATE TABLE IF NOT EXISTS `legal_documents` (`document` TEXT NOT NULL, `requestedLanguage` TEXT NOT NULL, `language` TEXT NOT NULL, " +
+                "`fallback` INTEGER NOT NULL, `title` TEXT NOT NULL, `content` TEXT NOT NULL, `version` INTEGER NOT NULL, `publishedOn` TEXT NOT NULL, " +
+                "`receivedAt` INTEGER NOT NULL, PRIMARY KEY(`document`, `requestedLanguage`))",
+        )
+    }
+}

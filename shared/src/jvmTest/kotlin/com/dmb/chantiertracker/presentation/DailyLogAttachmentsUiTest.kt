@@ -38,6 +38,7 @@ import java.io.File
 import javax.imageio.ImageIO
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
+import kotlin.test.assertEquals
 import kotlin.test.Test
 
 @OptIn(ExperimentalTestApi::class)
@@ -58,10 +59,12 @@ class DailyLogAttachmentsUiTest {
         return f.absolutePath
     }
 
-    private fun vm(vararg attachments: Attachment): DailyLogViewModel {
+    private fun vm(vararg attachments: Attachment): DailyLogViewModel = vmFor(1L, "2026-09-05", *attachments)
+
+    private fun vmFor(userId: Long, date: String, vararg attachments: Attachment): DailyLogViewModel {
         val logs = FakeDailyLogRepository(
             detail = DailyLogDetail(
-                localId = "log-1", stageLocalId = "s1", date = "2026-09-05",
+                localId = "log-1", stageLocalId = "s1", date = date,
                 entries = listOf(DailyEntry("e1", "log-1", EntryType.PURCHASE, summary = "Livraison")),
             ),
         )
@@ -79,13 +82,66 @@ class DailyLogAttachmentsUiTest {
             ),
         )
         val auth = FakeAuthRepository().apply {
-            emitState(AuthState.Authenticated(User(1, "u@x.dev", "U", true, GlobalRole.USER)))
+            emitState(AuthState.Authenticated(User(userId, "u@x.dev", "U", true, GlobalRole.USER)))
         }
         return DailyLogViewModel(
             logs, stages, projects, auth, FakeMaterialRepository(),
             FakePurchaseLineRepository(), FakeConsumptionLineRepository(),
             FakeAttachmentRepository(attachments = attachments.toList()),
         ).also { it.load("log-1") }
+    }
+
+    private val today = java.time.LocalDate.now(java.time.ZoneId.of("Europe/Paris")).toString()
+
+    private fun fourPhotos() = arrayOf(
+        Attachment("a-mine", "e1", tempPng("mine"), "mienne.jpg", "image/jpeg", 1L, uploadedAt = 0L, uploadedById = 2L, sentToTheServer = true),
+        Attachment("a-owner", "e1", tempPng("owner"), "proprietaire.jpg", "image/jpeg", 1L, uploadedAt = 0L, uploadedById = 1L, sentToTheServer = true),
+        Attachment("a-unknown", "e1", tempPng("unknown"), "inconnue.jpg", "image/jpeg", 1L, uploadedAt = 0L, uploadedById = null, sentToTheServer = true),
+        Attachment("a-unsent", "e1", tempPng("unsent"), "pas-envoyee.jpg", "image/jpeg", 1L, uploadedAt = 0L, uploadedById = null, sentToTheServer = false),
+    )
+
+    private fun androidx.compose.ui.test.ComposeUiTest.deleteButtons(): Int {
+        waitUntil(timeoutMillis = 5_000L) { onAllNodes(hasContentDescription("pas-envoyee.jpg")).fetchSemanticsNodes().isNotEmpty() }
+        waitForIdle()
+        return onAllNodes(hasContentDescription("Supprimer la photo")).fetchSemanticsNodes().size
+    }
+
+    @Test
+    fun a_supervisor_is_offered_delete_only_on_the_attachments_they_sent() = runComposeUiTest {
+        val viewModel = vmFor(userId = 2L, date = today, *fourPhotos())
+        setContent {
+            customAppLocale = "fr"
+            AppEnvironment { AppTheme { DailyLogScreen(dailyLogLocalId = "log-1", viewModel = viewModel) } }
+        }
+
+        assertEquals(2, deleteButtons(), "their own and the one not sent yet; never the owner's nor one of unknown author")
+        val state = viewModel.state.value
+        assertEquals(
+            mapOf("a-mine" to true, "a-owner" to false, "a-unknown" to false, "a-unsent" to true),
+            state.attachments.associate { it.localId to state.canDelete(it) },
+        )
+    }
+
+    @Test
+    fun the_owner_keeps_delete_on_every_attachment() = runComposeUiTest {
+        val viewModel = vmFor(userId = 1L, date = today, *fourPhotos())
+        setContent {
+            customAppLocale = "fr"
+            AppEnvironment { AppTheme { DailyLogScreen(dailyLogLocalId = "log-1", viewModel = viewModel) } }
+        }
+
+        assertEquals(4, deleteButtons())
+    }
+
+    @Test
+    fun a_supervisor_on_another_day_is_offered_no_delete_at_all() = runComposeUiTest {
+        val viewModel = vmFor(userId = 2L, date = "2026-09-05", *fourPhotos())
+        setContent {
+            customAppLocale = "fr"
+            AppEnvironment { AppTheme { DailyLogScreen(dailyLogLocalId = "log-1", viewModel = viewModel) } }
+        }
+
+        assertEquals(0, deleteButtons(), "unchanged: no write outside today")
     }
 
     @Test

@@ -1,3 +1,4 @@
+import java.util.Properties
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
@@ -47,7 +48,6 @@ kotlin {
     sourceSets {
         androidMain.dependencies {
             implementation(libs.compose.uiToolingPreview)
-            implementation(libs.compose.uiTooling)
             implementation(libs.ktor.client.okhttp)
             implementation(libs.koin.android)
             implementation(libs.androidx.security.crypto)
@@ -55,6 +55,7 @@ kotlin {
             implementation(libs.connectivity.device)
             implementation(libs.androidx.media3.exoplayer)
             implementation(libs.androidx.media3.ui)
+            implementation(libs.androidx.browser)
         }
         iosMain.dependencies {
             implementation(libs.ktor.client.darwin)
@@ -72,6 +73,7 @@ kotlin {
             implementation(libs.filekit.core)
             implementation(libs.filekit.dialogs.compose)
             implementation(libs.koalaplot.core)
+            implementation(libs.jetbrains.markdown)
 
             implementation(libs.compose.runtime)
             implementation(libs.compose.foundation)
@@ -123,10 +125,17 @@ room {
     schemaDirectory("$projectDir/schemas")
 }
 
+val localTestProperties = Properties().apply {
+    rootProject.file("local.properties").takeIf { it.exists() }?.reader()?.use { load(it) }
+}
+
 tasks.withType<Test>().configureEach {
-    System.getProperty("chantiertracker.integrationTests")?.let {
-        systemProperty("chantiertracker.integrationTests", it)
-    }
+    localTestProperties.stringPropertyNames()
+        .filter { it.startsWith("chantiertracker.") }
+        .forEach { name -> systemProperty(name, localTestProperties.getProperty(name)) }
+    System.getProperties().stringPropertyNames()
+        .filter { it.startsWith("chantiertracker.") }
+        .forEach { name -> systemProperty(name, System.getProperty(name)) }
 }
 
 compose.resources {

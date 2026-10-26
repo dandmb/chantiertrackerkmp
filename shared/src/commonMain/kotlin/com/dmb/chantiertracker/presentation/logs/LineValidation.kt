@@ -2,27 +2,47 @@ package com.dmb.chantiertracker.presentation.logs
 
 import com.dmb.chantiertracker.domain.model.MaterialStock
 import com.dmb.chantiertracker.resources.Res
+import com.dmb.chantiertracker.resources.validation_amount_two_decimals
 import com.dmb.chantiertracker.resources.validation_material_required
 import com.dmb.chantiertracker.resources.validation_quantity_positive
 import com.dmb.chantiertracker.resources.validation_quantity_required
+import com.dmb.chantiertracker.resources.validation_quantity_too_large
 import com.dmb.chantiertracker.resources.validation_unit_price_not_negative
 import com.dmb.chantiertracker.resources.validation_unit_price_required
+import com.dmb.chantiertracker.resources.validation_unit_price_too_large
 import org.jetbrains.compose.resources.StringResource
 
 fun validateMaterialSelected(materialLocalId: String?): StringResource? =
     if (materialLocalId.isNullOrBlank()) Res.string.validation_material_required else null
 
-fun validateRequiredQuantity(value: String): StringResource? = when {
-    value.trim().isEmpty() -> Res.string.validation_quantity_required
-    (parseAmountOrNull(value) ?: -1.0) > 0.0 -> null
-    else -> Res.string.validation_quantity_positive
+private const val MAX_DECIMALS = 2
+private const val QUANTITY_UPPER_BOUND = 10_000_000_000.0
+private const val UNIT_PRICE_UPPER_BOUND = 10_000_000_000_000.0
+
+fun validateRequiredQuantity(value: String): StringResource? {
+    if (value.trim().isEmpty()) return Res.string.validation_quantity_required
+    val amount = parseAmountOrNull(value) ?: -1.0
+    return when {
+        amount <= 0.0 -> Res.string.validation_quantity_positive
+        decimalsOf(value) > MAX_DECIMALS -> Res.string.validation_amount_two_decimals
+        amount >= QUANTITY_UPPER_BOUND -> Res.string.validation_quantity_too_large
+        else -> null
+    }
 }
 
-fun validateRequiredUnitPrice(value: String): StringResource? = when {
-    value.trim().isEmpty() -> Res.string.validation_unit_price_required
-    (parseAmountOrNull(value) ?: -1.0) >= 0.0 -> null
-    else -> Res.string.validation_unit_price_not_negative
+fun validateRequiredUnitPrice(value: String): StringResource? {
+    if (value.trim().isEmpty()) return Res.string.validation_unit_price_required
+    val amount = parseAmountOrNull(value) ?: -1.0
+    return when {
+        amount < 0.0 -> Res.string.validation_unit_price_not_negative
+        decimalsOf(value) > MAX_DECIMALS -> Res.string.validation_amount_two_decimals
+        amount >= UNIT_PRICE_UPPER_BOUND -> Res.string.validation_unit_price_too_large
+        else -> null
+    }
 }
+
+private fun decimalsOf(value: String): Int =
+    value.trim().replace(',', '.').substringAfter('.', "").trimEnd('0').length
 
 fun parseAmountOrNull(value: String): Double? = value.trim().replace(',', '.').toDoubleOrNull()
 

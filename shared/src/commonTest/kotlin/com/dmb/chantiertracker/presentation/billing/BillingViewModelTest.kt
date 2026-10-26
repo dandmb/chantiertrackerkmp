@@ -1,5 +1,6 @@
 package com.dmb.chantiertracker.presentation.billing
 
+import com.dmb.chantiertracker.domain.model.BillingAvailability
 import com.dmb.chantiertracker.domain.model.BillingCycle
 import com.dmb.chantiertracker.domain.model.DomainException
 import com.dmb.chantiertracker.domain.model.Plan
@@ -42,6 +43,63 @@ class BillingViewModelTest {
 
         assertEquals(Plan.SEMI_FLEX, h.vm.state.value.planUsage?.plan)
         assertEquals(1, h.account.refreshCount)
+    }
+
+    @Test
+    fun opening_the_screen_asks_the_server_whether_billing_is_open() = runTest {
+        val h = Harness()
+        advanceUntilIdle()
+
+        assertEquals(1, h.billing.refreshAvailabilityCount)
+    }
+
+    @Test
+    fun checkout_is_refused_locally_while_billing_is_closed() = runTest {
+        val h = Harness(billing = FakeBillingRepository(BillingAvailability.CLOSED))
+        advanceUntilIdle()
+
+        h.vm.startCheckout(Plan.LIBERTE, BillingCycle.YEARLY)
+        advanceUntilIdle()
+
+        assertTrue(h.billing.checkoutCalls.isEmpty())
+        assertTrue(h.opener.opened.isEmpty())
+        assertFalse(h.vm.state.value.isProcessingAction)
+    }
+
+    @Test
+    fun checkout_is_refused_locally_while_billing_status_is_unknown() = runTest {
+        val h = Harness(billing = FakeBillingRepository(BillingAvailability.UNKNOWN))
+        advanceUntilIdle()
+
+        h.vm.startCheckout(Plan.LIBERTE, BillingCycle.YEARLY)
+        advanceUntilIdle()
+
+        assertTrue(h.billing.checkoutCalls.isEmpty())
+    }
+
+    @Test
+    fun the_portal_is_still_opened_while_billing_is_closed() = runTest {
+        val h = Harness(billing = FakeBillingRepository(BillingAvailability.CLOSED))
+        advanceUntilIdle()
+
+        h.vm.openManageSubscription()
+        advanceUntilIdle()
+
+        assertEquals(1, h.billing.portalCalls)
+        assertEquals(listOf(h.billing.portalUrl), h.opener.opened)
+    }
+
+    @Test
+    fun a_checkout_the_server_refuses_as_not_open_is_surfaced_as_such() = runTest {
+        val billing = FakeBillingRepository().apply { checkoutError = DomainException.BillingNotOpen }
+        val h = Harness(billing = billing)
+        advanceUntilIdle()
+
+        h.vm.startCheckout(Plan.SEMI_FLEX, BillingCycle.MONTHLY)
+        advanceUntilIdle()
+
+        assertEquals(DomainException.BillingNotOpen, h.vm.state.value.actionError)
+        assertTrue(h.opener.opened.isEmpty())
     }
 
     @Test

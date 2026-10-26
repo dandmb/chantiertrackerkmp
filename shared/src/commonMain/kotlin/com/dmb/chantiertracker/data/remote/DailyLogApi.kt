@@ -17,20 +17,22 @@ import io.ktor.http.contentType
 
 class DailyLogApi(private val client: HttpClient) {
 
-    suspend fun listLogs(stageId: Long): PageDto<DailyLogSummaryDto> =
-        client.get(ApiRoutes.stageLogs(stageId)).body()
+    suspend fun listLogs(stageId: Long, page: Int, size: Int): PageDto<DailyLogSummaryDto> =
+        client.get(ApiRoutes.stageLogs(stageId)) { sortedByIdPage(page, size) }.body()
 
     suspend fun getLog(id: Long): DailyLogDetailDto =
         client.get(ApiRoutes.log(id)).body()
 
-    suspend fun createPurchaseEntry(stageId: Long, date: String, body: EntryRequestDto): DailyEntryDto =
+    suspend fun createPurchaseEntry(stageId: Long, date: String, body: EntryRequestDto, idempotencyKey: String?): DailyEntryDto =
         client.post(ApiRoutes.stageLogPurchases(stageId, date)) {
+            idempotencyKey(idempotencyKey)
             contentType(ContentType.Application.Json)
             setBody(body)
         }.body()
 
-    suspend fun createWorkEntry(stageId: Long, date: String, body: EntryRequestDto): DailyEntryDto =
+    suspend fun createWorkEntry(stageId: Long, date: String, body: EntryRequestDto, idempotencyKey: String?): DailyEntryDto =
         client.post(ApiRoutes.stageLogWorks(stageId, date)) {
+            idempotencyKey(idempotencyKey)
             contentType(ContentType.Application.Json)
             setBody(body)
         }.body()

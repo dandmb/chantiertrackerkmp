@@ -14,7 +14,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -36,6 +35,7 @@ import com.dmb.chantiertracker.domain.model.EntryType
 import com.dmb.chantiertracker.domain.model.Report
 import com.dmb.chantiertracker.domain.model.ReportSort
 import com.dmb.chantiertracker.domain.model.ReportStatus
+import com.dmb.chantiertracker.presentation.AppOutlinedButton
 import com.dmb.chantiertracker.presentation.ResponsiveContent
 import com.dmb.chantiertracker.presentation.auth.components.ErrorBanner
 import com.dmb.chantiertracker.presentation.formatIsoDate
@@ -95,7 +95,7 @@ fun ProjectReportsScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             textAlign = TextAlign.Center,
                         )
-                        OutlinedButton(onClick = viewModel::retry) {
+                        AppOutlinedButton(onClick = viewModel::retry) {
                             Text(stringResource(Res.string.history_retry))
                         }
                     }
@@ -205,7 +205,7 @@ private fun ReportRow(report: Report, isProcessing: Boolean, onMarkProcessed: ()
                 )
             }
         } else {
-            OutlinedButton(onClick = onMarkProcessed, enabled = !isProcessing) {
+            AppOutlinedButton(onClick = onMarkProcessed, enabled = !isProcessing) {
                 Text(stringResource(Res.string.report_mark_processed))
             }
         }

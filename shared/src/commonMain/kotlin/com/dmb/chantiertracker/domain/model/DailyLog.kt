@@ -15,6 +15,12 @@ data class DailyEntry(
     val dailyLogLocalId: String,
     val type: EntryType,
     val summary: String?,
+    val syncIssue: SyncIssue? = null,
+)
+
+data class CreatedDailyEntry(
+    val dailyLogLocalId: String,
+    val entryLocalId: String,
 )
 
 data class DailyLogDetail(

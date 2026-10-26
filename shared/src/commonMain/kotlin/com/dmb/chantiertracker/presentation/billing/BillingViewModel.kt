@@ -2,6 +2,7 @@ package com.dmb.chantiertracker.presentation.billing
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.dmb.chantiertracker.domain.model.BillingAvailability
 import com.dmb.chantiertracker.domain.model.BillingCycle
 import com.dmb.chantiertracker.domain.model.DomainException
 import com.dmb.chantiertracker.domain.model.Plan
@@ -40,9 +41,11 @@ class BillingViewModel(
             }
         }
         viewModelScope.launch { accountRepository.refreshPlanUsage() }
+        viewModelScope.launch { billingRepository.refreshAvailability() }
     }
 
     fun startCheckout(plan: Plan, billingCycle: BillingCycle) {
+        if (billingRepository.availability.value != BillingAvailability.OPEN) return
         runAction { billingRepository.startCheckout(plan, billingCycle) }
     }
 
