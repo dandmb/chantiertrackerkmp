@@ -83,7 +83,7 @@ class LegalDocumentScreenUiTest {
 
         Le Service est édité par \[À COMPLÉTER : nom et prénom\].
 
-        - Lire les [CGV](https://chantiertracker.com/cgv).
+        - Saisir la [CNIL](https://www.cnil.fr/fr/plaintes).
         - Écrire à [dpo@chantiertracker.com](mailto:dpo@chantiertracker.com).
     """.trimIndent()
 
@@ -232,25 +232,25 @@ class LegalDocumentScreenUiTest {
     @Test
     fun a_web_link_of_the_text_opens_in_the_in_app_tab_and_a_mail_link_in_the_mail_app() = runComposeUiTest {
         mountScreen()
-        assertShows("Lire les CGV.")
+        assertShows("Saisir la CNIL.")
 
-        tapInside("Lire les CGV.", "CGV")
+        tapInside("Saisir la CNIL.", "CNIL")
         tapInside("Écrire à dpo@chantiertracker.com.", "dpo@chantiertracker.com")
 
-        assertEquals(listOf("https://chantiertracker.com/cgv"), webOpened)
+        assertEquals(listOf("https://www.cnil.fr/fr/plaintes"), webOpened)
         assertEquals(listOf("mailto:dpo@chantiertracker.com"), mailOpened)
     }
 
     @Test
     fun offline_a_web_link_of_the_text_gives_its_address_instead_of_opening() = runComposeUiTest {
         mountScreen()
-        assertShows("Lire les CGV.")
+        assertShows("Saisir la CNIL.")
         connectivity.setOnline(false)
 
-        tapInside("Lire les CGV.", "CGV")
+        tapInside("Saisir la CNIL.", "CNIL")
         assertShows("Tu es hors ligne")
 
-        onNodeWithText("https://chantiertracker.com/cgv").assertIsDisplayed()
+        onNodeWithText("https://www.cnil.fr/fr/plaintes").assertIsDisplayed()
         assertEquals(emptyList(), webOpened)
         onNodeWithText("OK").performClick()
         waitForIdle()

@@ -27,8 +27,8 @@ class ProjectsViewModelTest {
     @BeforeTest fun setUp() { installTestMainDispatcher() }
     @AfterTest fun tearDown() { resetTestMainDispatcher() }
 
-    private val older = Project("p1", "Ancien", null, "Nîmes", ProjectStatus.IN_PROGRESS, createdAt = "2026-01-01T09:00:00")
-    private val newer = Project("p2", "Récent", null, null, ProjectStatus.SUSPENDED, createdAt = "2026-06-15T12:00:00")
+    private val older = Project("p1", "Ancien", null, "Nîmes", ProjectStatus.IN_PROGRESS, createdAt = "2026-01-01T09:00:00", updatedAtMillis = 1_767_258_000_000L, serverId = 1L)
+    private val newer = Project("p2", "Récent", null, null, ProjectStatus.SUSPENDED, createdAt = "2026-06-15T12:00:00", updatedAtMillis = 1_781_524_800_000L, serverId = 2L)
 
     private fun vm(
         repo: FakeProjectRepository,
