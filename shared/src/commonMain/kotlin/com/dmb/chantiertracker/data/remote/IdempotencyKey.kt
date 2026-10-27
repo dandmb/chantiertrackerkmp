@@ -7,6 +7,9 @@ private val VALID_IDEMPOTENCY_KEY = Regex("^[A-Za-z0-9._:-]{1,128}$")
 
 fun idempotencyKeyFor(localId: String): String? = localId.takeIf { VALID_IDEMPOTENCY_KEY.matches(it) }
 
+fun idempotencyKeyForChange(localId: String, change: String, locallyModifiedAt: Long): String? =
+    idempotencyKeyFor("$localId.$change.$locallyModifiedAt")
+
 fun HttpRequestBuilder.idempotencyKey(key: String?) {
     if (key != null) header("Idempotency-Key", key)
 }

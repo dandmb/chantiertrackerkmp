@@ -12,6 +12,7 @@ import com.dmb.chantiertracker.support.FakeStageDao
 import com.dmb.chantiertracker.support.MutableClock
 import com.dmb.chantiertracker.support.ServerMember
 import com.dmb.chantiertracker.support.ServerProject
+import com.dmb.chantiertracker.support.ServerRefusal
 import com.dmb.chantiertracker.support.ServerStage
 import com.dmb.chantiertracker.support.localProject
 import com.dmb.chantiertracker.support.localStage
@@ -1190,7 +1191,7 @@ class SyncEngineTest {
     }
 
     @Test
-    fun a_project_deleted_on_the_server_stays_as_a_ghost_while_it_holds_unsent_entries() = runTest {
+    fun a_project_no_longer_listed_is_forgotten_even_with_unsent_entries() = runTest {
         val f = Fixture()
         f.siteWithAPendingEntry("p5", projectServerId = 5, stageServerId = 50, entry = "e5")
         f.backend.goneOnServer += Regex("^/(projects|stages)/(5|50)(/|$)")
@@ -1198,16 +1199,8 @@ class SyncEngineTest {
 
         assertIs<SyncOutcome.Synced>(engine.syncNow())
 
-        val project = f.dao.findByLocalId("p5")
-        assertDeletedOnServer(project?.syncStatus, project?.lastSyncError, "the project no longer listed")
-        assertEquals(5L, project?.serverId, "its server id is kept, so a re-invitation finds it again")
-        val stage = f.stageDao.findByLocalId("st-p5")
-        assertDeletedOnServer(stage?.syncStatus, stage?.lastSyncError, "its stage")
-        val entry = f.dailyEntryDao.findByLocalId("e5")
-        assertDeletedOnServer(entry?.syncStatus, entry?.lastSyncError, "the orphan entry")
-
-        assertIs<SyncOutcome.Synced>(engine.syncProject("p5"), "opening the ghost project is not an error")
-        assertNotNull(f.dailyEntryDao.findByLocalId("e5"))
+        assertNull(f.dao.findByLocalId("p5"), "out of reach: the project and what it holds are dropped (Room cascades)")
+        assertTrue(f.backend.entries.isEmpty(), "the unsent entry never leaves")
     }
 
     @Test
@@ -1227,30 +1220,23 @@ class SyncEngineTest {
     }
 
     @Test
-    fun a_reinvited_supervisor_gets_the_ghost_project_back_synced_and_the_orphan_entry_stays_deleted_on_server() = runTest {
+    fun a_reinvited_supervisor_gets_the_project_back_from_the_server() = runTest {
         val f = Fixture()
         f.siteWithAPendingEntry("p5", projectServerId = 5, stageServerId = 50, entry = "e5")
         f.backend.goneOnServer += Regex("^/(projects|stages)/(5|50)(/|$)")
         val engine = f.engine(backgroundScope)
         engine.syncNow()
-        assertEquals(SyncError.DELETED_ON_SERVER, f.dao.findByLocalId("p5")?.lastSyncError)
+        assertNull(f.dao.findByLocalId("p5"))
 
         f.backend.goneOnServer.clear()
         f.backend.seed(ServerProject(id = 5, name = "Villa"))
-        f.backend.seedStage(ServerStage(id = 50, projectId = 5, name = "Gros œuvre"))
         assertIs<SyncOutcome.Synced>(engine.syncNow())
-        assertIs<SyncOutcome.Synced>(engine.syncProject("p5"))
 
-        val project = f.dao.findByLocalId("p5")!!
-        assertEquals(SyncStatus.SYNCED, project.syncStatus, "the ghost is the project again")
+        val project = f.dao.findByServerId(5)!!
+        assertEquals(SyncStatus.SYNCED, project.syncStatus)
         assertNull(project.lastSyncError)
-        assertEquals(listOf("p5"), f.dao.findAll().map { it.localId }, "matched by server id, not duplicated")
-        val stage = f.stageDao.findByLocalId("st-p5")!!
-        assertEquals(SyncStatus.SYNCED, stage.syncStatus)
-        assertNull(stage.lastSyncError)
-        val entry = f.dailyEntryDao.findByLocalId("e5")
-        assertDeletedOnServer(entry?.syncStatus, entry?.lastSyncError, "the orphan entry, left for an explicit retry (A-2),")
-        assertTrue(f.backend.entries.isEmpty(), "never resent on its own")
+        assertEquals(1, f.dao.findAll().count { it.serverId == 5L }, "one row for the project")
+        assertTrue(f.backend.entries.isEmpty(), "the entry written before the removal is not resent")
     }
 
     @Test
@@ -1311,7 +1297,7 @@ class SyncEngineTest {
     }
 
     @Test
-    fun a_stage_created_on_a_project_deleted_on_the_server_is_kept_deleted_on_server() = runTest {
+    fun a_stage_created_on_a_project_no_longer_listed_goes_with_the_project() = runTest {
         val f = Fixture()
         f.dao.upsert(localProject("p5", serverId = 5, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED))
         f.stageDao.upsert(localStage("st-new", projectLocalId = "p5", name = "Toiture"))
@@ -1319,9 +1305,8 @@ class SyncEngineTest {
 
         assertIs<SyncOutcome.Synced>(engine.syncNow())
 
-        val stage = f.stageDao.findByLocalId("st-new")
-        assertDeletedOnServer(stage?.syncStatus, stage?.lastSyncError, "the new stage")
-        assertDeletedOnServer(f.dao.findByLocalId("p5")?.syncStatus, f.dao.findByLocalId("p5")?.lastSyncError, "its project")
+        assertNull(f.dao.findByLocalId("p5"), "the project is dropped, its new stage with it (Room cascades)")
+        assertTrue(f.backend.stages.none { it.name == "Toiture" })
     }
 
     @Test
@@ -3254,5 +3239,118 @@ class SyncEngineTest {
         assertEquals(SyncStatus.SYNCED, line.syncStatus)
         assertEquals(9.0, f.backend.purchaseLines.single { it.id == 5000L }.quantity)
         assertNull(line.serverErrorCode)
+    }
+
+    // ─── offline project edit and delete, idempotent push (recette 10) ───────
+
+    private fun Fixture.repository(engine: SyncEngine) =
+        com.dmb.chantiertracker.data.repository.ProjectRepositoryImpl(dao, engine, com.dmb.chantiertracker.data.sync.AppCoroutineScope(), clock)
+
+    private suspend fun Fixture.syncedProject(serverId: Long, name: String) {
+        backend.seed(ServerProject(id = serverId, name = name, updatedAt = "2026-09-01T10:00:00"))
+        backend.patchAppliedAt = "2026-09-04T00:00:00"
+        dao.upsert(
+            localProject(
+                "p$serverId", name = name, serverId = serverId, pendingOp = PendingOp.NONE, syncStatus = SyncStatus.SYNCED,
+                remoteUpdatedAt = serverMillis("2026-09-01T10:00:00"),
+            ),
+        )
+    }
+
+    private fun renamedTo(name: String) = com.dmb.chantiertracker.domain.model.UpdateProjectInput(
+        name = name, description = null, location = "Nîmes", currency = "EUR", timezone = "Europe/Paris",
+        status = com.dmb.chantiertracker.domain.model.ProjectStatus.IN_PROGRESS,
+    )
+
+    private fun FakeProjectBackend.keysOf(request: String) = receivedIdempotencyKeys.filter { it.first == request }.map { it.second }
+
+    @Test
+    fun an_edit_made_offline_is_saved_locally_then_patched_with_an_idempotency_key_on_reconnect() = runTest {
+        val f = Fixture()
+        f.syncedProject(7, "Villa")
+        val engine = f.engine(backgroundScope)
+        f.connectivity.setOnline(false)
+
+        f.repository(engine).updateProject("p7", renamedTo("Villa B"))
+        engine.syncNow()
+
+        assertEquals("Villa B", f.dao.findByLocalId("p7")!!.name)
+        assertEquals(PendingOp.UPDATE, f.dao.findByLocalId("p7")!!.pendingOp)
+        assertTrue(f.backend.receivedMethods.isEmpty(), "nothing leaves while offline")
+
+        f.connectivity.setOnline(true)
+        engine.syncNow()
+
+        assertEquals("Villa B", f.backend.projects.single { it.id == 7L }.name)
+        val key = f.backend.keysOf("PATCH /projects/7").single()
+        assertNotNull(key, "the PATCH carries an Idempotency-Key")
+        assertTrue(Regex("^[A-Za-z0-9._:-]{1,128}$").matches(key))
+        assertEquals(SyncStatus.SYNCED, f.dao.findByLocalId("p7")!!.syncStatus)
+    }
+
+    @Test
+    fun a_patch_sent_again_after_a_failure_carries_the_same_key_and_a_new_edit_a_new_one() = runTest {
+        val f = Fixture()
+        f.syncedProject(7, "Villa")
+        val engine = f.engine(backgroundScope)
+        var failures = 1
+        f.backend.refuseWith = { request ->
+            if (request.method == io.ktor.http.HttpMethod.Patch && failures-- > 0) ServerRefusal(io.ktor.http.HttpStatusCode.ServiceUnavailable, null) else null
+        }
+        val repository = f.repository(engine)
+
+        repository.updateProject("p7", renamedTo("Villa B"))
+        engine.syncNow()
+        f.clock.advanceBy(16.minutes.inWholeMilliseconds)
+        engine.syncNow()
+        f.clock.advanceBy(1_000L)
+        repository.updateProject("p7", renamedTo("Villa C"))
+        engine.syncNow()
+
+        val keys = f.backend.keysOf("PATCH /projects/7")
+        assertEquals(3, keys.size, "sent: ${f.backend.receivedIdempotencyKeys}")
+        assertEquals(keys[0], keys[1], "the same edit is resent with the same key")
+        assertTrue(keys[2] != keys[1], "another edit is another action")
+        assertEquals("Villa C", f.backend.projects.single { it.id == 7L }.name)
+    }
+
+    @Test
+    fun a_delete_made_offline_is_pushed_on_reconnect_with_an_idempotency_key() = runTest {
+        val f = Fixture()
+        f.syncedProject(3, "To delete")
+        val engine = f.engine(backgroundScope)
+        f.connectivity.setOnline(false)
+
+        f.repository(engine).deleteProject("p3")
+        engine.syncNow()
+        assertEquals(PendingOp.DELETE, f.dao.findByLocalId("p3")!!.pendingOp)
+        assertTrue(f.backend.receivedMethods.isEmpty())
+
+        f.connectivity.setOnline(true)
+        engine.syncNow()
+
+        assertNull(f.dao.findByLocalId("p3"))
+        assertTrue(f.backend.projects.none { it.id == 3L })
+        assertNotNull(f.backend.keysOf("DELETE /projects/3").single(), "the DELETE carries an Idempotency-Key")
+    }
+
+    @Test
+    fun a_delete_whose_answer_was_lost_is_replayed_by_the_server_instead_of_a_404() = runTest {
+        val f = Fixture()
+        f.syncedProject(3, "To delete")
+        val engine = f.engine(backgroundScope)
+        var lost = 1
+        f.backend.loseTheAnswerOf = { it.method == io.ktor.http.HttpMethod.Delete && lost-- > 0 }
+
+        f.repository(engine).deleteProject("p3")
+        engine.syncNow()
+        f.clock.advanceBy(16.minutes.inWholeMilliseconds)
+        engine.syncNow()
+
+        val keys = f.backend.keysOf("DELETE /projects/3")
+        assertEquals(2, keys.size)
+        assertEquals(keys[0], keys[1])
+        assertEquals(1, f.backend.replayedCreations, "the second DELETE is answered from the stored 204")
+        assertNull(f.dao.findByLocalId("p3"))
     }
 }

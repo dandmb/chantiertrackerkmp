@@ -31,6 +31,10 @@ class InvitationApi(private val client: HttpClient) {
         client.delete(ApiRoutes.invitation(id))
     }
 
+    suspend fun removeMember(projectId: Long, userId: Long) {
+        client.delete(ApiRoutes.projectMember(projectId, userId))
+    }
+
     /** Invitations addressed to the authenticated user (`GET /users/me/invitations`). */
     suspend fun listMine(): List<PendingInvitationDto> =
         client.get(ApiRoutes.USERS_ME_INVITATIONS).body()

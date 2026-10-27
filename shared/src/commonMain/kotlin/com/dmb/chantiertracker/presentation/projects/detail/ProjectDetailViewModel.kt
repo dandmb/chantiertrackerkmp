@@ -33,6 +33,10 @@ data class ProjectDetailUiState(
     val deleted: Boolean = false,
     val cancellingInvitationIds: Set<Long> = emptySet(),
     val invitationActionError: DomainException? = null,
+    val currentUserId: Long? = null,
+    val canRemoveMembers: Boolean = false,
+    val removingMemberIds: Set<Long> = emptySet(),
+    val memberActionError: DomainException? = null,
 ) {
     val isMissing: Boolean get() = !isLoading && detail == null && !deleted
     // For a project, being able to edit == being an ADMIN (projectAdmin).
@@ -68,6 +72,8 @@ class ProjectDetailViewModel(
                             isLoading = false,
                             detail = loaded.detail,
                             canEdit = loaded.detail != null && canEdit(loaded.detail, loaded.members),
+                            currentUserId = currentUserId(),
+                            canRemoveMembers = loaded.detail?.ownerId != null && loaded.detail.ownerId == currentUserId(),
                             stages = loaded.stages,
                             members = loaded.members,
                             pendingInvitations = loaded.invitations.filter { inv -> inv.status == InvitationStatus.PENDING },
@@ -120,6 +126,25 @@ class ProjectDetailViewModel(
         _state.update { it.copy(invitationActionError = null) }
     }
 
+    fun removeMember(userId: Long) {
+        val id = localId ?: return
+        if (userId in _state.value.removingMemberIds) return
+        _state.update { it.copy(removingMemberIds = it.removingMemberIds + userId, memberActionError = null) }
+        viewModelScope.launch {
+            val error = try {
+                invitationRepository.removeMember(id, userId)
+                null
+            } catch (e: DomainException) {
+                e
+            }
+            _state.update { it.copy(removingMemberIds = it.removingMemberIds - userId, memberActionError = error) }
+        }
+    }
+
+    fun clearMemberActionError() {
+        _state.update { it.copy(memberActionError = null) }
+    }
+
     // ADMIN-only, mirrors the web's inline Select — every other field is
     // resubmitted unchanged (updateProject overwrites the whole row, same as
     // EditProjectViewModel does in reverse for its own fields while carrying
@@ -143,10 +168,10 @@ class ProjectDetailViewModel(
         }
     }
 
-    private fun canEdit(detail: ProjectDetail, members: List<ProjectMember>): Boolean {
-        val currentUserId = (authRepository.authState.value as? AuthState.Authenticated)?.user?.id
-        return projectAdmin(detail.ownerId, members, currentUserId)
-    }
+    private fun currentUserId(): Long? = (authRepository.authState.value as? AuthState.Authenticated)?.user?.id
+
+    private fun canEdit(detail: ProjectDetail, members: List<ProjectMember>): Boolean =
+        projectAdmin(detail.ownerId, members, currentUserId())
 
     private data class Loaded(
         val detail: ProjectDetail?,

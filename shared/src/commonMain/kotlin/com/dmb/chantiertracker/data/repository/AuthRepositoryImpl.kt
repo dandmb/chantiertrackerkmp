@@ -2,6 +2,7 @@ package com.dmb.chantiertracker.data.repository
 
 import com.dmb.chantiertracker.data.session.LocalDataOwnership
 import com.dmb.chantiertracker.data.session.SessionStart
+import com.dmb.chantiertracker.data.sync.AppCoroutineScope
 import com.dmb.chantiertracker.data.sync.Syncer
 import com.dmb.chantiertracker.data.AuthStateHolder
 import com.dmb.chantiertracker.data.local.AuthTokens
@@ -9,22 +10,29 @@ import com.dmb.chantiertracker.data.local.OnboardingStore
 import com.dmb.chantiertracker.data.local.TokenStorage
 import com.dmb.chantiertracker.data.remote.AuthApi
 import com.dmb.chantiertracker.data.remote.apiCall
+import com.dmb.chantiertracker.data.remote.apiCallReportingRefusalCode
 import com.dmb.chantiertracker.data.remote.dto.ChangePasswordRequestDto
 import com.dmb.chantiertracker.data.remote.dto.ForgotPasswordRequestDto
 import com.dmb.chantiertracker.data.remote.dto.LoginRequestDto
 import com.dmb.chantiertracker.data.remote.dto.RegisterRequestDto
 import com.dmb.chantiertracker.data.remote.dto.ResendCodeRequestDto
 import com.dmb.chantiertracker.data.remote.dto.ResetPasswordRequestDto
+import com.dmb.chantiertracker.data.remote.dto.UpdateProfileRequestDto
 import com.dmb.chantiertracker.data.remote.dto.UserResponseDto
 import com.dmb.chantiertracker.data.remote.dto.VerifyEmailRequestDto
 import com.dmb.chantiertracker.domain.model.AuthState
 import com.dmb.chantiertracker.domain.model.DomainException
 import com.dmb.chantiertracker.domain.model.GlobalRole
+import com.dmb.chantiertracker.domain.model.ProfileField
+import com.dmb.chantiertracker.domain.model.ProfileLanguage
+import com.dmb.chantiertracker.domain.model.ProfileUpdate
 import com.dmb.chantiertracker.domain.model.User
 import com.dmb.chantiertracker.domain.model.isUnreachableServer
 import com.dmb.chantiertracker.domain.repository.AuthRepository
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
 
 class AuthRepositoryImpl(
     private val api: AuthApi,
@@ -33,6 +41,7 @@ class AuthRepositoryImpl(
     private val onboardingStore: OnboardingStore,
     private val syncer: Syncer,
     private val ownership: LocalDataOwnership,
+    private val scope: CoroutineScope = AppCoroutineScope(),
 ) : AuthRepository {
 
     override val authState: StateFlow<AuthState> = authStateHolder.state
@@ -118,11 +127,27 @@ class AuthRepositoryImpl(
     }
 
     override suspend fun logout() {
-        syncer.runExclusive {
-            runCatching { apiCall { api.logout() } }
-            tokenStorage.clear()
+        val tokens = syncer.runExclusive {
+            tokenStorage.get().also { tokenStorage.clear() }
         }
         authStateHolder.update(AuthState.Unauthenticated)
+        if (tokens != null) {
+            scope.launch { runCatching { apiCall { api.logout(tokens.accessToken, tokens.refreshToken) } } }
+        }
+    }
+
+    override suspend fun updateProfile(update: ProfileUpdate): User {
+        var refusedFields: Set<String> = emptySet()
+        val user = try {
+            apiCallReportingRefusalCode({}, onFieldErrors = { refusedFields = it }) {
+                api.updateProfile(UpdateProfileRequestDto(update.name, update.phone, update.language.code))
+            }.toUser()
+        } catch (e: DomainException.Validation) {
+            throw DomainException.InvalidProfile(ProfileField.entries.filter { it.serverName in refusedFields }.toSet())
+        }
+        ownership.recordProfile(user)
+        authStateHolder.update(AuthState.Authenticated(user))
+        return user
     }
 
     override suspend fun forgotPassword(email: String) {
@@ -153,6 +178,8 @@ private fun UserResponseDto.toUser(): User = User(
     name = name,
     active = active,
     globalRole = globalRole.toGlobalRole(),
+    phone = phone?.ifBlank { null },
+    language = ProfileLanguage.fromCode(language),
 )
 
 // internal, not private: reused by AdminRepositoryImpl for the same field on

@@ -18,6 +18,7 @@ import com.dmb.chantiertracker.resources.error_email_already_used
 import com.dmb.chantiertracker.resources.error_file_too_large
 import com.dmb.chantiertracker.resources.error_image_too_large
 import com.dmb.chantiertracker.resources.error_forbidden
+import com.dmb.chantiertracker.resources.error_last_admin_removal
 import com.dmb.chantiertracker.resources.error_invalid_code
 import com.dmb.chantiertracker.resources.error_invalid_current_password
 import com.dmb.chantiertracker.resources.error_invalid_credentials
@@ -46,6 +47,7 @@ fun DomainException.textRes(): StringResource = when (this) {
     DomainException.InvalidCurrentPassword -> Res.string.error_invalid_current_password
     DomainException.InvalidCode -> Res.string.error_invalid_code
     DomainException.Validation -> Res.string.error_validation
+    is DomainException.InvalidProfile -> Res.string.error_validation
     is DomainException.RateLimited -> Res.string.error_rate_limited
     is DomainException.CreationInProgress -> Res.string.error_creation_in_progress
     is DomainException.AccountDeletionBlocked -> when (blocker) {
@@ -58,6 +60,7 @@ fun DomainException.textRes(): StringResource = when (this) {
     DomainException.ImageTooLarge -> Res.string.error_image_too_large
     DomainException.BillingNotOpen -> Res.string.error_billing_not_open
     DomainException.Forbidden -> Res.string.error_forbidden
+    DomainException.LastAdminRemoval -> Res.string.error_last_admin_removal
     DomainException.NotFound -> Res.string.error_not_found
     DomainException.Network -> Res.string.error_network
     DomainException.ServiceUnavailable -> Res.string.error_service_unavailable

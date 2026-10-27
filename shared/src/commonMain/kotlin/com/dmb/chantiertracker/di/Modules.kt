@@ -129,6 +129,7 @@ import com.dmb.chantiertracker.presentation.logs.DailyLogViewModel
 import com.dmb.chantiertracker.presentation.logs.EntrySummaryViewModel
 import com.dmb.chantiertracker.presentation.logs.PurchaseLineFormViewModel
 import com.dmb.chantiertracker.presentation.main.MainViewModel
+import com.dmb.chantiertracker.presentation.account.ProfileViewModel
 import com.dmb.chantiertracker.presentation.navigation.RootViewModel
 import com.dmb.chantiertracker.presentation.projects.ProjectSortHolder
 import com.dmb.chantiertracker.presentation.projects.ProjectsViewModel
@@ -257,7 +258,7 @@ val dataModule: Module = module {
         }
     }
     single { LocalDataOwnership(get(), get(), get()) }
-    single<AuthRepository> { AuthRepositoryImpl(get(), get<TokenStorage>(), get(), get(), get(), get()) }
+    single<AuthRepository> { AuthRepositoryImpl(get(), get<TokenStorage>(), get(), get(), get(), get(), get<AppCoroutineScope>()) }
     single<SignOutRepository> { SignOutRepositoryImpl(get(), get(), get()) }
     single<SyncIssueRepository> { SyncIssueRepositoryImpl(get(), get(), get(), get(), get(), get(), get(), get(), get(), get(), get()) }
     single<ProjectRepository> { ProjectRepositoryImpl(get(), get(), get<AppCoroutineScope>()) }
@@ -294,6 +295,7 @@ val presentationModule: Module = module {
     viewModelOf(::ResetPasswordViewModel)
     viewModelOf(::ChangePasswordViewModel)
     viewModelOf(::MainViewModel)
+    viewModelOf(::ProfileViewModel)
     viewModelOf(::SyncIssuesViewModel)
     viewModelOf(::SyncIssueCountViewModel)
     viewModelOf(::SyncIssueMarkersViewModel)

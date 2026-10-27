@@ -43,6 +43,7 @@ import com.dmb.chantiertracker.data.remote.PurchaseLineApi
 import com.dmb.chantiertracker.data.remote.StageApi
 import com.dmb.chantiertracker.data.remote.StockApi
 import com.dmb.chantiertracker.data.remote.idempotencyKeyFor
+import com.dmb.chantiertracker.data.remote.idempotencyKeyForChange
 import com.dmb.chantiertracker.data.remote.apiCallReportingRefusalCode
 import com.dmb.chantiertracker.data.remote.dto.AttachmentDto
 import com.dmb.chantiertracker.data.remote.dto.ConsumptionLineDto
@@ -366,7 +367,7 @@ class SyncEngine(
     private suspend fun rowGoneOnServer(target: SyncIssueTarget, localId: String) {
         when (target) {
             SyncIssueTarget.PROJECT -> dao.findByLocalId(localId)?.let { row ->
-                if (row.holdsARefusedUpdate()) dao.writeIfUnchanged(row.copy(lastSyncError = SyncError.DELETED_ON_SERVER, serverErrorCode = null)) else if (row.awaitsItsServerVersion()) projectGoneOnServer(row)
+                if (refusalCode == PROJECT_ACCESS_DENIED_CODE) forgetProject(row) else if (row.holdsARefusedUpdate()) dao.writeIfUnchanged(row.copy(lastSyncError = SyncError.DELETED_ON_SERVER, serverErrorCode = null)) else if (row.awaitsItsServerVersion()) projectGoneOnServer(row)
             }
             SyncIssueTarget.STAGE -> stageDao.findByLocalId(localId)?.let { row ->
                 if (row.holdsARefusedUpdate()) stageDao.writeIfUnchanged(row.copy(lastSyncError = SyncError.DELETED_ON_SERVER, serverErrorCode = null)) else if (row.awaitsItsServerVersion()) stageGoneOnServer(row)
@@ -881,7 +882,7 @@ class SyncEngine(
     private suspend fun <T> serverCall(block: suspend () -> T): T {
         refusalCode = null
         refusalStatus = null
-        return apiCallReportingRefusalCode({ refusalCode = it; logAReusedKey(it) }, { refusalStatus = it }, block)
+        return apiCallReportingRefusalCode({ refusalCode = it; logAReusedKey(it) }, { refusalStatus = it }, block = block)
     }
 
     private fun logAReusedKey(code: String?) {
@@ -950,7 +951,16 @@ class SyncEngine(
         syncStatus != SyncStatus.SYNCED && pendingOp != PendingOp.DELETE
 
     private suspend fun projectGoneOnServer(project: ProjectEntity) {
-        if (!keepProjectGoneOnServer(project)) dao.deleteIfUnchanged(project)
+        if (refusalCode == PROJECT_ACCESS_DENIED_CODE) {
+            forgetProject(project)
+        } else if (!keepProjectGoneOnServer(project)) {
+            dao.deleteIfUnchanged(project)
+        }
+    }
+
+    private suspend fun forgetProject(project: ProjectEntity) {
+        dao.clearMembers(project.localId)
+        dao.deleteByLocalId(project.localId)
     }
 
     private suspend fun stageGoneOnServer(stage: StageEntity) {
@@ -1808,7 +1818,7 @@ class SyncEngine(
         }
 
         val updated = try {
-            serverCall { api.update(serverId, entity.toUpdateRequest()) }
+            serverCall { api.update(serverId, entity.toUpdateRequest(), idempotencyKeyForChange(entity.localId, "update", entity.locallyModifiedAt)) }
         } catch (e: DomainException) {
             if (!e.refusesTheRow()) throw e
             dao.writeIfUnchanged(entity.copy(syncStatus = SyncStatus.CONFLICTED, lastSyncError = SyncError.UPDATE_REFUSED, serverErrorCode = refusalCode))
@@ -1829,7 +1839,7 @@ class SyncEngine(
 
     private suspend fun pushDelete(entity: ProjectEntity) {
         val serverId = entity.serverId
-        if (serverId != null && deleteOnServer { api.delete(serverId) } == RemoteDelete.REJECTED) {
+        if (serverId != null && deleteOnServer { api.delete(serverId, idempotencyKeyForChange(entity.localId, "delete", entity.locallyModifiedAt)) } == RemoteDelete.REJECTED) {
             dao.writeIfUnchanged(entity.copy(syncStatus = SyncStatus.SYNCED, pendingOp = PendingOp.NONE, lastSyncError = SyncError.REJECTED, serverErrorCode = refusalCode))
             return
         }
@@ -1865,7 +1875,7 @@ class SyncEngine(
         locals
             .filter { it.serverId != null && it.serverId !in remoteIds }
             .filter { it.syncStatus == SyncStatus.SYNCED && it.pendingOp == PendingOp.NONE }
-            .forEach { projectGoneOnServer(it) }
+            .forEach { forgetProject(it) }
     }
 
     private fun skipsRemovalAfter(read: PagedRead<*>, listName: String): Boolean {
@@ -1909,6 +1919,7 @@ private data class PlanSeen(val plan: String, val isFounder: Boolean, val projec
 
 private const val ATTACHMENT_TOO_LARGE_CODE = "ATTACHMENT_TOO_LARGE"
 private const val IDEMPOTENCY_KEY_REUSED_CODE = "IDEMPOTENCY_KEY_REUSED"
+private const val PROJECT_ACCESS_DENIED_CODE = "PROJECT_ACCESS_DENIED"
 private const val LOCAL_FILE_MISSING_CODE = "LOCAL_FILE_MISSING"
 private val FILE_REFUSAL_CODES = setOf(
     ATTACHMENT_TOO_LARGE_CODE,

@@ -131,6 +131,7 @@ class FakeProjectBackend {
 
     val projects = mutableListOf<ServerProject>()
     val members = mutableMapOf<Long, MutableList<ServerMember>>()
+    val receivedMemberRemovalBodies = mutableListOf<String?>()
     val stages = mutableListOf<ServerStage>()
     val materials = mutableListOf<ServerMaterial>()
     val logs = mutableListOf<ServerLog>()
@@ -176,6 +177,14 @@ class FakeProjectBackend {
     var invitationsForbidden = false
 
     val goneOnServer = mutableListOf<Regex>()
+    /** Projects this account is no longer a member of: gone from the list, every route under them answers 404 PROJECT_ACCESS_DENIED. */
+    val accessLostTo = mutableSetOf<Long>()
+
+    private fun losesAccess(path: String): Boolean {
+        val projectId = Regex("""^/projects/(\d+)(/|$)""").find(path)?.groupValues?.get(1)?.toLong()
+            ?: Regex("""^/stages/(\d+)(/|$)""").find(path)?.groupValues?.get(1)?.toLong()?.let { stageId -> stages.firstOrNull { it.id == stageId }?.projectId }
+        return projectId != null && projectId in accessLostTo
+    }
     val forbiddenOnServer = mutableListOf<Regex>()
 
     var stockStatus: HttpStatusCode? = null
@@ -210,7 +219,7 @@ class FakeProjectBackend {
     /** Answers like the reverse proxy while the API is being redeployed: a 404 that is not the backend's problem format. */
     var redeployingFor: ((HttpRequestData) -> Boolean)? = null
     var redeployAnswer: RedeployAnswer = RedeployAnswer.PROXY_TEXT
-    /** Every POST on a route that accepts `Idempotency-Key`, with the key it carried (null when absent). */
+    /** Every request on a route that accepts `Idempotency-Key` ("METHOD /path"), with the key it carried (null when absent). */
     val receivedIdempotencyKeys = mutableListOf<Pair<String, String?>>()
     /** Answers 409 IDEMPOTENCY_KEY_IN_PROGRESS (Retry-After: 10), as the backend does while the first call still runs. */
     var idempotencyInProgressFor: ((HttpRequestData) -> Boolean)? = null
@@ -263,10 +272,10 @@ class FakeProjectBackend {
     // Mirrors the backend's IdempotencyFilter (BE-2, BE-4): scope = route + key, a completed
     // creation is replayed, the same key with another path or body is a 422, a malformed key a 400.
     private suspend fun MockRequestHandleScope.idempotentAnswer(request: HttpRequestData, path: String): HttpResponseData? {
-        if (request.method != HttpMethod.Post) return null
-        val route = IDEMPOTENT_ROUTES.firstOrNull { it.matches(path) } ?: return null
+        val routes = if (request.method == HttpMethod.Post) IDEMPOTENT_ROUTES else IDEMPOTENT_OTHER_METHOD_ROUTES[request.method].orEmpty()
+        val route = routes.firstOrNull { it.matches(path) } ?: return null
         val key = request.headers["Idempotency-Key"]
-        receivedIdempotencyKeys += "POST $path" to key
+        receivedIdempotencyKeys += "${request.method.value} $path" to key
         if (key == null) return null
         if (!VALID_IDEMPOTENCY_KEY.matches(key)) {
             return respondProblem(HttpStatusCode.BadRequest, "Idempotency-Key invalide.", code = "INVALID_IDEMPOTENCY_KEY")
@@ -278,7 +287,7 @@ class FakeProjectBackend {
             )
         }
         val body = (request.body as? TextContent)?.text
-        completedCreations[route.pattern to key]?.let { done ->
+        completedCreations["${request.method.value} ${route.pattern}" to key]?.let { done ->
             if (done.path != path || done.body != body) {
                 return respondProblem(HttpStatusCode.UnprocessableEntity, "Clé déjà utilisée.", code = "IDEMPOTENCY_KEY_REUSED")
             }
@@ -288,7 +297,7 @@ class FakeProjectBackend {
         val answer = answer(request, path)
         if (!answer.statusCode.isSuccess()) return answer
         val bytes = (answer.body as ByteReadChannel).toByteArray()
-        completedCreations[route.pattern to key] = CompletedCreation(path, body, answer.statusCode, answer.headers, bytes)
+        completedCreations["${request.method.value} ${route.pattern}" to key] = CompletedCreation(path, body, answer.statusCode, answer.headers, bytes)
         return respond(bytes, answer.statusCode, answer.headers)
     }
 
@@ -305,6 +314,7 @@ class FakeProjectBackend {
             refuseOnce = null
             return respondProblem(HttpStatusCode.Forbidden, "Accès refusé.", code = "PROJECT_INSUFFICIENT_ROLE")
         }
+        if (losesAccess(path)) return respondProblem(HttpStatusCode.NotFound, "Projet introuvable.", code = "PROJECT_ACCESS_DENIED")
         if (goneOnServer.any { it.containsMatchIn(path) }) return respondProblem(HttpStatusCode.NotFound, "Introuvable.", code = "NOT_FOUND")
         if (forbiddenOnServer.any { it.containsMatchIn(path) }) return respondProblem(HttpStatusCode.Forbidden, "Accès refusé.", code = "PROJECT_INSUFFICIENT_ROLE")
         if (request.method == HttpMethod.Patch) {
@@ -312,6 +322,7 @@ class FakeProjectBackend {
         }
         val idInPath = Regex("""/projects/(\d+)$""").find(path)?.groupValues?.get(1)?.toLong()
         val membersProjectId = Regex("""/projects/(\d+)/members$""").find(path)?.groupValues?.get(1)?.toLong()
+        val memberRemoval = Regex("""/projects/(\d+)/members/(\d+)$""").find(path)?.groupValues?.let { it[1].toLong() to it[2].toLong() }
         val invitationsProjectId = Regex("""/projects/(\d+)/invitations$""").find(path)?.groupValues?.get(1)?.toLong()
         val invitationId = Regex("""/invitations/(\d+)$""").find(path)?.groupValues?.get(1)?.toLong()
         val acceptToken = Regex("""/invitations/([^/]+)/accept$""").find(path)?.groupValues?.get(1)
@@ -568,7 +579,19 @@ class FakeProjectBackend {
                 respondJson("", HttpStatusCode.NoContent)
             }
 
-            request.method == HttpMethod.Get && path == "/projects" -> respondPage(request, projects.map { it.id to listItemJson(it) })
+            request.method == HttpMethod.Get && path == "/projects" ->
+                respondPage(request, projects.filter { it.id !in accessLostTo }.map { it.id to listItemJson(it) })
+
+            request.method == HttpMethod.Delete && memberRemoval != null -> {
+                val (projectId, userId) = memberRemoval
+                receivedMemberRemovalBodies += (request.body as? TextContent)?.text
+                if (projects.none { it.id == projectId }) {
+                    return respondProblem(HttpStatusCode.NotFound, "Projet introuvable.", code = "PROJECT_ACCESS_DENIED")
+                }
+                val removed = members[projectId]?.removeAll { it.userId == userId } == true
+                if (!removed) return respondProblem(HttpStatusCode.NotFound, "Membre introuvable.", code = "PROJECT_MEMBER_NOT_FOUND")
+                respond("", HttpStatusCode.NoContent)
+            }
 
             request.method == HttpMethod.Get && membersProjectId != null -> {
                 if (projects.none { it.id == membersProjectId }) {
@@ -832,6 +855,11 @@ private fun String?.q(): String = if (this == null) "null" else "\"" + replace("
 class ServerRefusal(val status: HttpStatusCode, val code: String?, val withFieldErrors: Boolean = false, val detail: String = "Refusé.", val retryAfterSeconds: Int? = null)
 
 private val VALID_IDEMPOTENCY_KEY = Regex("^[A-Za-z0-9._:-]{1,128}$")
+
+private val IDEMPOTENT_OTHER_METHOD_ROUTES = mapOf(
+    HttpMethod.Patch to listOf(Regex("^/projects/[^/]+$")),
+    HttpMethod.Delete to listOf(Regex("^/projects/[^/]+$")),
+)
 
 private val IDEMPOTENT_ROUTES = listOf(
     "^/projects$", "^/projects/[^/]+/stages$", "^/projects/[^/]+/materials$", "^/projects/[^/]+/invitations$",

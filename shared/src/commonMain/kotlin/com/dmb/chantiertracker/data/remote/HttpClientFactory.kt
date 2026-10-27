@@ -11,6 +11,7 @@ import io.ktor.client.call.body
 import io.ktor.client.engine.HttpClientEngineFactory
 import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.auth.Auth
+import io.ktor.client.plugins.auth.AuthCircuitBreaker
 import io.ktor.client.plugins.auth.providers.BearerTokens
 import io.ktor.client.plugins.auth.providers.bearer
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
@@ -96,7 +97,7 @@ fun HttpClientConfig<*>.configureChantierTrackerClient(
                     null
                 }
             }
-            sendWithoutRequest { true }
+            sendWithoutRequest { request -> !request.attributes.contains(AuthCircuitBreaker) }
         }
     }
 

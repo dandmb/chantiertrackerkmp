@@ -4,15 +4,20 @@ import com.dmb.chantiertracker.data.remote.dto.ChangePasswordRequestDto
 import com.dmb.chantiertracker.data.remote.dto.ForgotPasswordRequestDto
 import com.dmb.chantiertracker.data.remote.dto.LoginRequestDto
 import com.dmb.chantiertracker.data.remote.dto.LoginResponseDto
+import com.dmb.chantiertracker.data.remote.dto.RefreshTokenRequestDto
 import com.dmb.chantiertracker.data.remote.dto.RegisterRequestDto
 import com.dmb.chantiertracker.data.remote.dto.RegisterResponseDto
 import com.dmb.chantiertracker.data.remote.dto.ResendCodeRequestDto
 import com.dmb.chantiertracker.data.remote.dto.ResetPasswordRequestDto
+import com.dmb.chantiertracker.data.remote.dto.UpdateProfileRequestDto
 import com.dmb.chantiertracker.data.remote.dto.UserResponseDto
 import com.dmb.chantiertracker.data.remote.dto.VerifyEmailRequestDto
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
+import io.ktor.client.plugins.auth.AuthCircuitBreaker
+import io.ktor.client.request.bearerAuth
 import io.ktor.client.request.get
+import io.ktor.client.request.patch
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.http.ContentType
@@ -34,8 +39,12 @@ class AuthApi(private val client: HttpClient) {
     suspend fun login(body: LoginRequestDto): LoginResponseDto =
         client.post(ApiRoutes.AUTH_LOGIN) { json(body) }.body()
 
-    suspend fun logout() {
-        client.post(ApiRoutes.AUTH_LOGOUT)
+    suspend fun logout(accessToken: String, refreshToken: String) {
+        client.post(ApiRoutes.AUTH_LOGOUT) {
+            attributes.put(AuthCircuitBreaker, Unit)
+            bearerAuth(accessToken)
+            json(RefreshTokenRequestDto(refreshToken))
+        }
     }
 
     suspend fun forgotPassword(body: ForgotPasswordRequestDto) {
@@ -48,6 +57,9 @@ class AuthApi(private val client: HttpClient) {
 
     suspend fun me(): UserResponseDto =
         client.get(ApiRoutes.USERS_ME).body()
+
+    suspend fun updateProfile(body: UpdateProfileRequestDto): UserResponseDto =
+        client.patch(ApiRoutes.USERS_ME) { json(body) }.body()
 
     suspend fun changePassword(body: ChangePasswordRequestDto) {
         client.post(ApiRoutes.AUTH_CHANGE_PASSWORD) { json(body) }

@@ -65,4 +65,8 @@ class FakeProjectDao(initial: List<ProjectEntity> = emptyList()) : ProjectDao {
     override suspend fun clearMembers(projectLocalId: String) {
         members.value = members.value.filterNot { it.projectLocalId == projectLocalId }
     }
+
+    override suspend fun deleteMember(projectLocalId: String, userId: Long) {
+        members.value = members.value.filterNot { it.projectLocalId == projectLocalId && it.userId == userId }
+    }
 }

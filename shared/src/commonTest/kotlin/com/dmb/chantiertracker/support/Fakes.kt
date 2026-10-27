@@ -76,6 +76,20 @@ class FakeAuthRepository : AuthRepository {
         record("resetPassword:$email:$code:$newPassword")
     override suspend fun changePassword(currentPassword: String, newPassword: String) =
         record("changePassword:$currentPassword:$newPassword")
+
+    val profileUpdates = mutableListOf<com.dmb.chantiertracker.domain.model.ProfileUpdate>()
+    var onUpdateProfile: suspend () -> Unit = {}
+
+    override suspend fun updateProfile(update: com.dmb.chantiertracker.domain.model.ProfileUpdate): com.dmb.chantiertracker.domain.model.User {
+        onUpdateProfile()
+        error?.let { throw it }
+        profileUpdates += update
+        val current = (_authState.value as? AuthState.Authenticated)?.user
+            ?: com.dmb.chantiertracker.domain.model.User(0, "", "", true, com.dmb.chantiertracker.domain.model.GlobalRole.USER)
+        val updated = current.copy(name = update.name, phone = update.phone.ifEmpty { null }, language = update.language)
+        _authState.value = AuthState.Authenticated(updated)
+        return updated
+    }
 }
 
 class FakeBackgroundSync : com.dmb.chantiertracker.data.sync.BackgroundSync {
@@ -517,6 +531,16 @@ class FakeInvitationRepository(
     override suspend fun cancelInvitation(projectLocalId: String, invitationId: Long) {
         cancelError?.let { throw it }
         cancelled += projectLocalId to invitationId
+    }
+
+    val removedMembers = mutableListOf<Pair<String, Long>>()
+    var removeMemberError: com.dmb.chantiertracker.domain.model.DomainException? = null
+    var onRemoveMember: suspend () -> Unit = {}
+
+    override suspend fun removeMember(projectLocalId: String, userId: Long) {
+        onRemoveMember()
+        removeMemberError?.let { throw it }
+        removedMembers += projectLocalId to userId
     }
 
     var incoming: List<com.dmb.chantiertracker.domain.model.IncomingInvitation> = emptyList()

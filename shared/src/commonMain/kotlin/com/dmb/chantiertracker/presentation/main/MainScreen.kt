@@ -48,9 +48,11 @@ import com.dmb.chantiertracker.presentation.legal.LegalDocument
 import com.dmb.chantiertracker.presentation.legal.LegalDocumentScreen
 import com.dmb.chantiertracker.presentation.navigation.LegalDocumentRoute
 import com.dmb.chantiertracker.presentation.account.DeleteAccountScreen
+import com.dmb.chantiertracker.presentation.account.ProfileScreen
 import com.dmb.chantiertracker.presentation.navigation.BillingRoute
 import com.dmb.chantiertracker.presentation.billing.LocalInAppPaymentsAllowed
 import com.dmb.chantiertracker.presentation.navigation.DeleteAccountRoute
+import com.dmb.chantiertracker.presentation.navigation.ProfileRoute
 import com.dmb.chantiertracker.presentation.navigation.ConsumptionLineFormRoute
 import com.dmb.chantiertracker.presentation.navigation.CreateProjectRoute
 import com.dmb.chantiertracker.presentation.navigation.CreateStageRoute
@@ -95,6 +97,7 @@ import com.dmb.chantiertracker.presentation.stages.create.CreateStageScreen
 import com.dmb.chantiertracker.presentation.stages.detail.StageDetailScreen
 import com.dmb.chantiertracker.resources.Res
 import com.dmb.chantiertracker.resources.delete_account_title
+import com.dmb.chantiertracker.resources.profile_title
 import com.dmb.chantiertracker.resources.admin_create_user_title
 import com.dmb.chantiertracker.resources.admin_users_create
 import com.dmb.chantiertracker.resources.admin_users_title
@@ -117,7 +120,7 @@ import org.koin.compose.viewmodel.koinViewModel
 
 private enum class MainDestination {
     Projects, Administration, AdminUsers, AdminCreateUser, Settings, CreateProject, ProjectDetail, EditProject, InviteMember, ProjectHistory, ProjectReports, CreateStage, StageDetail, DailyLog,
-    EntrySummary, PurchaseLineForm, ConsumptionLineForm, ReportEntry, Billing, InvitationAccept, LegalDocumentPage, SyncIssues, DeleteAccount
+    EntrySummary, PurchaseLineForm, ConsumptionLineForm, ReportEntry, Billing, InvitationAccept, LegalDocumentPage, SyncIssues, DeleteAccount, Profile
 }
 
 // ADR-52 — a SUPER_ADMIN can neither own nor join a project (blocked
@@ -237,6 +240,7 @@ fun MainScreen(
         destination?.hasRoute(LegalDocumentRoute::class) == true -> MainDestination.LegalDocumentPage
         destination?.hasRoute(SyncIssuesRoute::class) == true -> MainDestination.SyncIssues
         destination?.hasRoute(DeleteAccountRoute::class) == true -> MainDestination.DeleteAccount
+        destination?.hasRoute(ProfileRoute::class) == true -> MainDestination.Profile
         else -> MainDestination.Projects
     }
     val currentTab = when (current) {
@@ -355,6 +359,10 @@ fun MainScreen(
                     title = stringResource(Res.string.delete_account_title),
                     onBack = { navController.popBackStack() },
                 )
+                MainDestination.Profile -> DetailTopBar(
+                    title = stringResource(Res.string.profile_title),
+                    onBack = { navController.popBackStack() },
+                )
                 else -> AppTopBar(
                     userName = account.userName,
                     email = account.email,
@@ -366,6 +374,7 @@ fun MainScreen(
                         null
                     },
                     onLogout = viewModel::logout,
+                    onProfile = { navController.navigate(ProfileRoute) },
                     onDeleteAccount = { navController.navigate(DeleteAccountRoute) },
                     syncIssueCount = syncIssueCount,
                     onOpenSyncIssues = openSyncIssues,
@@ -430,6 +439,9 @@ fun MainScreen(
             }
             composable<AdminCreateUserRoute> {
                 AdminCreateUserScreen(onCreated = { navController.popBackStack() })
+            }
+            composable<ProfileRoute> {
+                ProfileScreen(onSaved = { navController.popBackStack() })
             }
             composable<DeleteAccountRoute> {
                 DeleteAccountScreen(

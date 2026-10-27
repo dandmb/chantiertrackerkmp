@@ -75,6 +75,9 @@ data object SettingsRoute
 data object DeleteAccountRoute
 
 @Serializable
+data object ProfileRoute
+
+@Serializable
 data class SyncIssuesRoute(val focusKey: String? = null)
 
 /**

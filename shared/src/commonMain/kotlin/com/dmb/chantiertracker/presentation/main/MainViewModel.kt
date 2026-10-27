@@ -41,9 +41,20 @@ class MainViewModel(
 
     init {
         viewModelScope.launch {
+            var sessionUserId: Long? = null
             authRepository.authState.collect { authState ->
-                if (authState is AuthState.Authenticated) {
-                    _state.update { it.copy(userName = authState.user.name, email = authState.user.email) }
+                when (authState) {
+                    is AuthState.Authenticated -> {
+                        _state.update {
+                            it.copy(userName = authState.user.name, email = authState.user.email, isLoggingOut = false, logoutPrompt = null)
+                        }
+                        if (sessionUserId != authState.user.id) {
+                            sessionUserId = authState.user.id
+                            launch { accountRepository.refreshPlanUsage() }
+                        }
+                    }
+                    AuthState.Unauthenticated -> sessionUserId = null
+                    else -> Unit
                 }
             }
         }
@@ -52,7 +63,6 @@ class MainViewModel(
                 _state.update { it.copy(plan = usage?.plan, isFounder = usage?.isFounder == true) }
             }
         }
-        viewModelScope.launch { accountRepository.refreshPlanUsage() }
     }
 
     fun logout() = attemptSignOut(acceptRefusedWrites = false)

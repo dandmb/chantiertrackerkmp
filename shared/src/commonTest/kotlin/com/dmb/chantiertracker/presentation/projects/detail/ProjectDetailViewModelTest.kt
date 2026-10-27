@@ -289,4 +289,81 @@ class ProjectDetailViewModelTest {
 
         assertEquals(1, repo.log.count { it == "deleteProject:p5" })
     }
+
+    @Test
+    fun a_project_created_offline_and_not_sent_yet_can_be_edited_and_deleted_by_its_creator() = runTest {
+        val repo = FakeProjectRepository(detail = detail(ownerId = null))
+        val vm = ProjectDetailViewModel(repo, FakeStageRepository(), FakeInvitationRepository(), auth(userId = 7))
+        vm.load("p5")
+        advanceUntilIdle()
+
+        assertTrue(vm.state.value.canEdit, "no owner yet = created on this device, by this account")
+    }
+
+    @Test
+    fun a_project_created_offline_is_not_editable_without_a_signed_in_user() = runTest {
+        val repo = FakeProjectRepository(detail = detail(ownerId = null))
+        val vm = ProjectDetailViewModel(repo, FakeStageRepository(), FakeInvitationRepository(), FakeAuthRepository())
+        vm.load("p5")
+        advanceUntilIdle()
+
+        assertFalse(vm.state.value.canEdit)
+    }
+
+    private val supervisorAwa = ProjectMember(9, "Awa", "awa@x.dev", ProjectRole.SUPERVISOR)
+    private val adminBen = ProjectMember(5, "Ben", "ben@x.dev", ProjectRole.ADMIN)
+
+    @Test
+    fun only_the_owner_may_remove_members() = runTest {
+        val members = listOf(ProjectMember(7, "Owner", "o@x.dev", ProjectRole.ADMIN), adminBen, supervisorAwa)
+        fun vmFor(userId: Long) = ProjectDetailViewModel(
+            FakeProjectRepository(detail = detail(ownerId = 7), members = members), FakeStageRepository(), FakeInvitationRepository(), auth(userId),
+        ).also { it.load("p5") }
+
+        val owner = vmFor(7)
+        val otherAdmin = vmFor(5)
+        val supervisor = vmFor(9)
+        advanceUntilIdle()
+
+        assertEquals(listOf(true, false, false), listOf(owner, otherAdmin, supervisor).map { it.state.value.canRemoveMembers })
+        assertEquals(7L, owner.state.value.currentUserId)
+    }
+
+    @Test
+    fun removing_a_member_goes_to_the_repository_by_user_id_and_shows_progress() = runTest {
+        val invitations = FakeInvitationRepository()
+        val vm = ProjectDetailViewModel(
+            FakeProjectRepository(detail = detail(ownerId = 7), members = listOf(supervisorAwa)), FakeStageRepository(), invitations, auth(userId = 7),
+        )
+        vm.load("p5")
+        advanceUntilIdle()
+        var seenWhileRunning: Set<Long>? = null
+        invitations.onRemoveMember = { seenWhileRunning = vm.state.value.removingMemberIds }
+
+        vm.removeMember(9)
+        advanceUntilIdle()
+
+        assertEquals(setOf(9L), seenWhileRunning)
+        assertEquals(listOf("p5" to 9L), invitations.removedMembers)
+        assertEquals(emptySet(), vm.state.value.removingMemberIds)
+        assertEquals(null, vm.state.value.memberActionError)
+    }
+
+    @Test
+    fun a_refused_removal_is_shown_and_can_be_dismissed() = runTest {
+        val invitations = FakeInvitationRepository().apply { removeMemberError = com.dmb.chantiertracker.domain.model.DomainException.LastAdminRemoval }
+        val vm = ProjectDetailViewModel(
+            FakeProjectRepository(detail = detail(ownerId = 7), members = listOf(adminBen)), FakeStageRepository(), invitations, auth(userId = 7),
+        )
+        vm.load("p5")
+        advanceUntilIdle()
+
+        vm.removeMember(5)
+        advanceUntilIdle()
+
+        assertEquals(com.dmb.chantiertracker.domain.model.DomainException.LastAdminRemoval, vm.state.value.memberActionError)
+        assertEquals(emptySet(), vm.state.value.removingMemberIds)
+        vm.clearMemberActionError()
+        assertEquals(null, vm.state.value.memberActionError)
+    }
 }

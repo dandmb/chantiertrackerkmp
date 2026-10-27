@@ -47,4 +47,6 @@ interface InvitationRepository {
 
     /** Cancels a pending invitation. **Online only** (ADR-32). */
     suspend fun cancelInvitation(projectLocalId: String, invitationId: Long)
+
+    suspend fun removeMember(projectLocalId: String, userId: Long)
 }

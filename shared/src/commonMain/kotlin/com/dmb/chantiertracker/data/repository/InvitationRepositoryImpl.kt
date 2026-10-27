@@ -5,6 +5,7 @@ import com.dmb.chantiertracker.data.local.db.InvitationEntity
 import com.dmb.chantiertracker.data.local.db.ProjectDao
 import com.dmb.chantiertracker.data.remote.InvitationApi
 import com.dmb.chantiertracker.data.remote.apiCall
+import com.dmb.chantiertracker.data.remote.apiCallReportingRefusalCode
 import com.dmb.chantiertracker.data.remote.dto.CreateInvitationRequestDto
 import com.dmb.chantiertracker.data.remote.dto.InvitationDetailsDto
 import com.dmb.chantiertracker.data.remote.dto.PendingInvitationDto
@@ -47,6 +48,22 @@ class InvitationRepositoryImpl(
 
     override suspend fun cancelInvitation(projectLocalId: String, invitationId: Long) {
         apiCall { api.cancel(invitationId) }
+        syncer.syncProject(projectLocalId)
+    }
+
+    override suspend fun removeMember(projectLocalId: String, userId: Long) {
+        val serverId = projectDao.findByLocalId(projectLocalId)?.serverId ?: throw DomainException.NotFound
+        var refusalCode: String? = null
+        try {
+            apiCallReportingRefusalCode({ refusalCode = it }) { api.removeMember(serverId, userId) }
+        } catch (e: DomainException) {
+            when (refusalCode) {
+                PROJECT_MEMBER_NOT_FOUND_CODE -> Unit
+                LAST_ADMIN_REMOVAL_CODE -> throw DomainException.LastAdminRemoval
+                else -> throw e
+            }
+        }
+        projectDao.deleteMember(projectLocalId, userId)
         syncer.syncProject(projectLocalId)
     }
 
@@ -108,3 +125,6 @@ private fun String.toInvitationStatus(): InvitationStatus = when (uppercase()) {
     "DECLINED" -> InvitationStatus.DECLINED
     else -> InvitationStatus.UNKNOWN
 }
+
+private const val PROJECT_MEMBER_NOT_FOUND_CODE = "PROJECT_MEMBER_NOT_FOUND"
+private const val LAST_ADMIN_REMOVAL_CODE = "LAST_ADMIN_REMOVAL"

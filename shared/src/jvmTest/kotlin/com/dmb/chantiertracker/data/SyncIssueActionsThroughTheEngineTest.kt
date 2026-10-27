@@ -603,14 +603,17 @@ class SyncIssueActionsThroughTheEngineTest {
         assertEquals(RevertOutcome.GONE_ON_SERVER, issues.revert(item("e900")))
         backend.stages.removeAll { it.id == 90L }
         assertEquals(RevertOutcome.GONE_ON_SERVER, issues.revert(item("st90")))
-        backend.projects.removeAll { it.id == 5L }
-        assertEquals(RevertOutcome.GONE_ON_SERVER, issues.revert(item("p5")))
 
-        listOf("m7", "e900", "st90", "p5").forEach {
+        listOf("m7", "e900", "st90").forEach {
             assertEquals(SyncIssueKind.DELETED_ON_SERVER, item(it).issue.kind, it)
             assertEquals(listOf(SyncIssueAction.ACKNOWLEDGE), item(it).actions, it)
         }
-        assertEquals("Renommé", db.projectDao().findByLocalId("p5")!!.name)
+
+        backend.projects.removeAll { it.id == 5L }
+        assertEquals(RevertOutcome.GONE_ON_SERVER, issues.revert(item("p5")))
+
+        assertNull(db.projectDao().findByLocalId("p5"), "a project out of reach (404 PROJECT_ACCESS_DENIED) is dropped with everything it holds")
+        assertEquals(emptyList(), issues.observeIssues().first())
         assertEquals(emptyList(), writesSent())
     }
 

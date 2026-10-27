@@ -152,5 +152,40 @@ class MainViewModelTest {
         assertEquals(false, vm.state.value.isLoggingOut)
         assertEquals(1, signOut.calls.size)
     }
-}
 
+    @Test
+    fun signing_out_again_after_signing_back_in_works_every_time() = runTest {
+        val auth = FakeAuthRepository().apply { emitState(AuthState.Authenticated(user)) }
+        val signOut = FakeSignOutRepository().apply { onSignOut = { auth.emitState(AuthState.Unauthenticated) } }
+        val vm = MainViewModel(auth, FakeAccountRepository(), signOut)
+        advanceUntilIdle()
+
+        repeat(3) { cycle ->
+            vm.logout()
+            advanceUntilIdle()
+            assertEquals(AuthState.Unauthenticated, auth.authState.value)
+            auth.emitState(AuthState.Authenticated(user))
+            advanceUntilIdle()
+            assertEquals(cycle + 1, signOut.calls.size, "sign-out n°${cycle + 1} reached the guard")
+            assertEquals(false, vm.state.value.isLoggingOut)
+            assertNull(vm.state.value.logoutPrompt)
+        }
+    }
+
+    @Test
+    fun signing_back_in_with_another_account_shows_that_account_and_refreshes_its_plan() = runTest {
+        val auth = FakeAuthRepository().apply { emitState(AuthState.Authenticated(user)) }
+        val account = FakeAccountRepository(planUsage = PlanUsage(Plan.FREE, projectsLimit = 3))
+        val signOut = FakeSignOutRepository().apply { onSignOut = { auth.emitState(AuthState.Unauthenticated) } }
+        val vm = MainViewModel(auth, account, signOut)
+        advanceUntilIdle()
+
+        vm.logout()
+        advanceUntilIdle()
+        auth.emitState(AuthState.Authenticated(User(2, "marie@chantier.dev", "Marie", true, GlobalRole.USER)))
+        advanceUntilIdle()
+
+        assertEquals(listOf("Marie", "marie@chantier.dev"), listOf(vm.state.value.userName, vm.state.value.email))
+        assertEquals(2, account.refreshCount, "one plan refresh per session")
+    }
+}

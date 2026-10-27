@@ -34,13 +34,14 @@ class ProjectApi(private val client: HttpClient) {
             setBody(body)
         }.body()
 
-    suspend fun update(id: Long, body: UpdateProjectRequestDto): ProjectDto =
+    suspend fun update(id: Long, body: UpdateProjectRequestDto, idempotencyKey: String? = null): ProjectDto =
         client.patch(ApiRoutes.project(id)) {
+            idempotencyKey(idempotencyKey)
             contentType(ContentType.Application.Json)
             setBody(body)
         }.body()
 
-    suspend fun delete(id: Long) {
-        client.delete(ApiRoutes.project(id))
+    suspend fun delete(id: Long, idempotencyKey: String? = null) {
+        client.delete(ApiRoutes.project(id)) { idempotencyKey(idempotencyKey) }
     }
 }

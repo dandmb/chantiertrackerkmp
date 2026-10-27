@@ -18,7 +18,12 @@ private val PROBLEM_JSON = ContentType("application", "problem+json")
 
 suspend fun <T> apiCall(block: suspend () -> T): T = apiCallReportingRefusalCode({}, block = block)
 
-suspend fun <T> apiCallReportingRefusalCode(onRefusalCode: (String?) -> Unit, onRefusalStatus: (Int) -> Unit = {}, block: suspend () -> T): T =
+suspend fun <T> apiCallReportingRefusalCode(
+    onRefusalCode: (String?) -> Unit,
+    onRefusalStatus: (Int) -> Unit = {},
+    onFieldErrors: (Set<String>) -> Unit = {},
+    block: suspend () -> T,
+): T =
     try {
         block()
     } catch (e: CancellationException) {
@@ -31,6 +36,7 @@ suspend fun <T> apiCallReportingRefusalCode(onRefusalCode: (String?) -> Unit, on
         // the server is unreachable, nothing was found missing.
         if (e.response.isNotTheBackendsAnswer(problem)) throw DomainException.ServiceUnavailable
         onRefusalStatus(e.response.status.value)
+        problem?.errors?.keys?.let(onFieldErrors)
         throw e.toDomainException(problem, onRefusalCode)
     } catch (e: Throwable) {
         throw DomainException.Network

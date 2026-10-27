@@ -34,6 +34,7 @@ import com.dmb.chantiertracker.resources.Res
 import com.dmb.chantiertracker.resources.app_name
 import com.dmb.chantiertracker.resources.menu_delete_account
 import com.dmb.chantiertracker.resources.menu_logout
+import com.dmb.chantiertracker.resources.menu_profile
 import com.dmb.chantiertracker.resources.menu_open
 import com.dmb.chantiertracker.resources.menu_subscription
 import com.dmb.chantiertracker.resources.plan_free
@@ -58,6 +59,7 @@ fun AppTopBar(
     syncIssueCount: Int = 0,
     onOpenSyncIssues: () -> Unit = {},
     onDeleteAccount: () -> Unit = {},
+    onProfile: () -> Unit = {},
     leadingActions: @Composable RowScope.() -> Unit = {},
 ) {
     var menuOpen by remember { mutableStateOf(false) }
@@ -93,6 +95,10 @@ fun AppTopBar(
                     onDeleteAccount = {
                         menuOpen = false
                         onDeleteAccount()
+                    },
+                    onProfile = {
+                        menuOpen = false
+                        onProfile()
                     },
                 )
             }
@@ -137,6 +143,7 @@ fun AccountMenuBody(
     onLogout: () -> Unit,
     isFounder: Boolean = false,
     onDeleteAccount: () -> Unit = {},
+    onProfile: () -> Unit = {},
 ) {
     Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
         Text(
@@ -165,6 +172,11 @@ fun AccountMenuBody(
             modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
         )
     }
+    HorizontalDivider()
+    DropdownMenuItem(
+        text = { Text(stringResource(Res.string.menu_profile)) },
+        onClick = onProfile,
+    )
     HorizontalDivider()
     if (onSubscription != null) {
         DropdownMenuItem(

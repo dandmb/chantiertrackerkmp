@@ -1,8 +1,10 @@
 package com.dmb.chantiertracker.presentation.projects.detail
 
+import androidx.compose.material3.IconButton
 import com.dmb.chantiertracker.domain.model.SyncIssueTarget
 import com.dmb.chantiertracker.presentation.AppOutlinedButton
 import com.dmb.chantiertracker.presentation.CapitalTitle
+import com.dmb.chantiertracker.presentation.main.CloseIcon
 import com.dmb.chantiertracker.presentation.sync.SyncIssueMarker
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
@@ -69,6 +71,10 @@ import com.dmb.chantiertracker.resources.detail_delete_project
 import com.dmb.chantiertracker.resources.detail_edit_project
 import com.dmb.chantiertracker.resources.detail_history
 import com.dmb.chantiertracker.resources.detail_history_hint
+import com.dmb.chantiertracker.resources.detail_member_remove
+import com.dmb.chantiertracker.resources.detail_member_remove_confirm_body
+import com.dmb.chantiertracker.resources.detail_member_remove_confirm_button
+import com.dmb.chantiertracker.resources.detail_member_remove_confirm_title
 import com.dmb.chantiertracker.resources.detail_reports
 import com.dmb.chantiertracker.resources.detail_reports_hint
 import com.dmb.chantiertracker.resources.detail_invitation_cancel
@@ -147,6 +153,16 @@ fun ProjectDetailScreen(
                     pendingInvitations = state.pendingInvitations,
                     cancellingInvitationIds = state.cancellingInvitationIds,
                     invitationActionError = state.invitationActionError?.localizedText(),
+                    memberRemoval = if (state.canRemoveMembers) {
+                        MemberRemoval(
+                            currentUserId = state.currentUserId,
+                            removingUserIds = state.removingMemberIds,
+                            error = state.memberActionError?.localizedText(),
+                            onRemove = viewModel::removeMember,
+                        )
+                    } else {
+                        null
+                    },
                     twoColumns = widthClass == WidthSizeClass.EXPANDED,
                     onAddStage = { onAddStage(state.detail!!.localId) },
                     onStageClick = onStageClick,
@@ -174,6 +190,7 @@ private fun DetailContent(
     pendingInvitations: List<Invitation>,
     cancellingInvitationIds: Set<Long>,
     invitationActionError: String?,
+    memberRemoval: MemberRemoval?,
     // Two independent, genuinely parallel groups of sections (project info +
     // stages vs. members + invitations/history/reports) — a real 2-column
     // layout on a wide window rather than just a width cap, unlike the
@@ -225,7 +242,7 @@ private fun DetailContent(
             if (isAdmin) {
                 DetailSectionDivider()
                 TwoColumnRow(
-                    left = { MembersSection(members, isAdmin, onInviteMember) },
+                    left = { MembersSection(members, isAdmin, onInviteMember, memberRemoval) },
                     right = {
                         InvitationsSection(pendingInvitations, cancellingInvitationIds, invitationActionError, onCancelInvitation)
                     },
@@ -237,7 +254,7 @@ private fun DetailContent(
                 )
             } else {
                 DetailSectionDivider()
-                MembersSection(members, isAdmin, onInviteMember)
+                MembersSection(members, isAdmin, onInviteMember, memberRemoval)
             }
         } else {
             InfoSection(detail)
@@ -246,7 +263,7 @@ private fun DetailContent(
             StagesSection(stages, detail.currency, onAddStage, onStageClick)
 
             DetailSectionDivider()
-            MembersSection(members, isAdmin, onInviteMember)
+            MembersSection(members, isAdmin, onInviteMember, memberRemoval)
 
             if (isAdmin) {
                 DetailSectionDivider()
@@ -303,8 +320,16 @@ private fun StagesSection(stages: List<Stage>, currency: String, onAddStage: () 
     }
 }
 
+private class MemberRemoval(
+    val currentUserId: Long?,
+    val removingUserIds: Set<Long>,
+    val error: String?,
+    val onRemove: (userId: Long) -> Unit,
+)
+
 @Composable
-private fun MembersSection(members: List<ProjectMember>, isAdmin: Boolean, onInviteMember: () -> Unit) {
+private fun MembersSection(members: List<ProjectMember>, isAdmin: Boolean, onInviteMember: () -> Unit, removal: MemberRemoval?) {
+    var pendingRemoval by remember { mutableStateOf<ProjectMember?>(null) }
     DetailSection(
         title = stringResource(Res.string.detail_section_members),
         action = if (isAdmin) {
@@ -313,11 +338,30 @@ private fun MembersSection(members: List<ProjectMember>, isAdmin: Boolean, onInv
             null
         },
     ) {
+        removal?.error?.let { ErrorBanner(it) }
         if (members.isEmpty()) {
             DetailEmptyHint(stringResource(Res.string.detail_members_empty))
         } else {
-            members.forEach { member -> MemberRow(member) }
+            members.forEach { member ->
+                MemberRow(
+                    member = member,
+                    onRemove = removal?.takeIf { member.userId != it.currentUserId }?.let { { pendingRemoval = member } },
+                    isRemoving = removal != null && member.userId in removal.removingUserIds,
+                )
+            }
         }
+    }
+    pendingRemoval?.let { member ->
+        ConfirmActionDialog(
+            title = stringResource(Res.string.detail_member_remove_confirm_title, member.name),
+            body = stringResource(Res.string.detail_member_remove_confirm_body, member.name),
+            confirmLabel = stringResource(Res.string.detail_member_remove_confirm_button),
+            onDismiss = { pendingRemoval = null },
+            onConfirm = {
+                pendingRemoval = null
+                removal?.onRemove?.invoke(member.userId)
+            },
+        )
     }
 }
 
@@ -504,7 +548,7 @@ private fun StageRow(stage: Stage, currency: String, onClick: () -> Unit) {
 }
 
 @Composable
-private fun MemberRow(member: ProjectMember) {
+private fun MemberRow(member: ProjectMember, onRemove: (() -> Unit)?, isRemoving: Boolean) {
     Row(
         Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -519,6 +563,12 @@ private fun MemberRow(member: ProjectMember) {
             )
         }
         RoleBadge(member.role)
+        if (onRemove != null) {
+            val description = stringResource(Res.string.detail_member_remove, member.name)
+            IconButton(onClick = onRemove, enabled = !isRemoving) {
+                Icon(CloseIcon, contentDescription = description, modifier = Modifier.size(18.dp))
+            }
+        }
     }
 }
 

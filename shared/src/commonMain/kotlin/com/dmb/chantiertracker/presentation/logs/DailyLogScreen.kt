@@ -78,6 +78,7 @@ import com.dmb.chantiertracker.presentation.i18n.localizedText
 import com.dmb.chantiertracker.presentation.main.AddIcon
 import com.dmb.chantiertracker.presentation.main.FlagIcon
 import com.dmb.chantiertracker.presentation.main.PlayIcon
+import com.dmb.chantiertracker.presentation.main.PhotoCameraIcon
 import com.dmb.chantiertracker.presentation.main.VideocamIcon
 import com.dmb.chantiertracker.presentation.main.CloseIcon
 import com.dmb.chantiertracker.presentation.main.ConstructionIcon
@@ -89,6 +90,7 @@ import com.dmb.chantiertracker.resources.action_add
 import com.dmb.chantiertracker.resources.action_delete
 import com.dmb.chantiertracker.resources.attachment_add
 import com.dmb.chantiertracker.resources.attachment_add_video
+import com.dmb.chantiertracker.resources.attachment_take_photo
 import com.dmb.chantiertracker.resources.attachment_close
 import com.dmb.chantiertracker.resources.attachment_delete
 import com.dmb.chantiertracker.resources.attachment_delete_confirm_body
@@ -599,20 +601,23 @@ private fun AttachmentsSection(
     var firstLoadDone by remember(entryLocalId) { mutableStateOf(false) }
     LaunchedEffect(allPhotosDecoded) { if (allPhotosDecoded) firstLoadDone = true }
 
-    val photoPicker = rememberFilePickerLauncher(type = FileKitType.Image) { picked ->
-        if (picked == null) return@rememberFilePickerLauncher
-        photoReadError = false
-        scope.launch {
-            val mime = runCatching { picked.mimeType() }.getOrNull()
-            val mimeString = mime?.let { "${it.primaryType}/${it.subtype}" } ?: "image/jpeg"
-            val bytes = runCatching { picked.readBytes() }.getOrNull()
-            if (bytes != null) {
-                viewModel.onPhotoSelected(entryLocalId, bytes, picked.name, mimeString)
-            } else {
-                photoReadError = true
+    val addPhoto: (PlatformFile?) -> Unit = { picked ->
+        if (picked != null) {
+            photoReadError = false
+            scope.launch {
+                val mime = runCatching { picked.mimeType() }.getOrNull()
+                val mimeString = mime?.let { "${it.primaryType}/${it.subtype}" } ?: "image/jpeg"
+                val bytes = runCatching { picked.readBytes() }.getOrNull()
+                if (bytes != null) {
+                    viewModel.onPhotoSelected(entryLocalId, bytes, picked.name, mimeString)
+                } else {
+                    photoReadError = true
+                }
             }
         }
     }
+    val photoPicker = rememberFilePickerLauncher(type = FileKitType.Image, onResult = addPhoto)
+    val photoCapture = LocalPhotoCapture.current.rememberCapture(onCaptured = addPhoto)
     val videoPicker = rememberFilePickerLauncher(type = FileKitType.Video) { picked ->
         if (picked == null) return@rememberFilePickerLauncher
         val mime = runCatching { picked.mimeType() }.getOrNull()
@@ -628,6 +633,12 @@ private fun AttachmentsSection(
                 TextButton(onClick = { photoPicker.launch() }, enabled = !busy) {
                     Icon(AddIcon, contentDescription = null, modifier = Modifier.size(16.dp))
                     Text(text = stringResource(Res.string.attachment_add), modifier = Modifier.padding(start = 4.dp))
+                }
+                if (photoCapture != null) {
+                    TextButton(onClick = photoCapture::launch, enabled = !busy) {
+                        Icon(PhotoCameraIcon, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Text(text = stringResource(Res.string.attachment_take_photo), modifier = Modifier.padding(start = 4.dp))
+                    }
                 }
                 if (state.canAddVideo) {
                     TextButton(onClick = { videoPicker.launch() }, enabled = !busy) {

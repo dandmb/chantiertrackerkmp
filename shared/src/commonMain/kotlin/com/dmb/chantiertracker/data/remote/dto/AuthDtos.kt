@@ -40,7 +40,12 @@ data class UserResponseDto(
     val name: String,
     val active: Boolean,
     val globalRole: String,
+    val phone: String? = null,
+    val language: String? = null,
 )
+
+@Serializable
+data class UpdateProfileRequestDto(val name: String, val phone: String, val language: String)
 
 @Serializable
 data class ProblemDetailDto(

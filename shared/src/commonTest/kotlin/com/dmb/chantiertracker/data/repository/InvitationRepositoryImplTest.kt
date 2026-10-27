@@ -190,4 +190,63 @@ class InvitationRepositoryImplTest {
         assertTrue(backend.invitations.isEmpty())
         assertEquals(listOf("p1"), syncer.syncedProjects)
     }
+
+    private suspend fun projectWithASupervisor(): Triple<FakeProjectBackend, FakeProjectDao, FakeSyncer> {
+        val backend = FakeProjectBackend().apply {
+            seed(com.dmb.chantiertracker.support.ServerProject(id = 42, name = "Villa"))
+            seedMembers(
+                42,
+                com.dmb.chantiertracker.support.ServerMember(userId = 1, name = "Dan", email = "dan@x.dev", role = "ADMIN"),
+                com.dmb.chantiertracker.support.ServerMember(userId = 9, name = "Awa", email = "awa@x.dev", role = "SUPERVISOR"),
+            )
+        }
+        val projectDao = FakeProjectDao(listOf(localProject("p1", serverId = 42)))
+        projectDao.upsertMembers(
+            listOf(
+                com.dmb.chantiertracker.data.local.db.ProjectMemberEntity("p1", 1, "Dan", "dan@x.dev", "ADMIN"),
+                com.dmb.chantiertracker.data.local.db.ProjectMemberEntity("p1", 9, "Awa", "awa@x.dev", "SUPERVISOR"),
+            ),
+        )
+        return Triple(backend, projectDao, FakeSyncer())
+    }
+
+    @Test
+    fun removing_a_member_deletes_by_user_id_with_no_body_and_drops_the_local_row() = runTest {
+        val (backend, projectDao, syncer) = projectWithASupervisor()
+
+        repo(projectDao = projectDao, backend = backend, syncer = syncer).removeMember("p1", userId = 9)
+
+        assertEquals(listOf("DELETE /projects/42/members/9"), backend.receivedMethods.filter { it.startsWith("DELETE") })
+        assertEquals(listOf<String?>(null), backend.receivedMemberRemovalBodies, "no body")
+        assertEquals(listOf(1L), projectDao.observeMembers("p1").first().map { it.userId })
+        assertEquals(listOf("p1"), syncer.syncedProjects)
+    }
+
+    @Test
+    fun a_member_already_removed_is_a_success_not_an_error() = runTest {
+        val (backend, projectDao, syncer) = projectWithASupervisor()
+        backend.members[42]!!.removeAll { it.userId == 9L }
+
+        repo(projectDao = projectDao, backend = backend, syncer = syncer).removeMember("p1", userId = 9)
+
+        assertEquals(listOf(1L), projectDao.observeMembers("p1").first().map { it.userId })
+    }
+
+    @Test
+    fun a_supervisor_trying_to_remove_someone_is_refused() = runTest {
+        val (backend, projectDao, syncer) = projectWithASupervisor()
+        backend.refuseWith = { com.dmb.chantiertracker.support.ServerRefusal(io.ktor.http.HttpStatusCode.Forbidden, "PROJECT_INSUFFICIENT_ROLE") }
+
+        assertFailsWith<DomainException.Forbidden> { repo(projectDao = projectDao, backend = backend, syncer = syncer).removeMember("p1", userId = 9) }
+        assertEquals(listOf(1L, 9L), projectDao.observeMembers("p1").first().map { it.userId }.sorted())
+    }
+
+    @Test
+    fun the_last_admin_cannot_be_removed() = runTest {
+        val (backend, projectDao, syncer) = projectWithASupervisor()
+        backend.refuseWith = { com.dmb.chantiertracker.support.ServerRefusal(io.ktor.http.HttpStatusCode.Conflict, "LAST_ADMIN_REMOVAL") }
+
+        assertFailsWith<DomainException.LastAdminRemoval> { repo(projectDao = projectDao, backend = backend, syncer = syncer).removeMember("p1", userId = 1) }
+        assertEquals(listOf(1L, 9L), projectDao.observeMembers("p1").first().map { it.userId }.sorted())
+    }
 }

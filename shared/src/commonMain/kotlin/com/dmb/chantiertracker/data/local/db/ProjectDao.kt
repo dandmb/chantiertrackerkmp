@@ -52,4 +52,7 @@ interface ProjectDao : LocalChangesDao<ProjectEntity> {
 
     @Query("DELETE FROM project_members WHERE projectLocalId = :projectLocalId")
     suspend fun clearMembers(projectLocalId: String)
+
+    @Query("DELETE FROM project_members WHERE projectLocalId = :projectLocalId AND userId = :userId")
+    suspend fun deleteMember(projectLocalId: String, userId: Long)
 }
