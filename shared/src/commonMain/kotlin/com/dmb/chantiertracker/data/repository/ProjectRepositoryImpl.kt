@@ -139,6 +139,8 @@ internal fun ProjectEntity.toProject(): Project = Project(
     status = status.toProjectStatus(),
     createdAt = createdAt,
     syncIssue = syncIssue(),
+    updatedAtMillis = if (pendingOp == PendingOp.NONE) remoteUpdatedAt ?: locallyModifiedAt else locallyModifiedAt,
+    serverId = serverId,
 )
 
 internal fun ProjectEntity.toProjectDetail(): ProjectDetail = ProjectDetail(

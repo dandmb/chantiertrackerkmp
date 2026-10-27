@@ -9,6 +9,7 @@ import com.dmb.chantiertracker.data.remote.dto.RegisterRequestDto
 import com.dmb.chantiertracker.data.remote.dto.RegisterResponseDto
 import com.dmb.chantiertracker.data.remote.dto.ResendCodeRequestDto
 import com.dmb.chantiertracker.data.remote.dto.ResetPasswordRequestDto
+import com.dmb.chantiertracker.data.remote.dto.UpdateLanguageRequestDto
 import com.dmb.chantiertracker.data.remote.dto.UpdateProfileRequestDto
 import com.dmb.chantiertracker.data.remote.dto.UserResponseDto
 import com.dmb.chantiertracker.data.remote.dto.VerifyEmailRequestDto
@@ -59,6 +60,9 @@ class AuthApi(private val client: HttpClient) {
         client.get(ApiRoutes.USERS_ME).body()
 
     suspend fun updateProfile(body: UpdateProfileRequestDto): UserResponseDto =
+        client.patch(ApiRoutes.USERS_ME) { json(body) }.body()
+
+    suspend fun updateLanguage(body: UpdateLanguageRequestDto): UserResponseDto =
         client.patch(ApiRoutes.USERS_ME) { json(body) }.body()
 
     suspend fun changePassword(body: ChangePasswordRequestDto) {

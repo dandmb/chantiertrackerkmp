@@ -25,6 +25,7 @@ import com.dmb.chantiertracker.presentation.auth.components.ErrorBanner
 import com.dmb.chantiertracker.presentation.auth.components.InfoBanner
 import com.dmb.chantiertracker.presentation.auth.components.PasswordField
 import com.dmb.chantiertracker.presentation.i18n.localizedText
+import com.dmb.chantiertracker.presentation.i18n.rememberWaitSecondsLeft
 import com.dmb.chantiertracker.presentation.main.labelRes
 import com.dmb.chantiertracker.presentation.navigation.LoginNotice
 import com.dmb.chantiertracker.presentation.legal.LegalDocument
@@ -126,6 +127,7 @@ fun LoginScreen(
             text = stringResource(Res.string.login_submit),
             onClick = viewModel::submit,
             loading = state.isSubmitting,
+            enabled = rememberWaitSecondsLeft(state.formError) == 0,
         )
 
         Spacer(Modifier.height(4.dp))

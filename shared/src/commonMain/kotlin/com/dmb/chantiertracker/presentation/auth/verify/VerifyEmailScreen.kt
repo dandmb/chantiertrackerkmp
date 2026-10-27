@@ -12,6 +12,7 @@ import com.dmb.chantiertracker.presentation.auth.components.CodeField
 import com.dmb.chantiertracker.presentation.auth.components.ErrorBanner
 import com.dmb.chantiertracker.presentation.auth.components.InfoBanner
 import com.dmb.chantiertracker.presentation.i18n.localizedText
+import com.dmb.chantiertracker.presentation.i18n.rememberWaitSecondsLeft
 import com.dmb.chantiertracker.resources.Res
 import com.dmb.chantiertracker.resources.verify_cancel
 import com.dmb.chantiertracker.resources.verify_code_resent
@@ -56,11 +57,12 @@ fun VerifyEmailScreen(
             text = stringResource(Res.string.verify_submit),
             onClick = { viewModel.submit(email) },
             loading = state.isSubmitting,
+            enabled = rememberWaitSecondsLeft(state.formError) == 0,
         )
         AuthSecondaryButton(
             text = stringResource(if (state.isResending) Res.string.verify_resending else Res.string.verify_resend),
             onClick = { viewModel.resendCode(email) },
-            enabled = !state.isSubmitting && !state.isResending,
+            enabled = !state.isSubmitting && !state.isResending && rememberWaitSecondsLeft(state.formError) == 0,
         )
         AuthLink(text = stringResource(Res.string.verify_cancel), onClick = onCancelVerification)
     }

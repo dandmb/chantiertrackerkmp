@@ -1,5 +1,6 @@
 package com.dmb.chantiertracker.presentation.account
 
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -90,6 +91,7 @@ private fun ProfileForm(state: ProfileUiState, viewModel: ProfileViewModel) {
             AppOutlinedTextField(
                 value = state.name,
                 onValueChange = viewModel::onNameChange,
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
                 modifier = Modifier.fillMaxWidth(),
                 label = { Text(stringResource(Res.string.profile_name_label)) },
                 singleLine = true,

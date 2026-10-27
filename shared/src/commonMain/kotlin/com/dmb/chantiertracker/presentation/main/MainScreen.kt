@@ -1,5 +1,8 @@
 package com.dmb.chantiertracker.presentation.main
 
+import com.dmb.chantiertracker.presentation.i18n.LocalAppLocale
+import com.dmb.chantiertracker.domain.model.ProfileLanguage
+import com.dmb.chantiertracker.domain.model.LegalLanguage
 import com.dmb.chantiertracker.domain.model.SyncIssueItem
 import com.dmb.chantiertracker.presentation.sync.SyncIssueMarkersProvider
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -150,6 +153,9 @@ fun MainScreen(
     viewModel: MainViewModel = koinViewModel(),
     syncIssueCountViewModel: SyncIssueCountViewModel = koinViewModel(),
 ) {
+    val appLanguage = if (LegalLanguage.forLocale(LocalAppLocale.current) == LegalLanguage.English) ProfileLanguage.ENGLISH else ProfileLanguage.FRENCH
+    LaunchedEffect(appLanguage) { viewModel.onAppLanguage(appLanguage) }
+
     val navController = rememberNavController()
     val account by viewModel.state.collectAsStateWithLifecycle()
     val syncIssueCount by syncIssueCountViewModel.count.collectAsStateWithLifecycle()
@@ -455,7 +461,7 @@ fun MainScreen(
             }
             composable<LegalDocumentRoute> { entry ->
                 LegalDocument.fromSlug(entry.toRoute<LegalDocumentRoute>().document)?.let { document ->
-                    LegalDocumentScreen(document)
+                    LegalDocumentScreen(document, onOpenDocument = { navController.navigate(LegalDocumentRoute(it.slug)) })
                 }
             }
             if (paymentsAllowed) {

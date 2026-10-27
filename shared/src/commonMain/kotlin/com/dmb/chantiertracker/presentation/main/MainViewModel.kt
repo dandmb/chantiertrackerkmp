@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.dmb.chantiertracker.domain.model.AuthState
 import com.dmb.chantiertracker.domain.model.Plan
+import com.dmb.chantiertracker.domain.model.ProfileLanguage
 import com.dmb.chantiertracker.domain.model.UnsentWrites
 import com.dmb.chantiertracker.domain.repository.AccountRepository
 import com.dmb.chantiertracker.domain.repository.AuthRepository
@@ -37,6 +38,7 @@ class MainViewModel(
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(MainUiState())
+    private var languageBeingSent: ProfileLanguage? = null
     val state = _state.asStateFlow()
 
     init {
@@ -62,6 +64,16 @@ class MainViewModel(
             accountRepository.observePlanUsage().collect { usage ->
                 _state.update { it.copy(plan = usage?.plan, isFounder = usage?.isFounder == true) }
             }
+        }
+    }
+
+    fun onAppLanguage(language: ProfileLanguage) {
+        val user = (authRepository.authState.value as? AuthState.Authenticated)?.user ?: return
+        if (user.language == language || language == languageBeingSent) return
+        languageBeingSent = language
+        viewModelScope.launch {
+            runCatching { authRepository.updateAccountLanguage(language) }
+            languageBeingSent = null
         }
     }
 

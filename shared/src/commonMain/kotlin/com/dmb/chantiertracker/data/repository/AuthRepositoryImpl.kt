@@ -17,6 +17,7 @@ import com.dmb.chantiertracker.data.remote.dto.LoginRequestDto
 import com.dmb.chantiertracker.data.remote.dto.RegisterRequestDto
 import com.dmb.chantiertracker.data.remote.dto.ResendCodeRequestDto
 import com.dmb.chantiertracker.data.remote.dto.ResetPasswordRequestDto
+import com.dmb.chantiertracker.data.remote.dto.UpdateLanguageRequestDto
 import com.dmb.chantiertracker.data.remote.dto.UpdateProfileRequestDto
 import com.dmb.chantiertracker.data.remote.dto.UserResponseDto
 import com.dmb.chantiertracker.data.remote.dto.VerifyEmailRequestDto
@@ -148,6 +149,12 @@ class AuthRepositoryImpl(
         ownership.recordProfile(user)
         authStateHolder.update(AuthState.Authenticated(user))
         return user
+    }
+
+    override suspend fun updateAccountLanguage(language: ProfileLanguage) {
+        val user = apiCall { api.updateLanguage(UpdateLanguageRequestDto(language.code)) }.toUser()
+        ownership.recordProfile(user)
+        authStateHolder.update(AuthState.Authenticated(user))
     }
 
     override suspend fun forgotPassword(email: String) {

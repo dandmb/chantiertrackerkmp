@@ -225,7 +225,7 @@ private fun DetailContent(
         // column count. Unknown until the first detail pull (ADR-33) — same
         // as the web, which renders nothing until `project.ownerPlan` is set.
         detail.ownerCanExportPdf()?.let { canExport ->
-            ExportSection(projectLocalId = detail.localId, canExport = canExport)
+            ExportSection(projectLocalId = detail.localId, canExport = canExport, isEmpty = stages.isEmpty())
             DetailSectionDivider()
         }
 

@@ -40,6 +40,10 @@ class RootViewModel(
         }
     }
 
+    fun recordOnboardingShown() {
+        viewModelScope.launch { authRepository.markOnboardingSeen() }
+    }
+
     fun markOnboardingSeen() {
         _hasSeenOnboarding.value = true
         viewModelScope.launch { authRepository.markOnboardingSeen() }

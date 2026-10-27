@@ -77,6 +77,14 @@ class FakeAuthRepository : AuthRepository {
     override suspend fun changePassword(currentPassword: String, newPassword: String) =
         record("changePassword:$currentPassword:$newPassword")
 
+    val accountLanguageUpdates = mutableListOf<com.dmb.chantiertracker.domain.model.ProfileLanguage>()
+
+    override suspend fun updateAccountLanguage(language: com.dmb.chantiertracker.domain.model.ProfileLanguage) {
+        accountLanguageUpdates += language
+        val current = (_authState.value as? AuthState.Authenticated)?.user ?: return
+        _authState.value = AuthState.Authenticated(current.copy(language = language))
+    }
+
     val profileUpdates = mutableListOf<com.dmb.chantiertracker.domain.model.ProfileUpdate>()
     var onUpdateProfile: suspend () -> Unit = {}
 

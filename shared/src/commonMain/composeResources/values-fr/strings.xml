@@ -436,6 +436,12 @@
     <string name="error_plan_limit_no_upgrade">Tu as atteint la limite de projets de ta formule.</string>
     <string name="error_billing_not_open">Les abonnements payants ne sont pas encore ouverts.</string>
     <string name="error_last_admin_removal">Un projet garde au moins un administrateur : ce membre ne peut pas être retiré.</string>
+    <string name="error_new_password_same_as_current">Le nouveau mot de passe doit être différent du mot de passe actuel.</string>
+    <string name="error_project_export_empty">Ce projet est encore vide : ajoutez au moins une étape avant d’exporter le dossier PDF.</string>
+    <string name="error_wait_rate_limited">Trop de tentatives. Réessaie dans %1$s.</string>
+    <string name="error_wait_locked">Compte bloqué après trop de tentatives. Réessaie dans %1$s.</string>
+    <string name="error_wait_in_progress">Ta demande précédente est encore en cours de traitement. Réessaie dans %1$s.</string>
+    <string name="error_wait_over">Tu peux réessayer maintenant.</string>
     <string name="error_forbidden">Tu n'es pas autorisé à effectuer cette action.</string>
     <string name="error_not_found">Ce projet n'existe plus, ou tu n'y as pas accès.</string>
     <string name="error_network">Connexion au serveur impossible. Vérifie ta connexion.</string>
@@ -502,13 +508,9 @@
     <string name="admin_stats_granularity_day">Jour</string>
     <string name="admin_stats_granularity_month">Mois</string>
     <string name="admin_stats_granularity_year">Année</string>
-    <plurals name="error_rate_limited_seconds">
-        <item quantity="one">Trop de tentatives. Réessaie dans %1$d seconde.</item>
-        <item quantity="other">Trop de tentatives. Réessaie dans %1$d secondes.</item>
-    </plurals>
-    <plurals name="error_rate_limited_minutes">
-        <item quantity="one">Trop de tentatives. Réessaie dans %1$d minute.</item>
-        <item quantity="other">Trop de tentatives. Réessaie dans %1$d minutes.</item>
+    <plurals name="wait_seconds">
+        <item quantity="one">%1$d seconde</item>
+        <item quantity="other">%1$d secondes</item>
     </plurals>
     <string name="logout_sending">Envoi de tes saisies avant la déconnexion…</string>
     <string name="logout_blocked_title">Des saisies ne sont pas encore envoyées</string>

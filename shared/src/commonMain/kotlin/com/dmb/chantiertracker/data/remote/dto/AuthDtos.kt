@@ -48,10 +48,14 @@ data class UserResponseDto(
 data class UpdateProfileRequestDto(val name: String, val phone: String, val language: String)
 
 @Serializable
+data class UpdateLanguageRequestDto(val language: String)
+
+@Serializable
 data class ProblemDetailDto(
     val title: String? = null,
     val status: Int? = null,
     val detail: String? = null,
     val code: String? = null,
     @SerialName("errors") val errors: Map<String, String>? = null,
+    val retryAfterSeconds: Int? = null,
 )

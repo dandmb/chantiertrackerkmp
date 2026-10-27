@@ -95,10 +95,10 @@ class StringResourcesLocaleTest {
     }
 
     @Test
-    fun rate_limited_message_switches_to_minutes_rounded_up_from_sixty_seconds() {
-        assertEquals("Too many attempts. Try again in 1 minute.", resolveError("en", DomainException.RateLimited(60)))
-        assertEquals("Too many attempts. Try again in 2 minutes.", resolveError("en", DomainException.RateLimited(61)))
-        assertEquals("Trop de tentatives. Réessaie dans 3 minutes.", resolveError("fr", DomainException.RateLimited(180)))
+    fun rate_limited_message_counts_down_in_minutes_and_seconds_from_sixty_seconds() {
+        assertEquals("Too many attempts. Try again in 1:00.", resolveError("en", DomainException.RateLimited(60)))
+        assertEquals("Too many attempts. Try again in 1:01.", resolveError("en", DomainException.RateLimited(61)))
+        assertEquals("Trop de tentatives. Réessaie dans 3:00.", resolveError("fr", DomainException.RateLimited(180)))
     }
 
     @Test

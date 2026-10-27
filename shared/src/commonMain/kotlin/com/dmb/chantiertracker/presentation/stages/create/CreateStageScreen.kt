@@ -1,5 +1,6 @@
 package com.dmb.chantiertracker.presentation.stages.create
 
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -66,6 +67,7 @@ fun CreateStageScreen(
             AppOutlinedTextField(
                 value = state.name,
                 onValueChange = viewModel::onNameChange,
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                 modifier = Modifier.fillMaxWidth(),
                 label = { Text(stringResource(Res.string.create_stage_name_label)) },
                 singleLine = true,
@@ -77,6 +79,7 @@ fun CreateStageScreen(
             AppOutlinedTextField(
                 value = state.description,
                 onValueChange = viewModel::onDescriptionChange,
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                 modifier = Modifier.fillMaxWidth(),
                 label = { Text(stringResource(Res.string.create_description_label)) },
                 minLines = 3,

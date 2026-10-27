@@ -1,5 +1,7 @@
 package com.dmb.chantiertracker.presentation.logs
 
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -69,6 +71,7 @@ fun EntrySummaryScreen(
                     AppOutlinedTextField(
                         value = state.summary,
                         onValueChange = viewModel::onSummaryChange,
+                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                         modifier = Modifier.fillMaxWidth(),
                         label = { Text(stringResource(if (isWork) Res.string.entry_title_label else Res.string.entry_summary_label)) },
                         placeholder = { Text(stringResource(if (isWork) Res.string.entry_title_placeholder else Res.string.entry_summary_placeholder)) },

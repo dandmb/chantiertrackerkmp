@@ -10,6 +10,7 @@ import com.dmb.chantiertracker.presentation.auth.components.AuthScreenLayout
 import com.dmb.chantiertracker.presentation.auth.components.EmailField
 import com.dmb.chantiertracker.presentation.auth.components.ErrorBanner
 import com.dmb.chantiertracker.presentation.i18n.localizedText
+import com.dmb.chantiertracker.presentation.i18n.rememberWaitSecondsLeft
 import com.dmb.chantiertracker.resources.Res
 import com.dmb.chantiertracker.resources.forgot_submit
 import com.dmb.chantiertracker.resources.forgot_subtitle
@@ -49,6 +50,7 @@ fun ForgotPasswordScreen(
             text = stringResource(Res.string.forgot_submit),
             onClick = viewModel::submit,
             loading = state.isSubmitting,
+            enabled = rememberWaitSecondsLeft(state.formError) == 0,
         )
     }
 }

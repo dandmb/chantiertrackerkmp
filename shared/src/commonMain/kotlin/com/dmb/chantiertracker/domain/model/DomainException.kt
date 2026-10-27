@@ -9,7 +9,7 @@ sealed class DomainException : Exception() {
     data object InvalidCredentials : DomainException()
     data object EmailAlreadyUsed : DomainException()
     data object AccountNotVerified : DomainException()
-    data object AccountLocked : DomainException()
+    data class AccountLocked(val retryAfterSeconds: Int? = null) : DomainException()
     // Cross-cutting, any endpoint could return it (a security filter, not a
     // specific business rule) — mapped globally in ApiError.kt, same posture
     // as AccountLocked/AccountNotVerified. Caught internally by
@@ -22,6 +22,7 @@ sealed class DomainException : Exception() {
     // AuthRepositoryImpl.changePassword, same posture as other local remaps
     // (BillingRepositoryImpl, AdminRepositoryImpl).
     data object InvalidCurrentPassword : DomainException()
+    data object NewPasswordSameAsCurrent : DomainException()
     data class AccountDeletionBlocked(val blocker: DeletionBlocker) : DomainException()
     data object InvalidCode : DomainException()
     data object Validation : DomainException()
@@ -30,6 +31,7 @@ sealed class DomainException : Exception() {
     data class CreationInProgress(val retryAfterSeconds: Int? = null) : DomainException()
     data object PlanLimitReached : DomainException()
     data object DuplicateMaterial : DomainException()
+    data object ProjectExportEmpty : DomainException()
     data object FileTooLarge : DomainException()
     data object ImageTooLarge : DomainException()
     data object BillingNotOpen : DomainException()

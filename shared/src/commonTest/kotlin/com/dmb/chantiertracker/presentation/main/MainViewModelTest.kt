@@ -188,4 +188,22 @@ class MainViewModelTest {
         assertEquals(listOf("Marie", "marie@chantier.dev"), listOf(vm.state.value.userName, vm.state.value.email))
         assertEquals(2, account.refreshCount, "one plan refresh per session")
     }
+
+    @Test
+    fun the_account_language_follows_the_app_language_so_the_emails_do_too() = runTest {
+        val auth = FakeAuthRepository().apply {
+            emitState(AuthState.Authenticated(user.copy(language = com.dmb.chantiertracker.domain.model.ProfileLanguage.FRENCH)))
+        }
+        val vm = MainViewModel(auth, FakeAccountRepository(), FakeSignOutRepository())
+        advanceUntilIdle()
+
+        vm.onAppLanguage(com.dmb.chantiertracker.domain.model.ProfileLanguage.FRENCH)
+        advanceUntilIdle()
+        vm.onAppLanguage(com.dmb.chantiertracker.domain.model.ProfileLanguage.ENGLISH)
+        advanceUntilIdle()
+        vm.onAppLanguage(com.dmb.chantiertracker.domain.model.ProfileLanguage.ENGLISH)
+        advanceUntilIdle()
+
+        assertEquals(listOf(com.dmb.chantiertracker.domain.model.ProfileLanguage.ENGLISH), auth.accountLanguageUpdates, "sent once, only when it differs")
+    }
 }

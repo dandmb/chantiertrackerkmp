@@ -35,6 +35,7 @@ import com.dmb.chantiertracker.resources.detail_export_regenerate
 import com.dmb.chantiertracker.resources.detail_export_share
 import com.dmb.chantiertracker.resources.detail_export_title
 import com.dmb.chantiertracker.resources.detail_export_unavailable
+import com.dmb.chantiertracker.resources.error_project_export_empty
 import com.dmb.chantiertracker.resources.detail_export_upgrade
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
@@ -54,6 +55,7 @@ import org.koin.compose.viewmodel.koinViewModel
 fun ExportSection(
     projectLocalId: String,
     canExport: Boolean,
+    isEmpty: Boolean = false,
     viewModel: ProjectExportViewModel = koinViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -111,7 +113,8 @@ fun ExportSection(
             }
 
             else -> {
-                AppOutlinedButton(onClick = { viewModel.export(projectLocalId) }) {
+                if (isEmpty) DetailEmptyHint(stringResource(Res.string.error_project_export_empty))
+                AppOutlinedButton(onClick = { viewModel.export(projectLocalId) }, enabled = !isEmpty) {
                     Icon(DownloadIcon, contentDescription = null, modifier = Modifier.size(18.dp))
                     Text(text = stringResource(Res.string.detail_export_action), modifier = Modifier.padding(start = 6.dp))
                 }

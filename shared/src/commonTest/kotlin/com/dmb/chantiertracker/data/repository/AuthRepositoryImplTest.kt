@@ -654,4 +654,14 @@ class AuthRepositoryImplTest {
         )
         assertEquals(AuthState.Unknown, f.holder.state.value, "nothing published on a refusal")
     }
+
+    @Test
+    fun a_new_password_identical_to_the_current_one_is_refused_on_change_and_on_reset() = runTest {
+        val f = Fixture(storage = FakeTokenStorage(AuthTokens("a", "r"))) {
+            respondProblem(HttpStatusCode.BadRequest, "Le nouveau mot de passe doit être différent du mot de passe actuel.", code = "NEW_PASSWORD_SAME_AS_CURRENT")
+        }
+
+        assertFailsWith<DomainException.NewPasswordSameAsCurrent> { f.repo.changePassword("Password1234!", "Password1234!") }
+        assertFailsWith<DomainException.NewPasswordSameAsCurrent> { f.repo.resetPassword("jean@chantier.dev", "123456", "Password1234!") }
+    }
 }

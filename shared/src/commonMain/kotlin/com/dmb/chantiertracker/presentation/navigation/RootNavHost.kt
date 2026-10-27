@@ -60,6 +60,7 @@ fun RootNavHost(
                 else -> AuthStartPoint.Onboarding
             },
             onOnboardingFinished = viewModel::markOnboardingSeen,
+            onOnboardingShown = viewModel::recordOnboardingShown,
             startNotice = if (sessionNotice == SessionNotice.AccountDeleted) LoginNotice.AccountDeleted else null,
             legalDocumentViewModel = legalDocumentViewModel,
         )
@@ -70,6 +71,7 @@ fun RootNavHost(
 private fun AuthNavHost(
     startPoint: AuthStartPoint,
     onOnboardingFinished: () -> Unit,
+    onOnboardingShown: () -> Unit,
     startNotice: LoginNotice? = null,
     legalDocumentViewModel: @Composable () -> LegalDocumentViewModel,
 ) {
@@ -87,6 +89,7 @@ private fun AuthNavHost(
         },
     ) {
         composable<OnboardingRoute> {
+            LaunchedEffect(Unit) { onOnboardingShown() }
             OnboardingScreen(
                 onFinish = {
                     onOnboardingFinished()
@@ -171,7 +174,12 @@ private fun AuthNavHost(
         }
         composable<LegalDocumentRoute> { entry ->
             LegalDocument.fromSlug(entry.toRoute<LegalDocumentRoute>().document)?.let { document ->
-                StandaloneLegalDocumentScreen(document, onBack = { navController.popBackStack() }, viewModel = legalDocumentViewModel())
+                StandaloneLegalDocumentScreen(
+                    document,
+                    onBack = { navController.popBackStack() },
+                    onOpenDocument = { navController.navigate(LegalDocumentRoute(it.slug)) },
+                    viewModel = legalDocumentViewModel(),
+                )
             }
         }
         composable<ForgotPasswordRoute> {

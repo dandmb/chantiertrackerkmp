@@ -3353,4 +3353,20 @@ class SyncEngineTest {
         assertEquals(1, f.backend.replayedCreations, "the second DELETE is answered from the stored 204")
         assertNull(f.dao.findByLocalId("p3"))
     }
+
+    @Test
+    fun a_currency_is_sent_in_upper_case_and_a_non_iso_one_is_flagged_once_not_resent_in_a_loop() = runTest {
+        val f = Fixture()
+        f.dao.upsert(localProject("lower", name = "Villa", currency = " eur "))
+        f.dao.upsert(localProject("fcfa", name = "Hangar", currency = "FCFA"))
+        val engine = f.engine(backgroundScope)
+
+        engine.syncNow()
+        engine.syncNow()
+
+        assertEquals("EUR", f.backend.projects.single { it.name == "Villa" }.currency)
+        val refused = f.dao.findByLocalId("fcfa")!!
+        assertEquals(SyncStatus.CONFLICTED, refused.syncStatus, "flagged for the user to pick an ISO code")
+        assertEquals(2, f.backend.receivedMethods.count { it == "POST /projects" }, "one POST per row: the FCFA row is not sent again on the next pass")
+    }
 }

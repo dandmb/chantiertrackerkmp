@@ -670,6 +670,9 @@ class FakeProjectBackend {
                     return respondProblem(HttpStatusCode.Forbidden, "Vous avez atteint la limite de projets de votre formule.", code = "PLAN_LIMIT_EXCEEDED")
                 }
                 val body = request.jsonBody()
+                body.string("currency")?.takeIf { it.isNotBlank() && it !in com.dmb.chantiertracker.domain.model.ISO_4217_CURRENCIES }?.let {
+                    return respondProblem(HttpStatusCode.BadRequest, "Données invalides.", errors = mapOf("currency" to "La devise doit être un code ISO 4217."), code = "VALIDATION_FAILED")
+                }
                 val created = ServerProject(
                     id = nextId++,
                     name = body.string("name") ?: "sans nom",

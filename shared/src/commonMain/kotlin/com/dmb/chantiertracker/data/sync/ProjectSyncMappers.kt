@@ -1,5 +1,6 @@
 package com.dmb.chantiertracker.data.sync
 
+import com.dmb.chantiertracker.domain.model.normalizedCurrency
 import com.dmb.chantiertracker.data.local.db.PendingOp
 import com.dmb.chantiertracker.data.local.db.ProjectEntity
 import com.dmb.chantiertracker.data.local.db.SyncedRow
@@ -107,7 +108,7 @@ fun ProjectEntity.toCreateRequest() = CreateProjectRequestDto(
     name = name,
     description = description?.ifBlank { null },
     location = location?.ifBlank { null },
-    currency = currency.ifBlank { null },
+    currency = normalizedCurrency(currency).ifBlank { null },
     timezone = timezone,
 )
 
@@ -115,7 +116,7 @@ fun ProjectEntity.toUpdateRequest() = UpdateProjectRequestDto(
     name = name,
     description = description,
     location = location,
-    currency = currency,
+    currency = normalizedCurrency(currency),
     timezone = timezone,
     status = status,
 )

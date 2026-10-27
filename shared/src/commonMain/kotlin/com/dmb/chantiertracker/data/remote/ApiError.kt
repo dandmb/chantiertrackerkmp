@@ -13,6 +13,8 @@ import kotlinx.coroutines.CancellationException
 
 private const val BILLING_NOT_OPEN_CODE = "BILLING_NOT_OPEN"
 private const val DUPLICATE_MATERIAL_CODE = "DUPLICATE_MATERIAL"
+private const val PROJECT_EXPORT_EMPTY_CODE = "PROJECT_EXPORT_EMPTY"
+private const val NEW_PASSWORD_SAME_AS_CURRENT_CODE = "NEW_PASSWORD_SAME_AS_CURRENT"
 private const val IDEMPOTENCY_KEY_IN_PROGRESS_CODE = "IDEMPOTENCY_KEY_IN_PROGRESS"
 private val PROBLEM_JSON = ContentType("application", "problem+json")
 
@@ -58,14 +60,16 @@ private fun ResponseException.toDomainException(problem: ProblemDetailDto?, onRe
     // from the exception name) — tested as is, never the translatable `detail`.
     if (problem?.code == BILLING_NOT_OPEN_CODE) return DomainException.BillingNotOpen
     if (problem?.code == DUPLICATE_MATERIAL_CODE) return DomainException.DuplicateMaterial
-    if (problem?.code == IDEMPOTENCY_KEY_IN_PROGRESS_CODE) return DomainException.CreationInProgress(retryAfterSeconds = response.retryAfterSeconds())
+    if (problem?.code == PROJECT_EXPORT_EMPTY_CODE) return DomainException.ProjectExportEmpty
+    if (problem?.code == NEW_PASSWORD_SAME_AS_CURRENT_CODE) return DomainException.NewPasswordSameAsCurrent
+    if (problem?.code == IDEMPOTENCY_KEY_IN_PROGRESS_CODE) return DomainException.CreationInProgress(retryAfterSeconds = waitOf(problem))
 
     return when (response.status) {
         HttpStatusCode.Unauthorized -> DomainException.InvalidCredentials
         HttpStatusCode.Conflict -> DomainException.EmailAlreadyUsed
         HttpStatusCode.NotFound -> DomainException.NotFound
         HttpStatusCode.Forbidden -> when {
-            detail.containsAny("verrouillé", "locked") -> DomainException.AccountLocked
+            detail.containsAny("verrouillé", "locked") -> DomainException.AccountLocked(retryAfterSeconds = waitOf(problem))
             detail.containsAny("activé", "vérifi", "verif", "activate") -> DomainException.AccountNotVerified
             detail.containsAny("limite", "plan", "palier", "formule", "limit") -> DomainException.PlanLimitReached
             // MustChangePasswordFilter blocks every endpoint but /auth/change-password
@@ -78,7 +82,7 @@ private fun ResponseException.toDomainException(problem: ProblemDetailDto?, onRe
             else -> DomainException.Forbidden
         }
         HttpStatusCode.PayloadTooLarge -> DomainException.FileTooLarge
-        HttpStatusCode.TooManyRequests -> DomainException.RateLimited(retryAfterSeconds = response.retryAfterSeconds())
+        HttpStatusCode.TooManyRequests -> DomainException.RateLimited(retryAfterSeconds = waitOf(problem))
         HttpStatusCode.BadRequest ->
             if (hasFieldErrors) DomainException.Validation else DomainException.InvalidCode
         else -> DomainException.Unexpected
@@ -86,6 +90,9 @@ private fun ResponseException.toDomainException(problem: ProblemDetailDto?, onRe
 }
 
 private fun HttpResponse.retryAfterSeconds(): Int? = headers[HttpHeaders.RetryAfter]?.trim()?.toIntOrNull()?.takeIf { it > 0 }
+
+private fun ResponseException.waitOf(problem: ProblemDetailDto?): Int? =
+    problem?.retryAfterSeconds?.takeIf { it > 0 } ?: response.retryAfterSeconds()
 
 private fun String.containsAny(vararg needles: String): Boolean =
     needles.any { contains(it, ignoreCase = true) }
