@@ -36,7 +36,7 @@ import com.dmb.chantiertracker.domain.model.DeletionBlocker
 import com.dmb.chantiertracker.domain.model.MemberLosingAccess
 import com.dmb.chantiertracker.domain.model.ProjectRole
 import com.dmb.chantiertracker.presentation.AppOutlinedButton
-import com.dmb.chantiertracker.presentation.DetailSection
+import com.dmb.chantiertracker.presentation.SectionCard
 import com.dmb.chantiertracker.presentation.auth.components.ErrorBanner
 import com.dmb.chantiertracker.presentation.billing.LocalInAppPaymentsAllowed
 import com.dmb.chantiertracker.presentation.auth.components.PasswordField
@@ -155,7 +155,7 @@ private fun Blockers(blockers: List<DeletionBlocker>, onManageUsers: () -> Unit,
 
 @Composable
 private fun PreviewSections(preview: AccountDeletionPreview) {
-    DetailSection(title = stringResource(Res.string.delete_account_projects_title)) {
+    SectionCard(title = stringResource(Res.string.delete_account_projects_title)) {
         if (preview.ownedProjects.isEmpty()) {
             Text(stringResource(Res.string.delete_account_no_project), style = MaterialTheme.typography.bodyMedium)
         } else {
@@ -177,7 +177,7 @@ private fun PreviewSections(preview: AccountDeletionPreview) {
         }
     }
     if (preview.memberships.isNotEmpty()) {
-        DetailSection(title = stringResource(Res.string.delete_account_left_title)) {
+        SectionCard(title = stringResource(Res.string.delete_account_left_title)) {
             Text(stringResource(Res.string.delete_account_left_intro), style = MaterialTheme.typography.bodyMedium)
             preview.memberships.forEach { membership ->
                 Text(
@@ -187,7 +187,7 @@ private fun PreviewSections(preview: AccountDeletionPreview) {
             }
         }
     }
-    DetailSection(title = stringResource(Res.string.delete_account_good_to_know)) {
+    SectionCard(title = stringResource(Res.string.delete_account_good_to_know)) {
         if (preview.pendingInvitations > 0) {
             val count = preview.pendingInvitations.toInt()
             Text("• " + pluralStringResource(Res.plurals.delete_account_invitations, count, count), style = MaterialTheme.typography.bodyMedium)
@@ -200,7 +200,7 @@ private fun PreviewSections(preview: AccountDeletionPreview) {
 
 @Composable
 private fun Confirmation(state: DeleteAccountUiState, viewModel: DeleteAccountViewModel, onCancel: () -> Unit) {
-    DetailSection(title = stringResource(Res.string.delete_account_confirm_title)) {
+    SectionCard(title = stringResource(Res.string.delete_account_confirm_title)) {
         state.formError?.let { ErrorBanner(it.localizedText()) }
         Text(stringResource(Res.string.delete_account_password_prompt), style = MaterialTheme.typography.bodyMedium)
         PasswordField(

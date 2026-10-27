@@ -111,6 +111,11 @@ val PhotoCameraIcon: ImageVector = icon(
         "M9,2L7.17,4L4,4c-1.1,0 -2,0.9 -2,2v12c0,1.1 0.9,2 2,2h16c1.1,0 2,-0.9 2,-2L22,6c0,-1.1 -0.9,-2 -2,-2h-3.17L15,2L9,2zM12,17c-2.76,0 -5,-2.24 -5,-5s2.24,-5 5,-5 5,2.24 5,5 -2.24,5 -5,5z",
 )
 
+val WarningIcon: ImageVector = icon(
+    "Warning",
+    "M1,21h22L12,2 1,21zM13,18h-2v-2h2v2zM13,14h-2v-4h2v4z",
+)
+
 val VideocamIcon: ImageVector = icon(
     "Videocam",
     "M17,10.5L17,7c0,-0.55 -0.45,-1 -1,-1L4,6c-0.55,0 -1,0.45 -1,1v10c0,0.55 0.45,1 1,1h12c0.55,0 " +

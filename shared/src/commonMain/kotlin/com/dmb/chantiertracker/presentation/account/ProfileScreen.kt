@@ -27,8 +27,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dmb.chantiertracker.domain.model.ProfileLanguage
 import com.dmb.chantiertracker.presentation.AppOutlinedTextField
 import com.dmb.chantiertracker.presentation.DetailInfoRow
-import com.dmb.chantiertracker.presentation.DetailSection
-import com.dmb.chantiertracker.presentation.DetailSectionDivider
+import com.dmb.chantiertracker.presentation.SectionCard
+import com.dmb.chantiertracker.presentation.SectionTone
 import com.dmb.chantiertracker.presentation.ResponsiveContent
 import com.dmb.chantiertracker.presentation.auth.components.AuthPrimaryButton
 import com.dmb.chantiertracker.presentation.auth.components.ErrorBanner
@@ -81,7 +81,7 @@ private fun ProfileForm(state: ProfileUiState, viewModel: ProfileViewModel) {
     ) {
         state.formError?.let { ErrorBanner(it.localizedText()) }
 
-        DetailSection(stringResource(Res.string.profile_section_identity)) {
+        SectionCard(stringResource(Res.string.profile_section_identity), tone = SectionTone.Yellow) {
             DetailInfoRow(stringResource(Res.string.profile_email_label), state.email)
             Text(
                 text = stringResource(Res.string.profile_email_help),
@@ -112,9 +112,8 @@ private fun ProfileForm(state: ProfileUiState, viewModel: ProfileViewModel) {
             )
         }
 
-        DetailSectionDivider()
 
-        DetailSection(stringResource(Res.string.profile_section_preferences)) {
+        SectionCard(stringResource(Res.string.profile_section_preferences)) {
             Text(stringResource(Res.string.profile_language_label), style = MaterialTheme.typography.bodyMedium)
             LanguageChoice(selected = state.language, enabled = !locked, onSelect = viewModel::onLanguageChange)
             Text(

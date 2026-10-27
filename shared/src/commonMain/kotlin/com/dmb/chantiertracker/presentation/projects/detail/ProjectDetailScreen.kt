@@ -49,8 +49,9 @@ import com.dmb.chantiertracker.presentation.ClickableListRow
 import com.dmb.chantiertracker.presentation.ConfirmActionDialog
 import com.dmb.chantiertracker.presentation.DetailEmptyHint
 import com.dmb.chantiertracker.presentation.DetailInfoRow
-import com.dmb.chantiertracker.presentation.DetailSection
-import com.dmb.chantiertracker.presentation.DetailSectionDivider
+import com.dmb.chantiertracker.presentation.SectionCard
+import com.dmb.chantiertracker.presentation.SectionHeaderAction
+import com.dmb.chantiertracker.presentation.SectionTone
 import com.dmb.chantiertracker.presentation.ResponsiveContent
 import com.dmb.chantiertracker.presentation.WidthSizeClass
 import com.dmb.chantiertracker.presentation.formatIsoDate
@@ -217,7 +218,6 @@ private fun DetailContent(
     ) {
         ProjectHeader(detail = detail, canEdit = canEdit, onEditProject = onEditProject, onStatusChange = onStatusChange)
 
-        DetailSectionDivider()
 
         // Mirrors the web (ProjectDetailPage.tsx): export lives above the
         // section grid entirely, a standalone project-level action, never
@@ -226,7 +226,6 @@ private fun DetailContent(
         // as the web, which renders nothing until `project.ownerPlan` is set.
         detail.ownerCanExportPdf()?.let { canExport ->
             ExportSection(projectLocalId = detail.localId, canExport = canExport, isEmpty = stages.isEmpty())
-            DetailSectionDivider()
         }
 
         if (twoColumns) {
@@ -240,45 +239,36 @@ private fun DetailContent(
                 right = { StagesSection(stages, detail.currency, onAddStage, onStageClick) },
             )
             if (isAdmin) {
-                DetailSectionDivider()
                 TwoColumnRow(
                     left = { MembersSection(members, isAdmin, onInviteMember, memberRemoval) },
                     right = {
                         InvitationsSection(pendingInvitations, cancellingInvitationIds, invitationActionError, onCancelInvitation)
                     },
                 )
-                DetailSectionDivider()
                 TwoColumnRow(
                     left = { HistorySection(onOpenHistory) },
                     right = { ReportsSection(onOpenReports) },
                 )
             } else {
-                DetailSectionDivider()
                 MembersSection(members, isAdmin, onInviteMember, memberRemoval)
             }
         } else {
             InfoSection(detail)
 
-            DetailSectionDivider()
             StagesSection(stages, detail.currency, onAddStage, onStageClick)
 
-            DetailSectionDivider()
             MembersSection(members, isAdmin, onInviteMember, memberRemoval)
 
             if (isAdmin) {
-                DetailSectionDivider()
                 InvitationsSection(pendingInvitations, cancellingInvitationIds, invitationActionError, onCancelInvitation)
 
-                DetailSectionDivider()
                 HistorySection(onOpenHistory)
 
-                DetailSectionDivider()
                 ReportsSection(onOpenReports)
             }
         }
 
         if (canEdit) {
-            DetailSectionDivider()
             DangerZone(projectName = detail.name, isDeleting = isDeleting, onDeleteConfirmed = onDeleteConfirmed)
         }
     }
@@ -298,7 +288,7 @@ private fun TwoColumnRow(left: @Composable () -> Unit, right: @Composable () -> 
 
 @Composable
 private fun InfoSection(detail: ProjectDetail) {
-    DetailSection(stringResource(Res.string.detail_section_info)) {
+    SectionCard(stringResource(Res.string.detail_section_info)) {
         DetailInfoRow(stringResource(Res.string.detail_currency), detail.currency)
         DetailInfoRow(stringResource(Res.string.detail_timezone), detail.timezone)
     }
@@ -306,8 +296,9 @@ private fun InfoSection(detail: ProjectDetail) {
 
 @Composable
 private fun StagesSection(stages: List<Stage>, currency: String, onAddStage: () -> Unit, onStageClick: (String) -> Unit) {
-    DetailSection(
+    SectionCard(
         title = stringResource(Res.string.detail_section_stages),
+        tone = SectionTone.Yellow,
         action = { SectionTextAction(Res.string.detail_stages_add, onAddStage) },
     ) {
         if (stages.isEmpty()) {
@@ -330,7 +321,7 @@ private class MemberRemoval(
 @Composable
 private fun MembersSection(members: List<ProjectMember>, isAdmin: Boolean, onInviteMember: () -> Unit, removal: MemberRemoval?) {
     var pendingRemoval by remember { mutableStateOf<ProjectMember?>(null) }
-    DetailSection(
+    SectionCard(
         title = stringResource(Res.string.detail_section_members),
         action = if (isAdmin) {
             { SectionTextAction(Res.string.detail_invite_member, onInviteMember) }
@@ -374,7 +365,7 @@ private fun InvitationsSection(
 ) {
     var pendingCancelInvitation by remember { mutableStateOf<Invitation?>(null) }
 
-    DetailSection(stringResource(Res.string.detail_invitations_title)) {
+    SectionCard(stringResource(Res.string.detail_invitations_title)) {
         invitationActionError?.let { ErrorBanner(it) }
         if (pendingInvitations.isEmpty()) {
             DetailEmptyHint(stringResource(Res.string.detail_invitations_empty))
@@ -406,7 +397,7 @@ private fun InvitationsSection(
 
 @Composable
 private fun HistorySection(onOpenHistory: () -> Unit) {
-    DetailSection(stringResource(Res.string.detail_history)) {
+    SectionCard(stringResource(Res.string.detail_history)) {
         ClickableListRow(onClick = onOpenHistory) {
             Text(
                 text = stringResource(Res.string.detail_history_hint),
@@ -420,7 +411,7 @@ private fun HistorySection(onOpenHistory: () -> Unit) {
 
 @Composable
 private fun ReportsSection(onOpenReports: () -> Unit) {
-    DetailSection(stringResource(Res.string.detail_reports)) {
+    SectionCard(stringResource(Res.string.detail_reports)) {
         ClickableListRow(onClick = onOpenReports) {
             Text(
                 text = stringResource(Res.string.detail_reports_hint),
@@ -477,10 +468,7 @@ private fun ProjectHeader(
 
 @Composable
 private fun SectionTextAction(label: StringResource, onClick: () -> Unit) {
-    TextButton(onClick = onClick) {
-        Icon(AddIcon, contentDescription = null, modifier = Modifier.size(18.dp))
-        Text(text = stringResource(label), modifier = Modifier.padding(start = 6.dp))
-    }
+    SectionHeaderAction(stringResource(label), onClick, icon = AddIcon)
 }
 
 @Composable

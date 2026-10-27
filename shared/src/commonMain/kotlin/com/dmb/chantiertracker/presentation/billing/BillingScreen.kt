@@ -26,8 +26,8 @@ import com.dmb.chantiertracker.domain.model.BillingCycle
 import com.dmb.chantiertracker.domain.model.DomainException
 import com.dmb.chantiertracker.domain.model.Plan
 import com.dmb.chantiertracker.domain.model.PlanUsage
-import com.dmb.chantiertracker.presentation.DetailSection
-import com.dmb.chantiertracker.presentation.DetailSectionDivider
+import com.dmb.chantiertracker.presentation.SectionCard
+import com.dmb.chantiertracker.presentation.SectionTone
 import com.dmb.chantiertracker.presentation.ResponsiveContent
 import com.dmb.chantiertracker.presentation.auth.components.ErrorBanner
 import com.dmb.chantiertracker.presentation.auth.components.InfoBanner
@@ -92,11 +92,9 @@ fun BillingScreen(
 
             PlanSection(usage)
 
-            DetailSectionDivider()
 
             UsageSection(usage)
 
-            DetailSectionDivider()
 
             ActionsSection(
                 usage = usage,
@@ -111,7 +109,7 @@ fun BillingScreen(
 
 @Composable
 private fun PlanSection(usage: PlanUsage) {
-    DetailSection(stringResource(Res.string.billing_plan_section)) {
+    SectionCard(stringResource(Res.string.billing_plan_section), tone = SectionTone.Yellow) {
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(stringResource(usage.plan.labelRes()), style = MaterialTheme.typography.headlineSmall)
             if (usage.isFounder) FounderBadge()
@@ -149,7 +147,7 @@ private fun FounderBadge() {
 
 @Composable
 private fun UsageSection(usage: PlanUsage) {
-    DetailSection(stringResource(Res.string.billing_usage_section)) {
+    SectionCard(stringResource(Res.string.billing_usage_section)) {
         CountUsageRow(
             used = usage.projectsUsed,
             limit = usage.projectsLimit,
@@ -232,7 +230,7 @@ private fun ActionsSection(
         }
 
         if (targets.isNotEmpty()) {
-            DetailSection(stringResource(Res.string.billing_upgrade_section)) {
+            SectionCard(stringResource(Res.string.billing_upgrade_section)) {
                 targets.forEach { plan ->
                     PRICING_TIERS[plan]?.let { tier ->
                         PricingCard(

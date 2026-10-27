@@ -66,8 +66,12 @@ import com.dmb.chantiertracker.domain.model.MaterialStock
 import com.dmb.chantiertracker.domain.model.PurchaseLine
 import com.dmb.chantiertracker.presentation.ConfirmActionDialog
 import com.dmb.chantiertracker.presentation.DetailEmptyHint
-import com.dmb.chantiertracker.presentation.DetailSection
-import com.dmb.chantiertracker.presentation.DetailSectionDivider
+import com.dmb.chantiertracker.presentation.SectionCard
+import com.dmb.chantiertracker.presentation.DashedEmptyHint
+import com.dmb.chantiertracker.presentation.SectionSubheading
+import com.dmb.chantiertracker.presentation.SectionPrimaryButton
+import com.dmb.chantiertracker.presentation.SectionHeaderAction
+import com.dmb.chantiertracker.presentation.SectionTone
 import com.dmb.chantiertracker.presentation.ResponsiveContent
 import com.dmb.chantiertracker.presentation.WidthSizeClass
 import com.dmb.chantiertracker.presentation.format.formatAmount
@@ -234,7 +238,6 @@ private fun DailyLogContent(
             }
         } else {
             PurchaseEntrySection(state, viewModel, projectId, purchaseEntry, onEditEntry, onReportEntry, onAddPurchaseLine, onEditPurchaseLine)
-            DetailSectionDivider()
             WorkEntrySection(state, viewModel, projectId, workEntry, onEditEntry, onReportEntry, onAddConsumptionLine, onEditConsumptionLine)
         }
     }
@@ -253,6 +256,7 @@ private fun PurchaseEntrySection(
 ) {
     EntrySection(
         title = stringResource(Res.string.entry_type_purchase),
+        tone = SectionTone.Yellow,
         icon = ShoppingCartIcon,
         entry = purchaseEntry,
         canEdit = state.canEdit,
@@ -318,13 +322,14 @@ private fun WorkEntrySection(
     }
 }
 
-// One of the two daily-entry blocks (Achats / Travaux). A DetailSection with a
+// One of the two daily-entry blocks (Achats / Travaux). A SectionCard with a
 // leading type icon: when the entry doesn't exist yet, a full-width "add" CTA +
 // the empty hint; once it exists, its summary + an "edit summary" header action
 // + the entry's own sub-sections (lines, attachments).
 @Composable
 private fun EntrySection(
     title: String,
+    tone: SectionTone = SectionTone.Ink,
     icon: ImageVector,
     entry: DailyEntry?,
     canEdit: Boolean,
@@ -335,38 +340,26 @@ private fun EntrySection(
     onReport: () -> Unit,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    DetailSection(
+    SectionCard(
         title = title,
-        leadingIcon = icon,
+        icon = icon,
+        tone = tone,
         // "Modifier" and "Signaler" are mutually exclusive (canReport already
         // requires !canEdit) — whichever the member is allowed to do sits in the
         // header's action slot.
         action = when {
             entry != null && canEdit -> {
-                {
-                    TextButton(onClick = onEditSummary) {
-                        Icon(EditIcon, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Text(stringResource(Res.string.entry_edit), Modifier.padding(start = 4.dp))
-                    }
-                }
+                { SectionHeaderAction(stringResource(Res.string.entry_edit), onEditSummary, icon = EditIcon) }
             }
             entry != null && canReport -> {
-                {
-                    TextButton(onClick = onReport) {
-                        Icon(FlagIcon, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Text(stringResource(Res.string.entry_report), Modifier.padding(start = 4.dp))
-                    }
-                }
+                { SectionHeaderAction(stringResource(Res.string.entry_report), onReport, icon = FlagIcon) }
             }
             else -> null
         },
     ) {
         if (entry == null) {
             if (canEdit) {
-                Button(onClick = onAdd, modifier = Modifier.fillMaxWidth()) {
-                    Icon(AddIcon, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Text(text = stringResource(Res.string.entry_add), modifier = Modifier.padding(start = 6.dp))
-                }
+                SectionPrimaryButton(stringResource(Res.string.entry_add), onAdd, Modifier.fillMaxWidth())
             }
             DetailEmptyHint(emptyHint)
         } else {
@@ -399,12 +392,7 @@ private fun SubSection(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.weight(1f),
-            )
+            SectionSubheading(title, Modifier.weight(1f))
             action?.invoke()
         }
         content()
@@ -687,7 +675,7 @@ private fun AttachmentsSection(
         }
 
         when {
-            attachments.isEmpty() -> DetailEmptyHint(stringResource(Res.string.attachments_empty))
+            attachments.isEmpty() -> DashedEmptyHint(stringResource(Res.string.attachments_empty))
             !firstLoadDone && !allPhotosDecoded -> Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),

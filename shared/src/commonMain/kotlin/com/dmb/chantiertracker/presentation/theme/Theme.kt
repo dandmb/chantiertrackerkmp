@@ -1,5 +1,6 @@
 package com.dmb.chantiertracker.presentation.theme
 
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
@@ -165,6 +166,7 @@ fun AppTheme(
         colorScheme = if (darkTheme) DarkColors else LightColors,
         shapes = AppShapes,
         typography = appTypography(),
-        content = content,
-    )
+    ) {
+        CompositionLocalProvider(LocalSectionColors provides if (darkTheme) DarkSectionColors else LightSectionColors, content = content)
+    }
 }

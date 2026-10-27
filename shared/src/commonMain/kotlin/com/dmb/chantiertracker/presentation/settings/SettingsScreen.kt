@@ -21,8 +21,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dmb.chantiertracker.presentation.ClickableListRow
 import com.dmb.chantiertracker.presentation.DetailInfoRow
-import com.dmb.chantiertracker.presentation.DetailSection
-import com.dmb.chantiertracker.presentation.DetailSectionDivider
+import com.dmb.chantiertracker.presentation.SectionCard
+import com.dmb.chantiertracker.presentation.SectionTone
 import com.dmb.chantiertracker.presentation.ResponsiveContent
 import com.dmb.chantiertracker.presentation.i18n.AppLanguage
 import com.dmb.chantiertracker.presentation.legal.LegalDocument
@@ -58,7 +58,7 @@ fun SettingsScreen(
                 .padding(start = 24.dp, end = 24.dp, top = 20.dp, bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
-            DetailSection(stringResource(Res.string.settings_language)) {
+            SectionCard(stringResource(Res.string.settings_language), tone = SectionTone.Yellow) {
                 ChoiceRow(
                     options = AppLanguage.entries,
                     selected = language,
@@ -67,9 +67,8 @@ fun SettingsScreen(
                 )
             }
 
-            DetailSectionDivider()
 
-            DetailSection(stringResource(Res.string.settings_theme)) {
+            SectionCard(stringResource(Res.string.settings_theme)) {
                 ChoiceRow(
                     options = ThemeMode.entries,
                     selected = themeMode,
@@ -78,9 +77,8 @@ fun SettingsScreen(
                 )
             }
 
-            DetailSectionDivider()
 
-            DetailSection(stringResource(Res.string.settings_about)) {
+            SectionCard(stringResource(Res.string.settings_about)) {
                 DetailInfoRow(stringResource(Res.string.settings_version), viewModel.appVersion)
                 LegalDocument.entries.forEach { document ->
                     ClickableListRow(onClick = { onOpenLegalDocument(document) }) {

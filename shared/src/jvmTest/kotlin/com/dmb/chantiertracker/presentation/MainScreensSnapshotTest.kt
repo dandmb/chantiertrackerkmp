@@ -732,6 +732,17 @@ class MainScreensSnapshotTest {
                 Chrome(MainTab.Settings) { m -> SettingsScreen(onOpenLegalDocument = {}, modifier = m, viewModel = settingsVm()) }
             }
         }
+        snapshot("16-project-detail-dark", "fr", dark = true) {
+            ProjectDetailChrome(fallbackTitle = "Projet", projectVm = detailVm(canEdit = true))
+        }
+        snapshot(
+            "26-daily-log-dark",
+            "fr",
+            dark = true,
+            awaitReady = { onAllNodes(hasContentDescription("facture-ciment.jpg")).fetchSemanticsNodes().isNotEmpty() },
+        ) {
+            DailyLogChrome(fallbackTitle = "Journée")
+        }
         snapshot("13-projects-list-dark", "fr", dark = true) {
             Chrome(MainTab.Projects) { m ->
                 ProjectsScreen(onProjectClick = {}, modifier = m, viewModel = projectsVm(sampleProjects))

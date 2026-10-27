@@ -18,7 +18,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dmb.chantiertracker.presentation.AppOutlinedButton
 import com.dmb.chantiertracker.presentation.DetailEmptyHint
-import com.dmb.chantiertracker.presentation.DetailSection
+import com.dmb.chantiertracker.presentation.SectionCard
 import com.dmb.chantiertracker.presentation.auth.components.ErrorBanner
 import com.dmb.chantiertracker.presentation.billing.paidPlansAreOffered
 import com.dmb.chantiertracker.presentation.i18n.localizedText
@@ -40,7 +40,7 @@ import com.dmb.chantiertracker.resources.detail_export_upgrade
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 
-// A "Dossier de chantier" DetailSection on ProjectDetailScreen — visible to any
+// A "Dossier de chantier" SectionCard on ProjectDetailScreen — visible to any
 // project member (not ADMIN-only: the backend and the web gate on the OWNER's
 // plan, not the caller's role). canExport is the backend's own combined answer
 // (plan + founder status, ADR-66) — an "Export to PDF" button when true, a calm
@@ -60,11 +60,11 @@ fun ExportSection(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
 
-    DetailSection(stringResource(Res.string.detail_export_title)) {
+    SectionCard(stringResource(Res.string.detail_export_title)) {
         if (!canExport) {
             val hint = if (paidPlansAreOffered()) Res.string.detail_export_upgrade else Res.string.detail_export_unavailable
             DetailEmptyHint(stringResource(hint))
-            return@DetailSection
+            return@SectionCard
         }
 
         Text(
