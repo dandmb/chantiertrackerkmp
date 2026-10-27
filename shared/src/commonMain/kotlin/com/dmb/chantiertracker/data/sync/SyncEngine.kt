@@ -959,8 +959,7 @@ class SyncEngine(
     }
 
     private suspend fun forgetProject(project: ProjectEntity) {
-        dao.clearMembers(project.localId)
-        dao.deleteByLocalId(project.localId)
+        if (dao.deleteIfUnchanged(project)) dao.clearMembers(project.localId)
     }
 
     private suspend fun stageGoneOnServer(stage: StageEntity) {
