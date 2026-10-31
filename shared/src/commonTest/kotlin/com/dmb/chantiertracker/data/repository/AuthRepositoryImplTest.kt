@@ -33,6 +33,7 @@ import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -74,6 +75,12 @@ class AuthRepositoryImplTest {
         f.repo.register("a@b.dev", "Password1234!", "Alice")
         val body = f.mock.requests.single().body.toByteArray().decodeToString()
         assertTrue("a@b.dev" in body && "Alice" in body)
+    }
+
+    @Test
+    fun register_reads_an_answer_without_an_id() = runTest {
+        val f = Fixture { respondJson("""{"email":"a@b.dev"}""", HttpStatusCode.Created) }
+        f.repo.register("a@b.dev", "Password1234!", "Alice")
     }
 
     @Test
@@ -188,9 +195,95 @@ class AuthRepositoryImplTest {
     }
 
     @Test
+    fun an_unverified_login_keeps_the_address_and_password_in_memory_for_the_code_screen() = runTest {
+        val f = Fixture {
+            if (it.url.encodedPath.endsWith("/auth/login")) {
+                respondProblem(HttpStatusCode.Forbidden, "Votre compte n'est pas encore activé. Vérifiez votre email.")
+            } else {
+                respondJson("{}")
+            }
+        }
+
+        assertFailsWith<DomainException.AccountNotVerified> { f.repo.login("a@b.dev", "Password1234!") }
+
+        assertEquals("a@b.dev", f.repo.pendingVerificationEmail())
+        assertNull(f.storage.get(), "nothing about this attempt reaches the device storage")
+        f.repo.verifyEmail("a@b.dev", "123456")
+        assertTrue("\"password\":\"Password1234!\"" in f.mock.requests.last().body.toByteArray().decodeToString())
+        assertNull(f.repo.pendingVerificationEmail())
+    }
+
+    @Test
+    fun a_wrong_password_at_login_keeps_nothing_for_verification() = runTest {
+        val f = Fixture { respondProblem(HttpStatusCode.Unauthorized, "Identifiants invalides.") }
+
+        assertFailsWith<DomainException.InvalidCredentials> { f.repo.login("a@b.dev", "bad") }
+
+        assertNull(f.repo.pendingVerificationEmail())
+    }
+
+    @Test
     fun verify_email_maps_400_to_invalid_code() = runTest {
         val f = Fixture { respondProblem(HttpStatusCode.BadRequest, "Code de vérification invalide.") }
+        assertFailsWith<DomainException.InvalidCode> { f.repo.verifyEmail("a@b.dev", "000000", "Password1234!") }
+    }
+
+    @Test
+    fun verify_email_sends_the_password_of_the_registration_then_forgets_it() = runTest {
+        val f = Fixture { respondJson("""{"email":"a@b.dev"}""", HttpStatusCode.Created) }
+        f.repo.register("a@b.dev", "Password1234!", "Alice")
+        assertTrue(f.repo.holdsVerificationPassword("a@b.dev"))
+        assertFalse(f.repo.holdsVerificationPassword("other@b.dev"))
+
+        f.repo.verifyEmail("a@b.dev", "123456")
+
+        val body = f.mock.requests.last().body.toByteArray().decodeToString()
+        assertEquals("/api/v1/auth/verify-email", f.mock.requests.last().url.encodedPath)
+        assertTrue("\"password\":\"Password1234!\"" in body && "\"code\":\"123456\"" in body)
+        assertFalse(f.repo.holdsVerificationPassword("a@b.dev"), "the password does not outlive its use")
+    }
+
+    @Test
+    fun verify_email_prefers_the_typed_password() = runTest {
+        val f = Fixture { respondJson("{}") }
+
+        f.repo.verifyEmail("a@b.dev", "123456", "Typed1234567!")
+
+        assertTrue("Typed1234567!" in f.mock.requests.single().body.toByteArray().decodeToString())
+    }
+
+    @Test
+    fun verify_email_without_a_password_stays_on_the_device() = runTest {
+        val f = Fixture { respondJson("{}") }
+
+        assertFailsWith<DomainException.Validation> { f.repo.verifyEmail("a@b.dev", "123456") }
+        assertTrue(f.mock.requests.isEmpty())
+    }
+
+    @Test
+    fun a_failed_verification_keeps_the_password_for_another_try() = runTest {
+        var verifying = false
+        val f = Fixture {
+            if (verifying) respondProblem(HttpStatusCode.BadRequest, "Code invalide.") else respondJson("""{"email":"a@b.dev"}""", HttpStatusCode.Created)
+        }
+        f.repo.register("a@b.dev", "Password1234!", "Alice")
+        verifying = true
+
         assertFailsWith<DomainException.InvalidCode> { f.repo.verifyEmail("a@b.dev", "000000") }
+
+        assertTrue(f.repo.holdsVerificationPassword("a@b.dev"))
+    }
+
+    @Test
+    fun a_rate_limited_logout_still_signs_out_on_the_device() = runTest {
+        val f = Fixture(storage = FakeTokenStorage(com.dmb.chantiertracker.data.local.AuthTokens("a", "r"))) {
+            respondProblem(HttpStatusCode.TooManyRequests, "Trop de requêtes.", code = "RATE_LIMITED")
+        }
+
+        f.repo.logout()
+
+        assertEquals(null, f.storage.tokens)
+        assertEquals(com.dmb.chantiertracker.domain.model.AuthState.Unauthenticated, f.holder.state.value)
     }
 
     @Test

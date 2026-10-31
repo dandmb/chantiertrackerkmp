@@ -72,10 +72,21 @@ class InviteMemberViewModel(
             return
         }
 
+        send { invitationRepository.invite(id, email) }
+    }
+
+    fun cancelExistingAndInvite() {
+        val id = localId ?: return
+        val current = _state.value
+        if (current.isSubmitting || current.formError != DomainException.InvitationAlreadyPending) return
+        send { invitationRepository.replacePendingInvitation(id, current.email.trim()) }
+    }
+
+    private fun send(invitation: suspend () -> Unit) {
         viewModelScope.launch {
             _state.update { it.copy(isSubmitting = true, formError = null) }
             try {
-                invitationRepository.invite(id, email)
+                invitation()
                 _state.update { it.copy(isSubmitting = false, invited = true) }
             } catch (e: DomainException) {
                 _state.update { it.copy(isSubmitting = false, formError = e) }
@@ -89,5 +100,5 @@ class InviteMemberViewModel(
         detail: ProjectDetail?,
         members: List<ProjectMember>,
         invitations: List<Invitation>,
-    ): Boolean = SupervisorLimit.isReached(detail?.ownerMaxSupervisorsPerProject(), members, invitations)
+    ): Boolean = SupervisorLimit.isReached(detail?.ownerMaxSupervisorsPerProject(), detail?.ownerId, members, invitations)
 }

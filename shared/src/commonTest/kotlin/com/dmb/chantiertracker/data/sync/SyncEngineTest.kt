@@ -25,6 +25,7 @@ import kotlinx.coroutines.test.runTest
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.minutes
+import io.ktor.http.HttpStatusCode
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -975,7 +976,7 @@ class SyncEngineTest {
     fun a_project_already_gone_on_the_server_is_removed_locally_not_restored() = runTest {
         val f = Fixture()
         f.backend.deleteStatus = io.ktor.http.HttpStatusCode.NotFound
-        f.backend.deleteRefusalCode = "PROJECT_ACCESS_DENIED"
+        f.backend.deleteRefusalCode = "RESOURCE_NOT_FOUND"
         f.backend.seed(ServerProject(id = 3, name = "Villa"))
         f.dao.upsert(
             localProject("p3", serverId = 3, pendingOp = PendingOp.DELETE, syncStatus = SyncStatus.PENDING),
@@ -3029,6 +3030,24 @@ class SyncEngineTest {
         f.clock.advanceBy(15 * 60_000)
         engine.syncNow()
         assertEquals(2, f.sent("POST", "/entries/900/attachments"), "tried again fifteen minutes later")
+    }
+
+    @Test
+    fun a_busy_media_server_keeps_the_file_waiting_for_the_time_it_gave() = runTest {
+        val f = stockFixture()
+        f.siteWithCement(serverPurchase = null)
+        f.attachmentDao.upsert(com.dmb.chantiertracker.support.localAttachment("a1", entryLocalId = "e900", localPath = f.fileStore.save(ByteArray(8), "a1.jpg")))
+        f.attachmentDao.upsert(com.dmb.chantiertracker.support.localAttachment("a2", entryLocalId = "e900", localPath = f.fileStore.save(ByteArray(8), "a2.jpg")))
+        f.backend.attachmentUploadRejection = HttpStatusCode.ServiceUnavailable to "Le serveur traite déjà plusieurs fichiers."
+        f.backend.attachmentUploadRejectionCode = "MEDIA_PROCESSING_BUSY"
+        val engine = f.engine(backgroundScope)
+
+        engine.syncNow()
+        engine.syncNow()
+
+        assertEquals(1, f.sent("POST", "/entries/900/attachments"), "the quota wait holds every file back")
+        assertEquals(SyncStatus.PENDING, f.attachmentDao.findByLocalId("a1")?.syncStatus, "nothing is wrong with the file")
+        assertEquals(SyncStatus.PENDING, f.attachmentDao.findByLocalId("a2")?.syncStatus)
     }
 
     @Test

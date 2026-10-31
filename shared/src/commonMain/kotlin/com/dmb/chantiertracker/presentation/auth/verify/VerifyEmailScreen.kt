@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.dmb.chantiertracker.domain.model.DomainException
 import com.dmb.chantiertracker.presentation.auth.components.AuthLink
 import com.dmb.chantiertracker.presentation.auth.components.AuthPrimaryButton
 import com.dmb.chantiertracker.presentation.auth.components.AuthScreenLayout
@@ -11,11 +12,15 @@ import com.dmb.chantiertracker.presentation.auth.components.AuthSecondaryButton
 import com.dmb.chantiertracker.presentation.auth.components.CodeField
 import com.dmb.chantiertracker.presentation.auth.components.ErrorBanner
 import com.dmb.chantiertracker.presentation.auth.components.InfoBanner
+import com.dmb.chantiertracker.presentation.auth.components.PasswordField
 import com.dmb.chantiertracker.presentation.i18n.localizedText
 import com.dmb.chantiertracker.presentation.i18n.rememberWaitSecondsLeft
 import com.dmb.chantiertracker.resources.Res
 import com.dmb.chantiertracker.resources.verify_cancel
 import com.dmb.chantiertracker.resources.verify_code_resent
+import com.dmb.chantiertracker.resources.verify_existing_account_hint
+import com.dmb.chantiertracker.resources.verify_password_hint
+import com.dmb.chantiertracker.resources.verify_wrong_code_or_password
 import com.dmb.chantiertracker.resources.verify_resend
 import com.dmb.chantiertracker.resources.verify_resending
 import com.dmb.chantiertracker.resources.verify_submit
@@ -30,9 +35,12 @@ fun VerifyEmailScreen(
     onVerified: () -> Unit,
     onCancelVerification: () -> Unit,
     onBack: (() -> Unit)? = null,
+    unverifiedLogin: Boolean = false,
     viewModel: VerifyEmailViewModel = koinViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+
+    LaunchedEffect(email) { viewModel.start(email, requestCode = unverifiedLogin) }
 
     LaunchedEffect(state.verified) {
         if (state.verified) onVerified()
@@ -43,8 +51,10 @@ fun VerifyEmailScreen(
         subtitle = stringResource(Res.string.verify_subtitle, email),
         onBack = onBack,
     ) {
-        state.formError?.let { ErrorBanner(it.localizedText()) }
+        val wrongProof = state.asksPassword && state.formError == DomainException.InvalidCode
+        state.formError?.let { ErrorBanner(if (wrongProof) stringResource(Res.string.verify_wrong_code_or_password) else it.localizedText()) }
         if (state.codeResent) InfoBanner(stringResource(Res.string.verify_code_resent))
+        if (!unverifiedLogin) InfoBanner(stringResource(Res.string.verify_existing_account_hint))
 
         CodeField(
             value = state.code,
@@ -52,6 +62,15 @@ fun VerifyEmailScreen(
             error = state.codeError?.let { stringResource(it) },
             enabled = !state.isSubmitting,
         )
+        if (state.asksPassword) {
+            PasswordField(
+                value = state.password,
+                onValueChange = viewModel::onPasswordChange,
+                hint = stringResource(Res.string.verify_password_hint),
+                error = state.passwordError?.let { stringResource(it) },
+                enabled = !state.isSubmitting,
+            )
+        }
 
         AuthPrimaryButton(
             text = stringResource(Res.string.verify_submit),

@@ -16,7 +16,16 @@ private const val DUPLICATE_MATERIAL_CODE = "DUPLICATE_MATERIAL"
 private const val PROJECT_EXPORT_EMPTY_CODE = "PROJECT_EXPORT_EMPTY"
 private const val NEW_PASSWORD_SAME_AS_CURRENT_CODE = "NEW_PASSWORD_SAME_AS_CURRENT"
 private const val IDEMPOTENCY_KEY_IN_PROGRESS_CODE = "IDEMPOTENCY_KEY_IN_PROGRESS"
+private const val INVITATION_ALREADY_PENDING_CODE = "INVITATION_ALREADY_PENDING"
+private const val MEDIA_PROCESSING_BUSY_CODE = "MEDIA_PROCESSING_BUSY"
+private const val REQUEST_BODY_TOO_LARGE_CODE = "REQUEST_BODY_TOO_LARGE"
+private const val PROJECT_OWNER_REQUIRED_CODE = "PROJECT_OWNER_REQUIRED"
+private const val PLAN_LIMIT_EXCEEDED_CODE = "PLAN_LIMIT_EXCEEDED"
+private const val LOCKED_CODE = "LOCKED"
+private const val INVALID_QUERY_STRING_CODE = "INVALID_QUERY_STRING"
 private val PROBLEM_JSON = ContentType("application", "problem+json")
+
+internal var apiLog: (String) -> Unit = ::println
 
 suspend fun <T> apiCall(block: suspend () -> T): T = apiCallReportingRefusalCode({}, block = block)
 
@@ -63,6 +72,16 @@ private fun ResponseException.toDomainException(problem: ProblemDetailDto?, onRe
     if (problem?.code == PROJECT_EXPORT_EMPTY_CODE) return DomainException.ProjectExportEmpty
     if (problem?.code == NEW_PASSWORD_SAME_AS_CURRENT_CODE) return DomainException.NewPasswordSameAsCurrent
     if (problem?.code == IDEMPOTENCY_KEY_IN_PROGRESS_CODE) return DomainException.CreationInProgress(retryAfterSeconds = waitOf(problem))
+    if (problem?.code == INVITATION_ALREADY_PENDING_CODE) return DomainException.InvitationAlreadyPending
+    if (problem?.code == MEDIA_PROCESSING_BUSY_CODE) return DomainException.RateLimited(retryAfterSeconds = waitOf(problem))
+    if (problem?.code == REQUEST_BODY_TOO_LARGE_CODE) return DomainException.ContentTooLarge
+    if (problem?.code == PROJECT_OWNER_REQUIRED_CODE) return DomainException.OwnerRequired
+    if (problem?.code == PLAN_LIMIT_EXCEEDED_CODE) return DomainException.PlanLimitReached
+    if (problem?.code == LOCKED_CODE) return DomainException.AccountLocked(retryAfterSeconds = waitOf(problem))
+    if (problem?.code == INVALID_QUERY_STRING_CODE) {
+        apiLog("api: $INVALID_QUERY_STRING_CODE on ${response.call.request.url.encodedPath}")
+        return DomainException.Unexpected
+    }
 
     return when (response.status) {
         HttpStatusCode.Unauthorized -> DomainException.InvalidCredentials
@@ -89,7 +108,7 @@ private fun ResponseException.toDomainException(problem: ProblemDetailDto?, onRe
     }
 }
 
-private fun HttpResponse.retryAfterSeconds(): Int? = headers[HttpHeaders.RetryAfter]?.trim()?.toIntOrNull()?.takeIf { it > 0 }
+internal fun HttpResponse.retryAfterSeconds(): Int? = headers[HttpHeaders.RetryAfter]?.trim()?.toIntOrNull()?.takeIf { it > 0 }
 
 private fun ResponseException.waitOf(problem: ProblemDetailDto?): Int? =
     problem?.retryAfterSeconds?.takeIf { it > 0 } ?: response.retryAfterSeconds()

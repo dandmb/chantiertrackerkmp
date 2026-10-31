@@ -77,7 +77,7 @@ class PaginationIntegrationTest {
         val projectServerId = owner.db.projectDao().findByLocalId(project)!!.serverId!!
         val stageServerIds = (1..25).map { owner.stageApi.create(projectServerId, CreateStageRequestDto("Étape $it"), idempotencyKey = null).id }
         owner.invitations.invite(project, supervisorAccount.email)
-        supervisor.invitations.acceptInvitation(supervisor.invitations.listIncomingInvitations().single().token)
+        supervisor.invitations.acceptIncomingInvitation(supervisor.invitations.listIncomingInvitations().single().id)
         supervisor.sync.syncNow()
         val supervisorProject = supervisor.projects.observeProjects().first().single().localId
 
@@ -139,7 +139,7 @@ class PaginationIntegrationTest {
         owner.dailyLogApi.createPurchaseEntry(doomedStage, today.toString(), EntryRequestDto("Achat de l'étape à supprimer"), idempotencyKey = null)
         val materialIds = (1..25).map { owner.materialApi.create(projectServerId, CreateMaterialRequestDto("Matériau $it", "u"), idempotencyKey = null).id }
         owner.invitations.invite(project, supervisorAccount.email)
-        supervisor.invitations.acceptInvitation(supervisor.invitations.listIncomingInvitations().single().token)
+        supervisor.invitations.acceptIncomingInvitation(supervisor.invitations.listIncomingInvitations().single().id)
         supervisor.sync.syncNow()
         val supervisorProject = supervisor.projects.observeProjects().first().single().localId
 
@@ -207,7 +207,7 @@ class PaginationIntegrationTest {
             }.id
         }
         owner.invitations.invite(project, supervisorAccount.email)
-        supervisor.invitations.acceptInvitation(supervisor.invitations.listIncomingInvitations().single().token)
+        supervisor.invitations.acceptIncomingInvitation(supervisor.invitations.listIncomingInvitations().single().id)
         supervisor.sync.syncNow()
         val supervisorProject = supervisor.projects.observeProjects().first().single().localId
         assertIs<SyncOutcome.Synced>(supervisor.sync.syncProject(supervisorProject))

@@ -36,8 +36,8 @@ class ProjectsViewModelTest {
         invitations: FakeInvitationRepository = FakeInvitationRepository(),
     ) = ProjectsViewModel(repo, invitations, holder)
 
-    private fun incoming(token: String, project: String = "Villa", inviter: String? = "Jean") =
-        IncomingInvitation(token, 1L, project, ProjectRole.SUPERVISOR, inviter, "2026-09-01T10:00:00", null)
+    private fun incoming(id: Long, project: String = "Villa", inviter: String? = "Jean") =
+        IncomingInvitation(id, 1L, project, ProjectRole.SUPERVISOR, inviter, "2026-09-01T10:00:00", null)
 
     @Test
     fun list_comes_from_the_local_store_newest_first_by_default() = runTest {
@@ -126,7 +126,7 @@ class ProjectsViewModelTest {
         // Scenario: existing account, normal sign-in — no tokenised link. The
         // banner must still surface the invitation, and accepting must clear it.
         val repo = FakeProjectRepository(projects = listOf(older))
-        val invitations = FakeInvitationRepository().apply { incoming = listOf(incoming("tok-1", project = "Villa Vidal", inviter = "Jean")) }
+        val invitations = FakeInvitationRepository().apply { incoming = listOf(incoming(1L, project = "Villa Vidal", inviter = "Jean")) }
         val vm = vm(repo, invitations = invitations)
         advanceUntilIdle()
 
@@ -135,12 +135,12 @@ class ProjectsViewModelTest {
         advanceUntilIdle()
         assertEquals(listOf("Villa Vidal"), vm.state.value.incomingInvitations.map { it.projectName })
 
-        vm.acceptInvitation("tok-1")
+        vm.acceptInvitation(1L)
         advanceUntilIdle()
 
-        assertEquals(listOf("tok-1"), invitations.accepted, "POST /invitations/{token}/accept")
+        assertEquals(listOf(1L), invitations.acceptedIds, "POST /users/me/invitations/{id}/accept")
         assertTrue(vm.state.value.incomingInvitations.isEmpty(), "the banner is gone")
-        assertTrue(vm.state.value.busyInvitationTokens.isEmpty())
+        assertTrue(vm.state.value.busyInvitationIds.isEmpty())
         assertEquals(2, repo.refreshCount, "onEnter + the project-list re-pull after accepting")
     }
 
@@ -148,7 +148,7 @@ class ProjectsViewModelTest {
     fun declining_an_invitation_removes_the_card_without_touching_the_project_list() = runTest {
         val repo = FakeProjectRepository(projects = listOf(older))
         val invitations = FakeInvitationRepository().apply {
-            incoming = listOf(incoming("keep", "Chalet"), incoming("no-thanks", "Villa Vidal"))
+            incoming = listOf(incoming(2L, "Chalet"), incoming(3L, "Villa Vidal"))
         }
         val vm = vm(repo, invitations = invitations)
         advanceUntilIdle()
@@ -156,19 +156,19 @@ class ProjectsViewModelTest {
         advanceUntilIdle()
         val baseline = repo.refreshCount
 
-        vm.declineInvitation("no-thanks")
+        vm.declineInvitation(3L)
         advanceUntilIdle()
 
-        assertEquals(listOf("no-thanks"), invitations.declined, "POST /invitations/{token}/decline")
+        assertEquals(listOf(3L), invitations.declinedIds, "POST /users/me/invitations/{id}/decline")
         assertEquals(listOf("Chalet"), vm.state.value.incomingInvitations.map { it.projectName }, "only the declined card is gone")
-        assertTrue(vm.state.value.busyInvitationTokens.isEmpty())
+        assertTrue(vm.state.value.busyInvitationIds.isEmpty())
         assertEquals(baseline, repo.refreshCount, "declining joins nothing → no project-list re-pull")
     }
 
     @Test
     fun several_pending_invitations_are_all_shown() = runTest {
         val invitations = FakeInvitationRepository().apply {
-            incoming = listOf(incoming("a", "Villa"), incoming("b", "Chalet"))
+            incoming = listOf(incoming(4L, "Villa"), incoming(5L, "Chalet"))
         }
         val vm = vm(FakeProjectRepository(projects = listOf(older)), invitations = invitations)
         advanceUntilIdle()
@@ -181,20 +181,20 @@ class ProjectsViewModelTest {
     @Test
     fun a_failed_accept_surfaces_the_error_and_keeps_the_invitation() = runTest {
         val invitations = FakeInvitationRepository().apply {
-            incoming = listOf(incoming("stale"))
-            acceptError = DomainException.NotFound
+            incoming = listOf(incoming(6L))
+            acceptError = DomainException.InvitationGone
         }
         val vm = vm(FakeProjectRepository(projects = listOf(older)), invitations = invitations)
         advanceUntilIdle()
         vm.onEnter()
         advanceUntilIdle()
 
-        vm.acceptInvitation("stale")
+        vm.acceptInvitation(6L)
         advanceUntilIdle()
 
-        assertEquals(DomainException.NotFound, vm.state.value.invitationError)
-        assertEquals(listOf("stale"), vm.state.value.incomingInvitations.map { it.token }, "still shown so the user isn't left confused")
-        assertTrue(vm.state.value.busyInvitationTokens.isEmpty())
+        assertEquals(DomainException.InvitationGone, vm.state.value.invitationError)
+        assertTrue(vm.state.value.incomingInvitations.isEmpty(), "it leaves the list, with a message")
+        assertTrue(vm.state.value.busyInvitationIds.isEmpty())
     }
 
     @Test

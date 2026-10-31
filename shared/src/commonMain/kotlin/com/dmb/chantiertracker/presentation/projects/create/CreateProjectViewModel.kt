@@ -3,6 +3,7 @@ package com.dmb.chantiertracker.presentation.projects.create
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.dmb.chantiertracker.core.deviceTimeZoneId
+import com.dmb.chantiertracker.domain.model.MAX_FREE_TEXT_LENGTH
 import com.dmb.chantiertracker.domain.model.AuthState
 import com.dmb.chantiertracker.domain.model.CreateProjectInput
 import com.dmb.chantiertracker.domain.model.DomainException
@@ -72,7 +73,7 @@ class CreateProjectViewModel(
     }
 
     fun onNameChange(value: String) = _state.update { it.copy(name = value, nameError = null, formError = null) }
-    fun onDescriptionChange(value: String) = _state.update { it.copy(description = value, formError = null) }
+    fun onDescriptionChange(value: String) = _state.update { it.copy(description = value.take(MAX_FREE_TEXT_LENGTH), formError = null) }
     fun onLocationChange(value: String) = _state.update { it.copy(location = value, formError = null) }
     fun onCurrencyChange(value: String) = _state.update { it.copy(currency = value, formError = null) }
     fun onTimezoneChange(value: String) = _state.update { it.copy(timezone = value, formError = null) }

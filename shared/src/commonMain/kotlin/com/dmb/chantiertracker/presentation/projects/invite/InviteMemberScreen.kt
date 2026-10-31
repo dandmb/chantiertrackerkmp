@@ -18,18 +18,22 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.dmb.chantiertracker.domain.model.DomainException
 import com.dmb.chantiertracker.presentation.AppOutlinedTextField
 import com.dmb.chantiertracker.presentation.ResponsiveContent
 import com.dmb.chantiertracker.presentation.auth.components.AuthPrimaryButton
+import com.dmb.chantiertracker.presentation.auth.components.AuthSecondaryButton
 import com.dmb.chantiertracker.presentation.auth.components.ErrorBanner
 import com.dmb.chantiertracker.presentation.auth.components.InfoBanner
 import com.dmb.chantiertracker.presentation.billing.paidPlansAreOffered
 import com.dmb.chantiertracker.presentation.i18n.localizedText
+import com.dmb.chantiertracker.presentation.i18n.rememberWaitSecondsLeft
 import com.dmb.chantiertracker.resources.Res
 import com.dmb.chantiertracker.resources.invite_member_email_label
 import com.dmb.chantiertracker.resources.invite_member_hint
 import com.dmb.chantiertracker.resources.invite_member_limit
 import com.dmb.chantiertracker.resources.invite_member_limit_no_upgrade
+import com.dmb.chantiertracker.resources.invite_member_replace_pending
 import com.dmb.chantiertracker.resources.invite_member_submit
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
@@ -84,8 +88,15 @@ fun InviteMemberScreen(
                 text = stringResource(Res.string.invite_member_submit),
                 onClick = viewModel::submit,
                 loading = state.isSubmitting,
-                enabled = !state.atSupervisorLimit,
+                enabled = !state.atSupervisorLimit && rememberWaitSecondsLeft(state.formError) == 0,
             )
+            if (state.formError == DomainException.InvitationAlreadyPending) {
+                AuthSecondaryButton(
+                    text = stringResource(Res.string.invite_member_replace_pending),
+                    onClick = viewModel::cancelExistingAndInvite,
+                    enabled = !state.isSubmitting,
+                )
+            }
         }
     }
 }

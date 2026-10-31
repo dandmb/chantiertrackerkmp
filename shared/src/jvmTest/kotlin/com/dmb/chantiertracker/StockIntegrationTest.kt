@@ -108,7 +108,7 @@ class StockIntegrationTest {
         val supervisorAccount = supervisor.signedInAs("qa-c-$tag-super", "QA C Superviseur $tag")
         val (project, stage) = owner.newSite("QA C $tag")
         owner.invitations.invite(project, supervisorAccount.email)
-        supervisor.invitations.acceptInvitation(supervisor.invitations.listIncomingInvitations().single().token)
+        supervisor.invitations.acceptIncomingInvitation(supervisor.invitations.listIncomingInvitations().single().id)
         supervisor.sync.syncNow()
         val supervisorProject = supervisor.projects.observeProjects().first().single().localId
         supervisor.sync.syncProject(supervisorProject)

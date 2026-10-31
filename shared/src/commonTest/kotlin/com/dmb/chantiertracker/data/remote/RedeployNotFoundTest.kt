@@ -48,7 +48,7 @@ class RedeployNotFoundTest {
     @Test
     fun a_404_carrying_a_code_but_not_in_the_problem_format_is_an_unreachable_server() = runTest {
         val mock = RecordingMockClient(FakeTokenStorage(AuthTokens("a", "r"))) {
-            respondJson("""{"status":404,"detail":"Projet introuvable.","code":"PROJECT_ACCESS_DENIED"}""", HttpStatusCode.NotFound)
+            respondJson("""{"status":404,"detail":"Projet introuvable.","code":"RESOURCE_NOT_FOUND"}""", HttpStatusCode.NotFound)
         }
         assertFailsWith<DomainException.ServiceUnavailable> { apiCall { mock.client.get("projects/9") } }
     }
@@ -56,7 +56,7 @@ class RedeployNotFoundTest {
     @Test
     fun a_404_in_the_backend_problem_format_with_its_code_stays_a_missing_row() = runTest {
         val mock = RecordingMockClient(FakeTokenStorage(AuthTokens("a", "r"))) {
-            respondProblem(HttpStatusCode.NotFound, "Projet introuvable.", code = "PROJECT_ACCESS_DENIED")
+            respondProblem(HttpStatusCode.NotFound, "Projet introuvable.", code = "RESOURCE_NOT_FOUND")
         }
         assertFailsWith<DomainException.NotFound> { apiCall { mock.client.get("projects/9") } }
     }

@@ -64,7 +64,12 @@ class FakeAuthRepository : AuthRepository {
     override suspend fun markOnboardingSeen() { onboardingSeen = true; calls += "markOnboardingSeen" }
     override suspend fun bootstrap() { record("bootstrap") }
     override suspend fun register(email: String, password: String, name: String) = record("register:$email:$password:$name")
-    override suspend fun verifyEmail(email: String, code: String) = record("verifyEmail:$email:$code")
+    var heldVerificationEmail: String? = null
+    override suspend fun verifyEmail(email: String, code: String, password: String?) =
+        record("verifyEmail:$email:$code" + password?.let { ":$it" }.orEmpty())
+    override fun holdsVerificationPassword(email: String) = heldVerificationEmail == email
+    override fun pendingVerificationEmail() = heldVerificationEmail
+    override fun forgetVerificationPassword() { heldVerificationEmail = null }
     override suspend fun resendCode(email: String) = record("resendCode:$email")
     override suspend fun login(email: String, password: String) {
         record("login:$email:$password")
@@ -536,6 +541,12 @@ class FakeInvitationRepository(
         invited += projectLocalId to email
     }
 
+    val replaced = mutableListOf<Pair<String, String>>()
+
+    override suspend fun replacePendingInvitation(projectLocalId: String, email: String) {
+        replaced += projectLocalId to email
+    }
+
     override suspend fun cancelInvitation(projectLocalId: String, invitationId: Long) {
         cancelError?.let { throw it }
         cancelled += projectLocalId to invitationId
@@ -556,7 +567,8 @@ class FakeInvitationRepository(
     var acceptError: com.dmb.chantiertracker.domain.model.DomainException? = null
     var declineError: com.dmb.chantiertracker.domain.model.DomainException? = null
     val accepted = mutableListOf<String>()
-    val declined = mutableListOf<String>()
+    val acceptedIds = mutableListOf<Long>()
+    val declinedIds = mutableListOf<Long>()
 
     override suspend fun listIncomingInvitations(): List<com.dmb.chantiertracker.domain.model.IncomingInvitation> {
         listIncomingError?.let { throw it }
@@ -566,13 +578,18 @@ class FakeInvitationRepository(
     override suspend fun acceptInvitation(token: String) {
         acceptError?.let { throw it }
         accepted += token
-        incoming = incoming.filterNot { it.token == token }
     }
 
-    override suspend fun declineInvitation(token: String) {
+    override suspend fun acceptIncomingInvitation(id: Long) {
+        acceptError?.let { throw it }
+        acceptedIds += id
+        incoming = incoming.filterNot { it.id == id }
+    }
+
+    override suspend fun declineIncomingInvitation(id: Long) {
         declineError?.let { throw it }
-        declined += token
-        incoming = incoming.filterNot { it.token == token }
+        declinedIds += id
+        incoming = incoming.filterNot { it.id == id }
     }
 
     var preview: com.dmb.chantiertracker.domain.model.InvitationPreview? = null

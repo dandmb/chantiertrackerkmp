@@ -367,7 +367,7 @@ class SyncEngine(
     private suspend fun rowGoneOnServer(target: SyncIssueTarget, localId: String) {
         when (target) {
             SyncIssueTarget.PROJECT -> dao.findByLocalId(localId)?.let { row ->
-                if (refusalCode == PROJECT_ACCESS_DENIED_CODE) forgetProject(row) else if (row.holdsARefusedUpdate()) dao.writeIfUnchanged(row.copy(lastSyncError = SyncError.DELETED_ON_SERVER, serverErrorCode = null)) else if (row.awaitsItsServerVersion()) projectGoneOnServer(row)
+                if (refusalCode == PROJECT_GONE_CODE) forgetProject(row) else if (row.holdsARefusedUpdate()) dao.writeIfUnchanged(row.copy(lastSyncError = SyncError.DELETED_ON_SERVER, serverErrorCode = null)) else if (row.awaitsItsServerVersion()) projectGoneOnServer(row)
             }
             SyncIssueTarget.STAGE -> stageDao.findByLocalId(localId)?.let { row ->
                 if (row.holdsARefusedUpdate()) stageDao.writeIfUnchanged(row.copy(lastSyncError = SyncError.DELETED_ON_SERVER, serverErrorCode = null)) else if (row.awaitsItsServerVersion()) stageGoneOnServer(row)
@@ -932,10 +932,12 @@ class SyncEngine(
     private fun DomainException.refusesTheRow(): Boolean = isServerRejection() || isAClientErrorTheAppDoesNotKnow()
 
     private fun DomainException.isFileRefusal(): Boolean =
-        this is DomainException.FileTooLarge || refusalCode in FILE_REFUSAL_CODES
+        this is DomainException.FileTooLarge || this is DomainException.ContentTooLarge || refusalCode in FILE_REFUSAL_CODES
 
     private fun DomainException.isServerRejection(): Boolean =
         this is DomainException.Forbidden ||
+            this is DomainException.OwnerRequired ||
+            this is DomainException.ContentTooLarge ||
             this is DomainException.Validation ||
             this is DomainException.InvalidCode ||
             this is DomainException.EmailAlreadyUsed ||
@@ -951,7 +953,7 @@ class SyncEngine(
         syncStatus != SyncStatus.SYNCED && pendingOp != PendingOp.DELETE
 
     private suspend fun projectGoneOnServer(project: ProjectEntity) {
-        if (refusalCode == PROJECT_ACCESS_DENIED_CODE) {
+        if (refusalCode == PROJECT_GONE_CODE) {
             forgetProject(project)
         } else if (!keepProjectGoneOnServer(project)) {
             dao.deleteIfUnchanged(project)
@@ -1918,7 +1920,7 @@ private data class PlanSeen(val plan: String, val isFounder: Boolean, val projec
 
 private const val ATTACHMENT_TOO_LARGE_CODE = "ATTACHMENT_TOO_LARGE"
 private const val IDEMPOTENCY_KEY_REUSED_CODE = "IDEMPOTENCY_KEY_REUSED"
-private const val PROJECT_ACCESS_DENIED_CODE = "PROJECT_ACCESS_DENIED"
+private const val PROJECT_GONE_CODE = "RESOURCE_NOT_FOUND"
 private const val LOCAL_FILE_MISSING_CODE = "LOCAL_FILE_MISSING"
 private val FILE_REFUSAL_CODES = setOf(
     ATTACHMENT_TOO_LARGE_CODE,

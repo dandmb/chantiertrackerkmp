@@ -37,6 +37,11 @@ import com.dmb.chantiertracker.resources.error_invalid_current_password
 import com.dmb.chantiertracker.resources.error_new_password_same_as_current
 import com.dmb.chantiertracker.resources.error_invalid_credentials
 import com.dmb.chantiertracker.resources.error_network
+import com.dmb.chantiertracker.resources.error_collaborator_limit
+import com.dmb.chantiertracker.resources.error_content_too_large
+import com.dmb.chantiertracker.resources.error_invitation_already_pending
+import com.dmb.chantiertracker.resources.error_invitation_gone
+import com.dmb.chantiertracker.resources.error_owner_required
 import com.dmb.chantiertracker.resources.error_not_found
 import com.dmb.chantiertracker.resources.error_plan_limit
 import com.dmb.chantiertracker.resources.error_plan_limit_no_upgrade
@@ -66,6 +71,11 @@ fun DomainException.textRes(): StringResource = when (this) {
         DeletionBlocker.LAST_SUPER_ADMIN -> Res.string.error_deletion_last_super_admin
         DeletionBlocker.SUBSCRIPTION_STILL_RENEWING -> Res.string.error_deletion_subscription_renewing
     }
+    DomainException.InvitationAlreadyPending -> Res.string.error_invitation_already_pending
+    DomainException.InvitationGone -> Res.string.error_invitation_gone
+    DomainException.CollaboratorLimitReached -> Res.string.error_collaborator_limit
+    DomainException.OwnerRequired -> Res.string.error_owner_required
+    DomainException.ContentTooLarge -> Res.string.error_content_too_large
     DomainException.PlanLimitReached -> Res.string.error_plan_limit
     DomainException.DuplicateMaterial -> Res.string.error_duplicate_material
     DomainException.ProjectExportEmpty -> Res.string.error_project_export_empty
@@ -81,6 +91,7 @@ fun DomainException.textRes(): StringResource = when (this) {
 }
 
 private const val SECONDS_PER_MINUTE = 60
+private const val SECONDS_PER_HOUR = 3_600
 
 fun DomainException.waitSeconds(): Int? = when (this) {
     is DomainException.RateLimited -> retryAfterSeconds
@@ -106,7 +117,14 @@ private fun countdownText(seconds: Int): String =
     if (seconds < SECONDS_PER_MINUTE) {
         pluralStringResource(Res.plurals.wait_seconds, seconds, seconds)
     } else {
+        clockWait(seconds)
+    }
+
+internal fun clockWait(seconds: Int): String =
+    if (seconds < SECONDS_PER_HOUR) {
         "${seconds / SECONDS_PER_MINUTE}:${(seconds % SECONDS_PER_MINUTE).toString().padStart(2, '0')}"
+    } else {
+        "${seconds / SECONDS_PER_HOUR} h ${(seconds % SECONDS_PER_HOUR / SECONDS_PER_MINUTE).toString().padStart(2, '0')}"
     }
 
 @Composable

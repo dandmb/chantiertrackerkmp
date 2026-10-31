@@ -235,8 +235,8 @@ class SyncAndRejectionsIntegrationTest {
         val stageId = ownerPhone.newStage(projectId, "Charpente")
         ownerPhone.sync.syncNow()
         ownerPhone.invitations.invite(projectId, supervisor.email)
-        val token = supervisorPhone.invitationApi.listMine().single().token
-        supervisorPhone.invitations.acceptInvitation(token)
+        val invitationId = supervisorPhone.invitationApi.listMine().single().id
+        supervisorPhone.invitations.acceptIncomingInvitation(invitationId)
         supervisorPhone.sync.syncNow()
         val supervisorProject = supervisorPhone.projects.observeProjects().first().single()
         supervisorPhone.sync.syncProject(supervisorProject.localId)
@@ -293,8 +293,8 @@ class SyncAndRejectionsIntegrationTest {
         ownerPhone.newStage(projectId, "Charpente")
         ownerPhone.sync.syncNow()
         ownerPhone.invitations.invite(projectId, supervisor.email)
-        val token = supervisorPhone.invitationApi.listMine().single().token
-        supervisorPhone.invitations.acceptInvitation(token)
+        val invitationId = supervisorPhone.invitationApi.listMine().single().id
+        supervisorPhone.invitations.acceptIncomingInvitation(invitationId)
         supervisorPhone.sync.syncNow()
         val supervisorProject = supervisorPhone.projects.observeProjects().first().single()
         supervisorPhone.sync.syncProject(supervisorProject.localId)
@@ -397,7 +397,7 @@ class SyncAndRejectionsIntegrationTest {
         ownerPhone.newStage(projectId, "Charpente")
         ownerPhone.sync.syncNow()
         ownerPhone.invitations.invite(projectId, supervisor.email)
-        supervisorPhone.invitations.acceptInvitation(supervisorPhone.invitationApi.listMine().single().token)
+        supervisorPhone.invitations.acceptIncomingInvitation(supervisorPhone.invitationApi.listMine().single().id)
         supervisorPhone.sync.syncNow()
         val supervisorProject = supervisorPhone.projects.observeProjects().first().single()
         supervisorPhone.sync.syncProject(supervisorProject.localId)
@@ -479,7 +479,7 @@ class SyncAndRejectionsIntegrationTest {
         ownerPhone.logs.createWorkEntry(stageId, todayInParis())
         ownerPhone.sync.syncNow()
         ownerPhone.invitations.invite(projectId, supervisor.email)
-        supervisorPhone.invitations.acceptInvitation(supervisorPhone.invitationApi.listMine().single().token)
+        supervisorPhone.invitations.acceptIncomingInvitation(supervisorPhone.invitationApi.listMine().single().id)
         supervisorPhone.sync.syncNow()
         val supervisorProject = supervisorPhone.projects.observeProjects().first().single()
         supervisorPhone.sync.syncProject(supervisorProject.localId)
@@ -525,7 +525,7 @@ class SyncAndRejectionsIntegrationTest {
         ownerPhone.logs.createPurchaseEntry(stageId, todayInParis())
         ownerPhone.sync.syncNow()
         ownerPhone.invitations.invite(projectId, supervisor.email)
-        supervisorPhone.invitations.acceptInvitation(supervisorPhone.invitationApi.listMine().single().token)
+        supervisorPhone.invitations.acceptIncomingInvitation(supervisorPhone.invitationApi.listMine().single().id)
         supervisorPhone.sync.syncNow()
         val supervisorProject = supervisorPhone.projects.observeProjects().first().single()
         supervisorPhone.sync.syncProject(supervisorProject.localId)
@@ -600,8 +600,8 @@ class SyncAndRejectionsIntegrationTest {
         ownerPhone.newStage(projectId, "Charpente")
         ownerPhone.sync.syncNow()
         ownerPhone.invitations.invite(projectId, supervisor.email)
-        val token = supervisorPhone.invitationApi.listMine().single().token
-        supervisorPhone.invitations.acceptInvitation(token)
+        val invitationId = supervisorPhone.invitationApi.listMine().single().id
+        supervisorPhone.invitations.acceptIncomingInvitation(invitationId)
         supervisorPhone.sync.syncNow()
         val supervisorProject = supervisorPhone.projects.observeProjects().first().single()
         supervisorPhone.sync.syncProject(supervisorProject.localId)
@@ -677,7 +677,7 @@ class SyncAndRejectionsIntegrationTest {
         ownerPhone.newStage(projectId, "Charpente")
         ownerPhone.sync.syncNow()
         ownerPhone.invitations.invite(projectId, supervisor.email)
-        supervisorPhone.invitations.acceptInvitation(supervisorPhone.invitationApi.listMine().single().token)
+        supervisorPhone.invitations.acceptIncomingInvitation(supervisorPhone.invitationApi.listMine().single().id)
         supervisorPhone.sync.syncNow()
         val supervisorProject = supervisorPhone.projects.observeProjects().first().single()
         supervisorPhone.sync.syncProject(supervisorProject.localId)
@@ -754,7 +754,7 @@ class SyncAndRejectionsIntegrationTest {
         ownerPhone.newStage(projectId, "Charpente")
         ownerPhone.sync.syncNow()
         ownerPhone.invitations.invite(projectId, supervisor.email)
-        supervisorPhone.invitations.acceptInvitation(supervisorPhone.invitationApi.listMine().single().token)
+        supervisorPhone.invitations.acceptIncomingInvitation(supervisorPhone.invitationApi.listMine().single().id)
         supervisorPhone.sync.syncNow()
         val supervisorProject = supervisorPhone.projects.observeProjects().first().single()
         supervisorPhone.sync.syncProject(supervisorProject.localId)
@@ -1009,8 +1009,8 @@ class SyncAndRejectionsIntegrationTest {
         ownerPhone.newStage(projectId, "Charpente")
         ownerPhone.sync.syncNow()
         ownerPhone.invitations.invite(projectId, supervisor.email)
-        val token = supervisorPhone.invitationApi.listMine().single().token
-        supervisorPhone.invitations.acceptInvitation(token)
+        val invitationId = supervisorPhone.invitationApi.listMine().single().id
+        supervisorPhone.invitations.acceptIncomingInvitation(invitationId)
         supervisorPhone.sync.syncNow()
         val supervisorProject = supervisorPhone.projects.observeProjects().first().single()
         supervisorPhone.sync.syncProject(supervisorProject.localId)

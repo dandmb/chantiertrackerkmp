@@ -25,7 +25,7 @@ data class LoginUiState(
     val passwordError: StringResource? = null,
     val formError: DomainException? = null,
     val isSubmitting: Boolean = false,
-    val needsVerification: Boolean = false,
+    val opensVerification: Boolean = false,
     val checkoutPlan: Plan? = null,
     val checkoutCycle: BillingCycle? = null,
 )
@@ -75,7 +75,7 @@ class LoginViewModel(
     }
 
     fun onEmailChange(value: String) {
-        _state.update { it.copy(email = value, emailError = null, formError = null, needsVerification = false) }
+        _state.update { it.copy(email = value, emailError = null, formError = null) }
     }
 
     fun onPasswordChange(value: String) {
@@ -93,7 +93,7 @@ class LoginViewModel(
         val checkoutPlan = current.checkoutPlan
         val checkoutCycle = current.checkoutCycle
         viewModelScope.launch {
-            _state.update { it.copy(isSubmitting = true, formError = null, needsVerification = false) }
+            _state.update { it.copy(isSubmitting = true, formError = null) }
             try {
                 authRepository.login(current.email.trim(), current.password)
                 // ADR-50 — authRepository.login()'s last step flips AuthState to
@@ -107,22 +107,15 @@ class LoginViewModel(
                     checkoutLauncher.launch(checkoutPlan, checkoutCycle)
                 }
             } catch (e: DomainException) {
+                val unverified = e is DomainException.AccountNotVerified
                 _state.update {
-                    it.copy(
-                        isSubmitting = false,
-                        formError = e,
-                        needsVerification = e is DomainException.AccountNotVerified,
-                    )
+                    it.copy(isSubmitting = false, formError = e.takeUnless { unverified }, opensVerification = unverified)
                 }
             }
         }
     }
 
-    fun resendVerificationCode() {
-        val email = _state.value.email.trim()
-        if (validateEmail(email) != null) return
-        viewModelScope.launch {
-            runCatching { authRepository.resendCode(email) }
-        }
+    fun onVerificationOpened() {
+        _state.update { it.copy(opensVerification = false) }
     }
 }

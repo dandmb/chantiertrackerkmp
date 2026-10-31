@@ -3,6 +3,7 @@ package com.dmb.chantiertracker.presentation.auth.verify
 import com.dmb.chantiertracker.domain.model.DomainException
 import com.dmb.chantiertracker.resources.Res
 import com.dmb.chantiertracker.resources.validation_code_format
+import com.dmb.chantiertracker.resources.validation_password_required
 import com.dmb.chantiertracker.support.FakeAuthRepository
 import com.dmb.chantiertracker.support.installTestMainDispatcher
 import com.dmb.chantiertracker.support.resetTestMainDispatcher
@@ -66,5 +67,67 @@ class VerifyEmailViewModelTest {
         viewModel.resendCode("alice@example.com")
         advanceUntilIdle()
         assertTrue(viewModel.state.value.codeResent)
+    }
+
+    @Test
+    fun right_after_registering_the_password_is_not_asked_again() = runTest {
+        repo.heldVerificationEmail = "alice@example.com"
+        viewModel.start("alice@example.com")
+        viewModel.onCodeChange("123456")
+        viewModel.submit("alice@example.com")
+        advanceUntilIdle()
+
+        assertFalse(viewModel.state.value.asksPassword)
+        assertEquals(listOf("verifyEmail:alice@example.com:123456"), repo.calls)
+    }
+
+    @Test
+    fun after_an_unverified_login_a_new_code_is_requested_once_and_the_password_is_not_asked() = runTest {
+        repo.heldVerificationEmail = "alice@example.com"
+
+        viewModel.start("alice@example.com", requestCode = true)
+        advanceUntilIdle()
+        viewModel.start("alice@example.com", requestCode = true)
+        advanceUntilIdle()
+
+        assertEquals(listOf("resendCode:alice@example.com"), repo.calls)
+        assertTrue(viewModel.state.value.codeResent)
+        assertFalse(viewModel.state.value.asksPassword)
+
+        viewModel.onCodeChange("123456")
+        viewModel.submit("alice@example.com")
+        advanceUntilIdle()
+
+        assertEquals("verifyEmail:alice@example.com:123456", repo.calls.last())
+        assertTrue(viewModel.state.value.verified)
+    }
+
+    @Test
+    fun a_refused_automatic_code_request_shows_its_wait() = runTest {
+        repo.heldVerificationEmail = "alice@example.com"
+        repo.error = DomainException.RateLimited(90)
+
+        viewModel.start("alice@example.com", requestCode = true)
+        advanceUntilIdle()
+
+        assertEquals(DomainException.RateLimited(90), viewModel.state.value.formError)
+    }
+
+    @Test
+    fun after_a_restart_the_password_is_asked_again() = runTest {
+        viewModel.start("alice@example.com")
+        viewModel.onCodeChange("123456")
+        viewModel.submit("alice@example.com")
+        advanceUntilIdle()
+
+        assertTrue(viewModel.state.value.asksPassword)
+        assertEquals(Res.string.validation_password_required, viewModel.state.value.passwordError)
+        assertTrue(repo.calls.isEmpty())
+
+        viewModel.onPasswordChange("Password1234!")
+        viewModel.submit("alice@example.com")
+        advanceUntilIdle()
+
+        assertEquals(listOf("verifyEmail:alice@example.com:123456:Password1234!"), repo.calls)
     }
 }

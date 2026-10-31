@@ -146,7 +146,7 @@ class InviteMemberViewModelTest {
     fun a_founder_owner_on_the_free_plan_can_invite_a_second_and_a_third_supervisor() = runTest {
         val projects = FakeProjectRepository(
             detail = detail(Plan.FREE, founderOnFreeEntitlements),
-            members = listOf(supervisor(1), supervisor(2)),
+            members = listOf(supervisor(2), supervisor(3)),
         )
         val invitations = FakeInvitationRepository()
         val model = vm(projects, invitations)
@@ -165,7 +165,7 @@ class InviteMemberViewModelTest {
     fun a_founder_owner_on_the_free_plan_is_blocked_at_three_supervisors() = runTest {
         val projects = FakeProjectRepository(
             detail = detail(Plan.FREE, founderOnFreeEntitlements),
-            members = listOf(supervisor(1), supervisor(2), supervisor(3)),
+            members = listOf(supervisor(2), supervisor(3), supervisor(4)),
         )
         val invitations = FakeInvitationRepository()
         val model = vm(projects, invitations)
@@ -201,5 +201,35 @@ class InviteMemberViewModelTest {
         advanceUntilIdle()
 
         assertFalse(model.state.value.atSupervisorLimit, "plan not yet known → not blocked client-side")
+    }
+
+    @Test
+    fun an_invitation_already_pending_can_be_replaced_from_the_form() = runTest {
+        val invitations = FakeInvitationRepository().apply { inviteError = DomainException.InvitationAlreadyPending }
+        val vm = InviteMemberViewModel(FakeProjectRepository(detail = detail(ownerPlan = null)), invitations)
+        vm.load("p1")
+        vm.onEmailChange("sam@x.dev")
+        vm.submit()
+        advanceUntilIdle()
+        assertEquals(DomainException.InvitationAlreadyPending, vm.state.value.formError)
+
+        vm.cancelExistingAndInvite()
+        advanceUntilIdle()
+
+        assertEquals(listOf("p1" to "sam@x.dev"), invitations.replaced)
+        assertTrue(vm.state.value.invited)
+    }
+
+    @Test
+    fun replacing_is_refused_unless_the_server_said_an_invitation_was_pending() = runTest {
+        val invitations = FakeInvitationRepository()
+        val vm = InviteMemberViewModel(FakeProjectRepository(detail = detail(ownerPlan = null)), invitations)
+        vm.load("p1")
+        vm.onEmailChange("sam@x.dev")
+
+        vm.cancelExistingAndInvite()
+        advanceUntilIdle()
+
+        assertTrue(invitations.replaced.isEmpty())
     }
 }

@@ -612,7 +612,7 @@ class SyncIssueActionsThroughTheEngineTest {
         backend.projects.removeAll { it.id == 5L }
         assertEquals(RevertOutcome.GONE_ON_SERVER, issues.revert(item("p5")))
 
-        assertNull(db.projectDao().findByLocalId("p5"), "a project out of reach (404 PROJECT_ACCESS_DENIED) is dropped with everything it holds")
+        assertNull(db.projectDao().findByLocalId("p5"), "a project out of reach (404 RESOURCE_NOT_FOUND) is dropped with everything it holds")
         assertEquals(emptyList(), issues.observeIssues().first())
         assertEquals(emptyList(), writesSent())
     }

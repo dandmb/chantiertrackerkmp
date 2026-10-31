@@ -97,6 +97,7 @@ class AuthAndServiceMessagesUiTest {
 
         runOnIdle {
             viewModel.onCodeChange("123456")
+            viewModel.onPasswordChange("Password1234!")
             viewModel.submit("sam@chantier.dev")
         }
 
@@ -139,6 +140,7 @@ class AuthAndServiceMessagesUiTest {
 
         runOnIdle {
             viewModel.onCodeChange("000000")
+            viewModel.onPasswordChange("Password1234!")
             viewModel.submit("sam@chantier.dev")
         }
 

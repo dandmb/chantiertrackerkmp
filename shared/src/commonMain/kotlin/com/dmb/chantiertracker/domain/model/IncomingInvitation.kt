@@ -8,7 +8,7 @@ package com.dmb.chantiertracker.domain.model
  * — unlike a project's own invitation list (ADR-32) it is not cached in Room.
  */
 data class IncomingInvitation(
-    val token: String,
+    val id: Long,
     val projectId: Long,
     val projectName: String,
     val role: ProjectRole,

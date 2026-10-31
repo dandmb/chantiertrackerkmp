@@ -50,7 +50,6 @@
     <string name="login_title">Connexion</string>
     <string name="login_subtitle">Connecte-toi pour suivre tes chantiers.</string>
     <string name="login_forgot_password">Mot de passe oublié ?</string>
-    <string name="login_resend_verification">Renvoyer le code de vérification</string>
     <string name="login_submit">Se connecter</string>
     <string name="login_no_account_prompt">Pas de compte ?</string>
     <string name="login_no_account_action">Créer un compte</string>
@@ -72,6 +71,9 @@
     <string name="verify_resending">Envoi…</string>
     <string name="verify_cancel">Annuler la vérification</string>
     <string name="verify_code_resent">Un nouveau code est en route.</string>
+    <string name="verify_password_hint">Mot de passe choisi à l'inscription</string>
+    <string name="verify_wrong_code_or_password">Ce code ou ce mot de passe est incorrect, ou le code a expiré. Après plusieurs essais, demande un nouveau code.</string>
+    <string name="verify_existing_account_hint">Si cette adresse a déjà un compte, tu reçois un e-mail pour te le dire : connecte-toi avec ce compte.</string>
 
     <string name="forgot_title">Mot de passe oublié</string>
     <string name="forgot_subtitle">Reçois un code de réinitialisation par email.</string>
@@ -163,8 +165,9 @@
     <string name="invite_member_email_label">Email</string>
     <string name="invite_member_hint">La personne invitée rejoindra ce projet avec le rôle Superviseur.</string>
     <string name="invite_member_submit">Envoyer l'invitation</string>
-    <string name="invite_member_limit">Tu as atteint la limite de superviseurs par projet de ta formule. Passe à un palier supérieur pour en inviter davantage.</string>
-    <string name="invite_member_limit_no_upgrade">Tu as atteint la limite de superviseurs par projet de ta formule.</string>
+    <string name="invite_member_limit">Tu as atteint la limite de collaborateurs par projet de ta formule, administrateurs compris. Passe à un palier supérieur pour en inviter davantage.</string>
+    <string name="invite_member_replace_pending">Annuler l'invitation existante puis réinviter</string>
+    <string name="invite_member_limit_no_upgrade">Tu as atteint la limite de collaborateurs par projet de ta formule, administrateurs compris.</string>
 
     <string name="incoming_invitation_body">Tu as une invitation en attente pour rejoindre %1$s en tant que %2$s.</string>
     <string name="incoming_invitation_body_with_inviter">Tu as une invitation en attente pour rejoindre %1$s en tant que %2$s, envoyée par %3$s.</string>
@@ -423,6 +426,11 @@
 
     <string name="error_invalid_credentials">Email ou mot de passe incorrect.</string>
     <string name="error_email_already_used">Cette adresse email est déjà utilisée.</string>
+    <string name="error_invitation_already_pending">Une invitation est déjà en attente pour cette adresse. Annule-la pour en envoyer une nouvelle.</string>
+    <string name="error_invitation_gone">Cette invitation n'est plus disponible.</string>
+    <string name="error_collaborator_limit">Ce projet a atteint la limite de collaborateurs de sa formule, administrateurs compris.</string>
+    <string name="error_owner_required">Seul le propriétaire du projet peut faire cette action.</string>
+    <string name="error_content_too_large">Ce contenu est trop volumineux pour être envoyé. Réduis-le puis réessaie.</string>
     <string name="error_account_not_verified">Ton compte n'est pas encore activé. Vérifie ton email.</string>
     <string name="error_account_locked">Compte bloqué après trop de tentatives. Réessaie plus tard.</string>
     <string name="error_invalid_current_password">Le mot de passe actuel est incorrect.</string>

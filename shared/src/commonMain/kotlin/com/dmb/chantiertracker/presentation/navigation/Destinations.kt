@@ -50,6 +50,12 @@ data class RegisterRoute(
 )
 
 @Serializable
+data class LoginVerificationRoute(
+    val checkoutPlan: String? = null,
+    val checkoutCycle: String? = null,
+)
+
+@Serializable
 data class VerifyEmailRoute(
     val email: String,
     val checkoutPlan: String? = null,

@@ -718,7 +718,7 @@ class MainScreensSnapshotTest {
                             sampleProjects,
                             incoming = listOf(
                                 com.dmb.chantiertracker.domain.model.IncomingInvitation(
-                                    token = "tok", projectId = 9L, projectName = "Villa Vidal",
+                                    id = 1L, projectId = 9L, projectName = "Villa Vidal",
                                     role = com.dmb.chantiertracker.domain.model.ProjectRole.SUPERVISOR,
                                     invitedByName = "Jean Marchand",
                                     createdAt = "2026-09-01T10:00:00", expiresAt = null,

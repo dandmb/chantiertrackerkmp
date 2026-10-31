@@ -50,7 +50,6 @@
     <string name="login_title">Sign in</string>
     <string name="login_subtitle">Sign in to keep track of your sites.</string>
     <string name="login_forgot_password">Forgot password?</string>
-    <string name="login_resend_verification">Resend verification code</string>
     <string name="login_submit">Sign in</string>
     <string name="login_no_account_prompt">No account yet?</string>
     <string name="login_no_account_action">Create one</string>
@@ -72,6 +71,9 @@
     <string name="verify_resending">Sending…</string>
     <string name="verify_cancel">Cancel verification</string>
     <string name="verify_code_resent">A new code is on its way.</string>
+    <string name="verify_password_hint">Password chosen when you signed up</string>
+    <string name="verify_wrong_code_or_password">That code or password is incorrect, or the code has expired. After several attempts, request a new code.</string>
+    <string name="verify_existing_account_hint">If this address already has an account, you'll get an email saying so: sign in with that account.</string>
 
     <string name="forgot_title">Forgot password</string>
     <string name="forgot_subtitle">We'll email you a reset code.</string>
@@ -163,8 +165,9 @@
     <string name="invite_member_email_label">Email</string>
     <string name="invite_member_hint">The invitee will join this project as a Supervisor.</string>
     <string name="invite_member_submit">Send invitation</string>
-    <string name="invite_member_limit">You have reached your plan's supervisors-per-project limit. Upgrade to a higher tier to invite more.</string>
-    <string name="invite_member_limit_no_upgrade">You have reached your plan's supervisors-per-project limit.</string>
+    <string name="invite_member_limit">You've reached your plan's collaborator limit per project, admins included. Move up a tier to invite more.</string>
+    <string name="invite_member_replace_pending">Cancel the existing invitation and invite again</string>
+    <string name="invite_member_limit_no_upgrade">You've reached your plan's collaborator limit per project, admins included.</string>
 
     <string name="incoming_invitation_body">You have a pending invitation to join %1$s as %2$s.</string>
     <string name="incoming_invitation_body_with_inviter">You have a pending invitation to join %1$s as %2$s, sent by %3$s.</string>
@@ -423,6 +426,11 @@
 
     <string name="error_invalid_credentials">Incorrect email or password.</string>
     <string name="error_email_already_used">This email address is already in use.</string>
+    <string name="error_invitation_already_pending">An invitation is already pending for this address. Cancel it to send a new one.</string>
+    <string name="error_invitation_gone">This invitation is no longer available.</string>
+    <string name="error_collaborator_limit">This project has reached its plan's collaborator limit, admins included.</string>
+    <string name="error_owner_required">Only the project owner can do that.</string>
+    <string name="error_content_too_large">This content is too large to send. Reduce it and try again.</string>
     <string name="error_account_not_verified">Your account isn't activated yet. Check your email.</string>
     <string name="error_account_locked">Account locked after too many attempts. Try again later.</string>
     <string name="error_invalid_current_password">Your current password is incorrect.</string>

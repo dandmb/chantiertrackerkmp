@@ -16,7 +16,6 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dmb.chantiertracker.presentation.auth.components.AuthFooterPrompt
 import com.dmb.chantiertracker.presentation.auth.components.AuthInlineLink
-import com.dmb.chantiertracker.presentation.auth.components.AuthLink
 import com.dmb.chantiertracker.presentation.auth.components.AuthLegalFooter
 import com.dmb.chantiertracker.presentation.auth.components.AuthPrimaryButton
 import com.dmb.chantiertracker.presentation.auth.components.AuthScreenLayout
@@ -37,7 +36,6 @@ import com.dmb.chantiertracker.resources.login_notice_account_activated
 import com.dmb.chantiertracker.resources.login_notice_account_deleted
 import com.dmb.chantiertracker.resources.login_notice_checkout_pending
 import com.dmb.chantiertracker.resources.login_notice_password_reset
-import com.dmb.chantiertracker.resources.login_resend_verification
 import com.dmb.chantiertracker.resources.login_submit
 import com.dmb.chantiertracker.resources.login_subtitle
 import com.dmb.chantiertracker.resources.login_title
@@ -50,6 +48,7 @@ fun LoginScreen(
     onNavigateToForgotPassword: () -> Unit,
     onOpenLegalDocument: (LegalDocument) -> Unit,
     onBack: (() -> Unit)? = null,
+    onVerificationRequired: () -> Unit = {},
     prefilledEmail: String? = null,
     notice: LoginNotice? = null,
     checkoutPlan: String? = null,
@@ -64,6 +63,13 @@ fun LoginScreen(
 
     LaunchedEffect(checkoutPlan, checkoutCycle) {
         viewModel.setCheckoutIntent(checkoutPlan, checkoutCycle)
+    }
+
+    LaunchedEffect(state.opensVerification) {
+        if (state.opensVerification) {
+            viewModel.onVerificationOpened()
+            onVerificationRequired()
+        }
     }
 
     AuthScreenLayout(
@@ -114,13 +120,6 @@ fun LoginScreen(
                     modifier = Modifier.align(Alignment.CenterEnd),
                 )
             }
-        }
-
-        if (state.needsVerification) {
-            AuthLink(
-                text = stringResource(Res.string.login_resend_verification),
-                onClick = viewModel::resendVerificationCode,
-            )
         }
 
         AuthPrimaryButton(

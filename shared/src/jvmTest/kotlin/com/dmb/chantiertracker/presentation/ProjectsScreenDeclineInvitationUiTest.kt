@@ -45,7 +45,7 @@ class ProjectsScreenDeclineInvitationUiTest {
         val invitationRepo = FakeInvitationRepository().apply {
             incoming = listOf(
                 IncomingInvitation(
-                    token = "tok-1", projectId = 9L, projectName = "Villa Vidal",
+                    id = 1L, projectId = 9L, projectName = "Villa Vidal",
                     role = ProjectRole.SUPERVISOR, invitedByName = null,
                     createdAt = null, expiresAt = null,
                 ),
@@ -63,7 +63,7 @@ class ProjectsScreenDeclineInvitationUiTest {
         onNodeWithText("Refuser").performClick()
         waitForIdle()
 
-        assertTrue(invitationRepo.declined.isEmpty(), "le refus ne doit pas s'exécuter avant confirmation")
+        assertTrue(invitationRepo.declinedIds.isEmpty(), "le refus ne doit pas s'exécuter avant confirmation")
         onNodeWithText("Refuser cette invitation ?").assertIsDisplayed()
 
         // Two "Refuser" nodes now coexist: the dimmed card button behind the
@@ -72,6 +72,6 @@ class ProjectsScreenDeclineInvitationUiTest {
         onAllNodesWithText("Refuser")[1].performClick()
         waitForIdle()
 
-        assertEquals(listOf("tok-1"), invitationRepo.declined)
+        assertEquals(listOf(1L), invitationRepo.declinedIds)
     }
 }

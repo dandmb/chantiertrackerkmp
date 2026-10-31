@@ -147,6 +147,7 @@ fun ProjectDetailScreen(
                 state.detail != null -> DetailContent(
                     detail = state.detail!!,
                     canEdit = state.canEdit,
+                    canDelete = state.canDeleteProject,
                     isAdmin = state.isAdmin,
                     isDeleting = state.isDeleting,
                     stages = state.stages,
@@ -184,6 +185,7 @@ fun ProjectDetailScreen(
 private fun DetailContent(
     detail: ProjectDetail,
     canEdit: Boolean,
+    canDelete: Boolean,
     isAdmin: Boolean,
     isDeleting: Boolean,
     stages: List<Stage>,
@@ -268,7 +270,7 @@ private fun DetailContent(
             }
         }
 
-        if (canEdit) {
+        if (canDelete) {
             DangerZone(projectName = detail.name, isDeleting = isDeleting, onDeleteConfirmed = onDeleteConfirmed)
         }
     }

@@ -14,7 +14,10 @@ interface AuthRepository {
     suspend fun markOnboardingSeen()
     suspend fun bootstrap()
     suspend fun register(email: String, password: String, name: String)
-    suspend fun verifyEmail(email: String, code: String)
+    suspend fun verifyEmail(email: String, code: String, password: String? = null)
+    fun holdsVerificationPassword(email: String): Boolean
+    fun pendingVerificationEmail(): String?
+    fun forgetVerificationPassword()
     suspend fun resendCode(email: String)
     suspend fun login(email: String, password: String)
     suspend fun logout()

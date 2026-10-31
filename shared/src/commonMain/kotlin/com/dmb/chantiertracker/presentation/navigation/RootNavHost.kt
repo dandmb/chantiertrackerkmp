@@ -3,6 +3,7 @@ package com.dmb.chantiertracker.presentation.navigation
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import androidx.navigation.compose.NavHost
@@ -11,6 +12,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import com.dmb.chantiertracker.data.session.SessionNotice
 import com.dmb.chantiertracker.domain.model.AuthState
+import com.dmb.chantiertracker.domain.repository.AuthRepository
 import com.dmb.chantiertracker.presentation.auth.changepassword.ChangePasswordScreen
 import com.dmb.chantiertracker.presentation.auth.forgot.ForgotPasswordScreen
 import com.dmb.chantiertracker.presentation.auth.login.LoginScreen
@@ -26,6 +28,7 @@ import com.dmb.chantiertracker.presentation.legal.StandaloneLegalDocumentScreen
 import com.dmb.chantiertracker.presentation.main.MainScreen
 import com.dmb.chantiertracker.presentation.onboarding.OnboardingScreen
 import com.dmb.chantiertracker.presentation.splash.SplashScreen
+import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
 
 private enum class AuthStartPoint { Onboarding, Welcome, Login }
@@ -138,6 +141,7 @@ private fun AuthNavHost(
                 } else {
                     null
                 },
+                onVerificationRequired = { navController.navigate(LoginVerificationRoute(route.checkoutPlan, route.checkoutCycle)) },
                 prefilledEmail = route.prefilledEmail,
                 notice = LoginNotice.fromArg(route.notice),
                 checkoutPlan = route.checkoutPlan,
@@ -154,6 +158,30 @@ private fun AuthNavHost(
                 onOpenLegalDocument = openLegalDocument,
                 onBack = { navController.popBackStack() },
             )
+        }
+        composable<LoginVerificationRoute> { entry ->
+            val route = entry.toRoute<LoginVerificationRoute>()
+            val authRepository = koinInject<AuthRepository>()
+            val email = remember { authRepository.pendingVerificationEmail() }
+            if (email != null) {
+                VerifyEmailScreen(
+                    email = email,
+                    onVerified = {
+                        navController.backToLogin(
+                            neverLoggedIn,
+                            email,
+                            LoginNotice.AccountActivated,
+                            route.checkoutPlan,
+                            route.checkoutCycle,
+                        )
+                    },
+                    onCancelVerification = { navController.backToLogin(neverLoggedIn) },
+                    onBack = { navController.popBackStack() },
+                    unverifiedLogin = true,
+                )
+            } else {
+                LaunchedEffect(Unit) { navController.popBackStack() }
+            }
         }
         composable<VerifyEmailRoute> { entry ->
             val route = entry.toRoute<VerifyEmailRoute>()

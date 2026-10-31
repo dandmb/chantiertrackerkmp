@@ -37,7 +37,7 @@ class AuthCodesAndRateLimitsTest {
 
     @Test
     fun a_rate_limited_verification_is_a_wait_of_the_given_time_never_a_wrong_code() = runTest {
-        assertEquals(DomainException.RateLimited(42), failureOf { emailRateLimited().verifyEmail("sam@chantier.dev", "123456") })
+        assertEquals(DomainException.RateLimited(42), failureOf { emailRateLimited().verifyEmail("sam@chantier.dev", "123456", "Password1234!") })
     }
 
     @Test
@@ -58,7 +58,7 @@ class AuthCodesAndRateLimitsTest {
     @Test
     fun a_wrong_or_invalidated_code_is_still_an_invalid_code() = runTest {
         val wrongCode = { repoAnswering(HttpStatusCode.BadRequest, "INVALID_VERIFICATION_CODE") }
-        assertEquals(DomainException.InvalidCode, failureOf { wrongCode().verifyEmail("sam@chantier.dev", "000000") })
+        assertEquals(DomainException.InvalidCode, failureOf { wrongCode().verifyEmail("sam@chantier.dev", "000000", "Password1234!") })
         assertEquals(DomainException.InvalidCode, failureOf { wrongCode().resetPassword("sam@chantier.dev", "000000", "NewPass1234!") })
     }
 }

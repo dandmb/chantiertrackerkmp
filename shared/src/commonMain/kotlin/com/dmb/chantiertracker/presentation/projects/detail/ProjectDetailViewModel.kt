@@ -35,6 +35,7 @@ data class ProjectDetailUiState(
     val invitationActionError: DomainException? = null,
     val currentUserId: Long? = null,
     val canRemoveMembers: Boolean = false,
+    val canDeleteProject: Boolean = false,
     val removingMemberIds: Set<Long> = emptySet(),
     val memberActionError: DomainException? = null,
 ) {
@@ -74,6 +75,7 @@ class ProjectDetailViewModel(
                             canEdit = loaded.detail != null && canEdit(loaded.detail, loaded.members),
                             currentUserId = currentUserId(),
                             canRemoveMembers = loaded.detail?.ownerId != null && loaded.detail.ownerId == currentUserId(),
+                            canDeleteProject = loaded.detail != null && canDeleteProject(loaded.detail),
                             stages = loaded.stages,
                             members = loaded.members,
                             pendingInvitations = loaded.invitations.filter { inv -> inv.status == InvitationStatus.PENDING },
@@ -169,6 +171,9 @@ class ProjectDetailViewModel(
     }
 
     private fun currentUserId(): Long? = (authRepository.authState.value as? AuthState.Authenticated)?.user?.id
+
+    private fun canDeleteProject(detail: ProjectDetail): Boolean =
+        detail.ownerId == null || detail.ownerId == currentUserId()
 
     private fun canEdit(detail: ProjectDetail, members: List<ProjectMember>): Boolean =
         projectAdmin(detail.ownerId, members, currentUserId())

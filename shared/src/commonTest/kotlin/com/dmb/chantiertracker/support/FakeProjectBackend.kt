@@ -59,6 +59,7 @@ class ServerPendingInvitation(
     val invitedByName: String? = "Jean Marchand",
     val createdAt: String = "2026-09-01T10:00:00",
     val expiresAt: String = "2026-09-08T10:00:00",
+    val id: Long = 500L + token.length,
 )
 
 class ServerStage(
@@ -142,6 +143,8 @@ class FakeProjectBackend {
     val invitations = mutableListOf<ServerInvitation>()
     val myPendingInvitations = mutableListOf<ServerPendingInvitation>()
     var planLimitReached = false
+    var inviteRefusal: Pair<HttpStatusCode, String>? = null
+    var acceptRefusalCode: String? = null
     var plan = "FREE"
     var planIsFounder = false
     var planProjectsLimit: Int? = 1
@@ -177,7 +180,7 @@ class FakeProjectBackend {
     var invitationsForbidden = false
 
     val goneOnServer = mutableListOf<Regex>()
-    /** Projects this account is no longer a member of: gone from the list, every route under them answers 404 PROJECT_ACCESS_DENIED. */
+    /** Projects this account is no longer a member of: gone from the list, every route under them answers 404 RESOURCE_NOT_FOUND. */
     val accessLostTo = mutableSetOf<Long>()
 
     private fun losesAccess(path: String): Boolean {
@@ -314,7 +317,7 @@ class FakeProjectBackend {
             refuseOnce = null
             return respondProblem(HttpStatusCode.Forbidden, "Accès refusé.", code = "PROJECT_INSUFFICIENT_ROLE")
         }
-        if (losesAccess(path)) return respondProblem(HttpStatusCode.NotFound, "Projet introuvable.", code = "PROJECT_ACCESS_DENIED")
+        if (losesAccess(path)) return respondProblem(HttpStatusCode.NotFound, "Projet introuvable.", code = "RESOURCE_NOT_FOUND")
         if (goneOnServer.any { it.containsMatchIn(path) }) return respondProblem(HttpStatusCode.NotFound, "Introuvable.", code = "NOT_FOUND")
         if (forbiddenOnServer.any { it.containsMatchIn(path) }) return respondProblem(HttpStatusCode.Forbidden, "Accès refusé.", code = "PROJECT_INSUFFICIENT_ROLE")
         if (request.method == HttpMethod.Patch) {
@@ -325,8 +328,10 @@ class FakeProjectBackend {
         val memberRemoval = Regex("""/projects/(\d+)/members/(\d+)$""").find(path)?.groupValues?.let { it[1].toLong() to it[2].toLong() }
         val invitationsProjectId = Regex("""/projects/(\d+)/invitations$""").find(path)?.groupValues?.get(1)?.toLong()
         val invitationId = Regex("""/invitations/(\d+)$""").find(path)?.groupValues?.get(1)?.toLong()
-        val acceptToken = Regex("""/invitations/([^/]+)/accept$""").find(path)?.groupValues?.get(1)
-        val declineToken = Regex("""/invitations/([^/]+)/decline$""").find(path)?.groupValues?.get(1)
+        val acceptToken = Regex("""^/invitations/([^/]+)/accept$""").find(path)?.groupValues?.get(1)
+        val declineToken = Regex("""^/invitations/([^/]+)/decline$""").find(path)?.groupValues?.get(1)
+        val acceptMineId = Regex("""^/users/me/invitations/(\d+)/accept$""").find(path)?.groupValues?.get(1)?.toLong()
+        val declineMineId = Regex("""^/users/me/invitations/(\d+)/decline$""").find(path)?.groupValues?.get(1)?.toLong()
         val detailsToken = Regex("""^/invitations/([^/]+)$""").find(path)?.groupValues?.get(1)
         val isMyInvitations = path == "/users/me/invitations"
         val stagesProjectId = Regex("""/projects/(\d+)/stages$""").find(path)?.groupValues?.get(1)?.toLong()
@@ -361,14 +366,14 @@ class FakeProjectBackend {
 
             request.method == HttpMethod.Get && stagesProjectId != null -> {
                 if (projects.none { it.id == stagesProjectId }) {
-                    return respondProblem(HttpStatusCode.NotFound, "Projet introuvable.", code = "PROJECT_ACCESS_DENIED")
+                    return respondProblem(HttpStatusCode.NotFound, "Projet introuvable.", code = "RESOURCE_NOT_FOUND")
                 }
                 respondPage(request, stages.filter { it.projectId == stagesProjectId }.map { it.id to stageJson(it) })
             }
 
             request.method == HttpMethod.Post && stagesProjectId != null -> {
                 if (projects.none { it.id == stagesProjectId }) {
-                    return respondProblem(HttpStatusCode.NotFound, "Projet introuvable.", code = "PROJECT_ACCESS_DENIED")
+                    return respondProblem(HttpStatusCode.NotFound, "Projet introuvable.", code = "RESOURCE_NOT_FOUND")
                 }
                 val body = request.jsonBody()
                 val created = ServerStage(
@@ -586,7 +591,7 @@ class FakeProjectBackend {
                 val (projectId, userId) = memberRemoval
                 receivedMemberRemovalBodies += (request.body as? TextContent)?.text
                 if (projects.none { it.id == projectId }) {
-                    return respondProblem(HttpStatusCode.NotFound, "Projet introuvable.", code = "PROJECT_ACCESS_DENIED")
+                    return respondProblem(HttpStatusCode.NotFound, "Projet introuvable.", code = "RESOURCE_NOT_FOUND")
                 }
                 val removed = members[projectId]?.removeAll { it.userId == userId } == true
                 if (!removed) return respondProblem(HttpStatusCode.NotFound, "Membre introuvable.", code = "PROJECT_MEMBER_NOT_FOUND")
@@ -595,7 +600,7 @@ class FakeProjectBackend {
 
             request.method == HttpMethod.Get && membersProjectId != null -> {
                 if (projects.none { it.id == membersProjectId }) {
-                    return respondProblem(HttpStatusCode.NotFound, "Projet introuvable.", code = "PROJECT_ACCESS_DENIED")
+                    return respondProblem(HttpStatusCode.NotFound, "Projet introuvable.", code = "RESOURCE_NOT_FOUND")
                 }
                 respondPage(request, membersOf(membersProjectId))
             }
@@ -608,6 +613,7 @@ class FakeProjectBackend {
 
             request.method == HttpMethod.Post && invitationsProjectId != null -> {
                 if (invitationsForbidden) return respondProblem(HttpStatusCode.Forbidden, "Action réservée à un administrateur.")
+                inviteRefusal?.let { (status, code) -> return respondProblem(status, "Refusée.", code = code) }
                 if (planLimitReached) {
                     return respondProblem(HttpStatusCode.Forbidden, "Vous avez atteint la limite de superviseurs par projet de votre plan.")
                 }
@@ -642,8 +648,17 @@ class FakeProjectBackend {
                 respondJson(invitationDetailsJson(invitation))
             }
 
+            request.method == HttpMethod.Post && (acceptMineId != null || declineMineId != null) -> {
+                if (acceptMineId != null) acceptStatus?.let { return respondProblem(it, "Cette invitation n'est plus valide.") }
+                if (myPendingInvitations.removeAll { it.id == (acceptMineId ?: declineMineId) }) {
+                    if (acceptMineId != null) respondJson("""{"message":"Invitation acceptée avec succès."}""") else respondJson("", HttpStatusCode.NoContent)
+                } else {
+                    respondProblem(HttpStatusCode.NotFound, "Invitation introuvable.", code = "INVITATION_NOT_FOUND")
+                }
+            }
+
             request.method == HttpMethod.Post && acceptToken != null -> {
-                acceptStatus?.let { return respondProblem(it, "Cette invitation n'est plus valide.") }
+                acceptStatus?.let { return respondProblem(it, "Cette invitation n'est plus valide.", code = acceptRefusalCode) }
                 if (myPendingInvitations.none { it.token == acceptToken }) {
                     return respondProblem(HttpStatusCode.NotFound, "Invitation introuvable.", code = "INVITATION_NOT_FOUND")
                 }
@@ -661,7 +676,7 @@ class FakeProjectBackend {
 
             request.method == HttpMethod.Get && idInPath != null -> {
                 val project = projects.firstOrNull { it.id == idInPath }
-                    ?: return respondProblem(HttpStatusCode.NotFound, "Projet introuvable.", code = "PROJECT_ACCESS_DENIED")
+                    ?: return respondProblem(HttpStatusCode.NotFound, "Projet introuvable.", code = "RESOURCE_NOT_FOUND")
                 respondJson(detailJson(project))
             }
 
@@ -689,7 +704,7 @@ class FakeProjectBackend {
 
             request.method == HttpMethod.Patch && idInPath != null -> {
                 val project = projects.firstOrNull { it.id == idInPath }
-                    ?: return respondProblem(HttpStatusCode.NotFound, "Projet introuvable.", code = "PROJECT_ACCESS_DENIED")
+                    ?: return respondProblem(HttpStatusCode.NotFound, "Projet introuvable.", code = "RESOURCE_NOT_FOUND")
                 val body = request.jsonBody()
                 body.string("name")?.let { project.name = it }
                 body.string("description")?.let { project.description = it }
@@ -805,7 +820,7 @@ class FakeProjectBackend {
             "invitedById":1,"createdAt":${i.createdAt.q()},"expiresAt":"2026-09-08T10:00:00","status":${i.status.q()}}"""
 
     private fun pendingForMeJson(i: ServerPendingInvitation): String =
-        """{"token":${i.token.q()},"projectId":${i.projectId},"projectName":${i.projectName.q()},"role":${i.role.q()},
+        """{"id":${i.id},"projectId":${i.projectId},"projectName":${i.projectName.q()},"role":${i.role.q()},
             "invitedByName":${i.invitedByName?.q() ?: "null"},"createdAt":${i.createdAt.q()},"expiresAt":${i.expiresAt.q()}}"""
 
     // GET /invitations/{token} — still in myPendingInvitations means PENDING;

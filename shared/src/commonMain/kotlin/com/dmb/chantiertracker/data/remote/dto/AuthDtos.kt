@@ -7,10 +7,10 @@ import kotlinx.serialization.Serializable
 data class RegisterRequestDto(val email: String, val password: String, val name: String)
 
 @Serializable
-data class RegisterResponseDto(val id: Long, val email: String)
+data class RegisterResponseDto(val email: String)
 
 @Serializable
-data class VerifyEmailRequestDto(val email: String, val code: String)
+data class VerifyEmailRequestDto(val email: String, val code: String, val password: String)
 
 @Serializable
 data class ResendCodeRequestDto(val email: String)

@@ -45,6 +45,8 @@ class AuthRepositoryImpl(
     private val scope: CoroutineScope = AppCoroutineScope(),
 ) : AuthRepository {
 
+    private var pendingVerification: PendingVerification? = null
+
     override val authState: StateFlow<AuthState> = authStateHolder.state
 
     override suspend fun hasCompletedFirstLogin(): Boolean = onboardingStore.hasCompletedFirstLogin()
@@ -96,10 +98,21 @@ class AuthRepositoryImpl(
 
     override suspend fun register(email: String, password: String, name: String) {
         apiCall { api.register(RegisterRequestDto(email, password, name)) }
+        pendingVerification = PendingVerification(email, password)
     }
 
-    override suspend fun verifyEmail(email: String, code: String) {
-        apiCall { api.verifyEmail(VerifyEmailRequestDto(email, code)) }
+    override suspend fun verifyEmail(email: String, code: String, password: String?) {
+        val proof = password ?: pendingVerification?.takeIf { it.email == email }?.password ?: throw DomainException.Validation
+        apiCall { api.verifyEmail(VerifyEmailRequestDto(email, code, proof)) }
+        forgetVerificationPassword()
+    }
+
+    override fun holdsVerificationPassword(email: String): Boolean = pendingVerification?.email == email
+
+    override fun pendingVerificationEmail(): String? = pendingVerification?.email
+
+    override fun forgetVerificationPassword() {
+        pendingVerification = null
     }
 
     override suspend fun resendCode(email: String) {
@@ -107,7 +120,12 @@ class AuthRepositoryImpl(
     }
 
     override suspend fun login(email: String, password: String) {
-        val tokens = apiCall { api.login(LoginRequestDto(email, password)) }
+        val tokens = try {
+            apiCall { api.login(LoginRequestDto(email, password)) }
+        } catch (e: DomainException.AccountNotVerified) {
+            pendingVerification = PendingVerification(email, password)
+            throw e
+        }
         // From the moment the new token is stored, any sync pass would push with it — so storing
         // it, learning who it belongs to and erasing a previous account's data happen with no pass
         // able to run in between (A-1).
@@ -196,3 +214,5 @@ internal fun String.toGlobalRole(): GlobalRole = when (uppercase()) {
     "SUPER_ADMIN" -> GlobalRole.SUPER_ADMIN
     else -> GlobalRole.UNKNOWN
 }
+
+private class PendingVerification(val email: String, val password: String)

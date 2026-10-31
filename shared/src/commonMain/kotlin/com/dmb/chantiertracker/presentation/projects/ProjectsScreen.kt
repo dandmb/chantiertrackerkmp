@@ -89,7 +89,7 @@ fun ProjectsScreen(
                 if (state.incomingInvitations.isNotEmpty() || state.invitationError != null) {
                     IncomingInvitations(
                         invitations = state.incomingInvitations,
-                        busyTokens = state.busyInvitationTokens,
+                        busyIds = state.busyInvitationIds,
                         error = state.invitationError?.localizedText(),
                         onAccept = viewModel::acceptInvitation,
                         onDecline = viewModel::declineInvitation,
@@ -148,10 +148,10 @@ private fun SyncIssuesBanner(count: Int, onOpen: () -> Unit) {
 @Composable
 private fun IncomingInvitations(
     invitations: List<IncomingInvitation>,
-    busyTokens: Set<String>,
+    busyIds: Set<Long>,
     error: String?,
-    onAccept: (String) -> Unit,
-    onDecline: (String) -> Unit,
+    onAccept: (Long) -> Unit,
+    onDecline: (Long) -> Unit,
 ) {
     var pendingDecline by remember { mutableStateOf<IncomingInvitation?>(null) }
 
@@ -163,8 +163,8 @@ private fun IncomingInvitations(
         invitations.forEach { invitation ->
             IncomingInvitationCard(
                 invitation = invitation,
-                busy = invitation.token in busyTokens,
-                onAccept = { onAccept(invitation.token) },
+                busy = invitation.id in busyIds,
+                onAccept = { onAccept(invitation.id) },
                 onDecline = { pendingDecline = invitation },
             )
         }
@@ -179,7 +179,7 @@ private fun IncomingInvitations(
             onDismiss = { pendingDecline = null },
             onConfirm = {
                 pendingDecline = null
-                onDecline(invitation.token)
+                onDecline(invitation.id)
             },
         )
     }

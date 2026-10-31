@@ -15,6 +15,7 @@ import com.dmb.chantiertracker.data.sync.SyncOutcome
 import com.dmb.chantiertracker.domain.model.CreateStageInput
 import com.dmb.chantiertracker.domain.model.ProjectStatus
 import com.dmb.chantiertracker.domain.model.UpdateProjectInput
+import com.dmb.chantiertracker.domain.model.UpdateStageInput
 import com.dmb.chantiertracker.presentation.sync.SyncStateHolder
 import com.dmb.chantiertracker.support.FakeAttachmentFileStore
 import com.dmb.chantiertracker.support.FakeBackgroundSync
@@ -132,6 +133,18 @@ class LostProjectAccessTest {
 
         assertNull(db.projectDao().findByLocalId(villa))
         assertEquals(0, db.localDataDao().countUnsynced())
+    }
+
+    @Test
+    fun a_stage_gone_alone_answers_the_same_code_and_leaves_its_project() = runTest {
+        val villa = aSupervisorWithUnsentWorkOnVilla()
+        val stage = db.stageDao().findForProject(villa).first { it.serverId == 90L }.localId
+        stages.updateStage(stage, UpdateStageInput("Gros œuvre B", null, null, null, null, com.dmb.chantiertracker.domain.model.StageStatus.IN_PROGRESS))
+        backend.stages.removeAll { it.id == 90L }
+
+        engine.syncNow()
+
+        assertNotNull(db.projectDao().findByLocalId(villa), "only a project route tells that the project is lost")
     }
 
     @Test

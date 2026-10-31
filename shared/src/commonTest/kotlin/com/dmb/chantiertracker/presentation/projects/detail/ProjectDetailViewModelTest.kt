@@ -85,6 +85,23 @@ class ProjectDetailViewModelTest {
     }
 
     @Test
+    fun only_the_owner_can_delete_the_project() = runTest {
+        val repo = FakeProjectRepository(
+            detail = detail(ownerId = 7),
+            members = listOf(ProjectMember(3L, "Awa", "a@x.dev", ProjectRole.ADMIN)),
+        )
+        val admin = ProjectDetailViewModel(repo, FakeStageRepository(), FakeInvitationRepository(), auth(userId = 3))
+        val owner = ProjectDetailViewModel(repo, FakeStageRepository(), FakeInvitationRepository(), auth(userId = 7))
+        admin.load("p5")
+        owner.load("p5")
+        advanceUntilIdle()
+
+        assertTrue(admin.state.value.canEdit)
+        assertFalse(admin.state.value.canDeleteProject, "an invited ADMIN edits but does not delete")
+        assertTrue(owner.state.value.canDeleteProject)
+    }
+
+    @Test
     fun non_owner_admin_member_can_edit() = runTest {
         val repo = FakeProjectRepository(
             detail = detail(ownerId = 7),

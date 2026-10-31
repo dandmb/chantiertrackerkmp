@@ -42,8 +42,20 @@ class InvitationRepositoryImpl(
     override suspend fun invite(projectLocalId: String, email: String) {
         val serverId = projectDao.findByLocalId(projectLocalId)?.serverId ?: throw DomainException.NotFound
         val request = CreateInvitationRequestDto(email = email, role = ProjectRole.SUPERVISOR.name)
-        creationKeys.send(serverId to request) { key -> api.create(serverId, request, key) }
+        try {
+            creationKeys.send(serverId to request) { key -> api.create(serverId, request, key) }
+        } catch (e: DomainException.PlanLimitReached) {
+            throw DomainException.CollaboratorLimitReached
+        }
         syncer.syncProject(projectLocalId)
+    }
+
+    override suspend fun replacePendingInvitation(projectLocalId: String, email: String) {
+        syncer.syncProject(projectLocalId)
+        val pending = dao.findForProject(projectLocalId).firstOrNull { it.email.equals(email, ignoreCase = true) && it.status.equals("PENDING", ignoreCase = true) }
+            ?: throw DomainException.NotFound
+        apiCall { api.cancel(pending.id) }
+        invite(projectLocalId, email)
     }
 
     override suspend fun cancelInvitation(projectLocalId: String, invitationId: Long) {
@@ -74,17 +86,37 @@ class InvitationRepositoryImpl(
         apiCall { api.getDetails(token) }.toInvitationPreview()
 
     override suspend fun acceptInvitation(token: String) {
-        apiCall { api.accept(token) }
+        acceptingWithinTheQuota { api.accept(token) }
         // Caller re-pulls the project list so the newly joined project shows up.
     }
 
-    override suspend fun declineInvitation(token: String) {
-        apiCall { api.decline(token) }
+    override suspend fun acceptIncomingInvitation(id: Long) {
+        try {
+            acceptingWithinTheQuota { api.acceptMine(id) }
+        } catch (e: DomainException.NotFound) {
+            throw DomainException.InvitationGone
+        }
+    }
+
+    override suspend fun declineIncomingInvitation(id: Long) {
+        try {
+            apiCall { api.declineMine(id) }
+        } catch (e: DomainException.NotFound) {
+            throw DomainException.InvitationGone
+        }
+    }
+
+    private suspend fun acceptingWithinTheQuota(accept: suspend () -> Unit) {
+        try {
+            apiCall { accept() }
+        } catch (e: DomainException.PlanLimitReached) {
+            throw DomainException.CollaboratorLimitReached
+        }
     }
 }
 
 private fun PendingInvitationDto.toIncomingInvitation() = IncomingInvitation(
-    token = token,
+    id = id,
     projectId = projectId,
     projectName = projectName,
     role = when (role.uppercase()) {

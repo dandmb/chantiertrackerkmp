@@ -7,6 +7,7 @@ import com.dmb.chantiertracker.support.resetTestMainDispatcher
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
+import com.dmb.chantiertracker.domain.model.MAX_FREE_TEXT_LENGTH
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
@@ -23,6 +24,15 @@ class ReportEntryViewModelTest {
     private fun vm(repo: FakeReportRepository = FakeReportRepository()): Pair<ReportEntryViewModel, FakeReportRepository> {
         val v = ReportEntryViewModel(repo).also { it.load("entry-1") }
         return v to repo
+    }
+
+    @Test
+    fun the_message_stops_at_the_limit_of_the_server() = runTest {
+        val (v, _) = vm()
+
+        v.onMessageChange("x".repeat(MAX_FREE_TEXT_LENGTH + 1))
+
+        assertEquals(MAX_FREE_TEXT_LENGTH, v.state.value.message.length)
     }
 
     @Test
