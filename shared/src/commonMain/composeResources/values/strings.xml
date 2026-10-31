@@ -589,6 +589,7 @@
     <string name="sync_reason_project_or_stage_inactive">The project is suspended or completed, or the stage is completed.</string>
     <string name="sync_reason_entry_date_restricted">A supervisor can only enter data for the current day.</string>
     <string name="sync_reason_insufficient_role">This action is reserved for a project administrator.</string>
+    <string name="sync_reason_owner_required">Only the project owner can do this.</string>
     <string name="sync_reason_insufficient_stock">There is not enough stock available.</string>
     <string name="sync_reason_stock_consumed">This stock has already been used.</string>
     <string name="sync_reason_duplicate_entry">An entry of this type already exists for this day.</string>

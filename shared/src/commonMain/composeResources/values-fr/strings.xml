@@ -589,6 +589,7 @@
     <string name="sync_reason_project_or_stage_inactive">Le projet est suspendu ou terminé, ou l'étape est terminée.</string>
     <string name="sync_reason_entry_date_restricted">Un superviseur ne peut saisir que sur la journée en cours.</string>
     <string name="sync_reason_insufficient_role">Cette action est réservée à un administrateur du projet.</string>
+    <string name="sync_reason_owner_required">Seul le propriétaire du projet peut faire cette action.</string>
     <string name="sync_reason_insufficient_stock">Le stock disponible est insuffisant.</string>
     <string name="sync_reason_stock_consumed">Ce stock a déjà été consommé.</string>
     <string name="sync_reason_duplicate_entry">Une saisie de ce type existe déjà pour cette journée.</string>

@@ -26,7 +26,6 @@ import com.dmb.chantiertracker.resources.sync_notice_revert_failed
 import com.dmb.chantiertracker.resources.sync_notice_revert_gone_on_server
 import com.dmb.chantiertracker.resources.sync_notice_revert_needs_connection
 import com.dmb.chantiertracker.resources.sync_notice_reverted
-import com.dmb.chantiertracker.resources.error_owner_required
 import com.dmb.chantiertracker.resources.sync_hint_insufficient_role
 import com.dmb.chantiertracker.presentation.billing.LocalInAppPaymentsAllowed
 import com.dmb.chantiertracker.resources.sync_hint_plan_limit
@@ -50,6 +49,7 @@ import com.dmb.chantiertracker.resources.sync_reason_entry_date_restricted
 import com.dmb.chantiertracker.resources.sync_reason_file_refused
 import com.dmb.chantiertracker.resources.sync_reason_insufficient_role
 import com.dmb.chantiertracker.resources.sync_reason_insufficient_stock
+import com.dmb.chantiertracker.resources.sync_reason_owner_required
 import com.dmb.chantiertracker.resources.sync_reason_invalid_value
 import com.dmb.chantiertracker.resources.sync_reason_plan_limit
 import com.dmb.chantiertracker.resources.sync_reason_project_or_stage_inactive
@@ -85,7 +85,7 @@ fun RefusalReason?.sentenceRes(): StringResource = when (this) {
     RefusalReason.PROJECT_OR_STAGE_INACTIVE -> Res.string.sync_reason_project_or_stage_inactive
     RefusalReason.ENTRY_DATE_RESTRICTED -> Res.string.sync_reason_entry_date_restricted
     RefusalReason.INSUFFICIENT_ROLE -> Res.string.sync_reason_insufficient_role
-    RefusalReason.OWNER_REQUIRED -> Res.string.error_owner_required
+    RefusalReason.OWNER_REQUIRED -> Res.string.sync_reason_owner_required
     RefusalReason.INSUFFICIENT_STOCK -> Res.string.sync_reason_insufficient_stock
     RefusalReason.STOCK_CONSUMED -> Res.string.sync_reason_stock_consumed
     RefusalReason.DUPLICATE_ENTRY -> Res.string.sync_reason_duplicate_entry
