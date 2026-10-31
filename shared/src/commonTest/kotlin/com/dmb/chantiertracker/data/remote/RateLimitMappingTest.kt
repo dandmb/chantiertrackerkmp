@@ -107,7 +107,7 @@ class RateLimitMappingTest {
             respondProblem(HttpStatusCode.Forbidden, "Seul le propriétaire du projet peut effectuer cette action.", code = "PROJECT_OWNER_REQUIRED")
         }
         assertEquals(DomainException.OwnerRequired, assertFailsWith<DomainException> { apiCall { mock.client.get("projects/1") } })
-        assertEquals(RefusalReason.INSUFFICIENT_ROLE, knownRefusalCodes["PROJECT_OWNER_REQUIRED"])
+        assertEquals(RefusalReason.OWNER_REQUIRED, knownRefusalCodes["PROJECT_OWNER_REQUIRED"])
         assertEquals(RefusalReason.INVALID_VALUE, knownRefusalCodes["REQUEST_BODY_TOO_LARGE"])
     }
 

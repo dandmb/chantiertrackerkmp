@@ -25,6 +25,7 @@ import kotlinx.coroutines.test.runTest
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.minutes
+import com.dmb.chantiertracker.domain.model.waitsForACorrection
 import io.ktor.http.HttpStatusCode
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -3030,6 +3031,77 @@ class SyncEngineTest {
         f.clock.advanceBy(15 * 60_000)
         engine.syncNow()
         assertEquals(2, f.sent("POST", "/entries/900/attachments"), "tried again fifteen minutes later")
+    }
+
+    @Test
+    fun a_temporary_refusal_leaves_the_row_waiting_without_any_issue_and_it_is_sent_after_the_wait() = runTest {
+        listOf(HttpStatusCode.TooManyRequests to "RATE_LIMITED", HttpStatusCode.ServiceUnavailable to "MEDIA_PROCESSING_BUSY").forEach { (status, code) ->
+            val f = Fixture()
+            f.dao.upsert(localProject("p1", name = "Villa"))
+            f.backend.refuseWith = { request ->
+                com.dmb.chantiertracker.support.ServerRefusal(status, code, retryAfterSeconds = 3).takeIf { request.method.value == "POST" }
+            }
+            val engine = f.engine(backgroundScope)
+
+            engine.syncNow()
+            engine.syncNow()
+
+            val waiting = f.dao.findByLocalId("p1")!!
+            assertEquals(SyncStatus.PENDING, waiting.syncStatus, code)
+            assertEquals(null, waiting.syncIssue(), code)
+            assertEquals(1, f.sent("POST", "/projects"), "$code: nothing leaves before the time the server gave")
+
+            f.backend.refuseWith = null
+            f.clock.advanceBy(4_000)
+            engine.syncNow()
+
+            assertEquals(SyncStatus.SYNCED, f.dao.findByLocalId("p1")!!.syncStatus, code)
+        }
+    }
+
+    @Test
+    fun a_final_refusal_is_reported_and_never_sent_again_without_a_correction() = runTest {
+        listOf(
+            HttpStatusCode.Forbidden to "PROJECT_OWNER_REQUIRED",
+            HttpStatusCode.PayloadTooLarge to "REQUEST_BODY_TOO_LARGE",
+            HttpStatusCode.BadRequest to "INVALID_QUERY_STRING",
+        ).forEach { (status, code) ->
+            val f = Fixture()
+            f.dao.upsert(localProject("p1", name = "Villa"))
+            f.backend.refuseWith = { request ->
+                com.dmb.chantiertracker.support.ServerRefusal(status, code).takeIf { request.method.value == "POST" }
+            }
+            val engine = f.engine(backgroundScope)
+
+            assertIs<SyncOutcome.Synced>(engine.syncNow(), code)
+
+            val refused = f.dao.findByLocalId("p1")!!
+            assertEquals(SyncStatus.CONFLICTED to code, refused.syncStatus to refused.serverErrorCode, code)
+            assertEquals(true, refused.syncIssue()?.waitsForACorrection, code)
+
+            f.clock.advanceBy(24 * 60 * 60_000)
+            engine.syncNow()
+
+            assertEquals(1, f.sent("POST", "/projects"), "$code: a final refusal does not go round in circles")
+        }
+    }
+
+    @Test
+    fun a_request_too_large_for_the_server_refuses_the_file_for_good() = runTest {
+        val f = stockFixture()
+        f.siteWithCement(serverPurchase = null)
+        f.attachmentDao.upsert(com.dmb.chantiertracker.support.localAttachment("a1", entryLocalId = "e900", localPath = f.fileStore.save(ByteArray(8), "a1.jpg")))
+        f.backend.attachmentUploadRejection = HttpStatusCode.PayloadTooLarge to "Requête trop volumineuse."
+        f.backend.attachmentUploadRejectionCode = "REQUEST_BODY_TOO_LARGE"
+        val engine = f.engine(backgroundScope)
+
+        engine.syncNow()
+        f.clock.advanceBy(24 * 60 * 60_000)
+        engine.syncNow()
+
+        val file = f.attachmentDao.findByLocalId("a1")!!
+        assertEquals(SyncError.FILE_REFUSED to "REQUEST_BODY_TOO_LARGE", file.lastSyncError to file.serverErrorCode)
+        assertEquals(1, f.sent("POST", "/entries/900/attachments"))
     }
 
     @Test
