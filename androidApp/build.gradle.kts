@@ -1,4 +1,5 @@
 import com.google.firebase.crashlytics.buildtools.gradle.CrashlyticsExtension
+import java.util.Properties
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
@@ -26,6 +27,11 @@ dependencies {
     releaseImplementation(libs.kotlinx.coroutines.core)
     releaseImplementation(libs.koin.core)
 }
+
+// Debug builds only: the shipped APK must not carry a local address.
+val devApiBaseUrl = Properties().apply {
+    rootProject.file("local.properties").takeIf { it.exists() }?.reader()?.use { load(it) }
+}.getProperty("chantiertracker.devApiBaseUrl").orEmpty()
 
 // Distribution signing: values come from CI env vars (see .github/workflows/cd-stage.yml).
 // Absent locally → the build stays unsigned, which is fine for local inspection.
@@ -81,7 +87,7 @@ android {
     }
     buildTypes {
         debug {
-            resValue("string", "dev_api_base_url", "http://192.168.1.18:8080/api/v1")
+            resValue("string", "dev_api_base_url", devApiBaseUrl)
         }
         release {
             isMinifyEnabled = true

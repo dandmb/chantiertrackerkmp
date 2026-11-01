@@ -1,6 +1,6 @@
 package com.dmb.chantiertracker.core
 
-actual val platformDevApiBaseUrl: String = "http://localhost:8080/api/v1"
+actual val platformDevApiBaseUrl: String = System.getProperty("chantiertracker.devApiBaseUrl").orEmpty()
 
 class DesktopBuildInfo : BuildInfo {
     override val isDebug: Boolean =

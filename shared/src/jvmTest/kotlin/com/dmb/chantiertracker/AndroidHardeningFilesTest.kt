@@ -49,7 +49,23 @@ class AndroidHardeningFilesTest {
     }
 
     @Test
-    fun no_local_address_is_written_in_the_android_sources() {
-        assertFalse("192.168" in File("src/androidMain/kotlin/com/dmb/chantiertracker/core/BuildInfo.android.kt").readText())
+    fun the_local_api_address_is_written_in_no_versioned_file() {
+        val localAddress = Regex("""192\.168\.|10\.0\.2\.2|localhost|127\.0\.0\.1""")
+        listOf(
+            "src/androidMain/kotlin/com/dmb/chantiertracker/core/BuildInfo.android.kt",
+            "src/jvmMain/kotlin/com/dmb/chantiertracker/core/BuildInfo.jvm.kt",
+            "src/iosMain/kotlin/com/dmb/chantiertracker/core/BuildInfo.ios.kt",
+            "build.gradle.kts",
+            "../androidApp/build.gradle.kts",
+            "../androidApp/src/debug/res/xml/network_security_config.xml",
+            "../desktopApp/build.gradle.kts",
+        ).forEach { path -> assertFalse(localAddress.containsMatchIn(File(path).readText()), path) }
+    }
+
+    @Test
+    fun every_platform_takes_the_local_api_address_from_local_properties() {
+        listOf("build.gradle.kts", "../androidApp/build.gradle.kts", "../desktopApp/build.gradle.kts").forEach { path ->
+            assertTrue("chantiertracker.devApiBaseUrl" in File(path).readText(), path)
+        }
     }
 }

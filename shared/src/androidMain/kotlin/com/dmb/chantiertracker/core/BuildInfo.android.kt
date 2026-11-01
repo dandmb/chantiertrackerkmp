@@ -3,9 +3,13 @@ package com.dmb.chantiertracker.core
 import android.content.Context
 import android.content.pm.ApplicationInfo
 
-actual val devApiBaseUrl: String = "http://10.0.2.2:8080/api/v1"
+actual val platformDevApiBaseUrl: String = ""
 
 class AndroidBuildInfo(context: Context) : BuildInfo {
+    override val devApiBaseUrl: String =
+        context.resources.getIdentifier("dev_api_base_url", "string", context.packageName)
+            .takeIf { it != 0 }?.let(context::getString).orEmpty()
+
     override val isDebug: Boolean =
         (context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
 
