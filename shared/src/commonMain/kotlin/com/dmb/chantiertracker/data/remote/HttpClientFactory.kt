@@ -17,7 +17,9 @@ import io.ktor.client.plugins.auth.providers.bearer
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.defaultRequest
 import io.ktor.client.plugins.expectSuccess
+import io.ktor.client.plugins.logging.DEFAULT
 import io.ktor.client.plugins.logging.LogLevel
+import io.ktor.client.plugins.logging.Logger
 import io.ktor.client.plugins.logging.Logging
 import io.ktor.client.request.header
 import io.ktor.client.request.post
@@ -47,6 +49,7 @@ fun HttpClientConfig<*>.configureChantierTrackerClient(
     baseUrl: String,
     enableLogging: Boolean,
     onSessionExpired: suspend () -> Unit,
+    networkLogger: Logger = Logger.DEFAULT,
 ) {
     val normalizedBaseUrl = if (baseUrl.endsWith("/")) baseUrl else "$baseUrl/"
 
@@ -64,7 +67,9 @@ fun HttpClientConfig<*>.configureChantierTrackerClient(
 
     if (enableLogging) {
         install(Logging) {
-            level = LogLevel.ALL
+            level = LogLevel.HEADERS
+            logger = networkLogger
+            sanitizeHeader { it == HttpHeaders.Authorization }
         }
     }
 

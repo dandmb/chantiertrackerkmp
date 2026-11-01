@@ -231,7 +231,7 @@ private fun legalLinkOrNull(destination: String): LegalLink? {
     val lower = target.lowercase()
     LegalDocument.fromLink(target)?.let { return LegalLink.Document(it, target) }
     return when {
-        lower.startsWith("https://") || lower.startsWith("http://") -> LegalLink.Web(target)
+        lower.startsWith("https://") -> LegalLink.Web(target)
         lower.startsWith("mailto:") && target.length > "mailto:".length -> LegalLink.Mail(target)
         else -> null
     }

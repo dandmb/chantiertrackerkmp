@@ -88,9 +88,24 @@ class LegalMarkdownTest {
     }
 
     @Test
-    fun http_https_and_mailto_links_are_kept_with_their_target() {
+    fun no_other_scheme_makes_a_link() {
+        listOf("http://example.com", "javascript:alert(1)", "intent://x#Intent;end", "file:///data/x", "data:text/html,x", "content://x/y", "tel:+33100000000").forEach { target ->
+            val spans = (parseLegalMarkdown("[lien]($target)").single() as Paragraph).text.spans
+            assertTrue(spans.all { it.link == null }, target)
+        }
+    }
+
+    @Test
+    fun html_stays_plain_text() {
+        val text = parseLegalMarkdown("Avant <script>alert(1)</script> <a href=\"https://example.com\">lien</a>").flatMap { (it as Paragraph).text.spans }
+        assertTrue(text.all { it.link == null })
+        assertTrue("<script>" in text.joinToString("") { it.text })
+    }
+
+    @Test
+    fun https_and_mailto_links_are_kept_with_their_target() {
         val spans = (
-            parseLegalMarkdown("Voir [les CGU](https://chantiertracker.com/cgu), [l'ancien site](http://example.com) ou [écris-nous](mailto:dpo@chantiertracker.com).")
+            parseLegalMarkdown("Voir [les CGU](https://chantiertracker.com/cgu), [le site](https://example.com) ou [écris-nous](mailto:dpo@chantiertracker.com).")
                 .single() as Paragraph
             ).text.spans
 
@@ -99,7 +114,7 @@ class LegalMarkdownTest {
                 LegalSpan("Voir "),
                 LegalSpan("les CGU", link = LegalLink.Document(LegalDocument.TermsOfUse, "https://chantiertracker.com/cgu")),
                 LegalSpan(", "),
-                LegalSpan("l'ancien site", link = LegalLink.Web("http://example.com")),
+                LegalSpan("le site", link = LegalLink.Web("https://example.com")),
                 LegalSpan(" ou "),
                 LegalSpan("écris-nous", link = LegalLink.Mail("mailto:dpo@chantiertracker.com")),
                 LegalSpan("."),

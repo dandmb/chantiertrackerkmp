@@ -1,3 +1,4 @@
+import com.google.firebase.crashlytics.buildtools.gradle.CrashlyticsExtension
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
@@ -79,8 +80,14 @@ android {
         }
     }
     buildTypes {
+        debug {
+            resValue("string", "dev_api_base_url", "http://192.168.1.18:8080/api/v1")
+        }
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
+            // No Google-Services plugin here, so the upload task cannot even be created.
+            configure<CrashlyticsExtension> { mappingFileUploadEnabled = false }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -102,6 +109,7 @@ android {
             applicationIdSuffix = ".staging"
             matchingFallbacks += "release"
             signingConfig = signingConfigs.findByName("distribution")
+            configure<CrashlyticsExtension> { mappingFileUploadEnabled = false }
         }
     }
     compileOptions {

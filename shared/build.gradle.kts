@@ -51,6 +51,8 @@ kotlin {
             implementation(libs.ktor.client.okhttp)
             implementation(libs.koin.android)
             implementation(libs.androidx.security.crypto)
+            implementation(libs.androidx.datastore.core)
+            implementation(libs.tink.android)
             implementation(libs.androidx.work.runtime)
             implementation(libs.connectivity.device)
             implementation(libs.androidx.media3.exoplayer)

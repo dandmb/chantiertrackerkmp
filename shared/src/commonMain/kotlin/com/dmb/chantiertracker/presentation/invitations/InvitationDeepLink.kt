@@ -3,6 +3,7 @@ package com.dmb.chantiertracker.presentation.invitations
 private const val SCHEME = "https"
 private const val HOST = "chantiertracker.com"
 private const val PATH_PREFIX = "/invitations/"
+private val SERVER_TOKEN = Regex("[A-Za-z0-9_-]{1,256}")
 
 // ADR-59 — pure, tolerant by design (same idiom as parseCheckoutDeepLink):
 // never throws on a URL this app links intent-filter wasn't actually meant
@@ -23,5 +24,5 @@ fun parseInvitationToken(url: String): String? {
     if (!host.equals(HOST, ignoreCase = true)) return null
     val path = if (pathIndex == -1) "" else afterScheme.substring(pathIndex)
     if (!path.startsWith(PATH_PREFIX)) return null
-    return path.substring(PATH_PREFIX.length).takeIf { it.isNotBlank() }
+    return path.substring(PATH_PREFIX.length).takeIf(SERVER_TOKEN::matches)
 }

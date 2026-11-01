@@ -134,6 +134,7 @@ import io.github.vinceglb.filekit.dialogs.FileKitType
 import io.github.vinceglb.filekit.dialogs.compose.rememberFilePickerLauncher
 import io.github.vinceglb.filekit.mimeType
 import io.github.vinceglb.filekit.name
+import io.github.vinceglb.filekit.delete
 import io.github.vinceglb.filekit.readBytes
 import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
@@ -589,13 +590,14 @@ private fun AttachmentsSection(
     var firstLoadDone by remember(entryLocalId) { mutableStateOf(false) }
     LaunchedEffect(allPhotosDecoded) { if (allPhotosDecoded) firstLoadDone = true }
 
-    val addPhoto: (PlatformFile?) -> Unit = { picked ->
+    val addPhoto: (PlatformFile?, Boolean) -> Unit = { picked, removeAfterReading ->
         if (picked != null) {
             photoReadError = false
             scope.launch {
                 val mime = runCatching { picked.mimeType() }.getOrNull()
                 val mimeString = mime?.let { "${it.primaryType}/${it.subtype}" } ?: "image/jpeg"
                 val bytes = runCatching { picked.readBytes() }.getOrNull()
+                if (removeAfterReading) runCatching { picked.delete() }
                 if (bytes != null) {
                     viewModel.onPhotoSelected(entryLocalId, bytes, picked.name, mimeString)
                 } else {
@@ -604,8 +606,8 @@ private fun AttachmentsSection(
             }
         }
     }
-    val photoPicker = rememberFilePickerLauncher(type = FileKitType.Image, onResult = addPhoto)
-    val photoCapture = LocalPhotoCapture.current.rememberCapture(onCaptured = addPhoto)
+    val photoPicker = rememberFilePickerLauncher(type = FileKitType.Image) { addPhoto(it, false) }
+    val photoCapture = LocalPhotoCapture.current.rememberCapture { addPhoto(it, true) }
     val videoPicker = rememberFilePickerLauncher(type = FileKitType.Video) { picked ->
         if (picked == null) return@rememberFilePickerLauncher
         val mime = runCatching { picked.mimeType() }.getOrNull()

@@ -4,7 +4,7 @@ import kotlin.experimental.ExperimentalNativeApi
 import kotlin.native.Platform
 import platform.Foundation.NSBundle
 
-actual val devApiBaseUrl: String = "http://localhost:8080/api/v1"
+actual val platformDevApiBaseUrl: String = "http://localhost:8080/api/v1"
 
 class IosBuildInfo : BuildInfo {
     @OptIn(ExperimentalNativeApi::class)

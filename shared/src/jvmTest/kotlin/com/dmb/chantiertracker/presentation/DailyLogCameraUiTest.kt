@@ -45,6 +45,7 @@ import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 
 @OptIn(ExperimentalTestApi::class)
 class DailyLogCameraUiTest {
@@ -126,6 +127,7 @@ class DailyLogCameraUiTest {
     @Test
     fun take_a_photo_sits_next_to_the_gallery_and_the_photo_joins_the_same_upload_path() = runComposeUiTest {
         val photo = takenPhoto()
+        val photoSize = photo.length()
         mount(cameraReturning(photo))
 
         onNodeWithText("Ajouter une photo").performScrollTo().assertIsDisplayed()
@@ -133,7 +135,19 @@ class DailyLogCameraUiTest {
         waitForIdle()
 
         assertEquals(1, launches)
-        assertEquals(listOf("addAttachment:e1:${photo.name}:image/jpeg:${photo.length()}"), attachments.log)
+        assertEquals(listOf("addAttachment:e1:${photo.name}:image/jpeg:$photoSize"), attachments.log)
+    }
+
+    @Test
+    fun the_camera_file_does_not_stay_in_the_cache_once_the_photo_is_kept() = runComposeUiTest {
+        val photo = takenPhoto()
+        mount(cameraReturning(photo))
+
+        onNodeWithText("Prendre une photo").performScrollTo().performClick()
+        waitForIdle()
+
+        assertEquals(1, attachments.log.size)
+        assertFalse(photo.exists(), "the raw camera file keeps its GPS tags")
     }
 
     @Test

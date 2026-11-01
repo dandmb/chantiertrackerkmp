@@ -2,7 +2,7 @@ package com.dmb.chantiertracker.core
 
 enum class ApiEnvironment { Production, Development }
 
-expect val devApiBaseUrl: String
+expect val platformDevApiBaseUrl: String
 
 private const val PROD_API_BASE_URL = "https://api.chantiertracker.com/api/v1"
 
@@ -13,7 +13,7 @@ class AppConfig(buildInfo: BuildInfo) {
 
     val baseUrl: String = when (environment) {
         ApiEnvironment.Production -> PROD_API_BASE_URL
-        ApiEnvironment.Development -> devApiBaseUrl
+        ApiEnvironment.Development -> buildInfo.devApiBaseUrl
     }
 
     val enableNetworkLogging: Boolean = environment != ApiEnvironment.Production

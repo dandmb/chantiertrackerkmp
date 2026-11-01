@@ -1,74 +1,66 @@
 package com.dmb.chantiertracker.data.local
 
 import android.content.Context
-import android.content.SharedPreferences
-import androidx.security.crypto.EncryptedSharedPreferences
-import androidx.security.crypto.MasterKey
+import androidx.datastore.core.DataStore
+import androidx.datastore.core.DataStoreFactory
+import androidx.datastore.core.handlers.ReplaceFileCorruptionHandler
+import com.google.crypto.tink.Aead
+import com.google.crypto.tink.integration.android.AndroidKeystore
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
-import java.security.KeyStore
+import java.io.File
 
-class AndroidTokenStorage(context: Context) : TokenStorage {
+class AndroidTokenStorage internal constructor(private val vault: DataStore<TokenVault>) : TokenStorage {
 
-    private val appContext = context.applicationContext
-
-    @Volatile
-    private var cachedPrefs: SharedPreferences? = null
-
-    private fun prefs(): SharedPreferences =
-        cachedPrefs ?: synchronized(this) {
-            cachedPrefs ?: openWithKeystoreRecovery(
-                open = ::createEncryptedPrefs,
-                onCorruptedState = ::discardCorruptedKeystoreState,
-            ).also { cachedPrefs = it }
-        }
-
-    private fun createEncryptedPrefs(): SharedPreferences {
-        val masterKey = MasterKey.Builder(appContext)
-            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-            .build()
-        return EncryptedSharedPreferences.create(
-            appContext,
-            PREFS_FILE,
-            masterKey,
-            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
-        )
-    }
-
-    private fun discardCorruptedKeystoreState() {
-        appContext.deleteSharedPreferences(PREFS_FILE)
-        runCatching {
-            KeyStore.getInstance(ANDROID_KEY_STORE).apply { load(null) }
-                .deleteEntry(MasterKey.DEFAULT_MASTER_KEY_ALIAS)
-        }
-    }
+    constructor(context: Context) : this(openTokenVault(context.applicationContext))
 
     override suspend fun get(): AuthTokens? = withContext(Dispatchers.IO) {
-        runCatching {
-            val prefs = prefs()
-            val access = prefs.getString(KEY_ACCESS, null)
-            val refresh = prefs.getString(KEY_REFRESH, null)
-            if (access != null && refresh != null) AuthTokens(access, refresh) else null
-        }.getOrNull()
+        try {
+            vault.data.first().tokens
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            null
+        }
     }
 
     override suspend fun save(tokens: AuthTokens): Unit = withContext(Dispatchers.IO) {
-        prefs().edit()
-            .putString(KEY_ACCESS, tokens.accessToken)
-            .putString(KEY_REFRESH, tokens.refreshToken)
-            .apply()
+        vault.updateData { TokenVault(tokens) }
     }
 
     override suspend fun clear(): Unit = withContext(Dispatchers.IO) {
-        val prefs = runCatching { prefs() }.getOrNull() ?: return@withContext
-        prefs.edit().clear().apply()
-    }
-
-    private companion object {
-        const val PREFS_FILE = "chantiertracker_auth"
-        const val ANDROID_KEY_STORE = "AndroidKeyStore"
-        const val KEY_ACCESS = "access_token"
-        const val KEY_REFRESH = "refresh_token"
+        try {
+            vault.updateData { TokenVault() }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Unit
+        }
     }
 }
+
+internal fun openTokenVault(
+    file: File,
+    legacy: LegacyTokens,
+    aead: () -> Aead,
+): DataStore<TokenVault> = DataStoreFactory.create(
+    serializer = TokenVaultSerializer(aead),
+    corruptionHandler = ReplaceFileCorruptionHandler { TokenVault() },
+    migrations = listOf(LegacyTokensMigration(legacy)),
+    produceFile = { file },
+)
+
+private fun openTokenVault(context: Context): DataStore<TokenVault> {
+    val aead by lazy(::keystoreAead)
+    return openTokenVault(File(context.filesDir, TOKEN_FILE), EncryptedPrefsLegacyTokens(context)) { aead }
+}
+
+private fun keystoreAead(): Aead {
+    if (!AndroidKeystore.hasKey(KEYSTORE_ALIAS)) AndroidKeystore.generateNewAes256GcmKey(KEYSTORE_ALIAS)
+    return AndroidKeystore.getAead(KEYSTORE_ALIAS)
+}
+
+private const val KEYSTORE_ALIAS = "chantiertracker_tokens"
+private const val TOKEN_FILE = "datastore/chantiertracker_tokens.enc"
