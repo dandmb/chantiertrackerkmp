@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.dmb.chantiertracker.domain.model.AuthState
 import com.dmb.chantiertracker.domain.model.Plan
+import com.dmb.chantiertracker.domain.model.PlanUsage
 import com.dmb.chantiertracker.domain.model.ProfileLanguage
 import com.dmb.chantiertracker.domain.model.UnsentWrites
 import com.dmb.chantiertracker.domain.repository.AccountRepository
@@ -27,6 +28,7 @@ data class MainUiState(
     val email: String = "",
     val plan: Plan? = null,
     val isFounder: Boolean = false,
+    val planUsage: PlanUsage? = null,
     val isLoggingOut: Boolean = false,
     val logoutPrompt: LogoutPrompt? = null,
 )
@@ -62,7 +64,7 @@ class MainViewModel(
         }
         viewModelScope.launch {
             accountRepository.observePlanUsage().collect { usage ->
-                _state.update { it.copy(plan = usage?.plan, isFounder = usage?.isFounder == true) }
+                _state.update { it.copy(plan = usage?.plan, isFounder = usage?.isFounder == true, planUsage = usage) }
             }
         }
     }

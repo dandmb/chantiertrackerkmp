@@ -253,6 +253,48 @@ class SyncIssuesScreenUiTest {
     }
 
     @Test
+    fun a_photo_refused_by_the_limit_asks_to_free_some_photos_never_to_delete_a_project() {
+        val photo = listOf(onDay(SyncIssueTarget.ATTACHMENT, "a1", refusedIssue(RefusalReason.PLAN_LIMIT), label = "chantier.jpg"))
+        onScreen(photo) {
+            onNodeWithText("Change de formule ou supprime des photos ou des vidéos, puis réessaie.").assertExists()
+            onNodeWithText("supprime un projet", substring = true, ignoreCase = true).assertDoesNotExist()
+        }
+        onScreen(photo, locale = "en") {
+            onNodeWithText("Change your plan or delete some photos or videos, then retry.").assertExists()
+            onNodeWithText("delete a project", substring = true, ignoreCase = true).assertDoesNotExist()
+        }
+    }
+
+    @Test
+    fun without_in_app_payments_a_refused_photo_only_asks_to_free_some_photos() {
+        val photo = listOf(onDay(SyncIssueTarget.ATTACHMENT, "a1", refusedIssue(RefusalReason.PLAN_LIMIT), label = "chantier.jpg"))
+        val vm = SyncIssuesViewModel(FakeSyncIssueRepository(photo))
+        for ((locale, text) in listOf("fr" to "Supprime des photos ou des vidéos, puis réessaie.", "en" to "Delete some photos or videos, then try again.")) {
+            runDesktopComposeUiTest(width = 412, height = 900) {
+                setContent {
+                    customAppLocale = locale
+                    AppEnvironment {
+                        AppTheme {
+                            CompositionLocalProvider(com.dmb.chantiertracker.presentation.billing.LocalInAppPaymentsAllowed provides false) {
+                                Surface { SyncIssuesScreen(viewModel = vm) }
+                            }
+                        }
+                    }
+                }
+                waitForIdle()
+                onNodeWithText(text).assertExists()
+            }
+        }
+    }
+
+    @Test
+    fun a_project_refused_by_the_limit_still_asks_to_delete_a_project() {
+        onScreen(listOf(issueItem(SyncIssueTarget.PROJECT, "p0", refusedIssue(RefusalReason.PLAN_LIMIT), projectLocalId = "p0", projectName = "Atelier"))) {
+            onNodeWithText("Change de formule ou supprime un projet, puis réessaie.").assertExists()
+        }
+    }
+
+    @Test
     fun an_entry_refused_for_a_past_day_says_why_offers_no_retry_and_never_tells_to_retry() {
         val pastDay = listOf(
             onDay(SyncIssueTarget.ENTRY, "e-past", refusedIssue(RefusalReason.ENTRY_DATE_RESTRICTED)),

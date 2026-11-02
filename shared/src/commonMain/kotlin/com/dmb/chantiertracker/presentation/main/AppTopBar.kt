@@ -33,6 +33,8 @@ import com.dmb.chantiertracker.presentation.CapitalTitle
 import com.dmb.chantiertracker.resources.Res
 import com.dmb.chantiertracker.resources.app_name
 import com.dmb.chantiertracker.resources.menu_delete_account
+import com.dmb.chantiertracker.resources.menu_help
+import com.dmb.chantiertracker.resources.menu_my_offer
 import com.dmb.chantiertracker.resources.menu_logout
 import com.dmb.chantiertracker.resources.menu_profile
 import com.dmb.chantiertracker.resources.menu_open
@@ -60,6 +62,8 @@ fun AppTopBar(
     onOpenSyncIssues: () -> Unit = {},
     onDeleteAccount: () -> Unit = {},
     onProfile: () -> Unit = {},
+    onMyOffer: () -> Unit = {},
+    onHelp: () -> Unit = {},
     leadingActions: @Composable RowScope.() -> Unit = {},
 ) {
     var menuOpen by remember { mutableStateOf(false) }
@@ -99,6 +103,14 @@ fun AppTopBar(
                     onProfile = {
                         menuOpen = false
                         onProfile()
+                    },
+                    onMyOffer = {
+                        menuOpen = false
+                        onMyOffer()
+                    },
+                    onHelp = {
+                        menuOpen = false
+                        onHelp()
                     },
                 )
             }
@@ -144,6 +156,8 @@ fun AccountMenuBody(
     isFounder: Boolean = false,
     onDeleteAccount: () -> Unit = {},
     onProfile: () -> Unit = {},
+    onMyOffer: () -> Unit = {},
+    onHelp: () -> Unit = {},
 ) {
     Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
         Text(
@@ -176,6 +190,14 @@ fun AccountMenuBody(
     DropdownMenuItem(
         text = { Text(stringResource(Res.string.menu_profile)) },
         onClick = onProfile,
+    )
+    DropdownMenuItem(
+        text = { Text(stringResource(Res.string.menu_my_offer)) },
+        onClick = onMyOffer,
+    )
+    DropdownMenuItem(
+        text = { Text(stringResource(Res.string.menu_help)) },
+        onClick = onHelp,
     )
     HorizontalDivider()
     if (onSubscription != null) {

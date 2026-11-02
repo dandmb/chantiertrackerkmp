@@ -22,6 +22,10 @@ import com.dmb.chantiertracker.presentation.sync.SyncIssueMarkersViewModel
 import com.dmb.chantiertracker.presentation.sync.SyncIssuesViewModel
 import com.dmb.chantiertracker.domain.repository.SignOutRepository
 import com.dmb.chantiertracker.data.remote.EditorIdentityApi
+import com.dmb.chantiertracker.data.remote.LegalSettingsApi
+import com.dmb.chantiertracker.data.local.db.SupportContactDao
+import com.dmb.chantiertracker.data.repository.SupportContactRepositoryImpl
+import com.dmb.chantiertracker.domain.repository.SupportContactRepository
 import com.dmb.chantiertracker.data.local.db.EditorIdentityDao
 import com.dmb.chantiertracker.data.repository.EditorIdentityRepositoryImpl
 import com.dmb.chantiertracker.domain.repository.EditorIdentityRepository
@@ -80,6 +84,10 @@ import com.dmb.chantiertracker.data.repository.AccountRepositoryImpl
 import com.dmb.chantiertracker.data.repository.AttachmentRepositoryImpl
 import com.dmb.chantiertracker.data.repository.AdminRepositoryImpl
 import com.dmb.chantiertracker.data.repository.billingRepositoryFor
+import com.dmb.chantiertracker.data.repository.LaunchStatusRepositoryImpl
+import com.dmb.chantiertracker.domain.repository.LaunchStatusRepository
+import com.dmb.chantiertracker.presentation.help.HelpViewModel
+import com.dmb.chantiertracker.presentation.offer.MyOfferViewModel
 import com.dmb.chantiertracker.core.inAppPaymentsAllowed
 import com.dmb.chantiertracker.data.repository.InvitationRepositoryImpl
 import com.dmb.chantiertracker.data.repository.AuthRepositoryImpl
@@ -186,6 +194,7 @@ val networkModule: Module = module {
     singleOf(::BillingApi)
     singleOf(::AdminApi)
     singleOf(::EditorIdentityApi)
+    singleOf(::LegalSettingsApi)
     singleOf(::LegalDocumentsApi)
 }
 
@@ -202,6 +211,7 @@ val syncModule: Module = module {
     single<AttachmentDao> { get<AppDatabase>().attachmentDao() }
     single<InvitationDao> { get<AppDatabase>().invitationDao() }
     single<EditorIdentityDao> { get<AppDatabase>().editorIdentityDao() }
+    single<SupportContactDao> { get<AppDatabase>().supportContactDao() }
     single<LegalDocumentDao> { get<AppDatabase>().legalDocumentDao() }
     single<LocalDataDao> { get<AppDatabase>().localDataDao() }
     single<StockDao> { get<AppDatabase>().stockDao() }
@@ -276,8 +286,10 @@ val dataModule: Module = module {
     single<ReportRepository> { ReportRepositoryImpl(get(), get(), get()) }
     single<ExportRepository> { ExportRepositoryImpl(get(), get(), get()) }
     single<BillingRepository> { billingRepositoryFor(get(), inAppPaymentsAllowed) }
+    single<LaunchStatusRepository> { LaunchStatusRepositoryImpl(get()) }
     single<AdminRepository> { AdminRepositoryImpl(get()) }
     single<EditorIdentityRepository> { EditorIdentityRepositoryImpl(get(), get()) }
+    single<SupportContactRepository> { SupportContactRepositoryImpl(get(), get()) }
     single<LegalDocumentRepository> { LegalDocumentRepositoryImpl(get(), get()) }
 }
 
@@ -318,6 +330,8 @@ val presentationModule: Module = module {
     viewModelOf(::ConsumptionLineFormViewModel)
     viewModelOf(::SettingsViewModel)
     viewModelOf(::BillingViewModel)
+    viewModelOf(::MyOfferViewModel)
+    viewModelOf(::HelpViewModel)
     viewModelOf(::DeleteAccountViewModel)
     viewModelOf(::AdminUsersViewModel)
     viewModelOf(::AdminCreateUserViewModel)

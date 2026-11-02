@@ -25,6 +25,10 @@ import com.dmb.chantiertracker.presentation.i18n.localizedText
 import com.dmb.chantiertracker.presentation.main.DownloadIcon
 import com.dmb.chantiertracker.presentation.main.OpenInNewIcon
 import com.dmb.chantiertracker.presentation.main.ShareIcon
+import com.dmb.chantiertracker.domain.model.DomainException
+import com.dmb.chantiertracker.presentation.offer.PlanLimitKind
+import com.dmb.chantiertracker.presentation.offer.PlanLimitNotice
+import com.dmb.chantiertracker.presentation.offer.SeeMyOfferLink
 import com.dmb.chantiertracker.resources.Res
 import com.dmb.chantiertracker.resources.detail_export_action
 import com.dmb.chantiertracker.resources.detail_export_generating
@@ -64,6 +68,7 @@ fun ExportSection(
         if (!canExport) {
             val hint = if (paidPlansAreOffered()) Res.string.detail_export_upgrade else Res.string.detail_export_unavailable
             DetailEmptyHint(stringResource(hint))
+            SeeMyOfferLink()
             return@SectionCard
         }
 
@@ -73,7 +78,9 @@ fun ExportSection(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
 
-        state.error?.let { ErrorBanner(it.localizedText()) }
+        state.error?.let { error ->
+            if (error == DomainException.PlanLimitReached) PlanLimitNotice(PlanLimitKind.PDF_EXPORT) else ErrorBanner(error.localizedText())
+        }
 
         val exported = state.exported
         when {

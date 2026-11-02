@@ -24,15 +24,13 @@ import com.dmb.chantiertracker.presentation.ResponsiveContent
 import com.dmb.chantiertracker.presentation.auth.components.AuthPrimaryButton
 import com.dmb.chantiertracker.presentation.auth.components.AuthSecondaryButton
 import com.dmb.chantiertracker.presentation.auth.components.ErrorBanner
-import com.dmb.chantiertracker.presentation.auth.components.InfoBanner
-import com.dmb.chantiertracker.presentation.billing.paidPlansAreOffered
 import com.dmb.chantiertracker.presentation.i18n.localizedText
 import com.dmb.chantiertracker.presentation.i18n.rememberWaitSecondsLeft
+import com.dmb.chantiertracker.presentation.offer.PlanLimitKind
+import com.dmb.chantiertracker.presentation.offer.PlanLimitNotice
 import com.dmb.chantiertracker.resources.Res
 import com.dmb.chantiertracker.resources.invite_member_email_label
 import com.dmb.chantiertracker.resources.invite_member_hint
-import com.dmb.chantiertracker.resources.invite_member_limit
-import com.dmb.chantiertracker.resources.invite_member_limit_no_upgrade
 import com.dmb.chantiertracker.resources.invite_member_replace_pending
 import com.dmb.chantiertracker.resources.invite_member_submit
 import org.jetbrains.compose.resources.stringResource
@@ -61,10 +59,11 @@ fun InviteMemberScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             if (state.atSupervisorLimit) {
-                val limitMessage = if (paidPlansAreOffered()) Res.string.invite_member_limit else Res.string.invite_member_limit_no_upgrade
-                InfoBanner(stringResource(limitMessage))
+                PlanLimitNotice(PlanLimitKind.SUPERVISORS)
             }
-            state.formError?.let { ErrorBanner(it.localizedText()) }
+            state.formError?.let { error ->
+                if (error == DomainException.PlanLimitReached) PlanLimitNotice(PlanLimitKind.SUPERVISORS) else ErrorBanner(error.localizedText())
+            }
 
             AppOutlinedTextField(
                 value = state.email,

@@ -1337,6 +1337,26 @@ class MigrationTest {
     }
 
     @Test
+    fun version_19_only_adds_the_one_row_support_contact_table() {
+        fun tables(version: Int) = exportedSchema(version)["entities"]!!.jsonArray.associateBy { it.jsonObject["tableName"]!!.jsonPrimitive.content }
+
+        assertEquals(tables(18).keys + "support_contact", tables(19).keys, "one table added, none removed")
+        tables(18).forEach { (table, entity) -> assertEquals(entity, tables(19).getValue(table), "$table unchanged") }
+
+        val path = dir.resolve("migration-v18-19.db").absolutePathString()
+        BundledSQLiteDriver().open(path).use { c ->
+            MIGRATION_18_19.migrate(c)
+            c.execSQL("INSERT INTO support_contact (id, email, refreshedAt) VALUES (0, NULL, 1)")
+            c.execSQL("INSERT INTO support_contact (id, email, refreshedAt) VALUES (0, 'aide@exemple.test', 2) ON CONFLICT(id) DO UPDATE SET email = excluded.email")
+            c.prepare("SELECT COUNT(*), MAX(email) FROM support_contact").use { row ->
+                row.step()
+                assertEquals(1L, row.getLong(0))
+                assertEquals("aide@exemple.test", row.getText(1))
+            }
+        }
+    }
+
+    @Test
     fun migrating_a_real_v17_database_keeps_every_row_and_starts_with_no_legal_document() = runTest {
         val v17Path = dir.resolve("migration-v17.db").absolutePathString()
         BundledSQLiteDriver().open(v17Path).use { c ->

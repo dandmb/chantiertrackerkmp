@@ -25,6 +25,9 @@ import com.dmb.chantiertracker.presentation.auth.components.ErrorBanner
 import com.dmb.chantiertracker.presentation.i18n.localizedText
 import com.dmb.chantiertracker.presentation.projects.CurrencyField
 import com.dmb.chantiertracker.presentation.projects.TimezoneField
+import com.dmb.chantiertracker.presentation.offer.PlanLimitKind
+import com.dmb.chantiertracker.presentation.offer.PlanLimitNotice
+import com.dmb.chantiertracker.presentation.offer.ProjectLimitReminder
 import com.dmb.chantiertracker.resources.Res
 import com.dmb.chantiertracker.resources.create_description_label
 import com.dmb.chantiertracker.resources.create_location_label
@@ -57,12 +60,16 @@ fun CreateProjectScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             if (state.atProjectLimit) {
-                ErrorBanner(DomainException.PlanLimitReached.localizedText())
+                PlanLimitNotice(PlanLimitKind.PROJECTS)
+            } else {
+                ProjectLimitReminder()
             }
             if (state.isSuperAdmin) {
                 ErrorBanner(stringResource(Res.string.create_super_admin_blocked))
             }
-            state.formError?.let { ErrorBanner(it.localizedText()) }
+            state.formError?.let { error ->
+                if (error == DomainException.PlanLimitReached) PlanLimitNotice(PlanLimitKind.PROJECTS) else ErrorBanner(error.localizedText())
+            }
 
             AppOutlinedTextField(
                 value = state.name,

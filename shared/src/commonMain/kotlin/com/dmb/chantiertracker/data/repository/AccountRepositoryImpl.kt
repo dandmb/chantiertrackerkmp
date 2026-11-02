@@ -78,4 +78,5 @@ internal fun PlanUsageEntity.toPlanUsage(): PlanUsage = PlanUsage(
     isFounder = isFounder ?: false,
     historyDaysLimit = historyDaysLimit,
     historyDaysLimitKnown = historyDaysLimitKnown ?: false,
+    refreshedAtEpochMillis = refreshedAt,
 )

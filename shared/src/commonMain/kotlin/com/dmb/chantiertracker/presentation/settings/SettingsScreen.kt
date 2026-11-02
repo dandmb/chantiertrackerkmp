@@ -28,6 +28,9 @@ import com.dmb.chantiertracker.presentation.i18n.AppLanguage
 import com.dmb.chantiertracker.presentation.legal.LegalDocument
 import com.dmb.chantiertracker.presentation.theme.ThemeMode
 import com.dmb.chantiertracker.resources.Res
+import com.dmb.chantiertracker.resources.settings_build
+import com.dmb.chantiertracker.resources.settings_contact
+import com.dmb.chantiertracker.resources.settings_help
 import com.dmb.chantiertracker.resources.settings_about
 import com.dmb.chantiertracker.resources.settings_language
 import com.dmb.chantiertracker.resources.settings_language_english
@@ -45,10 +48,12 @@ import org.koin.compose.viewmodel.koinViewModel
 fun SettingsScreen(
     onOpenLegalDocument: (LegalDocument) -> Unit,
     modifier: Modifier = Modifier,
+    onOpenHelp: () -> Unit = {},
     viewModel: SettingsViewModel = koinViewModel(),
 ) {
     val language by viewModel.language.collectAsStateWithLifecycle()
     val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
+    val supportEmail by viewModel.supportEmail.collectAsStateWithLifecycle()
 
     ResponsiveContent(modifier) {
         Column(
@@ -80,6 +85,11 @@ fun SettingsScreen(
 
             SectionCard(stringResource(Res.string.settings_about)) {
                 DetailInfoRow(stringResource(Res.string.settings_version), viewModel.appVersion)
+                if (viewModel.appBuild.isNotBlank()) DetailInfoRow(stringResource(Res.string.settings_build), viewModel.appBuild)
+                supportEmail?.let { DetailInfoRow(stringResource(Res.string.settings_contact), it) }
+                ClickableListRow(onClick = onOpenHelp) {
+                    Text(stringResource(Res.string.settings_help), style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+                }
                 LegalDocument.entries.forEach { document ->
                     ClickableListRow(onClick = { onOpenLegalDocument(document) }) {
                         Text(

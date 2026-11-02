@@ -74,6 +74,9 @@ import com.dmb.chantiertracker.presentation.main.CheckIcon
 import com.dmb.chantiertracker.presentation.main.CloseIcon
 import com.dmb.chantiertracker.presentation.main.ConstructionIcon
 import com.dmb.chantiertracker.presentation.main.ProjectsIcon
+import com.dmb.chantiertracker.domain.model.RefusalReason
+import com.dmb.chantiertracker.presentation.offer.PlanLimitDetails
+import com.dmb.chantiertracker.presentation.offer.planLimitKind
 import com.dmb.chantiertracker.resources.Res
 import com.dmb.chantiertracker.resources.action_close
 import com.dmb.chantiertracker.resources.sync_group_day
@@ -268,8 +271,11 @@ private fun IssueCard(item: SyncIssueItem, state: SyncIssuesUiState, actions: Is
             item.typedVersusServer()?.let {
                 Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
             }
-            item.issue.instruction()?.let {
+            item.instruction()?.let {
                 Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            if (item.issue.reason == RefusalReason.PLAN_LIMIT) {
+                item.target.planLimitKind()?.let { PlanLimitDetails(it) }
             }
             if (revertUnavailable) {
                 Text(

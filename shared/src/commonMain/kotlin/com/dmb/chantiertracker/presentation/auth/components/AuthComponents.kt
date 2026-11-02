@@ -85,6 +85,7 @@ fun AuthScreenLayout(
     subtitle: String? = null,
     onBack: (() -> Unit)? = null,
     centerContentVertically: Boolean = false,
+    pinnedFooter: (@Composable ColumnScope.() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val keyboardVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
@@ -187,24 +188,39 @@ fun AuthScreenLayout(
                         }
                     }
                 } else {
-                    Column(
-                        Modifier
-                            .fillMaxSize()
-                            .verticalScroll(rememberScrollState())
-                            .imePadding()
-                            .navigationBarsPadding()
-                            .padding(horizontal = 24.dp)
-                            .padding(top = 32.dp, bottom = 28.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                    ) {
+                    Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
                         Column(
-                            Modifier.widthIn(max = 440.dp).fillMaxWidth(),
+                            Modifier
+                                .fillMaxWidth()
+                                .weight(1f)
+                                .verticalScroll(rememberScrollState())
+                                .imePadding()
+                                .then(if (pinnedFooter == null) Modifier.navigationBarsPadding() else Modifier)
+                                .padding(horizontal = 24.dp)
+                                .padding(top = 32.dp, bottom = 28.dp),
                             horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(14.dp),
                         ) {
-                            AuthTitleBlock(title, subtitle)
-                            Spacer(Modifier.height(6.dp))
-                            content()
+                            Column(
+                                Modifier.widthIn(max = 440.dp).fillMaxWidth(),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(14.dp),
+                            ) {
+                                AuthTitleBlock(title, subtitle)
+                                Spacer(Modifier.height(6.dp))
+                                content()
+                            }
+                        }
+                        if (pinnedFooter != null) {
+                            Column(
+                                Modifier
+                                    .widthIn(max = 440.dp)
+                                    .fillMaxWidth()
+                                    .navigationBarsPadding()
+                                    .padding(horizontal = 24.dp, vertical = 12.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                                content = pinnedFooter,
+                            )
                         }
                     }
                 }

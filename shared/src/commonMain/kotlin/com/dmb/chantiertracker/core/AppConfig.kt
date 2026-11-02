@@ -19,4 +19,10 @@ class AppConfig(buildInfo: BuildInfo) {
     val enableNetworkLogging: Boolean = environment != ApiEnvironment.Production
 
     val appVersion: String = buildInfo.appVersion
+
+    val appBuild: String = buildInfo.appBuild
+
+    val deviceModel: String = buildInfo.deviceModel
+
+    val osVersion: String = buildInfo.osVersion
 }

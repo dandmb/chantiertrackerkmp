@@ -42,9 +42,10 @@ class SettingsScreenUiTest {
         resetTestMainDispatcher()
     }
 
-    private fun vm(prefs: FakeAppPreferences): SettingsViewModel = SettingsViewModel(
+    private fun vm(prefs: FakeAppPreferences, supportEmail: String? = null): SettingsViewModel = SettingsViewModel(
         AppConfig(FakeBuildInfo(isDebug = false, appVersion = "2.1.0")),
         AppSettings(prefs, CoroutineScope(Dispatchers.Unconfined)),
+        com.dmb.chantiertracker.support.FakeSupportContactRepository(supportEmail),
     )
 
     private fun ComposeUiTest.mount(
@@ -118,12 +119,26 @@ class SettingsScreenUiTest {
     }
 
     @Test
+    fun the_about_card_shows_the_support_address_of_the_admin() = runComposeUiTest {
+        mount(vm(FakeAppPreferences(), supportEmail = "aide@exemple.test"), onOpenLegalDocument = {})
+
+        onNodeWithText("aide@exemple.test").assertExists()
+    }
+
+    @Test
+    fun without_an_address_the_about_card_shows_no_contact() = runComposeUiTest {
+        mount(vm(FakeAppPreferences()), onOpenLegalDocument = {})
+
+        onNodeWithText("Contact").assertDoesNotExist()
+    }
+
+    @Test
     fun tapping_a_legal_row_opens_the_matching_page_of_the_site() = runComposeUiTest {
         val opened = mutableListOf<LegalDocument>()
         mount(vm(FakeAppPreferences()), onOpenLegalDocument = { opened += it })
 
-        onNodeWithText("Conditions générales de vente").performClick()
-        onNodeWithText("Politique de cookies").performClick()
+        onNodeWithText("Conditions générales de vente").performScrollTo().performClick()
+        onNodeWithText("Politique de cookies").performScrollTo().performClick()
         onNodeWithText("Suppression du compte").performScrollTo().performClick()
         waitForIdle()
 

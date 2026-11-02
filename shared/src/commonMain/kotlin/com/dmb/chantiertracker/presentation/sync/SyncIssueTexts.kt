@@ -29,6 +29,8 @@ import com.dmb.chantiertracker.resources.sync_notice_reverted
 import com.dmb.chantiertracker.resources.sync_hint_insufficient_role
 import com.dmb.chantiertracker.presentation.billing.LocalInAppPaymentsAllowed
 import com.dmb.chantiertracker.resources.sync_hint_plan_limit
+import com.dmb.chantiertracker.resources.sync_hint_plan_limit_media
+import com.dmb.chantiertracker.resources.sync_hint_plan_limit_media_no_upgrade
 import com.dmb.chantiertracker.resources.sync_hint_plan_limit_no_upgrade
 import com.dmb.chantiertracker.resources.sync_hint_project_or_stage_inactive
 import com.dmb.chantiertracker.resources.sync_item_attachment
@@ -183,6 +185,14 @@ fun SyncIssue.sentence(): String = when (kind) {
 
 @Composable
 fun SyncIssue.instruction(): String? = if (canBeRetried) reason.instructionRes(LocalInAppPaymentsAllowed.current)?.let { stringResource(it) } else null
+
+@Composable
+fun SyncIssueItem.instruction(): String? =
+    if (target == SyncIssueTarget.ATTACHMENT && issue.reason == RefusalReason.PLAN_LIMIT && issue.canBeRetried) {
+        stringResource(if (LocalInAppPaymentsAllowed.current) Res.string.sync_hint_plan_limit_media else Res.string.sync_hint_plan_limit_media_no_upgrade)
+    } else {
+        issue.instruction()
+    }
 
 @Composable
 fun SyncIssueItem.title(): String = when (target) {

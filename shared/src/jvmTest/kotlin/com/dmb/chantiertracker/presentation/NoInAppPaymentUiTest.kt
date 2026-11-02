@@ -3,6 +3,7 @@ package com.dmb.chantiertracker.presentation
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -10,6 +11,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.runComposeUiTest
@@ -119,6 +121,34 @@ class NoInAppPaymentUiTest {
         mount(paymentsAllowed = true) { RootNavHost(RootViewModel(auth, com.dmb.chantiertracker.data.session.SessionNotices())) }
 
         awaitText("Découvrir nos formules")
+    }
+
+    @Test
+    fun my_offer_help_and_the_presentation_show_no_price_and_no_payment() = runComposeUiTest {
+        val usage = com.dmb.chantiertracker.domain.model.PlanUsage(Plan.FREE, projectsLimit = 3, projectsUsed = 3, photosLimit = 150, isFounder = true)
+        val offer = com.dmb.chantiertracker.presentation.offer.MyOfferViewModel(
+            com.dmb.chantiertracker.support.FakeAccountRepository(usage),
+            com.dmb.chantiertracker.support.FakeLaunchStatusRepository(BillingAvailability.OPEN),
+            FakeConnectivityObserver(initiallyOnline = true),
+        )
+        val help = com.dmb.chantiertracker.presentation.help.HelpViewModel(
+            { _, _, _ -> },
+            com.dmb.chantiertracker.core.AppConfig(com.dmb.chantiertracker.support.FakeBuildInfo(isDebug = false, appVersion = "1.0")),
+            com.dmb.chantiertracker.support.FakeSupportContactRepository("aide@exemple.test"),
+        )
+        mount(paymentsAllowed = false) {
+            androidx.compose.foundation.layout.Column(Modifier.verticalScroll(androidx.compose.foundation.rememberScrollState())) {
+                Box(Modifier.size(412.dp, 2_000.dp)) { com.dmb.chantiertracker.presentation.offer.MyOfferScreen(viewModel = offer) }
+                Box(Modifier.size(412.dp, 3_000.dp)) { com.dmb.chantiertracker.presentation.help.HelpScreen(onDiscover = {}, viewModel = help) }
+                Box(Modifier.size(412.dp, 3_000.dp)) { com.dmb.chantiertracker.presentation.help.DiscoverScreen() }
+                com.dmb.chantiertracker.presentation.offer.PlanLimitNotice(com.dmb.chantiertracker.presentation.offer.PlanLimitKind.PDF_EXPORT)
+            }
+        }
+
+        awaitText("Projets : 3 sur 3")
+        listOf("€", "S'abonner", "abonnement", "Passer à", "palier supérieur", "stripe", "Paiement").forEach {
+            onAllNodes(hasText(it, substring = true, ignoreCase = true)).assertCountEquals(0)
+        }
     }
 
     @Test

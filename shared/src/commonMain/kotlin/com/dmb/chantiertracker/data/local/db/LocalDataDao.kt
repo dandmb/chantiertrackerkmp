@@ -56,6 +56,7 @@ abstract class LocalDataDao {
     @Query("DELETE FROM projects") protected abstract suspend fun deleteProjects()
     @Query("DELETE FROM plan_usage") protected abstract suspend fun deletePlanUsage()
     @Query("DELETE FROM editor_identity") protected abstract suspend fun deleteEditorIdentity()
+    @Query("DELETE FROM support_contact") protected abstract suspend fun deleteSupportContact()
     @Query("DELETE FROM material_stock") protected abstract suspend fun deleteStockCounters()
     @Query("DELETE FROM stock_snapshots") protected abstract suspend fun deleteStockSnapshots()
 
@@ -76,5 +77,6 @@ abstract class LocalDataDao {
         deleteProjects()
         deletePlanUsage()
         deleteEditorIdentity()
+        deleteSupportContact()
     }
 }

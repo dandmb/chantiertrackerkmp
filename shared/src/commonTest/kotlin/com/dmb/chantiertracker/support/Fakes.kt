@@ -919,3 +919,21 @@ class FakeAccountRepository(
         refreshResult?.let { planUsageFlow.value = it }
     }
 }
+
+class FakeSupportContactRepository(email: String? = null) : com.dmb.chantiertracker.domain.repository.SupportContactRepository {
+    private val emailFlow = MutableStateFlow(email)
+
+    override fun observeEmail() = emailFlow
+
+    override suspend fun refresh() = Unit
+}
+
+class FakeLaunchStatusRepository(
+    initial: com.dmb.chantiertracker.domain.model.BillingAvailability,
+    offer: com.dmb.chantiertracker.domain.model.FounderOffer? = null,
+) : com.dmb.chantiertracker.domain.repository.LaunchStatusRepository {
+    override val billingStatus = MutableStateFlow(initial)
+    override val founderOffer = MutableStateFlow(offer)
+
+    override suspend fun refresh() = Unit
+}

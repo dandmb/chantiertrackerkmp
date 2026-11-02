@@ -103,6 +103,7 @@ import com.dmb.chantiertracker.resources.attachment_finalizing
 import com.dmb.chantiertracker.resources.attachment_upload_error
 import com.dmb.chantiertracker.resources.attachment_video_delete
 import com.dmb.chantiertracker.resources.attachments_empty
+import com.dmb.chantiertracker.resources.attachments_empty_can_add
 import com.dmb.chantiertracker.resources.attachments_loading
 import com.dmb.chantiertracker.resources.attachments_title
 import com.dmb.chantiertracker.resources.video_play
@@ -677,7 +678,7 @@ private fun AttachmentsSection(
         }
 
         when {
-            attachments.isEmpty() -> DashedEmptyHint(stringResource(Res.string.attachments_empty))
+            attachments.isEmpty() -> DashedEmptyHint(stringResource(if (canEdit) Res.string.attachments_empty_can_add else Res.string.attachments_empty))
             !firstLoadDone && !allPhotosDecoded -> Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),

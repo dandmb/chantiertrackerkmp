@@ -52,6 +52,8 @@ import com.dmb.chantiertracker.resources.incoming_invitation_body_with_inviter
 import com.dmb.chantiertracker.resources.incoming_invitation_decline
 import com.dmb.chantiertracker.resources.incoming_invitation_decline_confirm_body
 import com.dmb.chantiertracker.resources.incoming_invitation_decline_confirm_title
+import com.dmb.chantiertracker.presentation.SectionPrimaryButton
+import com.dmb.chantiertracker.resources.projects_empty_action
 import com.dmb.chantiertracker.resources.projects_empty_body
 import com.dmb.chantiertracker.resources.projects_empty_title
 import com.dmb.chantiertracker.resources.role_admin
@@ -68,6 +70,7 @@ import org.koin.compose.viewmodel.koinViewModel
 fun ProjectsScreen(
     onProjectClick: (projectLocalId: String) -> Unit,
     modifier: Modifier = Modifier,
+    onCreateProject: (() -> Unit)? = null,
     viewModel: ProjectsViewModel = koinViewModel(),
     syncIssueCount: Int = 0,
     onOpenSyncIssues: () -> Unit = {},
@@ -101,7 +104,7 @@ fun ProjectsScreen(
                         verticalArrangement = Arrangement.Center,
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) { CircularProgressIndicator() }
-                    state.isEmpty -> EmptyState()
+                    state.isEmpty -> EmptyState(onCreateProject)
                     else -> LazyColumn(
                         modifier = Modifier.fillMaxSize(),
                         contentPadding = PaddingValues(16.dp),
@@ -263,7 +266,7 @@ internal fun formatWithEmphasis(template: String, parts: List<Pair<String, Boole
     }
 
 @Composable
-private fun EmptyState(modifier: Modifier = Modifier) {
+private fun EmptyState(onCreateProject: (() -> Unit)?, modifier: Modifier = Modifier) {
     // Scrollable so the pull-to-refresh gesture is available on the empty state too.
     Column(
         modifier = modifier
@@ -284,5 +287,6 @@ private fun EmptyState(modifier: Modifier = Modifier) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
         )
+        onCreateProject?.let { SectionPrimaryButton(stringResource(Res.string.projects_empty_action), it) }
     }
 }

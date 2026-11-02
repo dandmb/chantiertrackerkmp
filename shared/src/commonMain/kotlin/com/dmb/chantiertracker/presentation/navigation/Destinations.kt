@@ -84,6 +84,15 @@ data object DeleteAccountRoute
 data object ProfileRoute
 
 @Serializable
+data object MyOfferRoute
+
+@Serializable
+data object HelpRoute
+
+@Serializable
+data object DiscoverRoute
+
+@Serializable
 data class SyncIssuesRoute(val focusKey: String? = null)
 
 /**

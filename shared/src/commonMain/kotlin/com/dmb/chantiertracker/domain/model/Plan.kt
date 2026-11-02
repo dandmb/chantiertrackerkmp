@@ -90,6 +90,7 @@ data class PlanUsage(
     // historyDaysLimitKnown — otherwise maxHistoryDays() falls back on the plan.
     val historyDaysLimit: Int? = null,
     val historyDaysLimitKnown: Boolean = false,
+    val refreshedAtEpochMillis: Long? = null,
 ) {
     fun isAtProjectLimit(activeProjectCount: Int): Boolean =
         projectsLimit != null && activeProjectCount >= projectsLimit

@@ -134,7 +134,7 @@ private fun PlanSection(usage: PlanUsage) {
 }
 
 @Composable
-private fun FounderBadge() {
+internal fun FounderBadge() {
     Surface(color = MaterialTheme.colorScheme.secondaryContainer, shape = RoundedCornerShape(50)) {
         Text(
             text = stringResource(Res.string.billing_founder_badge),
