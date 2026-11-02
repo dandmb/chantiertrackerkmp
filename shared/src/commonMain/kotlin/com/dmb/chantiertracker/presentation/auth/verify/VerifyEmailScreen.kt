@@ -20,6 +20,7 @@ import com.dmb.chantiertracker.resources.verify_cancel
 import com.dmb.chantiertracker.resources.verify_code_resent
 import com.dmb.chantiertracker.resources.verify_existing_account_hint
 import com.dmb.chantiertracker.resources.verify_password_hint
+import com.dmb.chantiertracker.resources.verify_wrong_code
 import com.dmb.chantiertracker.resources.verify_wrong_code_or_password
 import com.dmb.chantiertracker.resources.verify_resend
 import com.dmb.chantiertracker.resources.verify_resending
@@ -51,8 +52,16 @@ fun VerifyEmailScreen(
         subtitle = stringResource(Res.string.verify_subtitle, email),
         onBack = onBack,
     ) {
-        val wrongProof = state.asksPassword && state.formError == DomainException.InvalidCode
-        state.formError?.let { ErrorBanner(if (wrongProof) stringResource(Res.string.verify_wrong_code_or_password) else it.localizedText()) }
+        state.formError?.let { error ->
+            val wrongCode = error == DomainException.InvalidCode
+            ErrorBanner(
+                when {
+                    wrongCode && state.asksPassword -> stringResource(Res.string.verify_wrong_code_or_password)
+                    wrongCode -> stringResource(Res.string.verify_wrong_code)
+                    else -> error.localizedText()
+                },
+            )
+        }
         if (state.codeResent) InfoBanner(stringResource(Res.string.verify_code_resent))
         if (!unverifiedLogin) InfoBanner(stringResource(Res.string.verify_existing_account_hint))
 

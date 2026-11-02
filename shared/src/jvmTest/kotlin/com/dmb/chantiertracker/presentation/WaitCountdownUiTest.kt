@@ -20,9 +20,12 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
+import com.dmb.chantiertracker.presentation.auth.forgot.ForgotPasswordScreen
+import com.dmb.chantiertracker.presentation.auth.forgot.ForgotPasswordViewModel
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
+import kotlin.test.assertEquals
 
 @OptIn(ExperimentalTestApi::class, ExperimentalCoroutinesApi::class)
 class WaitCountdownUiTest {
@@ -32,6 +35,44 @@ class WaitCountdownUiTest {
     @AfterTest fun tearDown() {
         customAppLocale = null
         Dispatchers.resetMain()
+    }
+
+    @Test
+    fun a_thirty_minute_lock_counts_down_and_the_forgotten_password_link_stays_usable() = runComposeUiTest {
+        mainClock.autoAdvance = false
+        var openedWith: String? = null
+        val viewModel = LoginViewModel(
+            FakeAuthRepository().apply { error = DomainException.AccountLocked(retryAfterSeconds = 1_800) },
+            FakeCheckoutLauncher(), FakeBillingRepository(),
+        )
+        setContent {
+            customAppLocale = "fr"
+            AppEnvironment { AppTheme { LoginScreen({}, { openedWith = it }, onOpenLegalDocument = {}, viewModel = viewModel) } }
+        }
+        viewModel.onEmailChange("jean@chantier.dev")
+        viewModel.onPasswordChange("Password1234!")
+        mainClock.advanceTimeByFrame()
+
+        onNodeWithText("Se connecter").performClick()
+        mainClock.advanceTimeByFrame()
+
+        onNodeWithText("Compte bloqué après trop de tentatives. Réessaie dans 30:00.").assertExists()
+        onNodeWithText("Réinitialiser ton mot de passe débloque aussi ton compte.").assertExists()
+        onNodeWithText("Mot de passe oublié ?").performClick()
+        mainClock.advanceTimeByFrame()
+        assertEquals("jean@chantier.dev", openedWith)
+    }
+
+    @Test
+    fun the_reset_screen_opens_with_the_address_already_filled() = runComposeUiTest {
+        val viewModel = ForgotPasswordViewModel(FakeAuthRepository())
+        setContent {
+            customAppLocale = "fr"
+            AppEnvironment { AppTheme { ForgotPasswordScreen(onCodeSent = {}, prefilledEmail = "jean@chantier.dev", viewModel = viewModel) } }
+        }
+
+        waitForIdle()
+        onNodeWithText("jean@chantier.dev").assertExists()
     }
 
     @Test

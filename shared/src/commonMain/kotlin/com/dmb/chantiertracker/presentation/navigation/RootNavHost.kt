@@ -134,7 +134,7 @@ private fun AuthNavHost(
             val route = entry.toRoute<LoginRoute>()
             LoginScreen(
                 onNavigateToRegister = { navController.navigate(RegisterRoute()) },
-                onNavigateToForgotPassword = { navController.navigate(ForgotPasswordRoute) },
+                onNavigateToForgotPassword = { email -> navController.navigate(ForgotPasswordRoute(email)) },
                 onOpenLegalDocument = openLegalDocument,
                 onBack = if (navController.previousBackStackEntry != null) {
                     { navController.popBackStack() }
@@ -210,10 +210,11 @@ private fun AuthNavHost(
                 )
             }
         }
-        composable<ForgotPasswordRoute> {
+        composable<ForgotPasswordRoute> { entry ->
             ForgotPasswordScreen(
                 onCodeSent = { email -> navController.navigate(ResetPasswordRoute(email)) },
                 onBack = { navController.popBackStack() },
+                prefilledEmail = entry.toRoute<ForgotPasswordRoute>().email,
             )
         }
         composable<ResetPasswordRoute> { entry ->

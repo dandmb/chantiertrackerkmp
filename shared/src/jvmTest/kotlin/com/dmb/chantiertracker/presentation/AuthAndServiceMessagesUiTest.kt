@@ -27,6 +27,7 @@ import com.dmb.chantiertracker.presentation.i18n.customAppLocale
 import com.dmb.chantiertracker.presentation.projects.history.ProjectHistoryScreen
 import com.dmb.chantiertracker.presentation.projects.history.ProjectHistoryViewModel
 import com.dmb.chantiertracker.presentation.theme.AppTheme
+import com.dmb.chantiertracker.support.FakeAuthRepository
 import com.dmb.chantiertracker.support.FakeHistoryRepository
 import com.dmb.chantiertracker.support.FakeOnboardingStore
 import com.dmb.chantiertracker.support.FakeProjectRepository
@@ -130,6 +131,53 @@ class AuthAndServiceMessagesUiTest {
         }
 
         awaitText("Réessaie dans 42 secondes")
+        assertNoText(wrongCodeText)
+    }
+
+    @Test
+    fun forgot_password_shows_the_wait_of_the_server() = runComposeUiTest {
+        val viewModel = ForgotPasswordViewModel(rateLimited())
+        show { ForgotPasswordScreen(onCodeSent = {}, onBack = {}, viewModel = viewModel) }
+
+        runOnIdle {
+            viewModel.onEmailChange("sam@chantier.dev")
+            viewModel.submit()
+        }
+
+        awaitText("Réessaie dans 42 secondes")
+    }
+
+    @Test
+    fun reset_password_shows_the_wait_of_the_server() = runComposeUiTest {
+        val viewModel = ResetPasswordViewModel(rateLimited())
+        show { ResetPasswordScreen("sam@chantier.dev", onReset = {}, onBackToLogin = {}, onBack = {}, viewModel = viewModel) }
+
+        runOnIdle {
+            viewModel.onCodeChange("123456")
+            viewModel.onPasswordChange("Password1234!Password")
+            viewModel.submit("sam@chantier.dev")
+        }
+
+        awaitText("Réessaie dans 42 secondes")
+    }
+
+    @Test
+    fun a_wrong_code_on_an_account_already_active_reads_code_incorrect() = runComposeUiTest {
+        val email = "sam@chantier.dev"
+        val viewModel = VerifyEmailViewModel(
+            FakeAuthRepository().apply {
+                heldVerificationEmail = email
+                error = DomainException.InvalidCode
+            },
+        )
+        show { VerifyEmailScreen(email, onVerified = {}, onCancelVerification = {}, viewModel = viewModel) }
+
+        runOnIdle {
+            viewModel.onCodeChange("000000")
+            viewModel.submit(email)
+        }
+
+        awaitText("Code incorrect.")
         assertNoText(wrongCodeText)
     }
 

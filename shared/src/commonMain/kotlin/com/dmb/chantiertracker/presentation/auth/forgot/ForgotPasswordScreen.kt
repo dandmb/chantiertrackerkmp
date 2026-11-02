@@ -22,9 +22,14 @@ import org.koin.compose.viewmodel.koinViewModel
 fun ForgotPasswordScreen(
     onCodeSent: (email: String) -> Unit,
     onBack: (() -> Unit)? = null,
+    prefilledEmail: String? = null,
     viewModel: ForgotPasswordViewModel = koinViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+
+    LaunchedEffect(prefilledEmail) {
+        if (prefilledEmail != null) viewModel.prefillEmail(prefilledEmail)
+    }
 
     LaunchedEffect(state.submittedEmail) {
         state.submittedEmail?.let(onCodeSent)

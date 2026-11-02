@@ -33,6 +33,7 @@ sealed class DomainException : Exception() {
     data object InvitationGone : DomainException()
     data object CollaboratorLimitReached : DomainException()
     data object OwnerRequired : DomainException()
+    data object OwnerCannotLeave : DomainException()
     data object ContentTooLarge : DomainException()
     data object PlanLimitReached : DomainException()
     data object DuplicateMaterial : DomainException()

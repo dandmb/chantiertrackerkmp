@@ -49,6 +49,7 @@
 
     <string name="login_title">Sign in</string>
     <string name="login_subtitle">Sign in to keep track of your sites.</string>
+    <string name="login_locked_reset_hint">Resetting your password also unlocks your account.</string>
     <string name="login_forgot_password">Forgot password?</string>
     <string name="login_submit">Sign in</string>
     <string name="login_no_account_prompt">No account yet?</string>
@@ -72,6 +73,7 @@
     <string name="verify_cancel">Cancel verification</string>
     <string name="verify_code_resent">A new code is on its way.</string>
     <string name="verify_password_hint">Password chosen when you signed up</string>
+    <string name="verify_wrong_code">Incorrect code. After several attempts, ask for a new one.</string>
     <string name="verify_wrong_code_or_password">That code or password is incorrect, or the code has expired. After several attempts, request a new code.</string>
     <string name="verify_existing_account_hint">If this address already has an account, you'll get an email saying so: sign in with that account.</string>
 
@@ -429,6 +431,7 @@
     <string name="error_invitation_already_pending">An invitation is already pending for this address. Cancel it to send a new one.</string>
     <string name="error_invitation_gone">This invitation is no longer available.</string>
     <string name="error_collaborator_limit">This project has reached its plan's collaborator limit, admins included.</string>
+    <string name="error_owner_cannot_leave">You own this project, so you can't remove yourself from it. You can delete it instead.</string>
     <string name="error_owner_required">Only the project owner can do that.</string>
     <string name="error_content_too_large">This content is too large to send. Reduce it and try again.</string>
     <string name="error_account_not_verified">Your account isn't activated yet. Check your email.</string>

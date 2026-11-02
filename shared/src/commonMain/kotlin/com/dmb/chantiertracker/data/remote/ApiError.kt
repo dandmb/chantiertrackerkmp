@@ -20,6 +20,7 @@ private const val INVITATION_ALREADY_PENDING_CODE = "INVITATION_ALREADY_PENDING"
 private const val MEDIA_PROCESSING_BUSY_CODE = "MEDIA_PROCESSING_BUSY"
 private const val REQUEST_BODY_TOO_LARGE_CODE = "REQUEST_BODY_TOO_LARGE"
 private const val PROJECT_OWNER_REQUIRED_CODE = "PROJECT_OWNER_REQUIRED"
+private const val PROJECT_OWNER_CANNOT_LEAVE_CODE = "PROJECT_OWNER_CANNOT_LEAVE"
 private const val PLAN_LIMIT_EXCEEDED_CODE = "PLAN_LIMIT_EXCEEDED"
 private const val LOCKED_CODE = "LOCKED"
 private const val INVALID_QUERY_STRING_CODE = "INVALID_QUERY_STRING"
@@ -76,6 +77,7 @@ private fun ResponseException.toDomainException(problem: ProblemDetailDto?, onRe
     if (problem?.code == MEDIA_PROCESSING_BUSY_CODE) return DomainException.RateLimited(retryAfterSeconds = waitOf(problem))
     if (problem?.code == REQUEST_BODY_TOO_LARGE_CODE) return DomainException.ContentTooLarge
     if (problem?.code == PROJECT_OWNER_REQUIRED_CODE) return DomainException.OwnerRequired
+    if (problem?.code == PROJECT_OWNER_CANNOT_LEAVE_CODE) return DomainException.OwnerCannotLeave
     if (problem?.code == PLAN_LIMIT_EXCEEDED_CODE) return DomainException.PlanLimitReached
     if (problem?.code == LOCKED_CODE) return DomainException.AccountLocked(retryAfterSeconds = waitOf(problem))
     if (problem?.code == INVALID_QUERY_STRING_CODE) {

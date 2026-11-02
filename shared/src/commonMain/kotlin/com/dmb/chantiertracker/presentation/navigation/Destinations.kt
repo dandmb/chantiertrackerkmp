@@ -63,7 +63,7 @@ data class VerifyEmailRoute(
 )
 
 @Serializable
-data object ForgotPasswordRoute
+data class ForgotPasswordRoute(val email: String? = null)
 
 @Serializable
 data class ResetPasswordRoute(val email: String)

@@ -14,6 +14,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.dmb.chantiertracker.domain.model.DomainException
 import com.dmb.chantiertracker.presentation.auth.components.AuthFooterPrompt
 import com.dmb.chantiertracker.presentation.auth.components.AuthInlineLink
 import com.dmb.chantiertracker.presentation.auth.components.AuthLegalFooter
@@ -30,6 +31,7 @@ import com.dmb.chantiertracker.presentation.navigation.LoginNotice
 import com.dmb.chantiertracker.presentation.legal.LegalDocument
 import com.dmb.chantiertracker.resources.Res
 import com.dmb.chantiertracker.resources.login_forgot_password
+import com.dmb.chantiertracker.resources.login_locked_reset_hint
 import com.dmb.chantiertracker.resources.login_no_account_action
 import com.dmb.chantiertracker.resources.login_no_account_prompt
 import com.dmb.chantiertracker.resources.login_notice_account_activated
@@ -45,7 +47,7 @@ import org.koin.compose.viewmodel.koinViewModel
 @Composable
 fun LoginScreen(
     onNavigateToRegister: () -> Unit,
-    onNavigateToForgotPassword: () -> Unit,
+    onNavigateToForgotPassword: (email: String) -> Unit,
     onOpenLegalDocument: (LegalDocument) -> Unit,
     onBack: (() -> Unit)? = null,
     onVerificationRequired: () -> Unit = {},
@@ -94,6 +96,14 @@ fun LoginScreen(
             }
         }
         state.formError?.let { ErrorBanner(it.localizedText()) }
+        val locked = state.formError is DomainException.AccountLocked
+        if (locked) {
+            InfoBanner(stringResource(Res.string.login_locked_reset_hint))
+            AuthInlineLink(
+                text = stringResource(Res.string.login_forgot_password),
+                onClick = { onNavigateToForgotPassword(state.email.trim()) },
+            )
+        }
 
         EmailField(
             value = state.email,
@@ -113,12 +123,14 @@ fun LoginScreen(
                 enabled = !state.isSubmitting,
                 imeAction = ImeAction.Done,
             )
-            Box(Modifier.fillMaxWidth()) {
-                AuthInlineLink(
-                    text = stringResource(Res.string.login_forgot_password),
-                    onClick = onNavigateToForgotPassword,
-                    modifier = Modifier.align(Alignment.CenterEnd),
-                )
+            if (!locked) {
+                Box(Modifier.fillMaxWidth()) {
+                    AuthInlineLink(
+                        text = stringResource(Res.string.login_forgot_password),
+                        onClick = { onNavigateToForgotPassword(state.email.trim()) },
+                        modifier = Modifier.align(Alignment.CenterEnd),
+                    )
+                }
             }
         }
 

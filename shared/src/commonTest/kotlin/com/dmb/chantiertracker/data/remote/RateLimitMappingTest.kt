@@ -8,6 +8,7 @@ import com.dmb.chantiertracker.presentation.i18n.clockWait
 import com.dmb.chantiertracker.support.FakeTokenStorage
 import com.dmb.chantiertracker.support.RecordingMockClient
 import com.dmb.chantiertracker.support.respondProblem
+import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
@@ -109,6 +110,14 @@ class RateLimitMappingTest {
         assertEquals(DomainException.OwnerRequired, assertFailsWith<DomainException> { apiCall { mock.client.get("projects/1") } })
         assertEquals(RefusalReason.OWNER_REQUIRED, knownRefusalCodes["PROJECT_OWNER_REQUIRED"])
         assertEquals(RefusalReason.INVALID_VALUE, knownRefusalCodes["REQUEST_BODY_TOO_LARGE"])
+    }
+
+    @Test
+    fun an_owner_removing_themselves_gets_a_message_of_its_own() = runTest {
+        val mock = RecordingMockClient(FakeTokenStorage(AuthTokens("a", "r"))) {
+            respondProblem(HttpStatusCode.Forbidden, "Le propriétaire ne peut pas quitter son projet. Il peut le supprimer.", code = "PROJECT_OWNER_CANNOT_LEAVE")
+        }
+        assertEquals(DomainException.OwnerCannotLeave, assertFailsWith<DomainException> { apiCall { mock.client.delete("projects/1/members/1") } })
     }
 
     @Test

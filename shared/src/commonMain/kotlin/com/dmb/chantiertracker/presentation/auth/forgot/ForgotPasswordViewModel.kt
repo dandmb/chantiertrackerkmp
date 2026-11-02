@@ -26,6 +26,12 @@ class ForgotPasswordViewModel(
     private val _state = MutableStateFlow(ForgotPasswordUiState())
     val state = _state.asStateFlow()
 
+    fun prefillEmail(email: String) {
+        if (_state.value.email.isEmpty()) {
+            _state.update { it.copy(email = email) }
+        }
+    }
+
     fun onEmailChange(value: String) {
         _state.update { it.copy(email = value, emailError = null, formError = null) }
     }
