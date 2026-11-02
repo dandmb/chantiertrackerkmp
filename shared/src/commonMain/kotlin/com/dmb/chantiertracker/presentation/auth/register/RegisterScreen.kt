@@ -10,6 +10,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dmb.chantiertracker.presentation.auth.components.AuthFooterPrompt
+import com.dmb.chantiertracker.presentation.auth.components.AuthLegalFooter
 import com.dmb.chantiertracker.presentation.auth.components.AuthPrimaryButton
 import com.dmb.chantiertracker.presentation.auth.components.RegisterLegalConsent
 import com.dmb.chantiertracker.presentation.auth.components.AuthScreenLayout
@@ -84,5 +85,6 @@ fun RegisterScreen(
             action = stringResource(Res.string.register_have_account_action),
             onClick = onBackToLogin,
         )
+        AuthLegalFooter(onOpenDocument = onOpenLegalDocument)
     }
 }

@@ -101,8 +101,10 @@ fun AuthScreenLayout(
         // reused rather than inventing a second treatment.
         val shortOnHeight = maxHeight < 500.dp
         val showIllustration = !keyboardVisible && !shortOnHeight
+        // Landscape has no room for a pinned block: it scrolls with the content instead.
+        val footerPinned = pinnedFooter != null && !shortOnHeight
         val headerHeight by animateDpAsState(
-            targetValue = if (keyboardVisible || shortOnHeight) 128.dp else (maxHeight * 0.38f).coerceIn(228.dp, 360.dp),
+            targetValue = if (keyboardVisible || shortOnHeight) 128.dp else if (footerPinned) (maxHeight * 0.2f).coerceIn(128.dp, 200.dp) else (maxHeight * 0.38f).coerceIn(228.dp, 360.dp),
             label = "authHeaderHeight",
         )
 
@@ -195,7 +197,7 @@ fun AuthScreenLayout(
                                 .weight(1f)
                                 .verticalScroll(rememberScrollState())
                                 .imePadding()
-                                .then(if (pinnedFooter == null) Modifier.navigationBarsPadding() else Modifier)
+                                .then(if (footerPinned) Modifier else Modifier.navigationBarsPadding())
                                 .padding(horizontal = 24.dp)
                                 .padding(top = 32.dp, bottom = 28.dp),
                             horizontalAlignment = Alignment.CenterHorizontally,
@@ -208,9 +210,10 @@ fun AuthScreenLayout(
                                 AuthTitleBlock(title, subtitle)
                                 Spacer(Modifier.height(6.dp))
                                 content()
+                                if (!footerPinned) pinnedFooter?.invoke(this)
                             }
                         }
-                        if (pinnedFooter != null) {
+                        if (footerPinned) {
                             Column(
                                 Modifier
                                     .widthIn(max = 440.dp)
@@ -219,7 +222,7 @@ fun AuthScreenLayout(
                                     .padding(horizontal = 24.dp, vertical = 12.dp),
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 verticalArrangement = Arrangement.spacedBy(8.dp),
-                                content = pinnedFooter,
+                                content = pinnedFooter!!,
                             )
                         }
                     }

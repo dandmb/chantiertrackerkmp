@@ -72,6 +72,7 @@ fun WelcomeScreen(
         pinnedFooter = {
             AuthPrimaryButton(text = stringResource(Res.string.welcome_create_account), onClick = onCreateAccount)
             AuthSecondaryButton(text = stringResource(Res.string.welcome_sign_in), onClick = onSignIn)
+            AuthLegalFooter(onOpenDocument = onOpenLegalDocument)
         },
     ) {
         SectionCard(stringResource(Res.string.welcome_benefits_section)) {
@@ -96,9 +97,6 @@ fun WelcomeScreen(
                 onClick = onDiscoverPlans,
             )
         }
-
-        Spacer(Modifier.height(4.dp))
-        AuthLegalFooter(onOpenDocument = onOpenLegalDocument)
     }
 }
 
