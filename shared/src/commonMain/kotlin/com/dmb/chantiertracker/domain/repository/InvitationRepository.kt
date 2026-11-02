@@ -25,15 +25,18 @@ interface InvitationRepository {
     suspend fun listIncomingInvitations(): List<IncomingInvitation>
 
     /**
-     * Accept an invitation the current user received. **Online only.** On success
+     * Accept the invitation of an e-mailed link. **Online only.** On success
      * the project list is re-pulled so the newly joined project appears. Throws a
      * `DomainException` on failure (`NotFound` when the invitation is gone or
      * already accepted, `Forbidden` on an email mismatch, `Network` offline).
      */
     suspend fun acceptInvitation(token: String)
 
-    /** Explicitly decline an invitation the current user received. **Online only.** */
-    suspend fun declineInvitation(token: String)
+    /** Accept an invitation of [listIncomingInvitations]: the session replaces the e-mailed token. **Online only.** */
+    suspend fun acceptIncomingInvitation(id: Long)
+
+    /** Explicitly decline an invitation of [listIncomingInvitations]. **Online only.** */
+    suspend fun declineIncomingInvitation(id: Long)
 
     /**
      * Sends an invitation. **Online only** (ADR-32): the server mints the token
@@ -45,6 +48,11 @@ interface InvitationRepository {
      */
     suspend fun invite(projectLocalId: String, email: String)
 
+    /** Cancels the pending invitation of this address, then invites it again. **Online only** (ADR-32). */
+    suspend fun replacePendingInvitation(projectLocalId: String, email: String)
+
     /** Cancels a pending invitation. **Online only** (ADR-32). */
     suspend fun cancelInvitation(projectLocalId: String, invitationId: Long)
+
+    suspend fun removeMember(projectLocalId: String, userId: Long)
 }

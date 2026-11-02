@@ -43,6 +43,6 @@ data class UpdateStageInput(
 /** Owner or an ADMIN project member — may administer the project (edit it, set stage budgets). */
 fun projectAdmin(ownerId: Long?, members: List<ProjectMember>, currentUserId: Long?): Boolean {
     if (currentUserId == null) return false
-    if (ownerId == currentUserId) return true
+    if (ownerId == null || ownerId == currentUserId) return true
     return members.any { it.userId == currentUserId && it.role == ProjectRole.ADMIN }
 }

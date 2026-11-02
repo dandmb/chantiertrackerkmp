@@ -50,6 +50,12 @@ data class RegisterRoute(
 )
 
 @Serializable
+data class LoginVerificationRoute(
+    val checkoutPlan: String? = null,
+    val checkoutCycle: String? = null,
+)
+
+@Serializable
 data class VerifyEmailRoute(
     val email: String,
     val checkoutPlan: String? = null,
@@ -57,7 +63,7 @@ data class VerifyEmailRoute(
 )
 
 @Serializable
-data object ForgotPasswordRoute
+data class ForgotPasswordRoute(val email: String? = null)
 
 @Serializable
 data class ResetPasswordRoute(val email: String)
@@ -73,6 +79,18 @@ data object SettingsRoute
 
 @Serializable
 data object DeleteAccountRoute
+
+@Serializable
+data object ProfileRoute
+
+@Serializable
+data object MyOfferRoute
+
+@Serializable
+data object HelpRoute
+
+@Serializable
+data object DiscoverRoute
 
 @Serializable
 data class SyncIssuesRoute(val focusKey: String? = null)

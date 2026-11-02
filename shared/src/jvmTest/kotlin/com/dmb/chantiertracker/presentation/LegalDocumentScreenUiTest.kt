@@ -1,7 +1,7 @@
 package com.dmb.chantiertracker.presentation
 
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
@@ -23,6 +23,7 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.runComposeUiTest
+import androidx.compose.ui.test.runDesktopComposeUiTest
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.dp
@@ -83,7 +84,7 @@ class LegalDocumentScreenUiTest {
 
         Le Service est édité par \[À COMPLÉTER : nom et prénom\].
 
-        - Lire les [CGV](https://chantiertracker.com/cgv).
+        - Saisir la [CNIL](https://www.cnil.fr/fr/plaintes).
         - Écrire à [dpo@chantiertracker.com](mailto:dpo@chantiertracker.com).
     """.trimIndent()
 
@@ -124,7 +125,7 @@ class LegalDocumentScreenUiTest {
                         LocalLegalPageOpener provides LegalPageOpener { webOpened += it },
                         LocalUriHandler provides uriHandler,
                     ) {
-                        Box(Modifier.size(412.dp, 892.dp)) { content() }
+                        Box(Modifier.fillMaxSize()) { content() }
                     }
                 }
             }
@@ -155,6 +156,8 @@ class LegalDocumentScreenUiTest {
         waitForIdle()
     }
 
+    private fun runPhoneTest(block: ComposeUiTest.() -> Unit) = runDesktopComposeUiTest(width = 412, height = 892) { block() }
+
     private fun welcomeStartingRoot(): RootViewModel {
         val auth = FakeAuthRepository().apply {
             onboardingSeen = true
@@ -164,12 +167,12 @@ class LegalDocumentScreenUiTest {
     }
 
     @Test
-    fun a_link_of_the_welcome_screen_opens_the_native_screen_with_the_server_title_and_date() = runComposeUiTest {
+    fun a_link_of_the_welcome_screen_opens_the_native_screen_with_the_server_title_and_date() = runPhoneTest {
         val vm = viewModel()
         mount { RootNavHost(welcomeStartingRoot(), legalDocumentViewModel = { remember { vm } }) }
         assertShows("Créer un compte")
 
-        onNodeWithText("CGU").performClick()
+        onNodeWithText("CGU").assertIsDisplayed().performClick()
         assertShows("Mis à jour le 25-10-2026")
 
         onNodeWithText("Conditions Générales d'Utilisation").assertIsDisplayed()
@@ -178,22 +181,70 @@ class LegalDocumentScreenUiTest {
         assertEquals(emptyList(), webOpened, "no web page any more for the six links")
     }
 
-    @Test
-    fun the_six_links_of_the_welcome_screen_ask_for_their_own_document() = runComposeUiTest {
-        mount { RootNavHost(welcomeStartingRoot(), legalDocumentViewModel = { remember { viewModel() } }) }
-        assertShows("Créer un compte")
+    private val sixLinks = listOf("Mentions légales", "CGU", "CGV", "Confidentialité", "Cookies", "Suppression du compte")
 
-        listOf("Mentions légales", "CGU", "CGV", "Confidentialité", "Cookies", "Suppression du compte").forEach { link ->
-            onNodeWithText(link).performClick()
-            assertShows("Mis à jour le")
+    private fun ComposeUiTest.assertEachLinkOpensItsOwnDocument(backOn: String, reachLink: (String) -> Unit) {
+        sixLinks.forEach { link ->
+            reachLink(link)
+            onNodeWithText(link).assertIsDisplayed().performClick()
+            assertShows("Mis à jour le 25-10-2026")
+            onNodeWithText("Conditions Générales d'Utilisation").assertIsDisplayed()
             onNodeWithContentDescription("Retour").performClick()
-            assertShows("Créer un compte")
+            assertShows(backOn)
         }
 
         assertEquals(
             listOf("legal-notice", "terms-of-use", "terms-of-sale", "privacy-policy", "cookie-policy", "account-deletion").map { "/api/v1/legal-documents/$it/fr" },
             client.requests.map { it.url.encodedPath },
         )
+        assertEquals(emptyList(), webOpened, "no web page any more for the six links")
+    }
+
+    @Test
+    fun the_six_links_of_the_welcome_screen_ask_for_their_own_document() = runPhoneTest {
+        mount { RootNavHost(welcomeStartingRoot(), legalDocumentViewModel = { remember { viewModel() } }) }
+        assertShows("Créer un compte")
+
+        assertEachLinkOpensItsOwnDocument(backOn = "Créer un compte") {}
+    }
+
+    @Test
+    fun the_six_links_stay_on_screen_on_a_small_phone_and_reachable_in_landscape() {
+        runDesktopComposeUiTest(width = 360, height = 640) {
+            mount { RootNavHost(welcomeStartingRoot(), legalDocumentViewModel = { remember { viewModel() } }) }
+            assertShows("Créer un compte")
+            sixLinks.forEach { onNodeWithText(it).assertIsDisplayed() }
+        }
+        runDesktopComposeUiTest(width = 892, height = 412) {
+            mount { RootNavHost(welcomeStartingRoot(), legalDocumentViewModel = { remember { viewModel() } }) }
+            assertShows("Créer un compte")
+            sixLinks.forEach { onNodeWithText(it).performScrollTo().assertIsDisplayed() }
+            onNodeWithText("Créer un compte").performScrollTo().assertIsDisplayed()
+        }
+    }
+
+    private fun ComposeUiTest.assertEachLinkHandsOverItsOwnDocument(opened: List<LegalDocument>) {
+        sixLinks.forEach { link -> onNodeWithText(link).performScrollTo().assertIsDisplayed().performClick() }
+        waitForIdle()
+        assertEquals(LegalDocument.entries.toList(), opened)
+    }
+
+    @Test
+    fun the_six_links_of_the_login_screen_ask_for_their_own_document() = runPhoneTest {
+        val opened = mutableListOf<LegalDocument>()
+        val login = LoginViewModel(FakeAuthRepository(), FakeCheckoutLauncher(), FakeBillingRepository())
+        mount { LoginScreen({}, {}, onOpenLegalDocument = { opened += it }, viewModel = login) }
+
+        assertEachLinkHandsOverItsOwnDocument(opened)
+    }
+
+    @Test
+    fun the_six_links_of_the_register_screen_ask_for_their_own_document() = runPhoneTest {
+        val opened = mutableListOf<LegalDocument>()
+        val register = RegisterViewModel(FakeAuthRepository())
+        mount { RegisterScreen(onRegistered = {}, onBackToLogin = {}, onOpenLegalDocument = { opened += it }, viewModel = register) }
+
+        assertEachLinkHandsOverItsOwnDocument(opened)
     }
 
     @Test
@@ -232,25 +283,25 @@ class LegalDocumentScreenUiTest {
     @Test
     fun a_web_link_of_the_text_opens_in_the_in_app_tab_and_a_mail_link_in_the_mail_app() = runComposeUiTest {
         mountScreen()
-        assertShows("Lire les CGV.")
+        assertShows("Saisir la CNIL.")
 
-        tapInside("Lire les CGV.", "CGV")
+        tapInside("Saisir la CNIL.", "CNIL")
         tapInside("Écrire à dpo@chantiertracker.com.", "dpo@chantiertracker.com")
 
-        assertEquals(listOf("https://chantiertracker.com/cgv"), webOpened)
+        assertEquals(listOf("https://www.cnil.fr/fr/plaintes"), webOpened)
         assertEquals(listOf("mailto:dpo@chantiertracker.com"), mailOpened)
     }
 
     @Test
     fun offline_a_web_link_of_the_text_gives_its_address_instead_of_opening() = runComposeUiTest {
         mountScreen()
-        assertShows("Lire les CGV.")
+        assertShows("Saisir la CNIL.")
         connectivity.setOnline(false)
 
-        tapInside("Lire les CGV.", "CGV")
+        tapInside("Saisir la CNIL.", "CNIL")
         assertShows("Tu es hors ligne")
 
-        onNodeWithText("https://chantiertracker.com/cgv").assertIsDisplayed()
+        onNodeWithText("https://www.cnil.fr/fr/plaintes").assertIsDisplayed()
         assertEquals(emptyList(), webOpened)
         onNodeWithText("OK").performClick()
         waitForIdle()

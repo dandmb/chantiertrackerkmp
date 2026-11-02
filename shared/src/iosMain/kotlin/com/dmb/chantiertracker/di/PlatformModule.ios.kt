@@ -15,6 +15,8 @@ import com.dmb.chantiertracker.data.sync.ConnectivityObserver
 import com.dmb.chantiertracker.data.sync.NativeConnectivityObserver
 import com.dmb.chantiertracker.presentation.billing.IosUrlOpener
 import com.dmb.chantiertracker.presentation.billing.UrlOpener
+import com.dmb.chantiertracker.presentation.help.MailtoSupportMailer
+import com.dmb.chantiertracker.presentation.help.SupportMailer
 import androidx.room.RoomDatabase
 import dev.jordond.connectivity.Connectivity
 import org.koin.core.module.Module
@@ -27,6 +29,7 @@ actual fun platformModule(): Module = module {
     single<AppPreferences> { IosAppPreferences() }
     single<RoomDatabase.Builder<AppDatabase>> { projectDatabaseBuilder() }
     single<UrlOpener> { IosUrlOpener() }
+    single<SupportMailer> { MailtoSupportMailer(get()) }
     single<ConnectivityObserver> {
         val scope = get<AppCoroutineScope>()
         NativeConnectivityObserver(Connectivity(scope) {}, scope)

@@ -15,6 +15,23 @@ data class CheckoutRequestDto(val plan: String, val billingCycle: String, val pl
 data class BillingStatusDto(val billingOpen: Boolean)
 
 @Serializable
+data class FounderOfferLimitsDto(
+    val projects: Int? = null,
+    val photos: Int? = null,
+    val videos: Int? = null,
+    val videoMaxSeconds: Int? = null,
+    val supervisorsPerProject: Int? = null,
+    val pdfExport: Boolean? = null,
+    val historyDays: Int? = null,
+)
+
+@Serializable
+data class FounderOfferDto(
+    val billingOpen: Boolean,
+    val limits: FounderOfferLimitsDto? = null,
+)
+
+@Serializable
 data class CheckoutResponseDto(val checkoutUrl: String)
 
 @Serializable

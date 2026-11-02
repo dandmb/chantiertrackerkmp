@@ -11,6 +11,23 @@ plugins {
     alias(libs.plugins.androidxRoom)
 }
 
+val localTestProperties = Properties().apply {
+    rootProject.file("local.properties").takeIf { it.exists() }?.reader()?.use { load(it) }
+}
+
+// iOS has no debug-only resource, so the address is compiled from local.properties, never versioned.
+val generateIosLocalApiUrl = tasks.register("generateIosLocalApiUrl") {
+    val url = localTestProperties.getProperty("chantiertracker.devApiBaseUrl").orEmpty()
+    val output = layout.buildDirectory.dir("generated/localApiUrl/iosMain/kotlin")
+    inputs.property("url", url)
+    outputs.dir(output)
+    doLast {
+        output.get().file("LocalApiUrl.kt").asFile.writeText(
+            "package com.dmb.chantiertracker.core\n\ninternal const val LOCAL_API_BASE_URL = \"$url\"\n",
+        )
+    }
+}
+
 kotlin {
     listOf(
         iosArm64(),
@@ -51,11 +68,16 @@ kotlin {
             implementation(libs.ktor.client.okhttp)
             implementation(libs.koin.android)
             implementation(libs.androidx.security.crypto)
+            implementation(libs.androidx.datastore.core)
+            implementation(libs.tink.android)
             implementation(libs.androidx.work.runtime)
             implementation(libs.connectivity.device)
             implementation(libs.androidx.media3.exoplayer)
             implementation(libs.androidx.media3.ui)
             implementation(libs.androidx.browser)
+        }
+        iosMain {
+            kotlin.srcDir(generateIosLocalApiUrl)
         }
         iosMain.dependencies {
             implementation(libs.ktor.client.darwin)
@@ -123,10 +145,6 @@ dependencies {
 
 room {
     schemaDirectory("$projectDir/schemas")
-}
-
-val localTestProperties = Properties().apply {
-    rootProject.file("local.properties").takeIf { it.exists() }?.reader()?.use { load(it) }
 }
 
 tasks.withType<Test>().configureEach {

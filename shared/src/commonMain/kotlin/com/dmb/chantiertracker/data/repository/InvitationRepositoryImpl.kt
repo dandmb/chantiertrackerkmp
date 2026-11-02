@@ -5,6 +5,7 @@ import com.dmb.chantiertracker.data.local.db.InvitationEntity
 import com.dmb.chantiertracker.data.local.db.ProjectDao
 import com.dmb.chantiertracker.data.remote.InvitationApi
 import com.dmb.chantiertracker.data.remote.apiCall
+import com.dmb.chantiertracker.data.remote.apiCallReportingRefusalCode
 import com.dmb.chantiertracker.data.remote.dto.CreateInvitationRequestDto
 import com.dmb.chantiertracker.data.remote.dto.InvitationDetailsDto
 import com.dmb.chantiertracker.data.remote.dto.PendingInvitationDto
@@ -41,12 +42,40 @@ class InvitationRepositoryImpl(
     override suspend fun invite(projectLocalId: String, email: String) {
         val serverId = projectDao.findByLocalId(projectLocalId)?.serverId ?: throw DomainException.NotFound
         val request = CreateInvitationRequestDto(email = email, role = ProjectRole.SUPERVISOR.name)
-        creationKeys.send(serverId to request) { key -> api.create(serverId, request, key) }
+        try {
+            creationKeys.send(serverId to request) { key -> api.create(serverId, request, key) }
+        } catch (e: DomainException.PlanLimitReached) {
+            throw DomainException.CollaboratorLimitReached
+        }
         syncer.syncProject(projectLocalId)
+    }
+
+    override suspend fun replacePendingInvitation(projectLocalId: String, email: String) {
+        syncer.syncProject(projectLocalId)
+        val pending = dao.findForProject(projectLocalId).firstOrNull { it.email.equals(email, ignoreCase = true) && it.status.equals("PENDING", ignoreCase = true) }
+            ?: throw DomainException.NotFound
+        apiCall { api.cancel(pending.id) }
+        invite(projectLocalId, email)
     }
 
     override suspend fun cancelInvitation(projectLocalId: String, invitationId: Long) {
         apiCall { api.cancel(invitationId) }
+        syncer.syncProject(projectLocalId)
+    }
+
+    override suspend fun removeMember(projectLocalId: String, userId: Long) {
+        val serverId = projectDao.findByLocalId(projectLocalId)?.serverId ?: throw DomainException.NotFound
+        var refusalCode: String? = null
+        try {
+            apiCallReportingRefusalCode({ refusalCode = it }) { api.removeMember(serverId, userId) }
+        } catch (e: DomainException) {
+            when (refusalCode) {
+                PROJECT_MEMBER_NOT_FOUND_CODE -> Unit
+                LAST_ADMIN_REMOVAL_CODE -> throw DomainException.LastAdminRemoval
+                else -> throw e
+            }
+        }
+        projectDao.deleteMember(projectLocalId, userId)
         syncer.syncProject(projectLocalId)
     }
 
@@ -57,17 +86,37 @@ class InvitationRepositoryImpl(
         apiCall { api.getDetails(token) }.toInvitationPreview()
 
     override suspend fun acceptInvitation(token: String) {
-        apiCall { api.accept(token) }
+        acceptingWithinTheQuota { api.accept(token) }
         // Caller re-pulls the project list so the newly joined project shows up.
     }
 
-    override suspend fun declineInvitation(token: String) {
-        apiCall { api.decline(token) }
+    override suspend fun acceptIncomingInvitation(id: Long) {
+        try {
+            acceptingWithinTheQuota { api.acceptMine(id) }
+        } catch (e: DomainException.NotFound) {
+            throw DomainException.InvitationGone
+        }
+    }
+
+    override suspend fun declineIncomingInvitation(id: Long) {
+        try {
+            apiCall { api.declineMine(id) }
+        } catch (e: DomainException.NotFound) {
+            throw DomainException.InvitationGone
+        }
+    }
+
+    private suspend fun acceptingWithinTheQuota(accept: suspend () -> Unit) {
+        try {
+            apiCall { accept() }
+        } catch (e: DomainException.PlanLimitReached) {
+            throw DomainException.CollaboratorLimitReached
+        }
     }
 }
 
 private fun PendingInvitationDto.toIncomingInvitation() = IncomingInvitation(
-    token = token,
+    id = id,
     projectId = projectId,
     projectName = projectName,
     role = when (role.uppercase()) {
@@ -108,3 +157,6 @@ private fun String.toInvitationStatus(): InvitationStatus = when (uppercase()) {
     "DECLINED" -> InvitationStatus.DECLINED
     else -> InvitationStatus.UNKNOWN
 }
+
+private const val PROJECT_MEMBER_NOT_FOUND_CODE = "PROJECT_MEMBER_NOT_FOUND"
+private const val LAST_ADMIN_REMOVAL_CODE = "LAST_ADMIN_REMOVAL"

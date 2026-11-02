@@ -5,6 +5,7 @@ import com.dmb.chantiertracker.data.local.AttachmentFileStore
 import com.dmb.chantiertracker.data.local.ExportFileStore
 import com.dmb.chantiertracker.data.local.db.LocalDataDao
 import com.dmb.chantiertracker.domain.model.GlobalRole
+import com.dmb.chantiertracker.domain.model.ProfileLanguage
 import com.dmb.chantiertracker.domain.model.User
 import com.dmb.chantiertracker.domain.model.UnsentWrites
 
@@ -63,13 +64,15 @@ class LocalDataOwnerStore(private val preferences: AppPreferences) {
             name = preferences.read(KEY_NAME).orEmpty(),
             active = true,
             globalRole = GlobalRole.entries.firstOrNull { it.name == preferences.read(KEY_ROLE) } ?: GlobalRole.UNKNOWN,
+            phone = preferences.read(KEY_PHONE),
+            language = ProfileLanguage.fromCode(preferences.read(KEY_LANGUAGE)),
         )
     }
 
     fun ownerId(): Long? = preferences.read(KEY_ID)?.toLongOrNull()
 
     fun forget() {
-        listOf(KEY_ID, KEY_EMAIL, KEY_NAME, KEY_ROLE).forEach { preferences.write(it, null) }
+        listOf(KEY_ID, KEY_EMAIL, KEY_NAME, KEY_ROLE, KEY_PHONE, KEY_LANGUAGE).forEach { preferences.write(it, null) }
     }
 
     fun record(user: User) {
@@ -77,6 +80,8 @@ class LocalDataOwnerStore(private val preferences: AppPreferences) {
         preferences.write(KEY_EMAIL, user.email)
         preferences.write(KEY_NAME, user.name)
         preferences.write(KEY_ROLE, user.globalRole.name)
+        preferences.write(KEY_PHONE, user.phone)
+        preferences.write(KEY_LANGUAGE, user.language?.code)
     }
 
     private companion object {
@@ -84,6 +89,8 @@ class LocalDataOwnerStore(private val preferences: AppPreferences) {
         const val KEY_EMAIL = "local_data_owner_email"
         const val KEY_NAME = "local_data_owner_name"
         const val KEY_ROLE = "local_data_owner_role"
+        const val KEY_PHONE = "local_data_owner_phone"
+        const val KEY_LANGUAGE = "local_data_owner_language"
     }
 }
 
@@ -99,6 +106,10 @@ class LocalDataOwnership(
 ) {
 
     fun cachedOwner(): User? = store.owner()
+
+    fun recordProfile(user: User) {
+        if (store.ownerId() == user.id) store.record(user)
+    }
 
     suspend fun claim(user: User, start: SessionStart) {
         val ownerId = store.ownerId()

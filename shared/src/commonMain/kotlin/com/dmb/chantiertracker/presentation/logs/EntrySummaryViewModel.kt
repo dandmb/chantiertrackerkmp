@@ -2,6 +2,7 @@ package com.dmb.chantiertracker.presentation.logs
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.dmb.chantiertracker.domain.model.MAX_FREE_TEXT_LENGTH
 import com.dmb.chantiertracker.domain.model.EntryType
 import com.dmb.chantiertracker.domain.repository.DailyLogRepository
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -53,7 +54,7 @@ class EntrySummaryViewModel(
         }
     }
 
-    fun onSummaryChange(value: String) = _state.update { it.copy(summary = value) }
+    fun onSummaryChange(value: String) = _state.update { it.copy(summary = value.take(MAX_FREE_TEXT_LENGTH)) }
 
     fun submit() {
         val id = entryLocalId ?: return

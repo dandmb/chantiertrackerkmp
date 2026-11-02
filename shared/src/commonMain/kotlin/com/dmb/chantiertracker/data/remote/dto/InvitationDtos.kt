@@ -23,7 +23,7 @@ data class CreateInvitationRequestDto(
 /** One item of `GET /users/me/invitations` — a bare JSON array, not a page. */
 @Serializable
 data class PendingInvitationDto(
-    val token: String,
+    val id: Long,
     val projectId: Long,
     val projectName: String,
     val role: String,

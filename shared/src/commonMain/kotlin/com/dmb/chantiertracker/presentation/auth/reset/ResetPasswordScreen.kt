@@ -12,6 +12,7 @@ import com.dmb.chantiertracker.presentation.auth.components.CodeField
 import com.dmb.chantiertracker.presentation.auth.components.ErrorBanner
 import com.dmb.chantiertracker.presentation.auth.components.PasswordField
 import com.dmb.chantiertracker.presentation.i18n.localizedText
+import com.dmb.chantiertracker.presentation.i18n.rememberWaitSecondsLeft
 import com.dmb.chantiertracker.resources.Res
 import com.dmb.chantiertracker.resources.field_new_password_label
 import com.dmb.chantiertracker.resources.reset_back_to_login
@@ -61,6 +62,7 @@ fun ResetPasswordScreen(
             text = stringResource(Res.string.reset_submit),
             onClick = { viewModel.submit(email) },
             loading = state.isSubmitting,
+            enabled = rememberWaitSecondsLeft(state.formError) == 0,
         )
         AuthLink(text = stringResource(Res.string.reset_back_to_login), onClick = onBackToLogin)
     }

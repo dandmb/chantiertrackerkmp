@@ -21,13 +21,16 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dmb.chantiertracker.presentation.ClickableListRow
 import com.dmb.chantiertracker.presentation.DetailInfoRow
-import com.dmb.chantiertracker.presentation.DetailSection
-import com.dmb.chantiertracker.presentation.DetailSectionDivider
+import com.dmb.chantiertracker.presentation.SectionCard
+import com.dmb.chantiertracker.presentation.SectionTone
 import com.dmb.chantiertracker.presentation.ResponsiveContent
 import com.dmb.chantiertracker.presentation.i18n.AppLanguage
 import com.dmb.chantiertracker.presentation.legal.LegalDocument
 import com.dmb.chantiertracker.presentation.theme.ThemeMode
 import com.dmb.chantiertracker.resources.Res
+import com.dmb.chantiertracker.resources.settings_build
+import com.dmb.chantiertracker.resources.settings_contact
+import com.dmb.chantiertracker.resources.settings_help
 import com.dmb.chantiertracker.resources.settings_about
 import com.dmb.chantiertracker.resources.settings_language
 import com.dmb.chantiertracker.resources.settings_language_english
@@ -45,10 +48,12 @@ import org.koin.compose.viewmodel.koinViewModel
 fun SettingsScreen(
     onOpenLegalDocument: (LegalDocument) -> Unit,
     modifier: Modifier = Modifier,
+    onOpenHelp: () -> Unit = {},
     viewModel: SettingsViewModel = koinViewModel(),
 ) {
     val language by viewModel.language.collectAsStateWithLifecycle()
     val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
+    val supportEmail by viewModel.supportEmail.collectAsStateWithLifecycle()
 
     ResponsiveContent(modifier) {
         Column(
@@ -58,7 +63,7 @@ fun SettingsScreen(
                 .padding(start = 24.dp, end = 24.dp, top = 20.dp, bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
-            DetailSection(stringResource(Res.string.settings_language)) {
+            SectionCard(stringResource(Res.string.settings_language), tone = SectionTone.Yellow) {
                 ChoiceRow(
                     options = AppLanguage.entries,
                     selected = language,
@@ -67,9 +72,8 @@ fun SettingsScreen(
                 )
             }
 
-            DetailSectionDivider()
 
-            DetailSection(stringResource(Res.string.settings_theme)) {
+            SectionCard(stringResource(Res.string.settings_theme)) {
                 ChoiceRow(
                     options = ThemeMode.entries,
                     selected = themeMode,
@@ -78,10 +82,14 @@ fun SettingsScreen(
                 )
             }
 
-            DetailSectionDivider()
 
-            DetailSection(stringResource(Res.string.settings_about)) {
+            SectionCard(stringResource(Res.string.settings_about)) {
                 DetailInfoRow(stringResource(Res.string.settings_version), viewModel.appVersion)
+                if (viewModel.appBuild.isNotBlank()) DetailInfoRow(stringResource(Res.string.settings_build), viewModel.appBuild)
+                supportEmail?.let { DetailInfoRow(stringResource(Res.string.settings_contact), it) }
+                ClickableListRow(onClick = onOpenHelp) {
+                    Text(stringResource(Res.string.settings_help), style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+                }
                 LegalDocument.entries.forEach { document ->
                     ClickableListRow(onClick = { onOpenLegalDocument(document) }) {
                         Text(

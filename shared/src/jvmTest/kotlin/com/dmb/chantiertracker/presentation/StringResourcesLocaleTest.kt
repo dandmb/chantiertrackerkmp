@@ -52,8 +52,8 @@ class StringResourcesLocaleTest {
     fun screen_titles_resolve_in_french_and_english() {
         assertEquals("Connexion", resolve("fr", Res.string.login_title))
         assertEquals("Sign in", resolve("en", Res.string.login_title))
-        assertEquals("Bon retour !", resolve("fr", Res.string.welcome_title))
-        assertEquals("Welcome back", resolve("en", Res.string.welcome_title))
+        assertEquals("Ton chantier sous contrôle, même à distance", resolve("fr", Res.string.welcome_title))
+        assertEquals("Your site under control, even from afar", resolve("en", Res.string.welcome_title))
         assertEquals("Suis ton chantier à distance", resolve("fr", Res.string.onboarding_p1_title))
         assertEquals("Track your site from anywhere", resolve("en", Res.string.onboarding_p1_title))
     }
@@ -61,7 +61,7 @@ class StringResourcesLocaleTest {
     @Test
     fun unsupported_system_language_falls_back_to_english() {
         assertEquals("Sign in", resolve("de", Res.string.login_title))
-        assertEquals("Welcome back", resolve("es", Res.string.welcome_title))
+        assertEquals("Your site under control, even from afar", resolve("es", Res.string.welcome_title))
     }
 
     @Test
@@ -95,10 +95,10 @@ class StringResourcesLocaleTest {
     }
 
     @Test
-    fun rate_limited_message_switches_to_minutes_rounded_up_from_sixty_seconds() {
-        assertEquals("Too many attempts. Try again in 1 minute.", resolveError("en", DomainException.RateLimited(60)))
-        assertEquals("Too many attempts. Try again in 2 minutes.", resolveError("en", DomainException.RateLimited(61)))
-        assertEquals("Trop de tentatives. Réessaie dans 3 minutes.", resolveError("fr", DomainException.RateLimited(180)))
+    fun rate_limited_message_counts_down_in_minutes_and_seconds_from_sixty_seconds() {
+        assertEquals("Too many attempts. Try again in 1:00.", resolveError("en", DomainException.RateLimited(60)))
+        assertEquals("Too many attempts. Try again in 1:01.", resolveError("en", DomainException.RateLimited(61)))
+        assertEquals("Trop de tentatives. Réessaie dans 3:00.", resolveError("fr", DomainException.RateLimited(180)))
     }
 
     @Test

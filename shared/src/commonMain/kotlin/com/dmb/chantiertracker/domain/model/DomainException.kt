@@ -9,7 +9,7 @@ sealed class DomainException : Exception() {
     data object InvalidCredentials : DomainException()
     data object EmailAlreadyUsed : DomainException()
     data object AccountNotVerified : DomainException()
-    data object AccountLocked : DomainException()
+    data class AccountLocked(val retryAfterSeconds: Int? = null) : DomainException()
     // Cross-cutting, any endpoint could return it (a security filter, not a
     // specific business rule) — mapped globally in ApiError.kt, same posture
     // as AccountLocked/AccountNotVerified. Caught internally by
@@ -22,17 +22,27 @@ sealed class DomainException : Exception() {
     // AuthRepositoryImpl.changePassword, same posture as other local remaps
     // (BillingRepositoryImpl, AdminRepositoryImpl).
     data object InvalidCurrentPassword : DomainException()
+    data object NewPasswordSameAsCurrent : DomainException()
     data class AccountDeletionBlocked(val blocker: DeletionBlocker) : DomainException()
     data object InvalidCode : DomainException()
     data object Validation : DomainException()
+    data class InvalidProfile(val fields: Set<ProfileField>) : DomainException()
     data class RateLimited(val retryAfterSeconds: Int? = null) : DomainException()
     data class CreationInProgress(val retryAfterSeconds: Int? = null) : DomainException()
+    data object InvitationAlreadyPending : DomainException()
+    data object InvitationGone : DomainException()
+    data object CollaboratorLimitReached : DomainException()
+    data object OwnerRequired : DomainException()
+    data object OwnerCannotLeave : DomainException()
+    data object ContentTooLarge : DomainException()
     data object PlanLimitReached : DomainException()
     data object DuplicateMaterial : DomainException()
+    data object ProjectExportEmpty : DomainException()
     data object FileTooLarge : DomainException()
     data object ImageTooLarge : DomainException()
     data object BillingNotOpen : DomainException()
     data object Forbidden : DomainException()
+    data object LastAdminRemoval : DomainException()
     data object NotFound : DomainException()
     data object Network : DomainException()
     data object ServiceUnavailable : DomainException()

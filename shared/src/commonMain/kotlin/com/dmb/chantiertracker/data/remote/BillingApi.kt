@@ -4,6 +4,7 @@ import com.dmb.chantiertracker.data.remote.dto.BillingPortalResponseDto
 import com.dmb.chantiertracker.data.remote.dto.BillingStatusDto
 import com.dmb.chantiertracker.data.remote.dto.CheckoutRequestDto
 import com.dmb.chantiertracker.data.remote.dto.CheckoutResponseDto
+import com.dmb.chantiertracker.data.remote.dto.FounderOfferDto
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.get
@@ -19,6 +20,10 @@ class BillingApi(private val client: HttpClient) {
     // account exists (WelcomeScreen), so it must work without a token.
     suspend fun status(): BillingStatusDto =
         client.get(ApiRoutes.BILLING_STATUS).body()
+
+    // GET /billing/founder-offer — public too: the figures of the offer before any account exists.
+    suspend fun founderOffer(): FounderOfferDto =
+        client.get(ApiRoutes.BILLING_FOUNDER_OFFER).body()
 
     // POST /billing/checkout — starts a hosted Stripe Checkout session for
     // the given plan/cycle; the caller opens checkoutUrl in the system

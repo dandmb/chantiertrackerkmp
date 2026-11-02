@@ -3,6 +3,8 @@
 package com.dmb.chantiertracker.data.repository
 
 import com.dmb.chantiertracker.data.local.AttachmentFileStore
+import com.dmb.chantiertracker.data.local.PhotoCompressor
+import com.dmb.chantiertracker.data.local.systemPhotoCompressor
 import com.dmb.chantiertracker.data.local.isAPhotoTooLargeForTheServer
 import com.dmb.chantiertracker.data.local.db.AttachmentDao
 import com.dmb.chantiertracker.data.local.db.AttachmentEntity
@@ -36,6 +38,7 @@ class AttachmentRepositoryImpl(
     private val scope: AppCoroutineScope,
     private val clock: Clock = SystemClock,
     private val newLocalId: () -> String = { Uuid.random().toString() },
+    private val photoCompressor: PhotoCompressor = systemPhotoCompressor,
 ) : AttachmentRepository {
 
     override fun observeAttachments(entryLocalId: String): Flow<List<Attachment>> =
@@ -61,8 +64,12 @@ class AttachmentRepositoryImpl(
     )
 
     override suspend fun addAttachment(entryLocalId: String, bytes: ByteArray, originalName: String, mimeType: String): Attachment {
-        if (mimeType.startsWith("image/") && isAPhotoTooLargeForTheServer(bytes)) throw DomainException.ImageTooLarge
-        return queue(entryLocalId, fileStore.save(bytes, originalName), originalName, mimeType, bytes.size.toLong())
+        val compressed = if (mimeType.startsWith("image/")) photoCompressor.compress(bytes) else null
+        val name = if (compressed != null) originalName.substringBeforeLast('.') + ".jpg" else originalName
+        val photo = compressed ?: bytes
+        val type = if (compressed != null) "image/jpeg" else mimeType
+        if (type.startsWith("image/") && isAPhotoTooLargeForTheServer(photo)) throw DomainException.ImageTooLarge
+        return queue(entryLocalId, fileStore.save(photo, name), name, type, photo.size.toLong())
     }
 
     override suspend fun addVideo(entryLocalId: String, video: UploadFile): Attachment {

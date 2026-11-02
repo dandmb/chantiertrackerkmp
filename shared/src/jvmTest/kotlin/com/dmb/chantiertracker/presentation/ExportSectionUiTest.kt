@@ -6,6 +6,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -41,6 +42,7 @@ class ExportSectionUiTest {
 
     private fun ComposeUiTest.mount(
         canExport: Boolean,
+        isEmpty: Boolean = false,
         repo: FakeExportRepository = FakeExportRepository(),
         opener: FakePdfOpener = FakePdfOpener(),
         sharer: FakePdfSharer = FakePdfSharer(),
@@ -55,6 +57,7 @@ class ExportSectionUiTest {
                             ExportSection(
                                 projectLocalId = "p1",
                                 canExport = canExport,
+                                isEmpty = isEmpty,
                                 viewModel = ProjectExportViewModel(repo, opener, sharer),
                             )
                         }
@@ -165,5 +168,14 @@ class ExportSectionUiTest {
         }
         onNodeWithText("Exporter en PDF").assertExists()
         onNodeWithText("Ouvrir").assertDoesNotExist()
+    }
+
+    @Test
+    fun an_empty_project_greys_the_export_and_says_why() = runComposeUiTest {
+        val repo = FakeExportRepository()
+        mount(canExport = true, isEmpty = true, repo = repo)
+
+        onNodeWithText("Exporter en PDF").assertIsNotEnabled()
+        onNodeWithText("Ce projet est encore vide : ajoutez au moins une étape avant d’exporter le dossier PDF.").assertExists()
     }
 }

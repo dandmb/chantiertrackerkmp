@@ -19,7 +19,7 @@ class AppConfigTest {
     fun debug_build_targets_development_api() {
         val config = AppConfig(FakeBuildInfo(isDebug = true))
         assertEquals(ApiEnvironment.Development, config.environment)
-        assertEquals(devApiBaseUrl, config.baseUrl)
+        assertEquals(platformDevApiBaseUrl, config.baseUrl)
     }
 
     @Test

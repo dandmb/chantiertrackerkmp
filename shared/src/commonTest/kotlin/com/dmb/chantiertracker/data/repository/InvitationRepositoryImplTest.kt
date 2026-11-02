@@ -11,6 +11,7 @@ import com.dmb.chantiertracker.support.localInvitation
 import com.dmb.chantiertracker.support.localProject
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
+import io.ktor.http.HttpStatusCode
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -106,7 +107,7 @@ class InvitationRepositoryImplTest {
             planLimitReached = true
         }
 
-        assertFailsWith<DomainException.PlanLimitReached> {
+        assertFailsWith<DomainException.CollaboratorLimitReached> {
             repo(projectDao = projectDao, backend = backend).invite("p1", "sam@x.dev")
         }
     }
@@ -148,7 +149,7 @@ class InvitationRepositoryImplTest {
     }
 
     @Test
-    fun accept_posts_to_the_token_endpoint() = runTest {
+    fun accept_of_a_link_posts_to_the_token_endpoint() = runTest {
         val backend = FakeProjectBackend().apply {
             seedPendingForMe(com.dmb.chantiertracker.support.ServerPendingInvitation("tok", 9, "Villa"))
         }
@@ -168,12 +169,68 @@ class InvitationRepositoryImplTest {
     }
 
     @Test
-    fun decline_posts_to_the_token_endpoint() = runTest {
+    fun accept_of_a_listed_invitation_posts_its_id_for_the_signed_in_user() = runTest {
+        val backend = FakeProjectBackend().apply {
+            seedPendingForMe(com.dmb.chantiertracker.support.ServerPendingInvitation("tok", 9, "Villa", id = 31))
+        }
+        val repo = repo(backend = backend)
+
+        assertEquals(31, repo.listIncomingInvitations().single().id)
+        repo.acceptIncomingInvitation(31)
+
+        assertTrue(backend.myPendingInvitations.isEmpty(), "the server marks it accepted")
+    }
+
+    @Test
+    fun a_listed_invitation_gone_meanwhile_is_told_as_such() = runTest {
+        assertFailsWith<DomainException.InvitationGone> { repo(backend = FakeProjectBackend()).acceptIncomingInvitation(31) }
+        assertFailsWith<DomainException.InvitationGone> { repo(backend = FakeProjectBackend()).declineIncomingInvitation(31) }
+    }
+
+    @Test
+    fun accepting_a_link_of_a_full_project_tells_the_collaborator_limit() = runTest {
         val backend = FakeProjectBackend().apply {
             seedPendingForMe(com.dmb.chantiertracker.support.ServerPendingInvitation("tok", 9, "Villa"))
+            acceptStatus = HttpStatusCode.Forbidden
+            acceptRefusalCode = "PLAN_LIMIT_EXCEEDED"
         }
 
-        repo(backend = backend).declineInvitation("tok")
+        assertFailsWith<DomainException.CollaboratorLimitReached> { repo(backend = backend).acceptInvitation("tok") }
+    }
+
+    @Test
+    fun a_pending_invitation_is_cancelled_then_sent_again() = runTest {
+        val projectDao = FakeProjectDao(listOf(localProject("p1", serverId = 42)))
+        val dao = FakeInvitationDao(listOf(com.dmb.chantiertracker.data.local.db.InvitationEntity(7, "p1", "SAM@x.dev", "SUPERVISOR", null, null, null, "PENDING")))
+        val backend = FakeProjectBackend().apply {
+            seed(com.dmb.chantiertracker.support.ServerProject(id = 42, name = "Villa"))
+            seedInvitation(com.dmb.chantiertracker.support.ServerInvitation(id = 7, projectId = 42, email = "SAM@x.dev"))
+        }
+
+        repo(dao = dao, projectDao = projectDao, backend = backend).replacePendingInvitation("p1", "sam@x.dev")
+
+        assertEquals(listOf("sam@x.dev"), backend.invitations.map { it.email })
+        assertTrue(backend.invitations.none { it.id == 7L })
+    }
+
+    @Test
+    fun invite_twice_tells_that_an_invitation_is_already_pending() = runTest {
+        val projectDao = FakeProjectDao(listOf(localProject("p1", serverId = 42)))
+        val backend = FakeProjectBackend().apply {
+            seed(com.dmb.chantiertracker.support.ServerProject(id = 42, name = "Villa"))
+            inviteRefusal = HttpStatusCode.Conflict to "INVITATION_ALREADY_PENDING"
+        }
+
+        assertFailsWith<DomainException.InvitationAlreadyPending> { repo(projectDao = projectDao, backend = backend).invite("p1", "sam@x.dev") }
+    }
+
+    @Test
+    fun decline_of_a_listed_invitation_posts_its_id_for_the_signed_in_user() = runTest {
+        val backend = FakeProjectBackend().apply {
+            seedPendingForMe(com.dmb.chantiertracker.support.ServerPendingInvitation("tok", 9, "Villa", id = 31))
+        }
+
+        repo(backend = backend).declineIncomingInvitation(31)
 
         assertTrue(backend.myPendingInvitations.isEmpty(), "the server marks it declined")
     }
@@ -189,5 +246,64 @@ class InvitationRepositoryImplTest {
 
         assertTrue(backend.invitations.isEmpty())
         assertEquals(listOf("p1"), syncer.syncedProjects)
+    }
+
+    private suspend fun projectWithASupervisor(): Triple<FakeProjectBackend, FakeProjectDao, FakeSyncer> {
+        val backend = FakeProjectBackend().apply {
+            seed(com.dmb.chantiertracker.support.ServerProject(id = 42, name = "Villa"))
+            seedMembers(
+                42,
+                com.dmb.chantiertracker.support.ServerMember(userId = 1, name = "Dan", email = "dan@x.dev", role = "ADMIN"),
+                com.dmb.chantiertracker.support.ServerMember(userId = 9, name = "Awa", email = "awa@x.dev", role = "SUPERVISOR"),
+            )
+        }
+        val projectDao = FakeProjectDao(listOf(localProject("p1", serverId = 42)))
+        projectDao.upsertMembers(
+            listOf(
+                com.dmb.chantiertracker.data.local.db.ProjectMemberEntity("p1", 1, "Dan", "dan@x.dev", "ADMIN"),
+                com.dmb.chantiertracker.data.local.db.ProjectMemberEntity("p1", 9, "Awa", "awa@x.dev", "SUPERVISOR"),
+            ),
+        )
+        return Triple(backend, projectDao, FakeSyncer())
+    }
+
+    @Test
+    fun removing_a_member_deletes_by_user_id_with_no_body_and_drops_the_local_row() = runTest {
+        val (backend, projectDao, syncer) = projectWithASupervisor()
+
+        repo(projectDao = projectDao, backend = backend, syncer = syncer).removeMember("p1", userId = 9)
+
+        assertEquals(listOf("DELETE /projects/42/members/9"), backend.receivedMethods.filter { it.startsWith("DELETE") })
+        assertEquals(listOf<String?>(null), backend.receivedMemberRemovalBodies, "no body")
+        assertEquals(listOf(1L), projectDao.observeMembers("p1").first().map { it.userId })
+        assertEquals(listOf("p1"), syncer.syncedProjects)
+    }
+
+    @Test
+    fun a_member_already_removed_is_a_success_not_an_error() = runTest {
+        val (backend, projectDao, syncer) = projectWithASupervisor()
+        backend.members[42]!!.removeAll { it.userId == 9L }
+
+        repo(projectDao = projectDao, backend = backend, syncer = syncer).removeMember("p1", userId = 9)
+
+        assertEquals(listOf(1L), projectDao.observeMembers("p1").first().map { it.userId })
+    }
+
+    @Test
+    fun a_supervisor_trying_to_remove_someone_is_refused() = runTest {
+        val (backend, projectDao, syncer) = projectWithASupervisor()
+        backend.refuseWith = { com.dmb.chantiertracker.support.ServerRefusal(io.ktor.http.HttpStatusCode.Forbidden, "PROJECT_INSUFFICIENT_ROLE") }
+
+        assertFailsWith<DomainException.Forbidden> { repo(projectDao = projectDao, backend = backend, syncer = syncer).removeMember("p1", userId = 9) }
+        assertEquals(listOf(1L, 9L), projectDao.observeMembers("p1").first().map { it.userId }.sorted())
+    }
+
+    @Test
+    fun the_last_admin_cannot_be_removed() = runTest {
+        val (backend, projectDao, syncer) = projectWithASupervisor()
+        backend.refuseWith = { com.dmb.chantiertracker.support.ServerRefusal(io.ktor.http.HttpStatusCode.Conflict, "LAST_ADMIN_REMOVAL") }
+
+        assertFailsWith<DomainException.LastAdminRemoval> { repo(projectDao = projectDao, backend = backend, syncer = syncer).removeMember("p1", userId = 1) }
+        assertEquals(listOf(1L, 9L), projectDao.observeMembers("p1").first().map { it.userId }.sorted())
     }
 }

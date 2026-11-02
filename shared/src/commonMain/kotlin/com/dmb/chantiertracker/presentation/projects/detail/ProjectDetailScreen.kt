@@ -1,8 +1,10 @@
 package com.dmb.chantiertracker.presentation.projects.detail
 
+import androidx.compose.material3.IconButton
 import com.dmb.chantiertracker.domain.model.SyncIssueTarget
 import com.dmb.chantiertracker.presentation.AppOutlinedButton
 import com.dmb.chantiertracker.presentation.CapitalTitle
+import com.dmb.chantiertracker.presentation.main.CloseIcon
 import com.dmb.chantiertracker.presentation.sync.SyncIssueMarker
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
@@ -47,8 +49,9 @@ import com.dmb.chantiertracker.presentation.ClickableListRow
 import com.dmb.chantiertracker.presentation.ConfirmActionDialog
 import com.dmb.chantiertracker.presentation.DetailEmptyHint
 import com.dmb.chantiertracker.presentation.DetailInfoRow
-import com.dmb.chantiertracker.presentation.DetailSection
-import com.dmb.chantiertracker.presentation.DetailSectionDivider
+import com.dmb.chantiertracker.presentation.SectionCard
+import com.dmb.chantiertracker.presentation.SectionHeaderAction
+import com.dmb.chantiertracker.presentation.SectionTone
 import com.dmb.chantiertracker.presentation.ResponsiveContent
 import com.dmb.chantiertracker.presentation.WidthSizeClass
 import com.dmb.chantiertracker.presentation.formatIsoDate
@@ -61,7 +64,11 @@ import com.dmb.chantiertracker.presentation.projects.ProjectLocation
 import com.dmb.chantiertracker.presentation.projects.ProjectStatusMenu
 import com.dmb.chantiertracker.presentation.projects.export.ExportSection
 import com.dmb.chantiertracker.presentation.stages.StageStatusBadge
+import com.dmb.chantiertracker.presentation.SectionPrimaryButton
 import com.dmb.chantiertracker.resources.Res
+import com.dmb.chantiertracker.resources.detail_invitations_empty_admin
+import com.dmb.chantiertracker.resources.detail_members_empty_admin
+import com.dmb.chantiertracker.resources.detail_stages_empty_action
 import com.dmb.chantiertracker.resources.detail_currency
 import com.dmb.chantiertracker.resources.detail_danger_zone
 import com.dmb.chantiertracker.resources.detail_danger_zone_body
@@ -69,6 +76,10 @@ import com.dmb.chantiertracker.resources.detail_delete_project
 import com.dmb.chantiertracker.resources.detail_edit_project
 import com.dmb.chantiertracker.resources.detail_history
 import com.dmb.chantiertracker.resources.detail_history_hint
+import com.dmb.chantiertracker.resources.detail_member_remove
+import com.dmb.chantiertracker.resources.detail_member_remove_confirm_body
+import com.dmb.chantiertracker.resources.detail_member_remove_confirm_button
+import com.dmb.chantiertracker.resources.detail_member_remove_confirm_title
 import com.dmb.chantiertracker.resources.detail_reports
 import com.dmb.chantiertracker.resources.detail_reports_hint
 import com.dmb.chantiertracker.resources.detail_invitation_cancel
@@ -76,7 +87,6 @@ import com.dmb.chantiertracker.resources.detail_invitation_cancel_confirm_body
 import com.dmb.chantiertracker.resources.detail_invitation_cancel_confirm_button
 import com.dmb.chantiertracker.resources.detail_invitation_cancel_confirm_title
 import com.dmb.chantiertracker.resources.detail_invitation_sent_on
-import com.dmb.chantiertracker.resources.detail_invitations_empty
 import com.dmb.chantiertracker.resources.detail_invitations_title
 import com.dmb.chantiertracker.resources.detail_invite_member
 import com.dmb.chantiertracker.resources.detail_members_empty
@@ -140,6 +150,7 @@ fun ProjectDetailScreen(
                 state.detail != null -> DetailContent(
                     detail = state.detail!!,
                     canEdit = state.canEdit,
+                    canDelete = state.canDeleteProject,
                     isAdmin = state.isAdmin,
                     isDeleting = state.isDeleting,
                     stages = state.stages,
@@ -147,6 +158,16 @@ fun ProjectDetailScreen(
                     pendingInvitations = state.pendingInvitations,
                     cancellingInvitationIds = state.cancellingInvitationIds,
                     invitationActionError = state.invitationActionError?.localizedText(),
+                    memberRemoval = if (state.canRemoveMembers) {
+                        MemberRemoval(
+                            currentUserId = state.currentUserId,
+                            removingUserIds = state.removingMemberIds,
+                            error = state.memberActionError?.localizedText(),
+                            onRemove = viewModel::removeMember,
+                        )
+                    } else {
+                        null
+                    },
                     twoColumns = widthClass == WidthSizeClass.EXPANDED,
                     onAddStage = { onAddStage(state.detail!!.localId) },
                     onStageClick = onStageClick,
@@ -167,6 +188,7 @@ fun ProjectDetailScreen(
 private fun DetailContent(
     detail: ProjectDetail,
     canEdit: Boolean,
+    canDelete: Boolean,
     isAdmin: Boolean,
     isDeleting: Boolean,
     stages: List<Stage>,
@@ -174,6 +196,7 @@ private fun DetailContent(
     pendingInvitations: List<Invitation>,
     cancellingInvitationIds: Set<Long>,
     invitationActionError: String?,
+    memberRemoval: MemberRemoval?,
     // Two independent, genuinely parallel groups of sections (project info +
     // stages vs. members + invitations/history/reports) — a real 2-column
     // layout on a wide window rather than just a width cap, unlike the
@@ -200,7 +223,6 @@ private fun DetailContent(
     ) {
         ProjectHeader(detail = detail, canEdit = canEdit, onEditProject = onEditProject, onStatusChange = onStatusChange)
 
-        DetailSectionDivider()
 
         // Mirrors the web (ProjectDetailPage.tsx): export lives above the
         // section grid entirely, a standalone project-level action, never
@@ -208,8 +230,7 @@ private fun DetailContent(
         // column count. Unknown until the first detail pull (ADR-33) — same
         // as the web, which renders nothing until `project.ownerPlan` is set.
         detail.ownerCanExportPdf()?.let { canExport ->
-            ExportSection(projectLocalId = detail.localId, canExport = canExport)
-            DetailSectionDivider()
+            ExportSection(projectLocalId = detail.localId, canExport = canExport, isEmpty = stages.isEmpty())
         }
 
         if (twoColumns) {
@@ -223,45 +244,36 @@ private fun DetailContent(
                 right = { StagesSection(stages, detail.currency, onAddStage, onStageClick) },
             )
             if (isAdmin) {
-                DetailSectionDivider()
                 TwoColumnRow(
-                    left = { MembersSection(members, isAdmin, onInviteMember) },
+                    left = { MembersSection(members, isAdmin, onInviteMember, memberRemoval) },
                     right = {
-                        InvitationsSection(pendingInvitations, cancellingInvitationIds, invitationActionError, onCancelInvitation)
+                        InvitationsSection(pendingInvitations, cancellingInvitationIds, invitationActionError, onInviteMember, onCancelInvitation)
                     },
                 )
-                DetailSectionDivider()
                 TwoColumnRow(
                     left = { HistorySection(onOpenHistory) },
                     right = { ReportsSection(onOpenReports) },
                 )
             } else {
-                DetailSectionDivider()
-                MembersSection(members, isAdmin, onInviteMember)
+                MembersSection(members, isAdmin, onInviteMember, memberRemoval)
             }
         } else {
             InfoSection(detail)
 
-            DetailSectionDivider()
             StagesSection(stages, detail.currency, onAddStage, onStageClick)
 
-            DetailSectionDivider()
-            MembersSection(members, isAdmin, onInviteMember)
+            MembersSection(members, isAdmin, onInviteMember, memberRemoval)
 
             if (isAdmin) {
-                DetailSectionDivider()
-                InvitationsSection(pendingInvitations, cancellingInvitationIds, invitationActionError, onCancelInvitation)
+                InvitationsSection(pendingInvitations, cancellingInvitationIds, invitationActionError, onInviteMember, onCancelInvitation)
 
-                DetailSectionDivider()
                 HistorySection(onOpenHistory)
 
-                DetailSectionDivider()
                 ReportsSection(onOpenReports)
             }
         }
 
-        if (canEdit) {
-            DetailSectionDivider()
+        if (canDelete) {
             DangerZone(projectName = detail.name, isDeleting = isDeleting, onDeleteConfirmed = onDeleteConfirmed)
         }
     }
@@ -281,7 +293,7 @@ private fun TwoColumnRow(left: @Composable () -> Unit, right: @Composable () -> 
 
 @Composable
 private fun InfoSection(detail: ProjectDetail) {
-    DetailSection(stringResource(Res.string.detail_section_info)) {
+    SectionCard(stringResource(Res.string.detail_section_info)) {
         DetailInfoRow(stringResource(Res.string.detail_currency), detail.currency)
         DetailInfoRow(stringResource(Res.string.detail_timezone), detail.timezone)
     }
@@ -289,12 +301,14 @@ private fun InfoSection(detail: ProjectDetail) {
 
 @Composable
 private fun StagesSection(stages: List<Stage>, currency: String, onAddStage: () -> Unit, onStageClick: (String) -> Unit) {
-    DetailSection(
+    SectionCard(
         title = stringResource(Res.string.detail_section_stages),
+        tone = SectionTone.Yellow,
         action = { SectionTextAction(Res.string.detail_stages_add, onAddStage) },
     ) {
         if (stages.isEmpty()) {
             DetailEmptyHint(stringResource(Res.string.detail_stages_empty))
+            SectionPrimaryButton(stringResource(Res.string.detail_stages_empty_action), onAddStage)
         } else {
             stages.forEach { stage ->
                 StageRow(stage, currency = currency, onClick = { onStageClick(stage.localId) })
@@ -303,9 +317,17 @@ private fun StagesSection(stages: List<Stage>, currency: String, onAddStage: () 
     }
 }
 
+private class MemberRemoval(
+    val currentUserId: Long?,
+    val removingUserIds: Set<Long>,
+    val error: String?,
+    val onRemove: (userId: Long) -> Unit,
+)
+
 @Composable
-private fun MembersSection(members: List<ProjectMember>, isAdmin: Boolean, onInviteMember: () -> Unit) {
-    DetailSection(
+private fun MembersSection(members: List<ProjectMember>, isAdmin: Boolean, onInviteMember: () -> Unit, removal: MemberRemoval?) {
+    var pendingRemoval by remember { mutableStateOf<ProjectMember?>(null) }
+    SectionCard(
         title = stringResource(Res.string.detail_section_members),
         action = if (isAdmin) {
             { SectionTextAction(Res.string.detail_invite_member, onInviteMember) }
@@ -313,11 +335,31 @@ private fun MembersSection(members: List<ProjectMember>, isAdmin: Boolean, onInv
             null
         },
     ) {
+        removal?.error?.let { ErrorBanner(it) }
         if (members.isEmpty()) {
-            DetailEmptyHint(stringResource(Res.string.detail_members_empty))
+            DetailEmptyHint(stringResource(if (isAdmin) Res.string.detail_members_empty_admin else Res.string.detail_members_empty))
+            if (isAdmin) SectionPrimaryButton(stringResource(Res.string.detail_invite_member), onInviteMember)
         } else {
-            members.forEach { member -> MemberRow(member) }
+            members.forEach { member ->
+                MemberRow(
+                    member = member,
+                    onRemove = removal?.takeIf { member.userId != it.currentUserId }?.let { { pendingRemoval = member } },
+                    isRemoving = removal != null && member.userId in removal.removingUserIds,
+                )
+            }
         }
+    }
+    pendingRemoval?.let { member ->
+        ConfirmActionDialog(
+            title = stringResource(Res.string.detail_member_remove_confirm_title, member.name),
+            body = stringResource(Res.string.detail_member_remove_confirm_body, member.name),
+            confirmLabel = stringResource(Res.string.detail_member_remove_confirm_button),
+            onDismiss = { pendingRemoval = null },
+            onConfirm = {
+                pendingRemoval = null
+                removal?.onRemove?.invoke(member.userId)
+            },
+        )
     }
 }
 
@@ -326,14 +368,16 @@ private fun InvitationsSection(
     pendingInvitations: List<Invitation>,
     cancellingInvitationIds: Set<Long>,
     invitationActionError: String?,
+    onInviteMember: () -> Unit,
     onCancelInvitation: (Long) -> Unit,
 ) {
     var pendingCancelInvitation by remember { mutableStateOf<Invitation?>(null) }
 
-    DetailSection(stringResource(Res.string.detail_invitations_title)) {
+    SectionCard(stringResource(Res.string.detail_invitations_title)) {
         invitationActionError?.let { ErrorBanner(it) }
         if (pendingInvitations.isEmpty()) {
-            DetailEmptyHint(stringResource(Res.string.detail_invitations_empty))
+            DetailEmptyHint(stringResource(Res.string.detail_invitations_empty_admin))
+            SectionPrimaryButton(stringResource(Res.string.detail_invite_member), onInviteMember)
         } else {
             pendingInvitations.forEach { invitation ->
                 InvitationRow(
@@ -362,7 +406,7 @@ private fun InvitationsSection(
 
 @Composable
 private fun HistorySection(onOpenHistory: () -> Unit) {
-    DetailSection(stringResource(Res.string.detail_history)) {
+    SectionCard(stringResource(Res.string.detail_history)) {
         ClickableListRow(onClick = onOpenHistory) {
             Text(
                 text = stringResource(Res.string.detail_history_hint),
@@ -376,7 +420,7 @@ private fun HistorySection(onOpenHistory: () -> Unit) {
 
 @Composable
 private fun ReportsSection(onOpenReports: () -> Unit) {
-    DetailSection(stringResource(Res.string.detail_reports)) {
+    SectionCard(stringResource(Res.string.detail_reports)) {
         ClickableListRow(onClick = onOpenReports) {
             Text(
                 text = stringResource(Res.string.detail_reports_hint),
@@ -433,10 +477,7 @@ private fun ProjectHeader(
 
 @Composable
 private fun SectionTextAction(label: StringResource, onClick: () -> Unit) {
-    TextButton(onClick = onClick) {
-        Icon(AddIcon, contentDescription = null, modifier = Modifier.size(18.dp))
-        Text(text = stringResource(label), modifier = Modifier.padding(start = 6.dp))
-    }
+    SectionHeaderAction(stringResource(label), onClick, icon = AddIcon)
 }
 
 @Composable
@@ -504,7 +545,7 @@ private fun StageRow(stage: Stage, currency: String, onClick: () -> Unit) {
 }
 
 @Composable
-private fun MemberRow(member: ProjectMember) {
+private fun MemberRow(member: ProjectMember, onRemove: (() -> Unit)?, isRemoving: Boolean) {
     Row(
         Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -519,6 +560,12 @@ private fun MemberRow(member: ProjectMember) {
             )
         }
         RoleBadge(member.role)
+        if (onRemove != null) {
+            val description = stringResource(Res.string.detail_member_remove, member.name)
+            IconButton(onClick = onRemove, enabled = !isRemoving) {
+                Icon(CloseIcon, contentDescription = description, modifier = Modifier.size(18.dp))
+            }
+        }
     }
 }
 

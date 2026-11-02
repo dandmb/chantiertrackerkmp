@@ -11,13 +11,19 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dmb.chantiertracker.core.inAppPaymentsAllowed
 import com.dmb.chantiertracker.domain.model.BillingAvailability
+import com.dmb.chantiertracker.domain.model.FounderOffer
 import com.dmb.chantiertracker.domain.repository.BillingRepository
+import com.dmb.chantiertracker.domain.repository.LaunchStatusRepository
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 
 // Defaults to UNKNOWN, so anything composed outside BillingAvailabilityProvider
 // (a preview, an isolated screen test) hides paid tiers rather than showing them.
 val LocalBillingAvailability = compositionLocalOf { BillingAvailability.UNKNOWN }
+
+val LocalServerBillingStatus = compositionLocalOf { BillingAvailability.UNKNOWN }
+
+val LocalFounderOffer = compositionLocalOf<FounderOffer?> { null }
 
 val LocalInAppPaymentsAllowed = staticCompositionLocalOf { inAppPaymentsAllowed }
 
@@ -44,4 +50,18 @@ fun BillingAvailabilityProvider(
         scope.launch { billingRepository.refreshAvailability() }
     }
     CompositionLocalProvider(LocalBillingAvailability provides availability, content = content)
+}
+
+@Composable
+fun ServerBillingStatusProvider(
+    launchStatusRepository: LaunchStatusRepository = koinInject(),
+    content: @Composable () -> Unit,
+) {
+    val status by launchStatusRepository.billingStatus.collectAsStateWithLifecycle()
+    val offer by launchStatusRepository.founderOffer.collectAsStateWithLifecycle()
+    val scope = rememberCoroutineScope()
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        scope.launch { launchStatusRepository.refresh() }
+    }
+    CompositionLocalProvider(LocalServerBillingStatus provides status, LocalFounderOffer provides offer, content = content)
 }

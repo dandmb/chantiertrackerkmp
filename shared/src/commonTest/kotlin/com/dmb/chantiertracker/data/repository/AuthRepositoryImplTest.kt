@@ -16,15 +16,24 @@ import com.dmb.chantiertracker.support.RecordingMockClient
 import com.dmb.chantiertracker.support.respondJson
 import com.dmb.chantiertracker.support.respondProblem
 import io.ktor.client.engine.mock.MockRequestHandleScope
+import io.ktor.client.engine.mock.respond
 import io.ktor.client.request.HttpRequestData
 import io.ktor.client.request.HttpResponseData
 import io.ktor.http.HttpHeaders
 import io.ktor.client.engine.mock.toByteArray
 import io.ktor.http.HttpStatusCode
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -42,12 +51,17 @@ private class Fixture(
     val preferences: FakeAppPreferences = FakeAppPreferences(),
     val eraser: FakeLocalDataEraser = FakeLocalDataEraser(),
     val unsynced: FakeUnsyncedWriteCounter = FakeUnsyncedWriteCounter(),
+    scope: CoroutineScope? = null,
+    dispatcher: CoroutineDispatcher? = null,
     handler: suspend MockRequestHandleScope.(HttpRequestData) -> HttpResponseData,
 ) {
-    val mock = RecordingMockClient(storage, handler = handler)
-    val repo = AuthRepositoryImpl(
-        AuthApi(mock.client), storage, holder, onboarding, syncer, testOwnership(preferences, eraser, unsynced),
-    )
+    var sessionExpiredCount = 0
+    val mock = RecordingMockClient(storage, onSessionExpired = { sessionExpiredCount++ }, dispatcher = dispatcher, handler = handler)
+    val repo = if (scope == null) {
+        AuthRepositoryImpl(AuthApi(mock.client), storage, holder, onboarding, syncer, testOwnership(preferences, eraser, unsynced))
+    } else {
+        AuthRepositoryImpl(AuthApi(mock.client), storage, holder, onboarding, syncer, testOwnership(preferences, eraser, unsynced), scope)
+    }
 }
 
 class AuthRepositoryImplTest {
@@ -61,6 +75,12 @@ class AuthRepositoryImplTest {
         f.repo.register("a@b.dev", "Password1234!", "Alice")
         val body = f.mock.requests.single().body.toByteArray().decodeToString()
         assertTrue("a@b.dev" in body && "Alice" in body)
+    }
+
+    @Test
+    fun register_reads_an_answer_without_an_id() = runTest {
+        val f = Fixture { respondJson("""{"email":"a@b.dev"}""", HttpStatusCode.Created) }
+        f.repo.register("a@b.dev", "Password1234!", "Alice")
     }
 
     @Test
@@ -175,9 +195,95 @@ class AuthRepositoryImplTest {
     }
 
     @Test
+    fun an_unverified_login_keeps_the_address_and_password_in_memory_for_the_code_screen() = runTest {
+        val f = Fixture {
+            if (it.url.encodedPath.endsWith("/auth/login")) {
+                respondProblem(HttpStatusCode.Forbidden, "Votre compte n'est pas encore activé. Vérifiez votre email.")
+            } else {
+                respondJson("{}")
+            }
+        }
+
+        assertFailsWith<DomainException.AccountNotVerified> { f.repo.login("a@b.dev", "Password1234!") }
+
+        assertEquals("a@b.dev", f.repo.pendingVerificationEmail())
+        assertNull(f.storage.get(), "nothing about this attempt reaches the device storage")
+        f.repo.verifyEmail("a@b.dev", "123456")
+        assertTrue("\"password\":\"Password1234!\"" in f.mock.requests.last().body.toByteArray().decodeToString())
+        assertNull(f.repo.pendingVerificationEmail())
+    }
+
+    @Test
+    fun a_wrong_password_at_login_keeps_nothing_for_verification() = runTest {
+        val f = Fixture { respondProblem(HttpStatusCode.Unauthorized, "Identifiants invalides.") }
+
+        assertFailsWith<DomainException.InvalidCredentials> { f.repo.login("a@b.dev", "bad") }
+
+        assertNull(f.repo.pendingVerificationEmail())
+    }
+
+    @Test
     fun verify_email_maps_400_to_invalid_code() = runTest {
         val f = Fixture { respondProblem(HttpStatusCode.BadRequest, "Code de vérification invalide.") }
+        assertFailsWith<DomainException.InvalidCode> { f.repo.verifyEmail("a@b.dev", "000000", "Password1234!") }
+    }
+
+    @Test
+    fun verify_email_sends_the_password_of_the_registration_then_forgets_it() = runTest {
+        val f = Fixture { respondJson("""{"email":"a@b.dev"}""", HttpStatusCode.Created) }
+        f.repo.register("a@b.dev", "Password1234!", "Alice")
+        assertTrue(f.repo.holdsVerificationPassword("a@b.dev"))
+        assertFalse(f.repo.holdsVerificationPassword("other@b.dev"))
+
+        f.repo.verifyEmail("a@b.dev", "123456")
+
+        val body = f.mock.requests.last().body.toByteArray().decodeToString()
+        assertEquals("/api/v1/auth/verify-email", f.mock.requests.last().url.encodedPath)
+        assertTrue("\"password\":\"Password1234!\"" in body && "\"code\":\"123456\"" in body)
+        assertFalse(f.repo.holdsVerificationPassword("a@b.dev"), "the password does not outlive its use")
+    }
+
+    @Test
+    fun verify_email_prefers_the_typed_password() = runTest {
+        val f = Fixture { respondJson("{}") }
+
+        f.repo.verifyEmail("a@b.dev", "123456", "Typed1234567!")
+
+        assertTrue("Typed1234567!" in f.mock.requests.single().body.toByteArray().decodeToString())
+    }
+
+    @Test
+    fun verify_email_without_a_password_stays_on_the_device() = runTest {
+        val f = Fixture { respondJson("{}") }
+
+        assertFailsWith<DomainException.Validation> { f.repo.verifyEmail("a@b.dev", "123456") }
+        assertTrue(f.mock.requests.isEmpty())
+    }
+
+    @Test
+    fun a_failed_verification_keeps_the_password_for_another_try() = runTest {
+        var verifying = false
+        val f = Fixture {
+            if (verifying) respondProblem(HttpStatusCode.BadRequest, "Code invalide.") else respondJson("""{"email":"a@b.dev"}""", HttpStatusCode.Created)
+        }
+        f.repo.register("a@b.dev", "Password1234!", "Alice")
+        verifying = true
+
         assertFailsWith<DomainException.InvalidCode> { f.repo.verifyEmail("a@b.dev", "000000") }
+
+        assertTrue(f.repo.holdsVerificationPassword("a@b.dev"))
+    }
+
+    @Test
+    fun a_rate_limited_logout_still_signs_out_on_the_device() = runTest {
+        val f = Fixture(storage = FakeTokenStorage(com.dmb.chantiertracker.data.local.AuthTokens("a", "r"))) {
+            respondProblem(HttpStatusCode.TooManyRequests, "Trop de requêtes.", code = "RATE_LIMITED")
+        }
+
+        f.repo.logout()
+
+        assertEquals(null, f.storage.tokens)
+        assertEquals(com.dmb.chantiertracker.domain.model.AuthState.Unauthenticated, f.holder.state.value)
     }
 
     @Test
@@ -448,5 +554,207 @@ class AuthRepositoryImplTest {
         assertNull(f.storage.tokens)
         assertEquals(AuthState.Unauthenticated, f.holder.state.value)
     }
-}
 
+    private fun TestScope.logoutFixture(
+        storage: FakeTokenStorage,
+        logoutAnswer: suspend MockRequestHandleScope.() -> HttpResponseData = { respond("", HttpStatusCode.NoContent) },
+    ): Fixture {
+        var issued = 0
+        return Fixture(storage = storage, scope = backgroundScope, dispatcher = StandardTestDispatcher(testScheduler)) {
+            when (it.url.encodedPath) {
+                "/api/v1/auth/login" -> {
+                    issued++
+                    respondJson("""{"accessToken":"access-$issued","refreshToken":"refresh-$issued"}""")
+                }
+                "/api/v1/users/me" -> respondJson(USER_JSON)
+                "/api/v1/auth/logout" -> logoutAnswer()
+                "/api/v1/auth/refresh-token" -> respondProblem(HttpStatusCode.Unauthorized, "Jeton invalide.")
+                else -> error("unexpected ${it.url}")
+            }
+        }
+    }
+
+    private suspend fun HttpRequestData.logoutBody(): String = body.toByteArray().decodeToString()
+
+    @Test
+    fun logout_ends_the_local_session_at_once_without_waiting_for_the_server() = runTest {
+        val serverAnswers = CompletableDeferred<Unit>()
+        val f = logoutFixture(FakeTokenStorage(AuthTokens("access-0", "refresh-0"))) {
+            serverAnswers.await()
+            respond("", HttpStatusCode.NoContent)
+        }
+        f.holder.update(AuthState.Authenticated(com.dmb.chantiertracker.domain.model.User(7, "jean@chantier.dev", "Jean", true, com.dmb.chantiertracker.domain.model.GlobalRole.USER)))
+
+        val signingOut = launch { f.repo.logout() }
+        runCurrent()
+
+        assertTrue(signingOut.isCompleted, "the server's answer is not awaited")
+        assertNull(f.storage.tokens)
+        assertEquals(AuthState.Unauthenticated, f.holder.state.value)
+        serverAnswers.complete(Unit)
+        runCurrent()
+        assertEquals(listOf("/api/v1/auth/logout"), f.mock.requests.map { it.url.encodedPath })
+    }
+
+    @Test
+    fun the_logout_request_carries_the_bearer_and_the_refresh_token_in_its_body() = runTest {
+        val f = logoutFixture(FakeTokenStorage(AuthTokens("access-0", "refresh-0")))
+
+        f.repo.logout()
+        runCurrent()
+
+        val request = f.mock.requests.single()
+        assertEquals("Bearer access-0", request.headers[HttpHeaders.Authorization])
+        assertEquals("""{"refreshToken":"refresh-0"}""", request.logoutBody())
+    }
+
+    @Test
+    fun a_refused_logout_never_tries_a_refresh_nor_reports_an_expired_session() = runTest {
+        val f = logoutFixture(FakeTokenStorage(AuthTokens("access-0", "refresh-0"))) {
+            respondProblem(HttpStatusCode.Unauthorized, "Authentification requise.")
+        }
+
+        f.repo.logout()
+        runCurrent()
+
+        assertEquals(listOf("/api/v1/auth/logout"), f.mock.requests.map { it.url.encodedPath })
+        assertEquals(0, f.sessionExpiredCount)
+        assertEquals(AuthState.Unauthenticated, f.holder.state.value)
+    }
+
+    @Test
+    fun an_unreachable_server_does_not_keep_the_user_signed_in() = runTest {
+        val f = logoutFixture(FakeTokenStorage(AuthTokens("access-0", "refresh-0"))) { throw RuntimeException("no connection") }
+
+        f.repo.logout()
+        runCurrent()
+
+        assertNull(f.storage.tokens)
+        assertEquals(AuthState.Unauthenticated, f.holder.state.value)
+    }
+
+    @Test
+    fun three_sign_in_sign_out_cycles_in_a_row_each_close_their_own_session() = runTest {
+        val f = logoutFixture(FakeTokenStorage())
+
+        repeat(3) {
+            f.repo.login("jean@chantier.dev", "Password1234!")
+            assertIs<AuthState.Authenticated>(f.holder.state.value)
+            f.repo.logout()
+            runCurrent()
+            assertNull(f.storage.tokens)
+            assertEquals(AuthState.Unauthenticated, f.holder.state.value)
+        }
+
+        val logouts = f.mock.requests.filter { it.url.encodedPath == "/api/v1/auth/logout" }
+        assertEquals(listOf("Bearer access-1", "Bearer access-2", "Bearer access-3"), logouts.map { it.headers[HttpHeaders.Authorization] })
+        assertEquals((1..3).map { """{"refreshToken":"refresh-$it"}""" }, logouts.map { request -> request.logoutBody() })
+        assertEquals(0, f.sessionExpiredCount)
+    }
+
+    @Test
+    fun logging_out_with_no_session_sends_nothing() = runTest {
+        val f = logoutFixture(FakeTokenStorage())
+
+        f.repo.logout()
+        runCurrent()
+
+        assertEquals(emptyList(), f.mock.requests)
+        assertEquals(AuthState.Unauthenticated, f.holder.state.value)
+    }
+
+    private val profileJson =
+        """{"id":7,"email":"jean@chantier.dev","name":"Jean B","active":true,"globalRole":"USER","phone":"+237 6 99 00 11 22","language":"en"}"""
+
+    @Test
+    fun the_account_read_at_start_carries_its_phone_and_language() = runTest {
+        val f = Fixture(storage = FakeTokenStorage(AuthTokens("a", "r"))) { respondJson(profileJson) }
+
+        f.repo.bootstrap()
+
+        val user = assertIs<AuthState.Authenticated>(f.holder.state.value).user
+        assertEquals("+237 6 99 00 11 22", user.phone)
+        assertEquals(com.dmb.chantiertracker.domain.model.ProfileLanguage.ENGLISH, user.language)
+    }
+
+    @Test
+    fun an_account_from_an_older_server_has_no_phone_and_no_language() = runTest {
+        val f = Fixture(storage = FakeTokenStorage(AuthTokens("a", "r"))) { respondJson(USER_JSON) }
+
+        f.repo.bootstrap()
+
+        val user = assertIs<AuthState.Authenticated>(f.holder.state.value).user
+        assertEquals(null, user.phone)
+        assertEquals(null, user.language)
+    }
+
+    @Test
+    fun updating_the_profile_patches_users_me_and_publishes_the_new_account() = runTest {
+        val f = Fixture(storage = FakeTokenStorage(AuthTokens("a", "r"))) {
+            when (it.url.encodedPath) {
+                "/api/v1/users/me" -> if (it.method == io.ktor.http.HttpMethod.Patch) respondJson(profileJson) else respondJson(USER_JSON)
+                else -> error("unexpected ${it.url}")
+            }
+        }
+        f.repo.bootstrap()
+
+        val updated = f.repo.updateProfile(
+            com.dmb.chantiertracker.domain.model.ProfileUpdate("Jean B", "+237 6 99 00 11 22", com.dmb.chantiertracker.domain.model.ProfileLanguage.ENGLISH),
+        )
+
+        val patch = f.mock.requests.single { it.method == io.ktor.http.HttpMethod.Patch }
+        assertEquals("/api/v1/users/me", patch.url.encodedPath)
+        assertEquals("""{"name":"Jean B","phone":"+237 6 99 00 11 22","language":"en"}""", patch.body.toByteArray().decodeToString())
+        assertEquals("Jean B", updated.name)
+        assertEquals(updated, assertIs<AuthState.Authenticated>(f.holder.state.value).user)
+        val remembered = com.dmb.chantiertracker.data.session.LocalDataOwnerStore(f.preferences).owner()!!
+        assertEquals(listOf("Jean B", "+237 6 99 00 11 22", "en"), listOf(remembered.name, remembered.phone, remembered.language?.code))
+    }
+
+    @Test
+    fun an_empty_phone_is_sent_empty_to_clear_it() = runTest {
+        val f = Fixture(storage = FakeTokenStorage(AuthTokens("a", "r"))) {
+            respondJson("""{"id":7,"email":"jean@chantier.dev","name":"Jean","active":true,"globalRole":"USER","phone":null,"language":"fr"}""")
+        }
+
+        val updated = f.repo.updateProfile(
+            com.dmb.chantiertracker.domain.model.ProfileUpdate("Jean", "", com.dmb.chantiertracker.domain.model.ProfileLanguage.FRENCH),
+        )
+
+        assertTrue(""""phone":""""" in f.mock.requests.single().body.toByteArray().decodeToString())
+        assertEquals(null, updated.phone)
+    }
+
+    @Test
+    fun a_refused_profile_names_each_field_the_server_refused() = runTest {
+        val f = Fixture(storage = FakeTokenStorage(AuthTokens("a", "r"))) {
+            respondProblem(
+                HttpStatusCode.BadRequest, "Données invalides.",
+                errors = mapOf("name" to "Le nom ne peut pas être vide.", "phone" to "Le numéro de téléphone n'est pas valide."),
+                code = "VALIDATION_FAILED",
+            )
+        }
+
+        val refusal = assertFailsWith<DomainException.InvalidProfile> {
+            f.repo.updateProfile(
+                com.dmb.chantiertracker.domain.model.ProfileUpdate(" ", "12", com.dmb.chantiertracker.domain.model.ProfileLanguage.FRENCH),
+            )
+        }
+
+        assertEquals(
+            setOf(com.dmb.chantiertracker.domain.model.ProfileField.NAME, com.dmb.chantiertracker.domain.model.ProfileField.PHONE),
+            refusal.fields,
+        )
+        assertEquals(AuthState.Unknown, f.holder.state.value, "nothing published on a refusal")
+    }
+
+    @Test
+    fun a_new_password_identical_to_the_current_one_is_refused_on_change_and_on_reset() = runTest {
+        val f = Fixture(storage = FakeTokenStorage(AuthTokens("a", "r"))) {
+            respondProblem(HttpStatusCode.BadRequest, "Le nouveau mot de passe doit être différent du mot de passe actuel.", code = "NEW_PASSWORD_SAME_AS_CURRENT")
+        }
+
+        assertFailsWith<DomainException.NewPasswordSameAsCurrent> { f.repo.changePassword("Password1234!", "Password1234!") }
+        assertFailsWith<DomainException.NewPasswordSameAsCurrent> { f.repo.resetPassword("jean@chantier.dev", "123456", "Password1234!") }
+    }
+}

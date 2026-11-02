@@ -13,12 +13,29 @@ import kotlinx.coroutines.CancellationException
 
 private const val BILLING_NOT_OPEN_CODE = "BILLING_NOT_OPEN"
 private const val DUPLICATE_MATERIAL_CODE = "DUPLICATE_MATERIAL"
+private const val PROJECT_EXPORT_EMPTY_CODE = "PROJECT_EXPORT_EMPTY"
+private const val NEW_PASSWORD_SAME_AS_CURRENT_CODE = "NEW_PASSWORD_SAME_AS_CURRENT"
 private const val IDEMPOTENCY_KEY_IN_PROGRESS_CODE = "IDEMPOTENCY_KEY_IN_PROGRESS"
+private const val INVITATION_ALREADY_PENDING_CODE = "INVITATION_ALREADY_PENDING"
+private const val MEDIA_PROCESSING_BUSY_CODE = "MEDIA_PROCESSING_BUSY"
+private const val REQUEST_BODY_TOO_LARGE_CODE = "REQUEST_BODY_TOO_LARGE"
+private const val PROJECT_OWNER_REQUIRED_CODE = "PROJECT_OWNER_REQUIRED"
+private const val PROJECT_OWNER_CANNOT_LEAVE_CODE = "PROJECT_OWNER_CANNOT_LEAVE"
+private const val PLAN_LIMIT_EXCEEDED_CODE = "PLAN_LIMIT_EXCEEDED"
+private const val LOCKED_CODE = "LOCKED"
+private const val INVALID_QUERY_STRING_CODE = "INVALID_QUERY_STRING"
 private val PROBLEM_JSON = ContentType("application", "problem+json")
+
+internal var apiLog: (String) -> Unit = ::println
 
 suspend fun <T> apiCall(block: suspend () -> T): T = apiCallReportingRefusalCode({}, block = block)
 
-suspend fun <T> apiCallReportingRefusalCode(onRefusalCode: (String?) -> Unit, onRefusalStatus: (Int) -> Unit = {}, block: suspend () -> T): T =
+suspend fun <T> apiCallReportingRefusalCode(
+    onRefusalCode: (String?) -> Unit,
+    onRefusalStatus: (Int) -> Unit = {},
+    onFieldErrors: (Set<String>) -> Unit = {},
+    block: suspend () -> T,
+): T =
     try {
         block()
     } catch (e: CancellationException) {
@@ -31,6 +48,7 @@ suspend fun <T> apiCallReportingRefusalCode(onRefusalCode: (String?) -> Unit, on
         // the server is unreachable, nothing was found missing.
         if (e.response.isNotTheBackendsAnswer(problem)) throw DomainException.ServiceUnavailable
         onRefusalStatus(e.response.status.value)
+        problem?.errors?.keys?.let(onFieldErrors)
         throw e.toDomainException(problem, onRefusalCode)
     } catch (e: Throwable) {
         throw DomainException.Network
@@ -52,14 +70,27 @@ private fun ResponseException.toDomainException(problem: ProblemDetailDto?, onRe
     // from the exception name) — tested as is, never the translatable `detail`.
     if (problem?.code == BILLING_NOT_OPEN_CODE) return DomainException.BillingNotOpen
     if (problem?.code == DUPLICATE_MATERIAL_CODE) return DomainException.DuplicateMaterial
-    if (problem?.code == IDEMPOTENCY_KEY_IN_PROGRESS_CODE) return DomainException.CreationInProgress(retryAfterSeconds = response.retryAfterSeconds())
+    if (problem?.code == PROJECT_EXPORT_EMPTY_CODE) return DomainException.ProjectExportEmpty
+    if (problem?.code == NEW_PASSWORD_SAME_AS_CURRENT_CODE) return DomainException.NewPasswordSameAsCurrent
+    if (problem?.code == IDEMPOTENCY_KEY_IN_PROGRESS_CODE) return DomainException.CreationInProgress(retryAfterSeconds = waitOf(problem))
+    if (problem?.code == INVITATION_ALREADY_PENDING_CODE) return DomainException.InvitationAlreadyPending
+    if (problem?.code == MEDIA_PROCESSING_BUSY_CODE) return DomainException.RateLimited(retryAfterSeconds = waitOf(problem))
+    if (problem?.code == REQUEST_BODY_TOO_LARGE_CODE) return DomainException.ContentTooLarge
+    if (problem?.code == PROJECT_OWNER_REQUIRED_CODE) return DomainException.OwnerRequired
+    if (problem?.code == PROJECT_OWNER_CANNOT_LEAVE_CODE) return DomainException.OwnerCannotLeave
+    if (problem?.code == PLAN_LIMIT_EXCEEDED_CODE) return DomainException.PlanLimitReached
+    if (problem?.code == LOCKED_CODE) return DomainException.AccountLocked(retryAfterSeconds = waitOf(problem))
+    if (problem?.code == INVALID_QUERY_STRING_CODE) {
+        apiLog("api: $INVALID_QUERY_STRING_CODE on ${response.call.request.url.encodedPath}")
+        return DomainException.Unexpected
+    }
 
     return when (response.status) {
         HttpStatusCode.Unauthorized -> DomainException.InvalidCredentials
         HttpStatusCode.Conflict -> DomainException.EmailAlreadyUsed
         HttpStatusCode.NotFound -> DomainException.NotFound
         HttpStatusCode.Forbidden -> when {
-            detail.containsAny("verrouillé", "locked") -> DomainException.AccountLocked
+            detail.containsAny("verrouillé", "locked") -> DomainException.AccountLocked(retryAfterSeconds = waitOf(problem))
             detail.containsAny("activé", "vérifi", "verif", "activate") -> DomainException.AccountNotVerified
             detail.containsAny("limite", "plan", "palier", "formule", "limit") -> DomainException.PlanLimitReached
             // MustChangePasswordFilter blocks every endpoint but /auth/change-password
@@ -72,14 +103,17 @@ private fun ResponseException.toDomainException(problem: ProblemDetailDto?, onRe
             else -> DomainException.Forbidden
         }
         HttpStatusCode.PayloadTooLarge -> DomainException.FileTooLarge
-        HttpStatusCode.TooManyRequests -> DomainException.RateLimited(retryAfterSeconds = response.retryAfterSeconds())
+        HttpStatusCode.TooManyRequests -> DomainException.RateLimited(retryAfterSeconds = waitOf(problem))
         HttpStatusCode.BadRequest ->
             if (hasFieldErrors) DomainException.Validation else DomainException.InvalidCode
         else -> DomainException.Unexpected
     }
 }
 
-private fun HttpResponse.retryAfterSeconds(): Int? = headers[HttpHeaders.RetryAfter]?.trim()?.toIntOrNull()?.takeIf { it > 0 }
+internal fun HttpResponse.retryAfterSeconds(): Int? = headers[HttpHeaders.RetryAfter]?.trim()?.toIntOrNull()?.takeIf { it > 0 }
+
+private fun ResponseException.waitOf(problem: ProblemDetailDto?): Int? =
+    problem?.retryAfterSeconds?.takeIf { it > 0 } ?: response.retryAfterSeconds()
 
 private fun String.containsAny(vararg needles: String): Boolean =
     needles.any { contains(it, ignoreCase = true) }

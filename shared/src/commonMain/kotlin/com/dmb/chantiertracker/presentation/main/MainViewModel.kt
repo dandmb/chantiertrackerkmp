@@ -4,6 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.dmb.chantiertracker.domain.model.AuthState
 import com.dmb.chantiertracker.domain.model.Plan
+import com.dmb.chantiertracker.domain.model.PlanUsage
+import com.dmb.chantiertracker.domain.model.ProfileLanguage
 import com.dmb.chantiertracker.domain.model.UnsentWrites
 import com.dmb.chantiertracker.domain.repository.AccountRepository
 import com.dmb.chantiertracker.domain.repository.AuthRepository
@@ -26,6 +28,7 @@ data class MainUiState(
     val email: String = "",
     val plan: Plan? = null,
     val isFounder: Boolean = false,
+    val planUsage: PlanUsage? = null,
     val isLoggingOut: Boolean = false,
     val logoutPrompt: LogoutPrompt? = null,
 )
@@ -37,22 +40,43 @@ class MainViewModel(
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(MainUiState())
+    private var languageBeingSent: ProfileLanguage? = null
     val state = _state.asStateFlow()
 
     init {
         viewModelScope.launch {
+            var sessionUserId: Long? = null
             authRepository.authState.collect { authState ->
-                if (authState is AuthState.Authenticated) {
-                    _state.update { it.copy(userName = authState.user.name, email = authState.user.email) }
+                when (authState) {
+                    is AuthState.Authenticated -> {
+                        _state.update {
+                            it.copy(userName = authState.user.name, email = authState.user.email, isLoggingOut = false, logoutPrompt = null)
+                        }
+                        if (sessionUserId != authState.user.id) {
+                            sessionUserId = authState.user.id
+                            launch { accountRepository.refreshPlanUsage() }
+                        }
+                    }
+                    AuthState.Unauthenticated -> sessionUserId = null
+                    else -> Unit
                 }
             }
         }
         viewModelScope.launch {
             accountRepository.observePlanUsage().collect { usage ->
-                _state.update { it.copy(plan = usage?.plan, isFounder = usage?.isFounder == true) }
+                _state.update { it.copy(plan = usage?.plan, isFounder = usage?.isFounder == true, planUsage = usage) }
             }
         }
-        viewModelScope.launch { accountRepository.refreshPlanUsage() }
+    }
+
+    fun onAppLanguage(language: ProfileLanguage) {
+        val user = (authRepository.authState.value as? AuthState.Authenticated)?.user ?: return
+        if (user.language == language || language == languageBeingSent) return
+        languageBeingSent = language
+        viewModelScope.launch {
+            runCatching { authRepository.updateAccountLanguage(language) }
+            languageBeingSent = null
+        }
     }
 
     fun logout() = attemptSignOut(acceptRefusedWrites = false)

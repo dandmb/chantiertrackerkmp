@@ -31,6 +31,10 @@ class InvitationApi(private val client: HttpClient) {
         client.delete(ApiRoutes.invitation(id))
     }
 
+    suspend fun removeMember(projectId: Long, userId: Long) {
+        client.delete(ApiRoutes.projectMember(projectId, userId))
+    }
+
     /** Invitations addressed to the authenticated user (`GET /users/me/invitations`). */
     suspend fun listMine(): List<PendingInvitationDto> =
         client.get(ApiRoutes.USERS_ME_INVITATIONS).body()
@@ -44,8 +48,11 @@ class InvitationApi(private val client: HttpClient) {
         client.post(ApiRoutes.acceptInvitation(token))
     }
 
-    /** Explicitly decline — no body, same access model as accept. */
-    suspend fun decline(token: String) {
-        client.post(ApiRoutes.declineInvitation(token))
+    suspend fun acceptMine(id: Long) {
+        client.post(ApiRoutes.acceptMyInvitation(id))
+    }
+
+    suspend fun declineMine(id: Long) {
+        client.post(ApiRoutes.declineMyInvitation(id))
     }
 }

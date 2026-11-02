@@ -74,10 +74,11 @@ import org.koin.compose.viewmodel.koinViewModel
 fun StandaloneLegalDocumentScreen(
     document: LegalDocument,
     onBack: () -> Unit,
+    onOpenDocument: (LegalDocument) -> Unit = {},
     viewModel: LegalDocumentViewModel = koinViewModel(),
 ) {
     Scaffold(topBar = { DetailTopBar(title = stringResource(document.link), onBack = onBack) }) { padding ->
-        LegalDocumentScreen(document, Modifier.padding(padding), viewModel)
+        LegalDocumentScreen(document, Modifier.padding(padding), onOpenDocument, viewModel)
     }
 }
 
@@ -85,6 +86,7 @@ fun StandaloneLegalDocumentScreen(
 fun LegalDocumentScreen(
     document: LegalDocument,
     modifier: Modifier = Modifier,
+    onOpenDocument: (LegalDocument) -> Unit = {},
     viewModel: LegalDocumentViewModel = koinViewModel(),
 ) {
     val language = LegalLanguage.forLocale(LocalAppLocale.current)
@@ -95,7 +97,9 @@ fun LegalDocumentScreen(
     val webOpener = LocalLegalPageOpener.current ?: platformLegalPageOpener()
     val uriHandler = LocalUriHandler.current
     val mailOpener = remember(uriHandler) { LegalPageOpener { uriHandler.openUri(it) } }
-    val onLink: (LegalLink) -> Unit = { viewModel.openLink(it, webOpener, mailOpener) }
+    val onLink: (LegalLink) -> Unit = { link ->
+        if (link is LegalLink.Document) onOpenDocument(link.document) else viewModel.openLink(link, webOpener, mailOpener)
+    }
     notice?.let { LegalLinkNoticeDialog(it, onDismiss = viewModel::dismissLinkNotice) }
 
     ResponsiveContent(modifier) {

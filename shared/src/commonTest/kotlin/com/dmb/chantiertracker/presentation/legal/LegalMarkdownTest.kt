@@ -88,18 +88,33 @@ class LegalMarkdownTest {
     }
 
     @Test
-    fun http_https_and_mailto_links_are_kept_with_their_target() {
+    fun no_other_scheme_makes_a_link() {
+        listOf("http://example.com", "javascript:alert(1)", "intent://x#Intent;end", "file:///data/x", "data:text/html,x", "content://x/y", "tel:+33100000000").forEach { target ->
+            val spans = (parseLegalMarkdown("[lien]($target)").single() as Paragraph).text.spans
+            assertTrue(spans.all { it.link == null }, target)
+        }
+    }
+
+    @Test
+    fun html_stays_plain_text() {
+        val text = parseLegalMarkdown("Avant <script>alert(1)</script> <a href=\"https://example.com\">lien</a>").flatMap { (it as Paragraph).text.spans }
+        assertTrue(text.all { it.link == null })
+        assertTrue("<script>" in text.joinToString("") { it.text })
+    }
+
+    @Test
+    fun https_and_mailto_links_are_kept_with_their_target() {
         val spans = (
-            parseLegalMarkdown("Voir [les CGU](https://chantiertracker.com/cgu), [l'ancien site](http://example.com) ou [écris-nous](mailto:dpo@chantiertracker.com).")
+            parseLegalMarkdown("Voir [les CGU](https://chantiertracker.com/cgu), [le site](https://example.com) ou [écris-nous](mailto:dpo@chantiertracker.com).")
                 .single() as Paragraph
             ).text.spans
 
         assertEquals(
             listOf(
                 LegalSpan("Voir "),
-                LegalSpan("les CGU", link = LegalLink.Web("https://chantiertracker.com/cgu")),
+                LegalSpan("les CGU", link = LegalLink.Document(LegalDocument.TermsOfUse, "https://chantiertracker.com/cgu")),
                 LegalSpan(", "),
-                LegalSpan("l'ancien site", link = LegalLink.Web("http://example.com")),
+                LegalSpan("le site", link = LegalLink.Web("https://example.com")),
                 LegalSpan(" ou "),
                 LegalSpan("écris-nous", link = LegalLink.Mail("mailto:dpo@chantiertracker.com")),
                 LegalSpan("."),
@@ -115,8 +130,8 @@ class LegalMarkdownTest {
         val links = allSpans(blocks).mapNotNull { it.link }
         assertEquals(
             listOf(
-                LegalLink.Web("https://chantiertracker.com/confidentialite"),
-                LegalLink.Web("https://chantiertracker.com/cookies"),
+                LegalLink.Document(LegalDocument.PrivacyPolicy, "https://chantiertracker.com/confidentialite"),
+                LegalLink.Document(LegalDocument.CookiePolicy, "https://chantiertracker.com/cookies"),
                 LegalLink.Mail("mailto:dpo@chantiertracker.com"),
             ),
             links,
@@ -127,7 +142,7 @@ class LegalMarkdownTest {
     @Test
     fun a_link_to_any_other_scheme_is_shown_as_plain_text_and_never_opens() {
         val blocks = parseLegalMarkdown(
-            "[a](javascript:alert(1)) [b](JavaScript:alert(1)) [c](data:text/html,x) [d](/cgu) [e](ftp://x.org) [f](intent://x) [g](file:///etc/passwd)",
+            "[a](javascript:alert(1)) [b](JavaScript:alert(1)) [c](data:text/html,x) [d](/tarifs) [e](ftp://x.org) [f](intent://x) [g](file:///etc/passwd)",
         )
 
         val spans = allSpans(blocks)
@@ -180,5 +195,27 @@ class LegalMarkdownTest {
         val text = "Directeur : [À COMPLÉTER : nom"
 
         assertEquals(listOf("[À COMPLÉTER : nom"), pendingRanges(text).map { text.substring(it) })
+    }
+
+    @Test
+    fun a_link_to_another_legal_text_opens_it_in_the_app_for_the_six_documents_in_french_and_in_english() {
+        val sitePaths = mapOf(
+            LegalDocument.LegalNotice to listOf("/mentions-legales", "/en/legal-notice"),
+            LegalDocument.TermsOfUse to listOf("/cgu", "/en/terms-of-use"),
+            LegalDocument.TermsOfSale to listOf("/cgv", "/en/terms-of-sale"),
+            LegalDocument.PrivacyPolicy to listOf("/confidentialite", "/en/privacy-policy"),
+            LegalDocument.CookiePolicy to listOf("/cookies", "/en/cookie-policy"),
+            LegalDocument.AccountDeletion to listOf("/suppression-compte", "/en/account-deletion"),
+        )
+        sitePaths.forEach { (document, paths) ->
+            val targets = paths.flatMap { path -> listOf(path, "https://chantiertracker.com$path", "https://www.chantiertracker.com$path/#article-3", "http://localhost:5173$path") } +
+                document.slug
+            targets.forEach { target ->
+                val link = (parseLegalMarkdown("[voir]($target)").single() as Paragraph).text.spans.single().link
+                assertEquals(LegalLink.Document(document, target), link, target)
+            }
+        }
+        val external = (parseLegalMarkdown("[Vercel](https://vercel.com/legal) [autre page](https://chantiertracker.com/tarifs)").single() as Paragraph).text.spans.mapNotNull { it.link }
+        assertEquals(listOf(LegalLink.Web("https://vercel.com/legal"), LegalLink.Web("https://chantiertracker.com/tarifs")), external)
     }
 }

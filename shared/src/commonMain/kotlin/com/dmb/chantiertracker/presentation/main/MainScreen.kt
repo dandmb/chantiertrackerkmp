@@ -1,5 +1,8 @@
 package com.dmb.chantiertracker.presentation.main
 
+import com.dmb.chantiertracker.presentation.i18n.LocalAppLocale
+import com.dmb.chantiertracker.domain.model.ProfileLanguage
+import com.dmb.chantiertracker.domain.model.LegalLanguage
 import com.dmb.chantiertracker.domain.model.SyncIssueItem
 import com.dmb.chantiertracker.presentation.sync.SyncIssueMarkersProvider
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -12,6 +15,7 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -48,9 +52,19 @@ import com.dmb.chantiertracker.presentation.legal.LegalDocument
 import com.dmb.chantiertracker.presentation.legal.LegalDocumentScreen
 import com.dmb.chantiertracker.presentation.navigation.LegalDocumentRoute
 import com.dmb.chantiertracker.presentation.account.DeleteAccountScreen
+import com.dmb.chantiertracker.presentation.account.ProfileScreen
+import com.dmb.chantiertracker.presentation.help.DiscoverScreen
+import com.dmb.chantiertracker.presentation.help.HelpScreen
 import com.dmb.chantiertracker.presentation.navigation.BillingRoute
+import com.dmb.chantiertracker.presentation.navigation.DiscoverRoute
+import com.dmb.chantiertracker.presentation.navigation.HelpRoute
+import com.dmb.chantiertracker.presentation.navigation.MyOfferRoute
+import com.dmb.chantiertracker.presentation.offer.LocalOpenMyOffer
+import com.dmb.chantiertracker.presentation.offer.LocalPlanUsage
+import com.dmb.chantiertracker.presentation.offer.MyOfferScreen
 import com.dmb.chantiertracker.presentation.billing.LocalInAppPaymentsAllowed
 import com.dmb.chantiertracker.presentation.navigation.DeleteAccountRoute
+import com.dmb.chantiertracker.presentation.navigation.ProfileRoute
 import com.dmb.chantiertracker.presentation.navigation.ConsumptionLineFormRoute
 import com.dmb.chantiertracker.presentation.navigation.CreateProjectRoute
 import com.dmb.chantiertracker.presentation.navigation.CreateStageRoute
@@ -95,6 +109,10 @@ import com.dmb.chantiertracker.presentation.stages.create.CreateStageScreen
 import com.dmb.chantiertracker.presentation.stages.detail.StageDetailScreen
 import com.dmb.chantiertracker.resources.Res
 import com.dmb.chantiertracker.resources.delete_account_title
+import com.dmb.chantiertracker.resources.discover_title
+import com.dmb.chantiertracker.resources.help_title
+import com.dmb.chantiertracker.resources.offer_title
+import com.dmb.chantiertracker.resources.profile_title
 import com.dmb.chantiertracker.resources.admin_create_user_title
 import com.dmb.chantiertracker.resources.admin_users_create
 import com.dmb.chantiertracker.resources.admin_users_title
@@ -116,8 +134,8 @@ import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 
 private enum class MainDestination {
-    Projects, Administration, AdminUsers, AdminCreateUser, Settings, CreateProject, ProjectDetail, EditProject, InviteMember, ProjectHistory, ProjectReports, CreateStage, StageDetail, DailyLog,
-    EntrySummary, PurchaseLineForm, ConsumptionLineForm, ReportEntry, Billing, InvitationAccept, LegalDocumentPage, SyncIssues, DeleteAccount
+    MyOffer, Help, Discover, Projects, Administration, AdminUsers, AdminCreateUser, Settings, CreateProject, ProjectDetail, EditProject, InviteMember, ProjectHistory, ProjectReports, CreateStage, StageDetail, DailyLog,
+    EntrySummary, PurchaseLineForm, ConsumptionLineForm, ReportEntry, Billing, InvitationAccept, LegalDocumentPage, SyncIssues, DeleteAccount, Profile
 }
 
 // ADR-52 — a SUPER_ADMIN can neither own nor join a project (blocked
@@ -147,10 +165,14 @@ fun MainScreen(
     viewModel: MainViewModel = koinViewModel(),
     syncIssueCountViewModel: SyncIssueCountViewModel = koinViewModel(),
 ) {
+    val appLanguage = if (LegalLanguage.forLocale(LocalAppLocale.current) == LegalLanguage.English) ProfileLanguage.ENGLISH else ProfileLanguage.FRENCH
+    LaunchedEffect(appLanguage) { viewModel.onAppLanguage(appLanguage) }
+
     val navController = rememberNavController()
     val account by viewModel.state.collectAsStateWithLifecycle()
     val syncIssueCount by syncIssueCountViewModel.count.collectAsStateWithLifecycle()
     val startDestination = remember(globalRole) { startDestinationFor(globalRole) }
+    val openMyOffer: () -> Unit = remember(navController) { { navController.navigate(MyOfferRoute) { launchSingleTop = true } } }
     val openSyncIssues: () -> Unit = { navController.navigate(SyncIssuesRoute()) { launchSingleTop = true } }
     val openSyncIssue: (SyncIssueItem) -> Unit = remember(navController) { { item -> navController.navigate(item.reviewRoute()) { launchSingleTop = true } } }
 
@@ -237,6 +259,10 @@ fun MainScreen(
         destination?.hasRoute(LegalDocumentRoute::class) == true -> MainDestination.LegalDocumentPage
         destination?.hasRoute(SyncIssuesRoute::class) == true -> MainDestination.SyncIssues
         destination?.hasRoute(DeleteAccountRoute::class) == true -> MainDestination.DeleteAccount
+        destination?.hasRoute(ProfileRoute::class) == true -> MainDestination.Profile
+        destination?.hasRoute(MyOfferRoute::class) == true -> MainDestination.MyOffer
+        destination?.hasRoute(HelpRoute::class) == true -> MainDestination.Help
+        destination?.hasRoute(DiscoverRoute::class) == true -> MainDestination.Discover
         else -> MainDestination.Projects
     }
     val currentTab = when (current) {
@@ -355,6 +381,22 @@ fun MainScreen(
                     title = stringResource(Res.string.delete_account_title),
                     onBack = { navController.popBackStack() },
                 )
+                MainDestination.Profile -> DetailTopBar(
+                    title = stringResource(Res.string.profile_title),
+                    onBack = { navController.popBackStack() },
+                )
+                MainDestination.MyOffer -> DetailTopBar(
+                    title = stringResource(Res.string.offer_title),
+                    onBack = { navController.popBackStack() },
+                )
+                MainDestination.Help -> DetailTopBar(
+                    title = stringResource(Res.string.help_title),
+                    onBack = { navController.popBackStack() },
+                )
+                MainDestination.Discover -> DetailTopBar(
+                    title = stringResource(Res.string.discover_title),
+                    onBack = { navController.popBackStack() },
+                )
                 else -> AppTopBar(
                     userName = account.userName,
                     email = account.email,
@@ -366,6 +408,9 @@ fun MainScreen(
                         null
                     },
                     onLogout = viewModel::logout,
+                    onProfile = { navController.navigate(ProfileRoute) },
+                    onMyOffer = openMyOffer,
+                    onHelp = { navController.navigate(HelpRoute) { launchSingleTop = true } },
                     onDeleteAccount = { navController.navigate(DeleteAccountRoute) },
                     syncIssueCount = syncIssueCount,
                     onOpenSyncIssues = openSyncIssues,
@@ -400,6 +445,7 @@ fun MainScreen(
     // serves both branches of the width-based layout further down, with no
     // duplication of the ~25-destination graph.
     val navHostContent: @Composable (PaddingValues) -> Unit = { padding ->
+        CompositionLocalProvider(LocalPlanUsage provides account.planUsage, LocalOpenMyOffer provides openMyOffer) {
         SyncIssueMarkersProvider(onOpen = openSyncIssue) {
         NavHost(
             navController = navController,
@@ -409,6 +455,7 @@ fun MainScreen(
             composable<ProjectsRoute> {
                 ProjectsScreen(
                     onProjectClick = { localId -> navController.navigate(ProjectDetailRoute(localId)) },
+                    onCreateProject = { navController.navigate(CreateProjectRoute) },
                     syncIssueCount = syncIssueCount,
                     onOpenSyncIssues = openSyncIssues,
                 )
@@ -431,6 +478,18 @@ fun MainScreen(
             composable<AdminCreateUserRoute> {
                 AdminCreateUserScreen(onCreated = { navController.popBackStack() })
             }
+            composable<MyOfferRoute> {
+                MyOfferScreen()
+            }
+            composable<HelpRoute> {
+                HelpScreen(onDiscover = { navController.navigate(DiscoverRoute) })
+            }
+            composable<DiscoverRoute> {
+                DiscoverScreen()
+            }
+            composable<ProfileRoute> {
+                ProfileScreen(onSaved = { navController.popBackStack() })
+            }
             composable<DeleteAccountRoute> {
                 DeleteAccountScreen(
                     onCancel = { navController.popBackStack() },
@@ -439,11 +498,14 @@ fun MainScreen(
                 )
             }
             composable<SettingsRoute> {
-                SettingsScreen(onOpenLegalDocument = { navController.navigate(LegalDocumentRoute(it.slug)) })
+                SettingsScreen(
+                    onOpenLegalDocument = { navController.navigate(LegalDocumentRoute(it.slug)) },
+                    onOpenHelp = { navController.navigate(HelpRoute) { launchSingleTop = true } },
+                )
             }
             composable<LegalDocumentRoute> { entry ->
                 LegalDocument.fromSlug(entry.toRoute<LegalDocumentRoute>().document)?.let { document ->
-                    LegalDocumentScreen(document)
+                    LegalDocumentScreen(document, onOpenDocument = { navController.navigate(LegalDocumentRoute(it.slug)) })
                 }
             }
             if (paymentsAllowed) {
@@ -577,6 +639,7 @@ fun MainScreen(
                     onTitleResolved = { formTitle = it },
                 )
             }
+        }
         }
         }
     }

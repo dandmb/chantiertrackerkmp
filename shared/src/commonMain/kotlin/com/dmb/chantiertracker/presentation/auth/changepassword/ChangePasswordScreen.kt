@@ -14,6 +14,7 @@ import com.dmb.chantiertracker.presentation.auth.components.AuthScreenLayout
 import com.dmb.chantiertracker.presentation.auth.components.ErrorBanner
 import com.dmb.chantiertracker.presentation.auth.components.PasswordField
 import com.dmb.chantiertracker.presentation.i18n.localizedText
+import com.dmb.chantiertracker.presentation.i18n.rememberWaitSecondsLeft
 import com.dmb.chantiertracker.resources.Res
 import com.dmb.chantiertracker.resources.change_password_logout
 import com.dmb.chantiertracker.resources.change_password_submit
@@ -63,6 +64,7 @@ fun ChangePasswordScreen(
             text = stringResource(Res.string.change_password_submit),
             onClick = { viewModel.submit(email) },
             loading = state.isSubmitting,
+            enabled = rememberWaitSecondsLeft(state.formError) == 0,
         )
 
         Spacer(Modifier.height(4.dp))

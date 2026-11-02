@@ -10,6 +10,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dmb.chantiertracker.presentation.auth.components.AuthFooterPrompt
+import com.dmb.chantiertracker.presentation.auth.components.AuthLegalFooter
 import com.dmb.chantiertracker.presentation.auth.components.AuthPrimaryButton
 import com.dmb.chantiertracker.presentation.auth.components.RegisterLegalConsent
 import com.dmb.chantiertracker.presentation.auth.components.AuthScreenLayout
@@ -18,6 +19,7 @@ import com.dmb.chantiertracker.presentation.auth.components.ErrorBanner
 import com.dmb.chantiertracker.presentation.auth.components.NameField
 import com.dmb.chantiertracker.presentation.auth.components.PasswordField
 import com.dmb.chantiertracker.presentation.i18n.localizedText
+import com.dmb.chantiertracker.presentation.i18n.rememberWaitSecondsLeft
 import com.dmb.chantiertracker.presentation.legal.LegalDocument
 import com.dmb.chantiertracker.resources.Res
 import com.dmb.chantiertracker.resources.register_have_account_action
@@ -73,6 +75,7 @@ fun RegisterScreen(
             text = stringResource(Res.string.register_submit),
             onClick = viewModel::submit,
             loading = state.isSubmitting,
+            enabled = rememberWaitSecondsLeft(state.formError) == 0,
         )
         RegisterLegalConsent(onOpenDocument = onOpenLegalDocument)
 
@@ -82,5 +85,6 @@ fun RegisterScreen(
             action = stringResource(Res.string.register_have_account_action),
             onClick = onBackToLogin,
         )
+        AuthLegalFooter(onOpenDocument = onOpenLegalDocument)
     }
 }

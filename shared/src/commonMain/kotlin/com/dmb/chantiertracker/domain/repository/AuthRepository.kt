@@ -1,6 +1,9 @@
 package com.dmb.chantiertracker.domain.repository
 
 import com.dmb.chantiertracker.domain.model.AuthState
+import com.dmb.chantiertracker.domain.model.ProfileLanguage
+import com.dmb.chantiertracker.domain.model.ProfileUpdate
+import com.dmb.chantiertracker.domain.model.User
 import kotlinx.coroutines.flow.StateFlow
 
 interface AuthRepository {
@@ -11,11 +14,18 @@ interface AuthRepository {
     suspend fun markOnboardingSeen()
     suspend fun bootstrap()
     suspend fun register(email: String, password: String, name: String)
-    suspend fun verifyEmail(email: String, code: String)
+    suspend fun verifyEmail(email: String, code: String, password: String? = null)
+    fun holdsVerificationPassword(email: String): Boolean
+    fun pendingVerificationEmail(): String?
+    fun forgetVerificationPassword()
     suspend fun resendCode(email: String)
     suspend fun login(email: String, password: String)
     suspend fun logout()
     suspend fun forgotPassword(email: String)
     suspend fun resetPassword(email: String, code: String, newPassword: String)
     suspend fun changePassword(currentPassword: String, newPassword: String)
+
+    suspend fun updateProfile(update: ProfileUpdate): User
+
+    suspend fun updateAccountLanguage(language: ProfileLanguage)
 }

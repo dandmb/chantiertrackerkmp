@@ -14,9 +14,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.dmb.chantiertracker.domain.model.DomainException
 import com.dmb.chantiertracker.presentation.auth.components.AuthFooterPrompt
 import com.dmb.chantiertracker.presentation.auth.components.AuthInlineLink
-import com.dmb.chantiertracker.presentation.auth.components.AuthLink
 import com.dmb.chantiertracker.presentation.auth.components.AuthLegalFooter
 import com.dmb.chantiertracker.presentation.auth.components.AuthPrimaryButton
 import com.dmb.chantiertracker.presentation.auth.components.AuthScreenLayout
@@ -25,18 +25,19 @@ import com.dmb.chantiertracker.presentation.auth.components.ErrorBanner
 import com.dmb.chantiertracker.presentation.auth.components.InfoBanner
 import com.dmb.chantiertracker.presentation.auth.components.PasswordField
 import com.dmb.chantiertracker.presentation.i18n.localizedText
+import com.dmb.chantiertracker.presentation.i18n.rememberWaitSecondsLeft
 import com.dmb.chantiertracker.presentation.main.labelRes
 import com.dmb.chantiertracker.presentation.navigation.LoginNotice
 import com.dmb.chantiertracker.presentation.legal.LegalDocument
 import com.dmb.chantiertracker.resources.Res
 import com.dmb.chantiertracker.resources.login_forgot_password
+import com.dmb.chantiertracker.resources.login_locked_reset_hint
 import com.dmb.chantiertracker.resources.login_no_account_action
 import com.dmb.chantiertracker.resources.login_no_account_prompt
 import com.dmb.chantiertracker.resources.login_notice_account_activated
 import com.dmb.chantiertracker.resources.login_notice_account_deleted
 import com.dmb.chantiertracker.resources.login_notice_checkout_pending
 import com.dmb.chantiertracker.resources.login_notice_password_reset
-import com.dmb.chantiertracker.resources.login_resend_verification
 import com.dmb.chantiertracker.resources.login_submit
 import com.dmb.chantiertracker.resources.login_subtitle
 import com.dmb.chantiertracker.resources.login_title
@@ -46,9 +47,10 @@ import org.koin.compose.viewmodel.koinViewModel
 @Composable
 fun LoginScreen(
     onNavigateToRegister: () -> Unit,
-    onNavigateToForgotPassword: () -> Unit,
+    onNavigateToForgotPassword: (email: String) -> Unit,
     onOpenLegalDocument: (LegalDocument) -> Unit,
     onBack: (() -> Unit)? = null,
+    onVerificationRequired: () -> Unit = {},
     prefilledEmail: String? = null,
     notice: LoginNotice? = null,
     checkoutPlan: String? = null,
@@ -63,6 +65,13 @@ fun LoginScreen(
 
     LaunchedEffect(checkoutPlan, checkoutCycle) {
         viewModel.setCheckoutIntent(checkoutPlan, checkoutCycle)
+    }
+
+    LaunchedEffect(state.opensVerification) {
+        if (state.opensVerification) {
+            viewModel.onVerificationOpened()
+            onVerificationRequired()
+        }
     }
 
     AuthScreenLayout(
@@ -87,6 +96,14 @@ fun LoginScreen(
             }
         }
         state.formError?.let { ErrorBanner(it.localizedText()) }
+        val locked = state.formError is DomainException.AccountLocked
+        if (locked) {
+            InfoBanner(stringResource(Res.string.login_locked_reset_hint))
+            AuthInlineLink(
+                text = stringResource(Res.string.login_forgot_password),
+                onClick = { onNavigateToForgotPassword(state.email.trim()) },
+            )
+        }
 
         EmailField(
             value = state.email,
@@ -106,26 +123,22 @@ fun LoginScreen(
                 enabled = !state.isSubmitting,
                 imeAction = ImeAction.Done,
             )
-            Box(Modifier.fillMaxWidth()) {
-                AuthInlineLink(
-                    text = stringResource(Res.string.login_forgot_password),
-                    onClick = onNavigateToForgotPassword,
-                    modifier = Modifier.align(Alignment.CenterEnd),
-                )
+            if (!locked) {
+                Box(Modifier.fillMaxWidth()) {
+                    AuthInlineLink(
+                        text = stringResource(Res.string.login_forgot_password),
+                        onClick = { onNavigateToForgotPassword(state.email.trim()) },
+                        modifier = Modifier.align(Alignment.CenterEnd),
+                    )
+                }
             }
-        }
-
-        if (state.needsVerification) {
-            AuthLink(
-                text = stringResource(Res.string.login_resend_verification),
-                onClick = viewModel::resendVerificationCode,
-            )
         }
 
         AuthPrimaryButton(
             text = stringResource(Res.string.login_submit),
             onClick = viewModel::submit,
             loading = state.isSubmitting,
+            enabled = rememberWaitSecondsLeft(state.formError) == 0,
         )
 
         Spacer(Modifier.height(4.dp))

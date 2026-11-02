@@ -2,6 +2,7 @@ package com.dmb.chantiertracker.presentation.stages.create
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.dmb.chantiertracker.domain.model.MAX_FREE_TEXT_LENGTH
 import com.dmb.chantiertracker.domain.model.AuthState
 import com.dmb.chantiertracker.domain.model.CreateStageInput
 import com.dmb.chantiertracker.domain.model.DomainException
@@ -68,7 +69,7 @@ class CreateStageViewModel(
     }
 
     fun onNameChange(value: String) = _state.update { it.copy(name = value, nameError = null, formError = null) }
-    fun onDescriptionChange(value: String) = _state.update { it.copy(description = value, formError = null) }
+    fun onDescriptionChange(value: String) = _state.update { it.copy(description = value.take(MAX_FREE_TEXT_LENGTH), formError = null) }
     fun onBudgetChange(value: String) = _state.update { it.copy(estimatedBudget = value, budgetError = null, formError = null) }
 
     fun onStartDateChange(value: String) = _state.update {

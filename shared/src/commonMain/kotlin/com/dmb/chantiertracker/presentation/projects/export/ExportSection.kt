@@ -18,13 +18,17 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dmb.chantiertracker.presentation.AppOutlinedButton
 import com.dmb.chantiertracker.presentation.DetailEmptyHint
-import com.dmb.chantiertracker.presentation.DetailSection
+import com.dmb.chantiertracker.presentation.SectionCard
 import com.dmb.chantiertracker.presentation.auth.components.ErrorBanner
 import com.dmb.chantiertracker.presentation.billing.paidPlansAreOffered
 import com.dmb.chantiertracker.presentation.i18n.localizedText
 import com.dmb.chantiertracker.presentation.main.DownloadIcon
 import com.dmb.chantiertracker.presentation.main.OpenInNewIcon
 import com.dmb.chantiertracker.presentation.main.ShareIcon
+import com.dmb.chantiertracker.domain.model.DomainException
+import com.dmb.chantiertracker.presentation.offer.PlanLimitKind
+import com.dmb.chantiertracker.presentation.offer.PlanLimitNotice
+import com.dmb.chantiertracker.presentation.offer.SeeMyOfferLink
 import com.dmb.chantiertracker.resources.Res
 import com.dmb.chantiertracker.resources.detail_export_action
 import com.dmb.chantiertracker.resources.detail_export_generating
@@ -35,11 +39,12 @@ import com.dmb.chantiertracker.resources.detail_export_regenerate
 import com.dmb.chantiertracker.resources.detail_export_share
 import com.dmb.chantiertracker.resources.detail_export_title
 import com.dmb.chantiertracker.resources.detail_export_unavailable
+import com.dmb.chantiertracker.resources.error_project_export_empty
 import com.dmb.chantiertracker.resources.detail_export_upgrade
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 
-// A "Dossier de chantier" DetailSection on ProjectDetailScreen — visible to any
+// A "Dossier de chantier" SectionCard on ProjectDetailScreen — visible to any
 // project member (not ADMIN-only: the backend and the web gate on the OWNER's
 // plan, not the caller's role). canExport is the backend's own combined answer
 // (plan + founder status, ADR-66) — an "Export to PDF" button when true, a calm
@@ -54,15 +59,17 @@ import org.koin.compose.viewmodel.koinViewModel
 fun ExportSection(
     projectLocalId: String,
     canExport: Boolean,
+    isEmpty: Boolean = false,
     viewModel: ProjectExportViewModel = koinViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
 
-    DetailSection(stringResource(Res.string.detail_export_title)) {
+    SectionCard(stringResource(Res.string.detail_export_title)) {
         if (!canExport) {
             val hint = if (paidPlansAreOffered()) Res.string.detail_export_upgrade else Res.string.detail_export_unavailable
             DetailEmptyHint(stringResource(hint))
-            return@DetailSection
+            SeeMyOfferLink()
+            return@SectionCard
         }
 
         Text(
@@ -71,7 +78,9 @@ fun ExportSection(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
 
-        state.error?.let { ErrorBanner(it.localizedText()) }
+        state.error?.let { error ->
+            if (error == DomainException.PlanLimitReached) PlanLimitNotice(PlanLimitKind.PDF_EXPORT) else ErrorBanner(error.localizedText())
+        }
 
         val exported = state.exported
         when {
@@ -111,7 +120,8 @@ fun ExportSection(
             }
 
             else -> {
-                AppOutlinedButton(onClick = { viewModel.export(projectLocalId) }) {
+                if (isEmpty) DetailEmptyHint(stringResource(Res.string.error_project_export_empty))
+                AppOutlinedButton(onClick = { viewModel.export(projectLocalId) }, enabled = !isEmpty) {
                     Icon(DownloadIcon, contentDescription = null, modifier = Modifier.size(18.dp))
                     Text(text = stringResource(Res.string.detail_export_action), modifier = Modifier.padding(start = 6.dp))
                 }

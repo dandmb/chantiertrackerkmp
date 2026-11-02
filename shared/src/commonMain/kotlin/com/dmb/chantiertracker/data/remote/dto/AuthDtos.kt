@@ -7,10 +7,10 @@ import kotlinx.serialization.Serializable
 data class RegisterRequestDto(val email: String, val password: String, val name: String)
 
 @Serializable
-data class RegisterResponseDto(val id: Long, val email: String)
+data class RegisterResponseDto(val email: String)
 
 @Serializable
-data class VerifyEmailRequestDto(val email: String, val code: String)
+data class VerifyEmailRequestDto(val email: String, val code: String, val password: String)
 
 @Serializable
 data class ResendCodeRequestDto(val email: String)
@@ -40,7 +40,15 @@ data class UserResponseDto(
     val name: String,
     val active: Boolean,
     val globalRole: String,
+    val phone: String? = null,
+    val language: String? = null,
 )
+
+@Serializable
+data class UpdateProfileRequestDto(val name: String, val phone: String, val language: String)
+
+@Serializable
+data class UpdateLanguageRequestDto(val language: String)
 
 @Serializable
 data class ProblemDetailDto(
@@ -49,4 +57,5 @@ data class ProblemDetailDto(
     val detail: String? = null,
     val code: String? = null,
     @SerialName("errors") val errors: Map<String, String>? = null,
+    val retryAfterSeconds: Int? = null,
 )

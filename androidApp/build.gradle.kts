@@ -1,3 +1,5 @@
+import com.google.firebase.crashlytics.buildtools.gradle.CrashlyticsExtension
+import java.util.Properties
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
@@ -25,6 +27,11 @@ dependencies {
     releaseImplementation(libs.kotlinx.coroutines.core)
     releaseImplementation(libs.koin.core)
 }
+
+// Debug builds only: the shipped APK must not carry a local address.
+val devApiBaseUrl = Properties().apply {
+    rootProject.file("local.properties").takeIf { it.exists() }?.reader()?.use { load(it) }
+}.getProperty("chantiertracker.devApiBaseUrl").orEmpty()
 
 // Distribution signing: values come from CI env vars (see .github/workflows/cd-stage.yml).
 // Absent locally → the build stays unsigned, which is fine for local inspection.
@@ -79,8 +86,14 @@ android {
         }
     }
     buildTypes {
+        debug {
+            resValue("string", "dev_api_base_url", devApiBaseUrl)
+        }
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
+            // No Google-Services plugin here, so the upload task cannot even be created.
+            configure<CrashlyticsExtension> { mappingFileUploadEnabled = false }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -102,6 +115,7 @@ android {
             applicationIdSuffix = ".staging"
             matchingFallbacks += "release"
             signingConfig = signingConfigs.findByName("distribution")
+            configure<CrashlyticsExtension> { mappingFileUploadEnabled = false }
         }
     }
     compileOptions {

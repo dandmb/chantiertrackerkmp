@@ -1,6 +1,7 @@
 package com.dmb.chantiertracker.data.remote
 
 import com.dmb.chantiertracker.data.local.AuthTokens
+import com.dmb.chantiertracker.domain.model.DomainException
 import com.dmb.chantiertracker.support.FakeTokenStorage
 import com.dmb.chantiertracker.support.RecordingMockClient
 import com.dmb.chantiertracker.support.respondJson
@@ -10,7 +11,11 @@ import io.ktor.client.plugins.ClientRequestException
 import io.ktor.client.request.get
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.yield
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -68,5 +73,100 @@ class TokenRefreshTest {
         assertEquals(null, storage.tokens)
         assertTrue(storage.clearCount >= 1)
         assertTrue(expiredSignals >= 1)
+    }
+
+    @Test
+    fun a_rate_limited_refresh_keeps_the_session() = runTest {
+        val storage = FakeTokenStorage(AuthTokens("stale", "good-refresh"))
+        var expiredSignals = 0
+        val mock = RecordingMockClient(storage, onSessionExpired = { expiredSignals++ }) { request ->
+            when (request.url.encodedPath) {
+                "/api/v1/users/me" -> respondProblem(HttpStatusCode.Unauthorized, "Token expiré.")
+                "/api/v1/auth/refresh-token" -> respondProblem(
+                    HttpStatusCode.TooManyRequests, "Trop de requêtes.", extraHeaders = mapOf(HttpHeaders.RetryAfter to "12"), code = "RATE_LIMITED",
+                )
+                else -> error("unexpected ${request.url}")
+            }
+        }
+
+        val failure = assertFailsWith<DomainException> { apiCall { mock.client.get("users/me") } }
+
+        assertEquals(DomainException.RateLimited(12), failure)
+        assertEquals(AuthTokens("stale", "good-refresh"), storage.tokens)
+        assertEquals(0, expiredSignals)
+    }
+
+    @Test
+    fun requests_expiring_together_exchange_the_refresh_token_once() = runTest {
+        val storage = FakeTokenStorage(AuthTokens("stale", "once"))
+        val bothRefused = CompletableDeferred<Unit>()
+        var refused = 0
+        var refreshes = 0
+        val mock = RecordingMockClient(storage) { request ->
+            when (request.url.encodedPath) {
+                "/api/v1/users/me" -> if (request.headers[HttpHeaders.Authorization] == "Bearer stale") {
+                    if (++refused == 2) bothRefused.complete(Unit)
+                    bothRefused.await()
+                    respondProblem(HttpStatusCode.Unauthorized, "Token expiré.")
+                } else {
+                    respondJson(USER_JSON)
+                }
+                "/api/v1/auth/refresh-token" -> {
+                    refreshes++
+                    if (refreshes > 1) {
+                        respondProblem(HttpStatusCode.Unauthorized, "Refresh token invalide ou expiré.")
+                    } else {
+                        respondJson("""{"accessToken":"new-access","refreshToken":"new-refresh"}""")
+                    }
+                }
+                else -> error("unexpected ${request.url}")
+            }
+        }
+
+        val responses = listOf(async { mock.client.get("users/me") }, async { mock.client.get("users/me") }).awaitAll()
+
+        assertEquals(listOf(HttpStatusCode.OK, HttpStatusCode.OK), responses.map { it.status })
+        assertEquals(1, refreshes, "a second exchange would read as a replay and revoke the session")
+        assertEquals(AuthTokens("new-access", "new-refresh"), storage.tokens)
+    }
+
+    @Test
+    fun a_refusal_landing_after_the_refresh_does_not_exchange_the_token_again() = runTest {
+        val storage = FakeTokenStorage(AuthTokens("stale", "once"))
+        val refreshed = CompletableDeferred<Unit>()
+        val secondSent = CompletableDeferred<Unit>()
+        var refused = 0
+        var refreshes = 0
+        val mock = RecordingMockClient(storage) { request ->
+            when (request.url.encodedPath) {
+                "/api/v1/users/me" -> if (request.headers[HttpHeaders.Authorization] == "Bearer stale") {
+                    if (++refused == 1) {
+                        secondSent.await()
+                    } else {
+                        secondSent.complete(Unit)
+                        refreshed.await()
+                        yield()
+                    }
+                    respondProblem(HttpStatusCode.Unauthorized, "Token expiré.")
+                } else {
+                    respondJson(USER_JSON)
+                }
+                "/api/v1/auth/refresh-token" -> {
+                    refreshes++
+                    refreshed.complete(Unit)
+                    if (refreshes > 1) {
+                        respondProblem(HttpStatusCode.Unauthorized, "Refresh token invalide ou expiré.")
+                    } else {
+                        respondJson("""{"accessToken":"new-access","refreshToken":"new-refresh"}""")
+                    }
+                }
+                else -> error("unexpected ${request.url}")
+            }
+        }
+
+        val responses = listOf(async { mock.client.get("users/me") }, async { mock.client.get("users/me") }).awaitAll()
+
+        assertEquals(listOf(HttpStatusCode.OK, HttpStatusCode.OK), responses.map { it.status })
+        assertEquals(1, refreshes)
     }
 }

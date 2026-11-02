@@ -111,6 +111,20 @@ class InvitationAcceptViewModelTest {
     }
 
     @Test
+    fun a_link_refused_at_acceptance_because_its_sender_lost_their_rights_is_invalid() = runTest {
+        val invitations = FakeInvitationRepository().apply {
+            preview = com.dmb.chantiertracker.domain.model.InvitationPreview(1L, "Villa", com.dmb.chantiertracker.domain.model.InvitationStatus.PENDING)
+            acceptError = DomainException.NotFound
+        }
+        val vm = InvitationAcceptViewModel(invitations, FakeProjectRepository())
+
+        vm.load("tok")
+        advanceUntilIdle()
+
+        assertEquals(InvitationAcceptStatus.InvalidLink, vm.status.value)
+    }
+
+    @Test
     fun retry_reruns_the_whole_flow() = runTest {
         val invitations = FakeInvitationRepository().apply { previewError = DomainException.Network }
         val projects = FakeProjectRepository()

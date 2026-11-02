@@ -1,3 +1,4 @@
+import java.util.Properties
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 
 plugins {
@@ -6,10 +7,15 @@ plugins {
     alias(libs.plugins.composeCompiler)
 }
 
+val devApiBaseUrl = Properties().apply {
+    rootProject.file("local.properties").takeIf { it.exists() }?.reader()?.use { load(it) }
+}.getProperty("chantiertracker.devApiBaseUrl").orEmpty()
+
 // `./gradlew :desktopApp:run` cible l'environnement de dev ; la distribution packagée reste en prod.
 tasks.withType<JavaExec>().configureEach {
     if (name == "run" || name == "hotRun") {
         systemProperty("chantiertracker.debug", "true")
+        systemProperty("chantiertracker.devApiBaseUrl", devApiBaseUrl)
     }
 }
 

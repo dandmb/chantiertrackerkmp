@@ -38,6 +38,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -45,7 +46,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.ClipEntry
+import androidx.compose.ui.platform.Clipboard
+import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.NativeClipboard
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -80,6 +85,7 @@ fun AuthScreenLayout(
     subtitle: String? = null,
     onBack: (() -> Unit)? = null,
     centerContentVertically: Boolean = false,
+    pinnedFooter: (@Composable ColumnScope.() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val keyboardVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
@@ -95,8 +101,10 @@ fun AuthScreenLayout(
         // reused rather than inventing a second treatment.
         val shortOnHeight = maxHeight < 500.dp
         val showIllustration = !keyboardVisible && !shortOnHeight
+        // Landscape has no room for a pinned block: it scrolls with the content instead.
+        val footerPinned = pinnedFooter != null && !shortOnHeight
         val headerHeight by animateDpAsState(
-            targetValue = if (keyboardVisible || shortOnHeight) 128.dp else (maxHeight * 0.38f).coerceIn(228.dp, 360.dp),
+            targetValue = if (keyboardVisible || shortOnHeight) 128.dp else if (footerPinned) (maxHeight * 0.2f).coerceIn(128.dp, 200.dp) else (maxHeight * 0.38f).coerceIn(228.dp, 360.dp),
             label = "authHeaderHeight",
         )
 
@@ -182,24 +190,40 @@ fun AuthScreenLayout(
                         }
                     }
                 } else {
-                    Column(
-                        Modifier
-                            .fillMaxSize()
-                            .verticalScroll(rememberScrollState())
-                            .imePadding()
-                            .navigationBarsPadding()
-                            .padding(horizontal = 24.dp)
-                            .padding(top = 32.dp, bottom = 28.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                    ) {
+                    Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
                         Column(
-                            Modifier.widthIn(max = 440.dp).fillMaxWidth(),
+                            Modifier
+                                .fillMaxWidth()
+                                .weight(1f)
+                                .verticalScroll(rememberScrollState())
+                                .imePadding()
+                                .then(if (footerPinned) Modifier else Modifier.navigationBarsPadding())
+                                .padding(horizontal = 24.dp)
+                                .padding(top = 32.dp, bottom = 28.dp),
                             horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(14.dp),
                         ) {
-                            AuthTitleBlock(title, subtitle)
-                            Spacer(Modifier.height(6.dp))
-                            content()
+                            Column(
+                                Modifier.widthIn(max = 440.dp).fillMaxWidth(),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(14.dp),
+                            ) {
+                                AuthTitleBlock(title, subtitle)
+                                Spacer(Modifier.height(6.dp))
+                                content()
+                                if (!footerPinned) pinnedFooter?.invoke(this)
+                            }
+                        }
+                        if (footerPinned) {
+                            Column(
+                                Modifier
+                                    .widthIn(max = 440.dp)
+                                    .fillMaxWidth()
+                                    .navigationBarsPadding()
+                                    .padding(horizontal = 24.dp, vertical = 12.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                                content = pinnedFooter!!,
+                            )
                         }
                     }
                 }
@@ -281,30 +305,41 @@ fun PasswordField(
     enabled: Boolean = true,
     imeAction: ImeAction = ImeAction.Done,
 ) {
+    KeepWindowPrivate()
     var visible by remember { mutableStateOf(false) }
     val supporting = error ?: hint
     val resolvedLabel = label ?: stringResource(Res.string.field_password_label)
-    AppOutlinedTextField(
-        value = value,
-        onValueChange = onValueChange,
-        modifier = modifier.fillMaxWidth(),
-        label = { Text(resolvedLabel) },
-        singleLine = true,
-        enabled = enabled,
-        isError = error != null,
-        supportingText = supporting?.let { { Text(it) } },
-        visualTransformation = if (visible) VisualTransformation.None else PasswordVisualTransformation(),
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = imeAction),
-        trailingIcon = {
-            IconButton(onClick = { visible = !visible }) {
-                Icon(
-                    imageVector = if (visible) VisibilityOffIcon else VisibilityIcon,
-                    contentDescription = stringResource(if (visible) Res.string.password_hide else Res.string.password_show),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        },
-    )
+    val clipboard = LocalClipboard.current
+    val pasteOnlyClipboard = remember(clipboard) { PasteOnlyClipboard(clipboard) }
+    CompositionLocalProvider(LocalClipboard provides pasteOnlyClipboard) {
+        AppOutlinedTextField(
+            value = value,
+            onValueChange = onValueChange,
+            modifier = modifier.fillMaxWidth(),
+            label = { Text(resolvedLabel) },
+            singleLine = true,
+            enabled = enabled,
+            isError = error != null,
+            supportingText = supporting?.let { { Text(it) } },
+            visualTransformation = if (visible) VisualTransformation.None else PasswordVisualTransformation(),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = imeAction),
+            trailingIcon = {
+                IconButton(onClick = { visible = !visible }) {
+                    Icon(
+                        imageVector = if (visible) VisibilityOffIcon else VisibilityIcon,
+                        contentDescription = stringResource(if (visible) Res.string.password_hide else Res.string.password_show),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            },
+        )
+    }
+}
+
+private class PasteOnlyClipboard(private val clipboard: Clipboard) : Clipboard {
+    override suspend fun getClipEntry(): ClipEntry? = clipboard.getClipEntry()
+    override suspend fun setClipEntry(clipEntry: ClipEntry?) = Unit
+    override val nativeClipboard: NativeClipboard get() = clipboard.nativeClipboard
 }
 
 @Composable
@@ -315,6 +350,7 @@ fun CodeField(
     error: String? = null,
     enabled: Boolean = true,
 ) {
+    KeepWindowPrivate()
     AppOutlinedTextField(
         value = value,
         onValueChange = { input -> if (input.length <= 6 && input.all(Char::isDigit)) onValueChange(input) },

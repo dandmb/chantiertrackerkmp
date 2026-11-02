@@ -430,6 +430,13 @@ data class AttachmentEntity(
 // Last-known publisher identity for the legal pages (GET /editor-identity),
 // one row (id = 0) like plan_usage, so the legal notice stays right offline and
 // before sign-in. Each field null = not filled in on the backend yet.
+@Entity(tableName = "support_contact")
+data class SupportContactEntity(
+    @PrimaryKey val id: Int = 0,
+    val email: String? = null,
+    val refreshedAt: Long,
+)
+
 @Entity(tableName = "editor_identity")
 data class EditorIdentityEntity(
     @PrimaryKey val id: Int = 0,

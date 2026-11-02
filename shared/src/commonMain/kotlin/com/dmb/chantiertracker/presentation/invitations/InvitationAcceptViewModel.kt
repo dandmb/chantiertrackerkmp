@@ -57,7 +57,7 @@ class InvitationAcceptViewModel(
             try {
                 invitationRepository.acceptInvitation(token)
             } catch (e: DomainException) {
-                _status.value = InvitationAcceptStatus.Failed(e)
+                _status.value = if (e == DomainException.NotFound) InvitationAcceptStatus.InvalidLink else InvitationAcceptStatus.Failed(e)
                 return@launch
             }
             // Best-effort: never throws (ProjectRepository.refresh's own

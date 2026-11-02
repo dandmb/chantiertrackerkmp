@@ -38,8 +38,8 @@ import com.dmb.chantiertracker.presentation.CapitalTitle
 import com.dmb.chantiertracker.presentation.ClickableListRow
 import com.dmb.chantiertracker.presentation.DetailEmptyHint
 import com.dmb.chantiertracker.presentation.DetailInfoRow
-import com.dmb.chantiertracker.presentation.DetailSection
-import com.dmb.chantiertracker.presentation.DetailSectionDivider
+import com.dmb.chantiertracker.presentation.SectionCard
+import com.dmb.chantiertracker.presentation.SectionTone
 import com.dmb.chantiertracker.presentation.ResponsiveContent
 import com.dmb.chantiertracker.presentation.formatIsoDate
 import com.dmb.chantiertracker.presentation.format.formatMoney
@@ -147,17 +147,15 @@ private fun StageDetailContent(
             }
         }
 
-        DetailSectionDivider()
 
         val budget = detail.estimatedBudget?.let { formatMoney(it, currency) }
         val dates = formatDateRange(detail.startDate, detail.endDate)
         val notSet = stringResource(Res.string.value_not_set)
-        DetailSection(stringResource(Res.string.detail_section_info)) {
+        SectionCard(stringResource(Res.string.detail_section_info)) {
             DetailInfoRow(stringResource(Res.string.stage_detail_budget), budget ?: notSet, muted = budget == null)
             DetailInfoRow(stringResource(Res.string.stage_detail_dates), dates ?: notSet, muted = dates == null)
         }
 
-        DetailSectionDivider()
 
         DaysSection(
             logs = logs,
@@ -191,7 +189,7 @@ private fun DaysSection(
         }
     }
 
-    DetailSection(stringResource(Res.string.stage_detail_section_days)) {
+    SectionCard(stringResource(Res.string.stage_detail_section_days), tone = SectionTone.Yellow) {
         // Full-width primary action on its own row — the label is long and must
         // never be squeezed against the section title (large font / narrow screen).
         Box(Modifier.fillMaxWidth()) {

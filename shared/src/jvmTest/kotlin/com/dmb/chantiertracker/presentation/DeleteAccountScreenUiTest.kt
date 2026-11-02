@@ -156,7 +156,7 @@ class DeleteAccountScreenUiTest {
 
         onNode(hasSetTextAction()).performScrollTo().performTextInput("faux")
         onNodeWithText("Je comprends que la suppression est définitive : mon compte et mes projets ne pourront pas être récupérés.").performScrollTo().performClick()
-        onNodeWithText("Supprimer définitivement mon compte").performClick()
+        onNodeWithText("Supprimer définitivement mon compte").performScrollTo().performClick()
         waitForIdle()
 
         onNodeWithText("Mot de passe incorrect.").assertExists()

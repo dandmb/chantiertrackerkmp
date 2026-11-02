@@ -64,7 +64,12 @@ class FakeAuthRepository : AuthRepository {
     override suspend fun markOnboardingSeen() { onboardingSeen = true; calls += "markOnboardingSeen" }
     override suspend fun bootstrap() { record("bootstrap") }
     override suspend fun register(email: String, password: String, name: String) = record("register:$email:$password:$name")
-    override suspend fun verifyEmail(email: String, code: String) = record("verifyEmail:$email:$code")
+    var heldVerificationEmail: String? = null
+    override suspend fun verifyEmail(email: String, code: String, password: String?) =
+        record("verifyEmail:$email:$code" + password?.let { ":$it" }.orEmpty())
+    override fun holdsVerificationPassword(email: String) = heldVerificationEmail == email
+    override fun pendingVerificationEmail() = heldVerificationEmail
+    override fun forgetVerificationPassword() { heldVerificationEmail = null }
     override suspend fun resendCode(email: String) = record("resendCode:$email")
     override suspend fun login(email: String, password: String) {
         record("login:$email:$password")
@@ -76,6 +81,28 @@ class FakeAuthRepository : AuthRepository {
         record("resetPassword:$email:$code:$newPassword")
     override suspend fun changePassword(currentPassword: String, newPassword: String) =
         record("changePassword:$currentPassword:$newPassword")
+
+    val accountLanguageUpdates = mutableListOf<com.dmb.chantiertracker.domain.model.ProfileLanguage>()
+
+    override suspend fun updateAccountLanguage(language: com.dmb.chantiertracker.domain.model.ProfileLanguage) {
+        accountLanguageUpdates += language
+        val current = (_authState.value as? AuthState.Authenticated)?.user ?: return
+        _authState.value = AuthState.Authenticated(current.copy(language = language))
+    }
+
+    val profileUpdates = mutableListOf<com.dmb.chantiertracker.domain.model.ProfileUpdate>()
+    var onUpdateProfile: suspend () -> Unit = {}
+
+    override suspend fun updateProfile(update: com.dmb.chantiertracker.domain.model.ProfileUpdate): com.dmb.chantiertracker.domain.model.User {
+        onUpdateProfile()
+        error?.let { throw it }
+        profileUpdates += update
+        val current = (_authState.value as? AuthState.Authenticated)?.user
+            ?: com.dmb.chantiertracker.domain.model.User(0, "", "", true, com.dmb.chantiertracker.domain.model.GlobalRole.USER)
+        val updated = current.copy(name = update.name, phone = update.phone.ifEmpty { null }, language = update.language)
+        _authState.value = AuthState.Authenticated(updated)
+        return updated
+    }
 }
 
 class FakeBackgroundSync : com.dmb.chantiertracker.data.sync.BackgroundSync {
@@ -514,9 +541,25 @@ class FakeInvitationRepository(
         invited += projectLocalId to email
     }
 
+    val replaced = mutableListOf<Pair<String, String>>()
+
+    override suspend fun replacePendingInvitation(projectLocalId: String, email: String) {
+        replaced += projectLocalId to email
+    }
+
     override suspend fun cancelInvitation(projectLocalId: String, invitationId: Long) {
         cancelError?.let { throw it }
         cancelled += projectLocalId to invitationId
+    }
+
+    val removedMembers = mutableListOf<Pair<String, Long>>()
+    var removeMemberError: com.dmb.chantiertracker.domain.model.DomainException? = null
+    var onRemoveMember: suspend () -> Unit = {}
+
+    override suspend fun removeMember(projectLocalId: String, userId: Long) {
+        onRemoveMember()
+        removeMemberError?.let { throw it }
+        removedMembers += projectLocalId to userId
     }
 
     var incoming: List<com.dmb.chantiertracker.domain.model.IncomingInvitation> = emptyList()
@@ -524,7 +567,8 @@ class FakeInvitationRepository(
     var acceptError: com.dmb.chantiertracker.domain.model.DomainException? = null
     var declineError: com.dmb.chantiertracker.domain.model.DomainException? = null
     val accepted = mutableListOf<String>()
-    val declined = mutableListOf<String>()
+    val acceptedIds = mutableListOf<Long>()
+    val declinedIds = mutableListOf<Long>()
 
     override suspend fun listIncomingInvitations(): List<com.dmb.chantiertracker.domain.model.IncomingInvitation> {
         listIncomingError?.let { throw it }
@@ -534,13 +578,18 @@ class FakeInvitationRepository(
     override suspend fun acceptInvitation(token: String) {
         acceptError?.let { throw it }
         accepted += token
-        incoming = incoming.filterNot { it.token == token }
     }
 
-    override suspend fun declineInvitation(token: String) {
+    override suspend fun acceptIncomingInvitation(id: Long) {
+        acceptError?.let { throw it }
+        acceptedIds += id
+        incoming = incoming.filterNot { it.id == id }
+    }
+
+    override suspend fun declineIncomingInvitation(id: Long) {
         declineError?.let { throw it }
-        declined += token
-        incoming = incoming.filterNot { it.token == token }
+        declinedIds += id
+        incoming = incoming.filterNot { it.id == id }
     }
 
     var preview: com.dmb.chantiertracker.domain.model.InvitationPreview? = null
@@ -869,4 +918,22 @@ class FakeAccountRepository(
         refreshCount++
         refreshResult?.let { planUsageFlow.value = it }
     }
+}
+
+class FakeSupportContactRepository(email: String? = null) : com.dmb.chantiertracker.domain.repository.SupportContactRepository {
+    private val emailFlow = MutableStateFlow(email)
+
+    override fun observeEmail() = emailFlow
+
+    override suspend fun refresh() = Unit
+}
+
+class FakeLaunchStatusRepository(
+    initial: com.dmb.chantiertracker.domain.model.BillingAvailability,
+    offer: com.dmb.chantiertracker.domain.model.FounderOffer? = null,
+) : com.dmb.chantiertracker.domain.repository.LaunchStatusRepository {
+    override val billingStatus = MutableStateFlow(initial)
+    override val founderOffer = MutableStateFlow(offer)
+
+    override suspend fun refresh() = Unit
 }

@@ -34,9 +34,12 @@ fun testOwnership(
 class FakeSignOutRepository : SignOutRepository {
     val results = ArrayDeque<SignOutResult>()
     val calls = mutableListOf<Boolean>()
+    var onSignOut: () -> Unit = {}
 
     override suspend fun signOut(acceptRefusedWrites: Boolean): SignOutResult {
         calls += acceptRefusedWrites
-        return results.removeFirstOrNull() ?: SignOutResult.SignedOut
+        val result = results.removeFirstOrNull() ?: SignOutResult.SignedOut
+        if (result == SignOutResult.SignedOut) onSignOut()
+        return result
     }
 }

@@ -1,5 +1,7 @@
 package com.dmb.chantiertracker.presentation.projects.edit
 
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,10 +27,9 @@ import com.dmb.chantiertracker.presentation.ResponsiveContent
 import com.dmb.chantiertracker.presentation.auth.components.AuthPrimaryButton
 import com.dmb.chantiertracker.presentation.auth.components.ErrorBanner
 import com.dmb.chantiertracker.presentation.i18n.localizedText
+import com.dmb.chantiertracker.presentation.projects.CurrencyField
 import com.dmb.chantiertracker.presentation.projects.TimezoneField
 import com.dmb.chantiertracker.resources.Res
-import com.dmb.chantiertracker.resources.create_currency_hint
-import com.dmb.chantiertracker.resources.create_currency_label
 import com.dmb.chantiertracker.resources.create_description_label
 import com.dmb.chantiertracker.resources.create_location_label
 import com.dmb.chantiertracker.resources.create_name_label
@@ -90,6 +91,7 @@ private fun EditForm(state: EditProjectUiState, viewModel: EditProjectViewModel)
         AppOutlinedTextField(
             value = state.name,
             onValueChange = viewModel::onNameChange,
+            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
             modifier = Modifier.fillMaxWidth(),
             label = { Text(stringResource(Res.string.create_name_label)) },
             singleLine = true,
@@ -101,6 +103,7 @@ private fun EditForm(state: EditProjectUiState, viewModel: EditProjectViewModel)
         AppOutlinedTextField(
             value = state.description,
             onValueChange = viewModel::onDescriptionChange,
+            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
             modifier = Modifier.fillMaxWidth(),
             label = { Text(stringResource(Res.string.create_description_label)) },
             minLines = 3,
@@ -110,21 +113,14 @@ private fun EditForm(state: EditProjectUiState, viewModel: EditProjectViewModel)
         AppOutlinedTextField(
             value = state.location,
             onValueChange = viewModel::onLocationChange,
+            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
             modifier = Modifier.fillMaxWidth(),
             label = { Text(stringResource(Res.string.create_location_label)) },
             singleLine = true,
             enabled = !locked,
         )
 
-        AppOutlinedTextField(
-            value = state.currency,
-            onValueChange = viewModel::onCurrencyChange,
-            modifier = Modifier.fillMaxWidth(),
-            label = { Text(stringResource(Res.string.create_currency_label)) },
-            placeholder = { Text(stringResource(Res.string.create_currency_hint)) },
-            singleLine = true,
-            enabled = !locked,
-        )
+        CurrencyField(value = state.currency, enabled = !locked, onSelect = viewModel::onCurrencyChange)
 
         TimezoneField(
             value = state.timezone,

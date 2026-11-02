@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Replaces the file of FileKit, which shares the whole of filesDir, token file included. -->
+<paths>
+    <files-path name="filekit_files" path="attachments/" />
+    <cache-path name="cached_filekit_files" path="." />
+</paths>

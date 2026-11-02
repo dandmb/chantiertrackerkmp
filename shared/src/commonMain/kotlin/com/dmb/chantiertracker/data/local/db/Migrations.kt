@@ -444,3 +444,17 @@ val MIGRATION_17_18 = object : Migration(17, 18) {
         )
     }
 }
+
+/**
+ * v18 → v19 : table `support_contact`, une seule ligne (`id = 0`) — dernière adresse de support
+ * connue (`GET /legal-settings`), pour que l'Aide et À propos restent justes hors ligne. Vide
+ * jusqu'à la première lecture.
+ */
+val MIGRATION_18_19 = object : Migration(18, 19) {
+    override fun migrate(connection: SQLiteConnection) {
+        connection.execSQL(
+            "CREATE TABLE IF NOT EXISTS `support_contact` (`id` INTEGER NOT NULL, `email` TEXT, " +
+                "`refreshedAt` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        )
+    }
+}

@@ -76,13 +76,20 @@ class LoginViewModelTest {
     }
 
     @Test
-    fun unverified_account_offers_resend() = runTest {
+    fun an_unverified_account_opens_the_code_screen_once() = runTest {
         repo.error = DomainException.AccountNotVerified
         viewModel.onEmailChange("user@example.com")
         viewModel.onPasswordChange("secret")
         viewModel.submit()
         advanceUntilIdle()
-        assertTrue(viewModel.state.value.needsVerification)
+
+        assertTrue(viewModel.state.value.opensVerification)
+        assertNull(viewModel.state.value.formError)
+        assertEquals(false, viewModel.state.value.isSubmitting)
+
+        viewModel.onVerificationOpened()
+
+        assertEquals(false, viewModel.state.value.opensVerification, "coming back to the form must not reopen the code screen")
     }
 
     @Test

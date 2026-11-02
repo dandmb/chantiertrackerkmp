@@ -11,22 +11,28 @@ import io.ktor.client.call.body
 import io.ktor.client.engine.HttpClientEngineFactory
 import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.auth.Auth
+import io.ktor.client.plugins.auth.AuthCircuitBreaker
 import io.ktor.client.plugins.auth.providers.BearerTokens
 import io.ktor.client.plugins.auth.providers.bearer
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.defaultRequest
 import io.ktor.client.plugins.expectSuccess
+import io.ktor.client.plugins.logging.DEFAULT
 import io.ktor.client.plugins.logging.LogLevel
+import io.ktor.client.plugins.logging.Logger
 import io.ktor.client.plugins.logging.Logging
 import io.ktor.client.request.header
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
 import io.ktor.http.isSuccess
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.json.Json
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 val AppJson: Json = Json {
     ignoreUnknownKeys = true
@@ -43,6 +49,7 @@ fun HttpClientConfig<*>.configureChantierTrackerClient(
     baseUrl: String,
     enableLogging: Boolean,
     onSessionExpired: suspend () -> Unit,
+    networkLogger: Logger = Logger.DEFAULT,
 ) {
     val normalizedBaseUrl = if (baseUrl.endsWith("/")) baseUrl else "$baseUrl/"
 
@@ -60,10 +67,13 @@ fun HttpClientConfig<*>.configureChantierTrackerClient(
 
     if (enableLogging) {
         install(Logging) {
-            level = LogLevel.ALL
+            level = LogLevel.HEADERS
+            logger = networkLogger
+            sanitizeHeader { it == HttpHeaders.Authorization }
         }
     }
 
+    val refreshLock = Mutex()
     install(Auth) {
         bearer {
             // TokenStorage est la source de vérité : pas de cache mémoire, sinon un
@@ -73,30 +83,39 @@ fun HttpClientConfig<*>.configureChantierTrackerClient(
                 tokenStorage.get()?.let { BearerTokens(it.accessToken, it.refreshToken) }
             }
             refreshTokens {
-                val currentRefresh = tokenStorage.get()?.refreshToken
-                if (currentRefresh == null) {
-                    onSessionExpired()
-                    return@refreshTokens null
-                }
-                val response = client.post(ApiRoutes.AUTH_REFRESH_TOKEN) {
-                    markAsRefreshTokenRequest()
-                    expectSuccess = false
-                    contentType(ContentType.Application.Json)
-                    setBody(RefreshTokenRequestDto(currentRefresh))
-                }
-                if (response.status.isSuccess()) {
-                    val fresh = response.body<LoginResponseDto>()
-                    tokenStorage.save(AuthTokens(fresh.accessToken, fresh.refreshToken))
-                    BearerTokens(fresh.accessToken, fresh.refreshToken)
-                } else if (response.comesFromAnUnavailableApi() || response.status.value >= SERVER_ERROR) {
-                    throw DomainException.ServiceUnavailable
-                } else {
-                    tokenStorage.clear()
-                    onSessionExpired()
-                    null
+                refreshLock.withLock {
+                    val stored = tokenStorage.get()
+                    if (stored == null) {
+                        onSessionExpired()
+                        return@refreshTokens null
+                    }
+                    // Another request refreshed while this one waited: exchanging the same refresh
+                    // token twice would read as a replay and revoke the session.
+                    if (oldTokens != null && stored.accessToken != oldTokens?.accessToken) {
+                        return@refreshTokens BearerTokens(stored.accessToken, stored.refreshToken)
+                    }
+                    val response = client.post(ApiRoutes.AUTH_REFRESH_TOKEN) {
+                        markAsRefreshTokenRequest()
+                        expectSuccess = false
+                        contentType(ContentType.Application.Json)
+                        setBody(RefreshTokenRequestDto(stored.refreshToken))
+                    }
+                    if (response.status.isSuccess()) {
+                        val fresh = response.body<LoginResponseDto>()
+                        tokenStorage.save(AuthTokens(fresh.accessToken, fresh.refreshToken))
+                        BearerTokens(fresh.accessToken, fresh.refreshToken)
+                    } else if (response.comesFromAnUnavailableApi() || response.status.value >= SERVER_ERROR) {
+                        throw DomainException.ServiceUnavailable
+                    } else if (response.status == HttpStatusCode.TooManyRequests) {
+                        throw DomainException.RateLimited(response.retryAfterSeconds())
+                    } else {
+                        tokenStorage.clear()
+                        onSessionExpired()
+                        null
+                    }
                 }
             }
-            sendWithoutRequest { true }
+            sendWithoutRequest { request -> !request.attributes.contains(AuthCircuitBreaker) }
         }
     }
 

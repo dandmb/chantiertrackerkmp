@@ -241,9 +241,9 @@ class RolesAndInvitationsIntegrationTest {
         val projectId = owner.projects.createProject(CreateProjectInput("QA B refusée", null, null, "EUR", "Europe/Paris"))
         owner.sync.syncNow()
         owner.invitations.invite(projectId, supervisorAccount.email)
-        val token = supervisor.invitations.listIncomingInvitations().single().token
+        val id = supervisor.invitations.listIncomingInvitations().single().id
 
-        supervisor.invitations.declineInvitation(token)
+        supervisor.invitations.declineIncomingInvitation(id)
         owner.sync.syncProject(projectId)
         val pending = owner.invitations.observeInvitations(projectId).first()
         println("P1-refus — invitations vues par le propriétaire après refus : ${pending.map { it.email to it.status }}")
@@ -454,7 +454,7 @@ class RolesAndInvitationsIntegrationTest {
         assertEquals(SyncError.DELETED_ON_SERVER, ghost?.lastSyncError)
 
         site.owner.invitations.invite(site.ownerProject, site.supervisorEmail)
-        site.supervisor.invitations.acceptInvitation(site.supervisor.invitations.listIncomingInvitations().single().token)
+        site.supervisor.invitations.acceptIncomingInvitation(site.supervisor.invitations.listIncomingInvitations().single().id)
         val passes = listOf(site.supervisor.sync.syncNow(), site.supervisor.sync.syncProject(site.supervisorProject))
 
         val back = site.supervisor.db.projectDao().findByLocalId(site.supervisorProject)

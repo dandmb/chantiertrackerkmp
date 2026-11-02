@@ -280,4 +280,20 @@ class AttachmentRepositoryImplTest {
 
         assertEquals(mapOf<String, Float?>("sending" to 0.4f, "waiting" to null), attachments.associate { it.localId to it.uploadProgress })
     }
+
+    @Test
+    fun a_photo_is_compressed_before_it_is_queued_and_kept_as_a_jpeg() = runTest {
+        val received = mutableListOf<Int>()
+        val compressed = byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 1, 2)
+        val repository = AttachmentRepositoryImpl(
+            FakeAttachmentDao(), FakeDailyEntryDao(), FakeProjectBackend().attachmentApi(), FakeAttachmentFileStore(), FakeSyncer(), AppCoroutineScope(), MutableClock(2_000L),
+            newLocalId = { "fixed-attachment-id" },
+            photoCompressor = { photo -> received += photo.size; compressed },
+        )
+
+        val added = repository.addAttachment("e1", ByteArray(5_000), "IMG_0042.HEIC", "image/heic")
+
+        assertEquals(listOf(5_000), received, "the photo went through the compressor before the queue")
+        assertEquals(listOf("IMG_0042.jpg", "image/jpeg", 4L), listOf(added.originalName, added.mimeType, added.sizeBytes))
+    }
 }

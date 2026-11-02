@@ -332,6 +332,7 @@ class MainScreensSnapshotTest {
             com.dmb.chantiertracker.support.FakeAppPreferences(),
             kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Unconfined),
         ),
+        com.dmb.chantiertracker.support.FakeSupportContactRepository("aide@exemple.test"),
     )
 
     private fun authedRepo(globalRole: GlobalRole = GlobalRole.USER) = FakeAuthRepository().apply {
@@ -718,7 +719,7 @@ class MainScreensSnapshotTest {
                             sampleProjects,
                             incoming = listOf(
                                 com.dmb.chantiertracker.domain.model.IncomingInvitation(
-                                    token = "tok", projectId = 9L, projectName = "Villa Vidal",
+                                    id = 1L, projectId = 9L, projectName = "Villa Vidal",
                                     role = com.dmb.chantiertracker.domain.model.ProjectRole.SUPERVISOR,
                                     invitedByName = "Jean Marchand",
                                     createdAt = "2026-09-01T10:00:00", expiresAt = null,
@@ -731,6 +732,17 @@ class MainScreensSnapshotTest {
             snapshot("12-settings", locale) {
                 Chrome(MainTab.Settings) { m -> SettingsScreen(onOpenLegalDocument = {}, modifier = m, viewModel = settingsVm()) }
             }
+        }
+        snapshot("16-project-detail-dark", "fr", dark = true) {
+            ProjectDetailChrome(fallbackTitle = "Projet", projectVm = detailVm(canEdit = true))
+        }
+        snapshot(
+            "26-daily-log-dark",
+            "fr",
+            dark = true,
+            awaitReady = { onAllNodes(hasContentDescription("facture-ciment.jpg")).fetchSemanticsNodes().isNotEmpty() },
+        ) {
+            DailyLogChrome(fallbackTitle = "Journée")
         }
         snapshot("13-projects-list-dark", "fr", dark = true) {
             Chrome(MainTab.Projects) { m ->

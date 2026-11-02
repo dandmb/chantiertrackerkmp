@@ -23,7 +23,7 @@ data class ProjectsUiState(
     val isRefreshing: Boolean = false,
     val incomingInvitations: List<IncomingInvitation> = emptyList(),
     /** Tokens whose Accept/Decline call is in flight — the card's buttons are disabled. */
-    val busyInvitationTokens: Set<String> = emptySet(),
+    val busyInvitationIds: Set<Long> = emptySet(),
     val invitationError: DomainException? = null,
 ) {
     val isEmpty: Boolean get() = !isLoading && projects.isEmpty()
@@ -37,7 +37,7 @@ class ProjectsViewModel(
 
     private data class InvitationsPart(
         val items: List<IncomingInvitation> = emptyList(),
-        val busyTokens: Set<String> = emptySet(),
+        val busyIds: Set<Long> = emptySet(),
         val error: DomainException? = null,
     )
 
@@ -62,7 +62,7 @@ class ProjectsViewModel(
                     projects = projects.applySort(sort),
                     isRefreshing = isRefreshing,
                     incomingInvitations = invitations.items,
-                    busyInvitationTokens = invitations.busyTokens,
+                    busyInvitationIds = invitations.busyIds,
                     invitationError = invitations.error,
                 )
             }.collect { _state.value = it }
@@ -93,41 +93,45 @@ class ProjectsViewModel(
         }
     }
 
-    fun acceptInvitation(token: String) = runInvitationAction(token, refreshProjectsOnSuccess = true) {
-        invitationRepository.acceptInvitation(token)
+    fun acceptInvitation(id: Long) = runInvitationAction(id, refreshProjectsOnSuccess = true) {
+        invitationRepository.acceptIncomingInvitation(id)
     }
 
-    fun declineInvitation(token: String) = runInvitationAction(token, refreshProjectsOnSuccess = false) {
-        invitationRepository.declineInvitation(token)
+    fun declineInvitation(id: Long) = runInvitationAction(id, refreshProjectsOnSuccess = false) {
+        invitationRepository.declineIncomingInvitation(id)
     }
 
     fun clearInvitationError() = _invitations.update { it.copy(error = null) }
 
     private fun runInvitationAction(
-        token: String,
+        id: Long,
         refreshProjectsOnSuccess: Boolean,
         action: suspend () -> Unit,
     ) {
-        if (token in _invitations.value.busyTokens) return
-        _invitations.update { it.copy(busyTokens = it.busyTokens + token, error = null) }
+        if (id in _invitations.value.busyIds) return
+        _invitations.update { it.copy(busyIds = it.busyIds + id, error = null) }
         viewModelScope.launch {
             try {
                 action()
                 // Drop the card now; the re-fetch below confirms and catches any siblings.
                 _invitations.update {
                     it.copy(
-                        items = it.items.filterNot { invitation -> invitation.token == token },
-                        busyTokens = it.busyTokens - token,
+                        items = it.items.filterNot { invitation -> invitation.id == id },
+                        busyIds = it.busyIds - id,
                     )
                 }
                 if (refreshProjectsOnSuccess) projectRepository.refresh()
                 refreshIncomingInvitations()
             } catch (e: CancellationException) {
                 throw e
+            } catch (e: DomainException.InvitationGone) {
+                _invitations.update {
+                    it.copy(items = it.items.filterNot { invitation -> invitation.id == id }, busyIds = it.busyIds - id, error = e)
+                }
             } catch (e: DomainException) {
-                _invitations.update { it.copy(busyTokens = it.busyTokens - token, error = e) }
+                _invitations.update { it.copy(busyIds = it.busyIds - id, error = e) }
             } catch (e: Throwable) {
-                _invitations.update { it.copy(busyTokens = it.busyTokens - token, error = DomainException.Unexpected) }
+                _invitations.update { it.copy(busyIds = it.busyIds - id, error = DomainException.Unexpected) }
             }
         }
     }

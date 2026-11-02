@@ -2,6 +2,7 @@ package com.dmb.chantiertracker.presentation.reports
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.dmb.chantiertracker.domain.model.MAX_FREE_TEXT_LENGTH
 import com.dmb.chantiertracker.domain.model.DomainException
 import com.dmb.chantiertracker.domain.repository.ReportRepository
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -36,7 +37,7 @@ class ReportEntryViewModel(
         this.entryLocalId = entryLocalId
     }
 
-    fun onMessageChange(value: String) = _state.update { it.copy(message = value, error = null) }
+    fun onMessageChange(value: String) = _state.update { it.copy(message = value.take(MAX_FREE_TEXT_LENGTH), error = null) }
 
     fun submit() {
         val id = entryLocalId ?: return

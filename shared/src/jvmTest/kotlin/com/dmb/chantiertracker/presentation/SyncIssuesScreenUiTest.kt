@@ -75,6 +75,7 @@ class SyncIssuesScreenUiTest {
         RefusalReason.PROJECT_OR_STAGE_INACTIVE to "PROJECT_OR_STAGE_INACTIVE",
         RefusalReason.ENTRY_DATE_RESTRICTED to "ENTRY_DATE_RESTRICTED",
         RefusalReason.INSUFFICIENT_ROLE to "PROJECT_INSUFFICIENT_ROLE",
+        RefusalReason.OWNER_REQUIRED to "PROJECT_OWNER_REQUIRED",
         RefusalReason.INSUFFICIENT_STOCK to "INSUFFICIENT_STOCK",
         RefusalReason.STOCK_CONSUMED to "STOCK_CONSUMED",
         RefusalReason.DUPLICATE_ENTRY to "DUPLICATE_ENTRY",
@@ -89,6 +90,7 @@ class SyncIssuesScreenUiTest {
         RefusalReason.PROJECT_OR_STAGE_INACTIVE to "Le projet est suspendu ou terminé, ou l'étape est terminée.",
         RefusalReason.ENTRY_DATE_RESTRICTED to "Un superviseur ne peut saisir que sur la journée en cours.",
         RefusalReason.INSUFFICIENT_ROLE to "Cette action est réservée à un administrateur du projet.",
+        RefusalReason.OWNER_REQUIRED to "Seul le propriétaire du projet peut faire cette action.",
         RefusalReason.INSUFFICIENT_STOCK to "Le stock disponible est insuffisant.",
         RefusalReason.STOCK_CONSUMED to "Ce stock a déjà été consommé.",
         RefusalReason.DUPLICATE_ENTRY to "Une saisie de ce type existe déjà pour cette journée.",
@@ -103,6 +105,7 @@ class SyncIssuesScreenUiTest {
         RefusalReason.PROJECT_OR_STAGE_INACTIVE to "The project is suspended or completed, or the stage is completed.",
         RefusalReason.ENTRY_DATE_RESTRICTED to "A supervisor can only enter data for the current day.",
         RefusalReason.INSUFFICIENT_ROLE to "This action is reserved for a project administrator.",
+        RefusalReason.OWNER_REQUIRED to "Only the project owner can do this.",
         RefusalReason.INSUFFICIENT_STOCK to "There is not enough stock available.",
         RefusalReason.STOCK_CONSUMED to "This stock has already been used.",
         RefusalReason.DUPLICATE_ENTRY to "An entry of this type already exists for this day.",
@@ -246,6 +249,48 @@ class SyncIssuesScreenUiTest {
             onNodeWithText("Ask a project administrator to reopen the project or the stage, then retry.").assertExists()
             onNodeWithText("Ask a project administrator to do it, or to give you administrator rights, then retry.").assertExists()
             onAllNodesWithText("Retry").assertCountEquals(3)
+        }
+    }
+
+    @Test
+    fun a_photo_refused_by_the_limit_asks_to_free_some_photos_never_to_delete_a_project() {
+        val photo = listOf(onDay(SyncIssueTarget.ATTACHMENT, "a1", refusedIssue(RefusalReason.PLAN_LIMIT), label = "chantier.jpg"))
+        onScreen(photo) {
+            onNodeWithText("Change de formule ou supprime des photos ou des vidéos, puis réessaie.").assertExists()
+            onNodeWithText("supprime un projet", substring = true, ignoreCase = true).assertDoesNotExist()
+        }
+        onScreen(photo, locale = "en") {
+            onNodeWithText("Change your plan or delete some photos or videos, then retry.").assertExists()
+            onNodeWithText("delete a project", substring = true, ignoreCase = true).assertDoesNotExist()
+        }
+    }
+
+    @Test
+    fun without_in_app_payments_a_refused_photo_only_asks_to_free_some_photos() {
+        val photo = listOf(onDay(SyncIssueTarget.ATTACHMENT, "a1", refusedIssue(RefusalReason.PLAN_LIMIT), label = "chantier.jpg"))
+        val vm = SyncIssuesViewModel(FakeSyncIssueRepository(photo))
+        for ((locale, text) in listOf("fr" to "Supprime des photos ou des vidéos, puis réessaie.", "en" to "Delete some photos or videos, then try again.")) {
+            runDesktopComposeUiTest(width = 412, height = 900) {
+                setContent {
+                    customAppLocale = locale
+                    AppEnvironment {
+                        AppTheme {
+                            CompositionLocalProvider(com.dmb.chantiertracker.presentation.billing.LocalInAppPaymentsAllowed provides false) {
+                                Surface { SyncIssuesScreen(viewModel = vm) }
+                            }
+                        }
+                    }
+                }
+                waitForIdle()
+                onNodeWithText(text).assertExists()
+            }
+        }
+    }
+
+    @Test
+    fun a_project_refused_by_the_limit_still_asks_to_delete_a_project() {
+        onScreen(listOf(issueItem(SyncIssueTarget.PROJECT, "p0", refusedIssue(RefusalReason.PLAN_LIMIT), projectLocalId = "p0", projectName = "Atelier"))) {
+            onNodeWithText("Change de formule ou supprime un projet, puis réessaie.").assertExists()
         }
     }
 

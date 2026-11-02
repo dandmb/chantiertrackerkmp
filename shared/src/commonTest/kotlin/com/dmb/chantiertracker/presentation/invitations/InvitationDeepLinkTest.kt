@@ -31,4 +31,16 @@ class InvitationDeepLinkTest {
         assertNull(parseInvitationToken(""))
         assertNull(parseInvitationToken("not a url at all"))
     }
+
+    @Test
+    fun a_link_cannot_slip_another_api_path_in_place_of_the_token() {
+        listOf("../users/me", "..%2Fusers%2Fme", "a/b", "a%2Fb", "abc.def", "abc;x=1", "a b").forEach { token ->
+            assertNull(parseInvitationToken("https://chantiertracker.com/invitations/$token"), token)
+        }
+    }
+
+    @Test
+    fun the_url_safe_tokens_of_the_server_are_accepted() {
+        assertEquals("aZ09-_x", parseInvitationToken("https://chantiertracker.com/invitations/aZ09-_x"))
+    }
 }
