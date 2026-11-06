@@ -87,7 +87,7 @@ class AuthAndServiceMessagesUiTest {
 
         runOnIdle { viewModel.resendCode("sam@chantier.dev") }
 
-        awaitText("Réessaie dans 42 secondes")
+        awaitText("Réessayer dans 4")
         assertNoText(wrongCodeText)
     }
 
@@ -102,7 +102,7 @@ class AuthAndServiceMessagesUiTest {
             viewModel.submit("sam@chantier.dev")
         }
 
-        awaitText("Réessaie dans 42 secondes")
+        awaitText("Réessayer dans 4")
         assertNoText(wrongCodeText)
     }
 
@@ -116,7 +116,7 @@ class AuthAndServiceMessagesUiTest {
             viewModel.submit()
         }
 
-        awaitText("Réessaie dans 42 secondes")
+        awaitText("Réessayer dans 4")
     }
 
     @Test
@@ -130,7 +130,7 @@ class AuthAndServiceMessagesUiTest {
             viewModel.submit("sam@chantier.dev")
         }
 
-        awaitText("Réessaie dans 42 secondes")
+        awaitText("Réessayer dans 4")
         assertNoText(wrongCodeText)
     }
 
@@ -144,7 +144,7 @@ class AuthAndServiceMessagesUiTest {
             viewModel.submit()
         }
 
-        awaitText("Réessaie dans 42 secondes")
+        awaitText("Réessayer dans 4")
     }
 
     @Test
@@ -158,7 +158,7 @@ class AuthAndServiceMessagesUiTest {
             viewModel.submit("sam@chantier.dev")
         }
 
-        awaitText("Réessaie dans 42 secondes")
+        awaitText("Réessayer dans 4")
     }
 
     @Test

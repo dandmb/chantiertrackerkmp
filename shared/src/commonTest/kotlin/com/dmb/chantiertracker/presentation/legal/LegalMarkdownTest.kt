@@ -218,4 +218,19 @@ class LegalMarkdownTest {
         val external = (parseLegalMarkdown("[Vercel](https://vercel.com/legal) [autre page](https://chantiertracker.com/tarifs)").single() as Paragraph).text.spans.mapNotNull { it.link }
         assertEquals(listOf(LegalLink.Web("https://vercel.com/legal"), LegalLink.Web("https://chantiertracker.com/tarifs")), external)
     }
+
+    @Test
+    fun the_forgotten_password_link_of_the_site_opens_the_native_screen() {
+        listOf(
+            "https://chantiertracker.com/forgot-password",
+            "https://www.chantiertracker.com/forgot-password/",
+            "https://chantiertracker.com/en/forgot-password",
+            "http://localhost:5173/forgot-password",
+        ).forEach { target ->
+            val link = (parseLegalMarkdown("[Mot de passe oublié]($target)").single() as Paragraph).text.spans.single().link
+            assertEquals(LegalLink.ForgotPassword(target), link, target)
+        }
+        val elsewhere = (parseLegalMarkdown("[ailleurs](https://example.com/forgot-password)").single() as Paragraph).text.spans.single().link
+        assertEquals(LegalLink.Web("https://example.com/forgot-password"), elsewhere)
+    }
 }

@@ -353,6 +353,18 @@ class MainScreensSnapshotTest {
         Stage("s2", "1", "Toiture", null, StageStatus.COMPLETED),
     )
 
+    private fun emptyDetailVm(): ProjectDetailViewModel {
+        val user = User(1, "jean@chantier.dev", "Jean Marchand", true, GlobalRole.USER)
+        val auth = FakeAuthRepository().apply { emitState(AuthState.Authenticated(user)) }
+        val repo = FakeProjectRepository(
+            detail = ProjectDetail(
+                localId = "1", name = "Villa Vidal", description = null, location = "Nîmes",
+                currency = "EUR", timezone = "Europe/Paris", status = ProjectStatus.IN_PROGRESS, ownerId = 1L,
+            ),
+        )
+        return ProjectDetailViewModel(repo, FakeStageRepository(), com.dmb.chantiertracker.support.FakeInvitationRepository(), auth).also { it.load("1") }
+    }
+
     private fun detailVm(canEdit: Boolean): ProjectDetailViewModel {
         val user = User(1, "jean@chantier.dev", "Jean Marchand", true, GlobalRole.USER)
         val auth = FakeAuthRepository().apply { emitState(AuthState.Authenticated(user)) }
@@ -397,7 +409,7 @@ class MainScreensSnapshotTest {
             },
         )
         return com.dmb.chantiertracker.presentation.projects.invite.InviteMemberViewModel(
-            repo, com.dmb.chantiertracker.support.FakeInvitationRepository(),
+            repo, com.dmb.chantiertracker.support.FakeInvitationRepository(), FakeAuthRepository(),
         ).also { it.load("1") }
     }
 
@@ -779,6 +791,12 @@ class MainScreensSnapshotTest {
                     fallbackTitle = if (locale == "fr") "Projet" else "Project",
                     projectVm = detailVm(canEdit = true),
                 )
+            }
+            snapshot("60-project-detail-empty", locale) {
+                ProjectDetailChrome(fallbackTitle = if (locale == "fr") "Projet" else "Project", projectVm = emptyDetailVm())
+            }
+            snapshot("60-project-detail-empty-dark", locale, dark = true) {
+                ProjectDetailChrome(fallbackTitle = if (locale == "fr") "Projet" else "Project", projectVm = emptyDetailVm())
             }
             // A SUPERVISOR gets the plain read-only ProjectStatusBadge (no
             // dropdown chevron, not clickable) instead of ProjectStatusMenu.

@@ -82,6 +82,13 @@ import com.dmb.chantiertracker.presentation.navigation.ReportEntryRoute
 import com.dmb.chantiertracker.presentation.navigation.SettingsRoute
 import com.dmb.chantiertracker.presentation.navigation.StageDetailRoute
 import com.dmb.chantiertracker.presentation.navigation.SyncIssuesRoute
+import com.dmb.chantiertracker.presentation.navigation.ForgotPasswordRoute
+import com.dmb.chantiertracker.presentation.navigation.ResetPasswordRoute
+import com.dmb.chantiertracker.presentation.navigation.RootBackExitGuard
+import com.dmb.chantiertracker.presentation.navigation.rememberNavigationTransitions
+import com.dmb.chantiertracker.presentation.auth.forgot.ForgotPasswordScreen
+import com.dmb.chantiertracker.presentation.auth.reset.ResetPasswordScreen
+import com.dmb.chantiertracker.resources.forgot_title
 import com.dmb.chantiertracker.presentation.navigation.reviewRoute
 import com.dmb.chantiertracker.presentation.navigation.fixRoute
 import com.dmb.chantiertracker.presentation.sync.SyncIssueCountViewModel
@@ -135,7 +142,8 @@ import org.koin.compose.viewmodel.koinViewModel
 
 private enum class MainDestination {
     MyOffer, Help, Discover, Projects, Administration, AdminUsers, AdminCreateUser, Settings, CreateProject, ProjectDetail, EditProject, InviteMember, ProjectHistory, ProjectReports, CreateStage, StageDetail, DailyLog,
-    EntrySummary, PurchaseLineForm, ConsumptionLineForm, ReportEntry, Billing, InvitationAccept, LegalDocumentPage, SyncIssues, DeleteAccount, Profile
+    EntrySummary, PurchaseLineForm, ConsumptionLineForm, ReportEntry, Billing, InvitationAccept, LegalDocumentPage, SyncIssues, DeleteAccount, Profile,
+    ForgotPassword, ResetPassword
 }
 
 // ADR-52 — a SUPER_ADMIN can neither own nor join a project (blocked
@@ -164,12 +172,15 @@ fun MainScreen(
     globalRole: GlobalRole,
     viewModel: MainViewModel = koinViewModel(),
     syncIssueCountViewModel: SyncIssueCountViewModel = koinViewModel(),
+    exitPromptViewModel: ExitPromptViewModel = koinViewModel(),
 ) {
     val appLanguage = if (LegalLanguage.forLocale(LocalAppLocale.current) == LegalLanguage.English) ProfileLanguage.ENGLISH else ProfileLanguage.FRENCH
     LaunchedEffect(appLanguage) { viewModel.onAppLanguage(appLanguage) }
 
     val navController = rememberNavController()
+    val transitions = rememberNavigationTransitions()
     val account by viewModel.state.collectAsStateWithLifecycle()
+    val exitPrompt by exitPromptViewModel.prompt.collectAsStateWithLifecycle()
     val syncIssueCount by syncIssueCountViewModel.count.collectAsStateWithLifecycle()
     val startDestination = remember(globalRole) { startDestinationFor(globalRole) }
     val openMyOffer: () -> Unit = remember(navController) { { navController.navigate(MyOfferRoute) { launchSingleTop = true } } }
@@ -235,6 +246,12 @@ fun MainScreen(
     }
 
     val backStackEntry by navController.currentBackStackEntryAsState()
+    RootBackExitGuard(
+        enabled = backStackEntry != null && navController.previousBackStackEntry == null,
+        prompt = exitPrompt,
+        onRequest = exitPromptViewModel::request,
+        onDismiss = exitPromptViewModel::dismiss,
+    )
     val destination = backStackEntry?.destination
     val current = when {
         destination?.hasRoute(AdminStatsRoute::class) == true -> MainDestination.Administration
@@ -263,6 +280,8 @@ fun MainScreen(
         destination?.hasRoute(MyOfferRoute::class) == true -> MainDestination.MyOffer
         destination?.hasRoute(HelpRoute::class) == true -> MainDestination.Help
         destination?.hasRoute(DiscoverRoute::class) == true -> MainDestination.Discover
+        destination?.hasRoute(ForgotPasswordRoute::class) == true -> MainDestination.ForgotPassword
+        destination?.hasRoute(ResetPasswordRoute::class) == true -> MainDestination.ResetPassword
         else -> MainDestination.Projects
     }
     val currentTab = when (current) {
@@ -397,6 +416,10 @@ fun MainScreen(
                     title = stringResource(Res.string.discover_title),
                     onBack = { navController.popBackStack() },
                 )
+                MainDestination.ForgotPassword, MainDestination.ResetPassword -> DetailTopBar(
+                    title = stringResource(Res.string.forgot_title),
+                    onBack = { navController.popBackStack() },
+                )
                 else -> AppTopBar(
                     userName = account.userName,
                     email = account.email,
@@ -451,6 +474,10 @@ fun MainScreen(
             navController = navController,
             startDestination = startDestination,
             modifier = Modifier.padding(padding),
+            enterTransition = { transitions.enter },
+            exitTransition = { transitions.exit },
+            popEnterTransition = { transitions.popEnter },
+            popExitTransition = { transitions.popExit },
         ) {
             composable<ProjectsRoute> {
                 ProjectsScreen(
@@ -505,8 +532,26 @@ fun MainScreen(
             }
             composable<LegalDocumentRoute> { entry ->
                 LegalDocument.fromSlug(entry.toRoute<LegalDocumentRoute>().document)?.let { document ->
-                    LegalDocumentScreen(document, onOpenDocument = { navController.navigate(LegalDocumentRoute(it.slug)) })
+                    LegalDocumentScreen(
+                        document,
+                        onOpenDocument = { navController.navigate(LegalDocumentRoute(it.slug)) },
+                        onOpenForgotPassword = { navController.navigate(ForgotPasswordRoute(account.email.ifBlank { null })) },
+                    )
                 }
+            }
+            composable<ForgotPasswordRoute> { entry ->
+                ForgotPasswordScreen(
+                    onCodeSent = { email -> navController.navigate(ResetPasswordRoute(email)) },
+                    prefilledEmail = entry.toRoute<ForgotPasswordRoute>().email,
+                )
+            }
+            composable<ResetPasswordRoute> { entry ->
+                val leaveResetFlow: () -> Unit = { navController.popBackStack(ForgotPasswordRoute::class, inclusive = true) }
+                ResetPasswordScreen(
+                    email = entry.toRoute<ResetPasswordRoute>().email,
+                    onReset = leaveResetFlow,
+                    onBackToLogin = leaveResetFlow,
+                )
             }
             if (paymentsAllowed) {
                 composable<BillingRoute> { entry ->

@@ -43,7 +43,7 @@ class ResetPasswordViewModel(
         val codeError = validateCode(current.code)
         val passwordError = validateStrongPassword(current.newPassword)
         if (codeError != null || passwordError != null) {
-            _state.update { it.copy(codeError = codeError, passwordError = passwordError) }
+            _state.update { it.copy(codeError = codeError, passwordError = passwordError, formError = null) }
             return
         }
         viewModelScope.launch {

@@ -1,7 +1,9 @@
 package com.dmb.chantiertracker.presentation.projects.invite
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.ui.Alignment
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -23,8 +25,8 @@ import com.dmb.chantiertracker.presentation.AppOutlinedTextField
 import com.dmb.chantiertracker.presentation.ResponsiveContent
 import com.dmb.chantiertracker.presentation.auth.components.AuthPrimaryButton
 import com.dmb.chantiertracker.presentation.auth.components.AuthSecondaryButton
-import com.dmb.chantiertracker.presentation.auth.components.ErrorBanner
-import com.dmb.chantiertracker.presentation.i18n.localizedText
+import com.dmb.chantiertracker.presentation.auth.components.FormErrorSnackbarHost
+import com.dmb.chantiertracker.presentation.i18n.snackbarText
 import com.dmb.chantiertracker.presentation.i18n.rememberWaitSecondsLeft
 import com.dmb.chantiertracker.presentation.offer.PlanLimitKind
 import com.dmb.chantiertracker.presentation.offer.PlanLimitNotice
@@ -50,7 +52,10 @@ fun InviteMemberScreen(
 
     val locked = state.isSubmitting || state.atSupervisorLimit
 
-    ResponsiveContent(modifier, maxContentWidth = 480.dp) {
+    val error = state.formError
+    val errorMessage = error?.takeUnless { it == DomainException.PlanLimitReached }?.snackbarText()
+    Box(modifier.fillMaxSize()) {
+    ResponsiveContent(Modifier, maxContentWidth = 480.dp) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -61,9 +66,7 @@ fun InviteMemberScreen(
             if (state.atSupervisorLimit) {
                 PlanLimitNotice(PlanLimitKind.SUPERVISORS)
             }
-            state.formError?.let { error ->
-                if (error == DomainException.PlanLimitReached) PlanLimitNotice(PlanLimitKind.SUPERVISORS) else ErrorBanner(error.localizedText())
-            }
+            if (error == DomainException.PlanLimitReached) PlanLimitNotice(PlanLimitKind.SUPERVISORS)
 
             AppOutlinedTextField(
                 value = state.email,
@@ -87,7 +90,8 @@ fun InviteMemberScreen(
                 text = stringResource(Res.string.invite_member_submit),
                 onClick = viewModel::submit,
                 loading = state.isSubmitting,
-                enabled = !state.atSupervisorLimit && rememberWaitSecondsLeft(state.formError) == 0,
+                enabled = state.canSubmit,
+                waitSecondsLeft = rememberWaitSecondsLeft(state.formError),
             )
             if (state.formError == DomainException.InvitationAlreadyPending) {
                 AuthSecondaryButton(
@@ -97,5 +101,7 @@ fun InviteMemberScreen(
                 )
             }
         }
+    }
+    FormErrorSnackbarHost(errorMessage, state.isSubmitting, Modifier.align(Alignment.BottomCenter))
     }
 }

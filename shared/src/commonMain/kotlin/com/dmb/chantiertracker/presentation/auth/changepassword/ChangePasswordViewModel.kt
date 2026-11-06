@@ -55,7 +55,7 @@ class ChangePasswordViewModel(
         val currentPasswordError = validateRequiredPassword(current.currentPassword)
         val newPasswordError = validateStrongPassword(current.newPassword)
         if (currentPasswordError != null || newPasswordError != null) {
-            _state.update { it.copy(currentPasswordError = currentPasswordError, newPasswordError = newPasswordError) }
+            _state.update { it.copy(currentPasswordError = currentPasswordError, newPasswordError = newPasswordError, formError = null) }
             return
         }
         viewModelScope.launch {

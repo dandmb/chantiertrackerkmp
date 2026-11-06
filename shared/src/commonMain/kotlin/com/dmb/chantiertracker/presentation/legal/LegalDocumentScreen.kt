@@ -76,9 +76,10 @@ fun StandaloneLegalDocumentScreen(
     onBack: () -> Unit,
     onOpenDocument: (LegalDocument) -> Unit = {},
     viewModel: LegalDocumentViewModel = koinViewModel(),
+    onOpenForgotPassword: (() -> Unit)? = null,
 ) {
     Scaffold(topBar = { DetailTopBar(title = stringResource(document.link), onBack = onBack) }) { padding ->
-        LegalDocumentScreen(document, Modifier.padding(padding), onOpenDocument, viewModel)
+        LegalDocumentScreen(document, Modifier.padding(padding), onOpenDocument, viewModel, onOpenForgotPassword)
     }
 }
 
@@ -88,6 +89,7 @@ fun LegalDocumentScreen(
     modifier: Modifier = Modifier,
     onOpenDocument: (LegalDocument) -> Unit = {},
     viewModel: LegalDocumentViewModel = koinViewModel(),
+    onOpenForgotPassword: (() -> Unit)? = null,
 ) {
     val language = LegalLanguage.forLocale(LocalAppLocale.current)
     LaunchedEffect(document, language) { viewModel.load(document, language) }
@@ -98,7 +100,12 @@ fun LegalDocumentScreen(
     val uriHandler = LocalUriHandler.current
     val mailOpener = remember(uriHandler) { LegalPageOpener { uriHandler.openUri(it) } }
     val onLink: (LegalLink) -> Unit = { link ->
-        if (link is LegalLink.Document) onOpenDocument(link.document) else viewModel.openLink(link, webOpener, mailOpener)
+        when {
+            link is LegalLink.Document -> onOpenDocument(link.document)
+            link is LegalLink.ForgotPassword && onOpenForgotPassword != null -> onOpenForgotPassword()
+            link is LegalLink.ForgotPassword -> viewModel.openLink(LegalLink.Web(link.target), webOpener, mailOpener)
+            else -> viewModel.openLink(link, webOpener, mailOpener)
+        }
     }
     notice?.let { LegalLinkNoticeDialog(it, onDismiss = viewModel::dismissLinkNotice) }
 

@@ -23,11 +23,11 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dmb.chantiertracker.domain.model.GlobalRole
 import com.dmb.chantiertracker.presentation.ResponsiveContent
 import com.dmb.chantiertracker.presentation.auth.components.AuthPrimaryButton
+import com.dmb.chantiertracker.presentation.auth.components.FormWithErrorSnackbar
+import com.dmb.chantiertracker.presentation.i18n.snackbarText
 import com.dmb.chantiertracker.presentation.auth.components.EmailField
-import com.dmb.chantiertracker.presentation.auth.components.ErrorBanner
 import com.dmb.chantiertracker.presentation.auth.components.NameField
 import com.dmb.chantiertracker.presentation.auth.components.PasswordField
-import com.dmb.chantiertracker.presentation.i18n.localizedText
 import com.dmb.chantiertracker.resources.Res
 import com.dmb.chantiertracker.resources.admin_create_user_password_help
 import com.dmb.chantiertracker.resources.admin_create_user_role_label
@@ -50,7 +50,8 @@ fun AdminCreateUserScreen(
         if (state.created) onCreated()
     }
 
-    ResponsiveContent(modifier, maxContentWidth = 480.dp) {
+    FormWithErrorSnackbar(state.formError?.snackbarText(), state.isSubmitting, modifier) {
+    ResponsiveContent(Modifier, maxContentWidth = 480.dp) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -58,7 +59,6 @@ fun AdminCreateUserScreen(
                 .padding(24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            state.formError?.let { ErrorBanner(it.localizedText()) }
 
             NameField(
                 value = state.name,
@@ -104,6 +104,7 @@ fun AdminCreateUserScreen(
                 loading = state.isSubmitting,
             )
         }
+    }
     }
 }
 

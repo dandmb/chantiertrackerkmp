@@ -764,7 +764,6 @@
     <string name="projects_empty_action">Create my first project</string>
     <string name="detail_members_empty_admin">No members yet. Invite a supervisor so they can log from the site.</string>
     <string name="detail_invitations_empty_admin">No pending invitations. Invite a supervisor to give them access to this project.</string>
-    <string name="detail_stages_empty_action">Add a stage</string>
     <string name="attachments_empty_can_add">No photos yet. Add the first one with the buttons above.</string>
     <string name="help_title">Help</string>
     <string name="help_intro_section">Getting started</string>
@@ -782,9 +781,9 @@
     <string name="help_a_sync_issue">The server refused an entry: a limit reached, a duplicate, a missing right. The icon at the top of the screen opens "Entries to review", which gives the reason and what you can do.</string>
     <string name="help_faq_section_roles">Roles</string>
     <string name="help_q_owner">What can the owner do?</string>
-    <string name="help_a_owner">The owner is the person who created the project. They have all of an admin's rights, and only they can delete the project. They can't remove themselves from it.</string>
+    <string name="help_a_owner">The owner is the person who created the project. They have all of an admin's rights, and only they can remove a member or delete the project. They can't remove themselves from it.</string>
     <string name="help_q_admin">And an admin?</string>
-    <string name="help_a_admin">An admin manages the project's members and invitations. They can log or correct on any date.</string>
+    <string name="help_a_admin">An admin invites supervisors and manages the project's invitations. They can log or correct on any date. Removing a member is something only the owner can do.</string>
     <string name="help_q_supervisor">And a supervisor?</string>
     <string name="help_a_supervisor">A supervisor follows the site in person, adds stages and logs on the current day only. They can flag an entry for correction.</string>
     <string name="help_faq_section_invite">Inviting someone</string>
@@ -835,4 +834,28 @@
     <string name="sync_hint_plan_limit_media_no_upgrade">Delete some photos or videos, then try again.</string>
     <string name="history_kept_months">History kept for %1$d months</string>
     <string name="history_kept_days">History kept for %1$d days</string>
+    <string name="retry_in">Try again in %1$s</string>
+    <string name="wait_seconds_short">%1$d s</string>
+    <string name="error_wait_rate_limited_reason">Too many attempts.</string>
+    <string name="error_wait_locked_reason">Account locked after too many attempts.</string>
+    <string name="error_wait_in_progress_reason">Your previous request is still being processed.</string>
+    <string name="error_cannot_invite_self">You can't invite yourself.</string>
+    <string name="error_already_project_member">This person is already a member of the project.</string>
+    <string name="invite_member_self">That's your address: you're already in the project.</string>
+    <string name="invite_member_already_member">This person is already a member of the project.</string>
+    <string name="presentation_close">Let's go</string>
+    <string name="presentation_open">Discover ChantierTracker</string>
+    <string name="presentation_offline">The app works with or without an internet connection: what you enter is kept and sent as soon as the network is back.</string>
+    <string name="exit_title">Quit ChantierTracker?</string>
+    <plurals name="exit_unsent">
+        <item quantity="one">%1$d change will be sent the next time you open the app with a network connection.</item>
+        <item quantity="other">%1$d changes will be sent the next time you open the app with a network connection.</item>
+    </plurals>
+    <string name="exit_confirm">Quit</string>
+    <string name="exit_stay">Stay</string>
+    <string name="login_validate_account">Validate my account</string>
+    <string name="validate_account_title">Validate my account</string>
+    <string name="validate_account_subtitle">Enter your address and your password: we'll send you a new code to activate your account.</string>
+    <string name="validate_account_submit">Get a code</string>
+    <string name="material_existing_title">Existing materials</string>
 </resources>

@@ -6,6 +6,13 @@ import com.dmb.chantiertracker.resources.error_wait_rate_limited
 import com.dmb.chantiertracker.resources.error_wait_in_progress
 import com.dmb.chantiertracker.resources.error_wait_locked
 import com.dmb.chantiertracker.resources.error_wait_over
+import com.dmb.chantiertracker.resources.error_wait_rate_limited_reason
+import com.dmb.chantiertracker.resources.error_wait_locked_reason
+import com.dmb.chantiertracker.resources.error_wait_in_progress_reason
+import com.dmb.chantiertracker.resources.error_cannot_invite_self
+import com.dmb.chantiertracker.resources.error_already_project_member
+import com.dmb.chantiertracker.resources.retry_in
+import com.dmb.chantiertracker.resources.wait_seconds_short
 import kotlinx.coroutines.delay
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
@@ -74,6 +81,8 @@ fun DomainException.textRes(): StringResource = when (this) {
     }
     DomainException.InvitationAlreadyPending -> Res.string.error_invitation_already_pending
     DomainException.InvitationGone -> Res.string.error_invitation_gone
+    DomainException.CannotInviteSelf -> Res.string.error_cannot_invite_self
+    DomainException.AlreadyProjectMember -> Res.string.error_already_project_member
     DomainException.CollaboratorLimitReached -> Res.string.error_collaborator_limit
     DomainException.OwnerRequired -> Res.string.error_owner_required
     DomainException.OwnerCannotLeave -> Res.string.error_owner_cannot_leave
@@ -147,3 +156,21 @@ fun DomainException.localizedText(): String {
     }
     return stringResource(waiting, countdownText(left))
 }
+
+@Composable
+fun DomainException.snackbarText(): String {
+    if (waitSeconds() == null) return localizedText()
+    return stringResource(
+        when (this) {
+            is DomainException.AccountLocked -> Res.string.error_wait_locked_reason
+            is DomainException.CreationInProgress -> Res.string.error_wait_in_progress_reason
+            else -> Res.string.error_wait_rate_limited_reason
+        },
+    )
+}
+
+@Composable
+fun retryInLabel(seconds: Int): String = stringResource(
+    Res.string.retry_in,
+    if (seconds < SECONDS_PER_MINUTE) stringResource(Res.string.wait_seconds_short, seconds) else clockWait(seconds),
+)

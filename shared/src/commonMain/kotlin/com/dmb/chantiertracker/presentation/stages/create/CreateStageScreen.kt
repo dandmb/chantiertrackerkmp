@@ -25,8 +25,8 @@ import com.dmb.chantiertracker.presentation.ResponsiveContent
 import com.dmb.chantiertracker.presentation.parseIsoDateOrNull
 import com.dmb.chantiertracker.presentation.todayInSystemZone
 import com.dmb.chantiertracker.presentation.auth.components.AuthPrimaryButton
-import com.dmb.chantiertracker.presentation.auth.components.ErrorBanner
-import com.dmb.chantiertracker.presentation.i18n.localizedText
+import com.dmb.chantiertracker.presentation.auth.components.FormWithErrorSnackbar
+import com.dmb.chantiertracker.presentation.i18n.snackbarText
 import com.dmb.chantiertracker.resources.Res
 import com.dmb.chantiertracker.resources.create_description_label
 import com.dmb.chantiertracker.resources.create_stage_budget_label
@@ -54,7 +54,8 @@ fun CreateStageScreen(
         if (state.created) onCreated()
     }
 
-    ResponsiveContent(modifier, maxContentWidth = 480.dp) {
+    FormWithErrorSnackbar(state.formError?.snackbarText(), state.isSubmitting, modifier) {
+    ResponsiveContent(Modifier, maxContentWidth = 480.dp) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -62,8 +63,6 @@ fun CreateStageScreen(
                 .padding(24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            state.formError?.let { ErrorBanner(it.localizedText()) }
-
             AppOutlinedTextField(
                 value = state.name,
                 onValueChange = viewModel::onNameChange,
@@ -130,5 +129,6 @@ fun CreateStageScreen(
                 loading = state.isSubmitting,
             )
         }
+    }
     }
 }

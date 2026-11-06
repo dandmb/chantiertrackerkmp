@@ -31,8 +31,8 @@ import com.dmb.chantiertracker.presentation.SectionCard
 import com.dmb.chantiertracker.presentation.SectionTone
 import com.dmb.chantiertracker.presentation.ResponsiveContent
 import com.dmb.chantiertracker.presentation.auth.components.AuthPrimaryButton
-import com.dmb.chantiertracker.presentation.auth.components.ErrorBanner
-import com.dmb.chantiertracker.presentation.i18n.localizedText
+import com.dmb.chantiertracker.presentation.auth.components.FormWithErrorSnackbar
+import com.dmb.chantiertracker.presentation.i18n.snackbarText
 import com.dmb.chantiertracker.resources.Res
 import com.dmb.chantiertracker.resources.profile_email_help
 import com.dmb.chantiertracker.resources.profile_email_label
@@ -58,7 +58,8 @@ fun ProfileScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     LaunchedEffect(state.saved) { if (state.saved) onSaved() }
 
-    ResponsiveContent(modifier, maxContentWidth = 560.dp) {
+    FormWithErrorSnackbar(state.formError?.snackbarText(), state.isSubmitting, modifier) {
+    ResponsiveContent(Modifier, maxContentWidth = 560.dp) {
         Box(Modifier.fillMaxSize()) {
             if (!state.loaded) {
                 CircularProgressIndicator(Modifier.align(Alignment.Center))
@@ -66,6 +67,7 @@ fun ProfileScreen(
                 ProfileForm(state, viewModel)
             }
         }
+    }
     }
 }
 
@@ -79,7 +81,6 @@ private fun ProfileForm(state: ProfileUiState, viewModel: ProfileViewModel) {
             .padding(horizontal = 24.dp, vertical = 20.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
-        state.formError?.let { ErrorBanner(it.localizedText()) }
 
         SectionCard(stringResource(Res.string.profile_section_identity), tone = SectionTone.Yellow) {
             DetailInfoRow(stringResource(Res.string.profile_email_label), state.email)

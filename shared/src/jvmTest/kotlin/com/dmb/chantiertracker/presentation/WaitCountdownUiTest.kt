@@ -54,9 +54,10 @@ class WaitCountdownUiTest {
         mainClock.advanceTimeByFrame()
 
         onNodeWithText("Se connecter").performClick()
-        mainClock.advanceTimeByFrame()
+        mainClock.advanceTimeBy(500L)
 
-        onNodeWithText("Compte bloqué après trop de tentatives. Réessaie dans 30:00.").assertExists()
+        onNodeWithText("Réessayer dans 30:00").assertExists()
+        onNodeWithText("Compte bloqué après trop de tentatives.").assertExists()
         onNodeWithText("Réinitialiser ton mot de passe débloque aussi ton compte.").assertExists()
         onNodeWithText("Mot de passe oublié ?").performClick()
         mainClock.advanceTimeByFrame()
@@ -92,15 +93,12 @@ class WaitCountdownUiTest {
 
         onNodeWithText("Se connecter").performClick()
         mainClock.advanceTimeByFrame()
-        onNodeWithText("Compte bloqué après trop de tentatives. Réessaie dans 1:02.").assertExists()
-        onNodeWithText("Se connecter").assertIsNotEnabled()
+        onNodeWithText("Réessayer dans 1:02").assertIsNotEnabled()
 
         mainClock.advanceTimeBy(3_000L)
-        onNodeWithText("Compte bloqué après trop de tentatives. Réessaie dans 59 secondes.").assertExists()
-        onNodeWithText("Se connecter").assertIsNotEnabled()
+        onNodeWithText("Réessayer dans 59 s").assertIsNotEnabled()
 
         mainClock.advanceTimeBy(59_000L)
-        onNodeWithText("Tu peux réessayer maintenant.").assertExists()
         onNodeWithText("Se connecter").assertIsEnabled()
     }
 }

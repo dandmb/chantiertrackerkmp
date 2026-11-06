@@ -85,7 +85,7 @@ class EditProjectViewModel(
 
         val nameError = validateName(current.name.trim())
         if (nameError != null) {
-            _state.update { it.copy(nameError = nameError) }
+            _state.update { it.copy(nameError = nameError, formError = null) }
             return
         }
         viewModelScope.launch {

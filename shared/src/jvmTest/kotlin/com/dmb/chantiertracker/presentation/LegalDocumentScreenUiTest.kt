@@ -86,6 +86,8 @@ class LegalDocumentScreenUiTest {
 
         - Saisir la [CNIL](https://www.cnil.fr/fr/plaintes).
         - Écrire à [dpo@chantiertracker.com](mailto:dpo@chantiertracker.com).
+
+        Mot de passe oublié ? Utilise d'abord [Mot de passe oublié](https://chantiertracker.com/forgot-password).
     """.trimIndent()
 
     private val englishTerms = """
@@ -290,6 +292,18 @@ class LegalDocumentScreenUiTest {
 
         assertEquals(listOf("https://www.cnil.fr/fr/plaintes"), webOpened)
         assertEquals(listOf("mailto:dpo@chantiertracker.com"), mailOpened)
+    }
+
+    @Test
+    fun the_forgotten_password_link_of_the_text_opens_the_native_reset_screen_not_the_site() = runComposeUiTest {
+        var forgotOpened = 0
+        mount { LegalDocumentScreen(LegalDocument.AccountDeletion, viewModel = viewModel(), onOpenForgotPassword = { forgotOpened++ }) }
+        assertShows("Utilise d'abord")
+
+        tapInside("Mot de passe oublié ? Utilise d'abord Mot de passe oublié.", "Mot de passe oublié.")
+
+        assertEquals(1, forgotOpened)
+        assertEquals(emptyList(), webOpened)
     }
 
     @Test

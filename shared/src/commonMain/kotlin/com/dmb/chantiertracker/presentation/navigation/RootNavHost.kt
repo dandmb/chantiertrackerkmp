@@ -8,6 +8,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import com.dmb.chantiertracker.data.session.SessionNotice
@@ -20,6 +21,7 @@ import com.dmb.chantiertracker.presentation.auth.plans.PlanSelectionScreen
 import com.dmb.chantiertracker.presentation.auth.register.RegisterScreen
 import com.dmb.chantiertracker.presentation.auth.reset.ResetPasswordScreen
 import com.dmb.chantiertracker.presentation.auth.verify.VerifyEmailScreen
+import com.dmb.chantiertracker.presentation.auth.validate.ValidateAccountScreen
 import com.dmb.chantiertracker.presentation.auth.welcome.WelcomeScreen
 import com.dmb.chantiertracker.presentation.billing.paidPlansAreOffered
 import com.dmb.chantiertracker.presentation.legal.LegalDocument
@@ -79,32 +81,43 @@ private fun AuthNavHost(
     legalDocumentViewModel: @Composable () -> LegalDocumentViewModel,
 ) {
     val navController = rememberNavController()
+    val transitions = rememberNavigationTransitions()
+    val backStackEntry by navController.currentBackStackEntryAsState()
+    SignedOutRootBackExitGuard(enabled = backStackEntry != null && navController.previousBackStackEntry == null)
     val neverLoggedIn = startPoint != AuthStartPoint.Login
+    val startDestination: Any = remember {
+        when (startPoint) {
+            AuthStartPoint.Onboarding -> OnboardingRoute
+            AuthStartPoint.Welcome -> WelcomeRoute()
+            AuthStartPoint.Login -> LoginRoute(notice = startNotice?.toArg())
+        }
+    }
     val paidPlansOffered = paidPlansAreOffered()
     val openLegalDocument: (LegalDocument) -> Unit = { navController.navigate(LegalDocumentRoute(it.slug)) }
 
     NavHost(
         navController = navController,
-        startDestination = when (startPoint) {
-            AuthStartPoint.Onboarding -> OnboardingRoute
-            AuthStartPoint.Welcome -> WelcomeRoute
-            AuthStartPoint.Login -> LoginRoute(notice = startNotice?.toArg())
-        },
+        enterTransition = { transitions.enter },
+        exitTransition = { transitions.exit },
+        popEnterTransition = { transitions.popEnter },
+        popExitTransition = { transitions.popExit },
+        startDestination = startDestination,
     ) {
         composable<OnboardingRoute> {
             LaunchedEffect(Unit) { onOnboardingShown() }
             OnboardingScreen(
                 onFinish = {
                     onOnboardingFinished()
-                    navController.navigate(WelcomeRoute) {
+                    navController.navigate(WelcomeRoute(showPresentation = true)) {
                         popUpTo(OnboardingRoute) { inclusive = true }
                         launchSingleTop = true
                     }
                 },
             )
         }
-        composable<WelcomeRoute> {
+        composable<WelcomeRoute> { entry ->
             WelcomeScreen(
+                presentationOpenAtStart = entry.toRoute<WelcomeRoute>().showPresentation,
                 onCreateAccount = { navController.navigate(RegisterRoute()) },
                 onSignIn = { navController.navigate(LoginRoute()) },
                 onDiscoverPlans = if (paidPlansOffered) {
@@ -142,10 +155,18 @@ private fun AuthNavHost(
                     null
                 },
                 onVerificationRequired = { navController.navigate(LoginVerificationRoute(route.checkoutPlan, route.checkoutCycle)) },
+                onValidateAccount = { navController.navigate(ValidateAccountRoute(route.prefilledEmail)) },
                 prefilledEmail = route.prefilledEmail,
                 notice = LoginNotice.fromArg(route.notice),
                 checkoutPlan = route.checkoutPlan,
                 checkoutCycle = route.checkoutCycle,
+            )
+        }
+        composable<ValidateAccountRoute> { entry ->
+            ValidateAccountScreen(
+                onVerificationRequired = { navController.navigate(LoginVerificationRoute()) },
+                onBack = { navController.popBackStack() },
+                prefilledEmail = entry.toRoute<ValidateAccountRoute>().email,
             )
         }
         composable<RegisterRoute> { entry ->
@@ -207,6 +228,7 @@ private fun AuthNavHost(
                     onBack = { navController.popBackStack() },
                     onOpenDocument = { navController.navigate(LegalDocumentRoute(it.slug)) },
                     viewModel = legalDocumentViewModel(),
+                    onOpenForgotPassword = { navController.navigate(ForgotPasswordRoute()) },
                 )
             }
         }
@@ -238,7 +260,7 @@ private fun NavController.backToLogin(
 ) {
     navigate(LoginRoute(prefilledEmail, notice?.toArg(), checkoutPlan, checkoutCycle)) {
         if (neverLoggedIn) {
-            popUpTo(WelcomeRoute) { inclusive = false }
+            popUpTo<WelcomeRoute> { inclusive = false }
         } else {
             popUpTo(0) { inclusive = true }
         }

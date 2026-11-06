@@ -21,8 +21,9 @@ import com.dmb.chantiertracker.domain.model.DomainException
 import com.dmb.chantiertracker.presentation.AppOutlinedTextField
 import com.dmb.chantiertracker.presentation.ResponsiveContent
 import com.dmb.chantiertracker.presentation.auth.components.AuthPrimaryButton
+import com.dmb.chantiertracker.presentation.auth.components.FormWithErrorSnackbar
+import com.dmb.chantiertracker.presentation.i18n.snackbarText
 import com.dmb.chantiertracker.presentation.auth.components.ErrorBanner
-import com.dmb.chantiertracker.presentation.i18n.localizedText
 import com.dmb.chantiertracker.presentation.projects.CurrencyField
 import com.dmb.chantiertracker.presentation.projects.TimezoneField
 import com.dmb.chantiertracker.presentation.offer.PlanLimitKind
@@ -51,7 +52,8 @@ fun CreateProjectScreen(
         if (state.created) onCreated()
     }
 
-    ResponsiveContent(modifier, maxContentWidth = 480.dp) {
+    FormWithErrorSnackbar(state.formError?.takeUnless { it == DomainException.PlanLimitReached }?.snackbarText(), state.isSubmitting, modifier) {
+    ResponsiveContent(Modifier, maxContentWidth = 480.dp) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -68,7 +70,7 @@ fun CreateProjectScreen(
                 ErrorBanner(stringResource(Res.string.create_super_admin_blocked))
             }
             state.formError?.let { error ->
-                if (error == DomainException.PlanLimitReached) PlanLimitNotice(PlanLimitKind.PROJECTS) else ErrorBanner(error.localizedText())
+                if (error == DomainException.PlanLimitReached) PlanLimitNotice(PlanLimitKind.PROJECTS)
             }
 
             AppOutlinedTextField(
@@ -124,5 +126,6 @@ fun CreateProjectScreen(
                 enabled = !state.atProjectLimit && !state.isSuperAdmin,
             )
         }
+    }
     }
 }

@@ -101,6 +101,12 @@ class AuthScreensSnapshotTest {
             snapshot("00a2-welcome-billing-closed", locale) {
                 WelcomeScreen(onCreateAccount = {}, onSignIn = {}, onDiscoverPlans = null, onOpenLegalDocument = {})
             }
+            snapshot("00b-presentation-sheet", locale) {
+                androidx.compose.material3.Surface { com.dmb.chantiertracker.presentation.auth.welcome.ProductPresentationContent(onClose = {}) }
+            }
+            snapshot("00b-presentation-sheet-dark", locale, dark = true) {
+                androidx.compose.material3.Surface { com.dmb.chantiertracker.presentation.auth.welcome.ProductPresentationContent(onClose = {}) }
+            }
             snapshot("00b-plan-selection", locale) {
                 PlanSelectionScreen(onSelectPlan = { _, _ -> }, onContinueFree = {}, onBack = {})
             }

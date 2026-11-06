@@ -34,11 +34,16 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Snackbar
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -51,6 +56,7 @@ import androidx.compose.ui.platform.Clipboard
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.NativeClipboard
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -62,6 +68,7 @@ import com.dmb.chantiertracker.presentation.AppOutlinedButton
 import com.dmb.chantiertracker.presentation.AppOutlinedTextField
 import com.dmb.chantiertracker.presentation.CapitalTitle
 import com.dmb.chantiertracker.presentation.branding.ConstructionIllustration
+import com.dmb.chantiertracker.presentation.i18n.retryInLabel
 import com.dmb.chantiertracker.presentation.main.ChevronRightIcon
 import com.dmb.chantiertracker.presentation.theme.Ink
 import com.dmb.chantiertracker.presentation.theme.Yellow
@@ -75,6 +82,8 @@ import com.dmb.chantiertracker.resources.password_hide
 import com.dmb.chantiertracker.resources.password_show
 import org.jetbrains.compose.resources.stringResource
 
+const val FORM_ERROR_SNACKBAR_TAG = "form-error-snackbar"
+
 private val CardCorner = 30.dp
 private val CardOverlap = 28.dp
 
@@ -86,6 +95,8 @@ fun AuthScreenLayout(
     onBack: (() -> Unit)? = null,
     centerContentVertically: Boolean = false,
     pinnedFooter: (@Composable ColumnScope.() -> Unit)? = null,
+    errorMessage: String? = null,
+    submitting: Boolean = false,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val keyboardVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
@@ -228,7 +239,47 @@ fun AuthScreenLayout(
                     }
                 }
             }
+            FormErrorSnackbarHost(errorMessage, submitting, Modifier.align(Alignment.BottomCenter))
         }
+    }
+}
+
+@Composable
+fun FormWithErrorSnackbar(
+    errorMessage: String?,
+    submitting: Boolean,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit,
+) {
+    Box(modifier.fillMaxSize()) {
+        content()
+        FormErrorSnackbarHost(errorMessage, submitting, Modifier.align(Alignment.BottomCenter))
+    }
+}
+
+@Composable
+fun FormErrorSnackbarHost(message: String?, submitting: Boolean, modifier: Modifier = Modifier) {
+    val hostState = remember { SnackbarHostState() }
+    LaunchedEffect(message, submitting) {
+        hostState.currentSnackbarData?.dismiss()
+        if (message != null && !submitting) {
+            hostState.showSnackbar(message, withDismissAction = true, duration = SnackbarDuration.Long)
+        }
+    }
+    SnackbarHost(
+        hostState = hostState,
+        modifier = modifier
+            .testTag(FORM_ERROR_SNACKBAR_TAG)
+            .imePadding()
+            .navigationBarsPadding()
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+    ) { data ->
+        Snackbar(
+            snackbarData = data,
+            containerColor = MaterialTheme.colorScheme.errorContainer,
+            contentColor = MaterialTheme.colorScheme.onErrorContainer,
+            dismissActionContentColor = MaterialTheme.colorScheme.onErrorContainer,
+        )
     }
 }
 
@@ -405,14 +456,17 @@ fun AuthPrimaryButton(
     modifier: Modifier = Modifier,
     loading: Boolean = false,
     enabled: Boolean = true,
+    waitSecondsLeft: Int = 0,
 ) {
     Button(
         onClick = onClick,
         modifier = modifier.fillMaxWidth().height(54.dp),
-        enabled = enabled && !loading,
+        enabled = enabled && !loading && waitSecondsLeft == 0,
         shape = AuthButtonShape,
     ) {
-        if (loading) {
+        if (waitSecondsLeft > 0) {
+            Text(retryInLabel(waitSecondsLeft), fontWeight = FontWeight.SemiBold)
+        } else if (loading) {
             CircularProgressIndicator(
                 modifier = Modifier.size(18.dp),
                 strokeWidth = 2.dp,

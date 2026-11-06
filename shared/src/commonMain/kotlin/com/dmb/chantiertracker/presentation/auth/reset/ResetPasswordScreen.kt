@@ -9,9 +9,8 @@ import com.dmb.chantiertracker.presentation.auth.components.AuthLink
 import com.dmb.chantiertracker.presentation.auth.components.AuthPrimaryButton
 import com.dmb.chantiertracker.presentation.auth.components.AuthScreenLayout
 import com.dmb.chantiertracker.presentation.auth.components.CodeField
-import com.dmb.chantiertracker.presentation.auth.components.ErrorBanner
 import com.dmb.chantiertracker.presentation.auth.components.PasswordField
-import com.dmb.chantiertracker.presentation.i18n.localizedText
+import com.dmb.chantiertracker.presentation.i18n.snackbarText
 import com.dmb.chantiertracker.presentation.i18n.rememberWaitSecondsLeft
 import com.dmb.chantiertracker.resources.Res
 import com.dmb.chantiertracker.resources.field_new_password_label
@@ -40,8 +39,9 @@ fun ResetPasswordScreen(
         title = stringResource(Res.string.reset_title),
         subtitle = stringResource(Res.string.reset_subtitle, email),
         onBack = onBack,
+        errorMessage = state.formError?.snackbarText(),
+        submitting = state.isSubmitting,
     ) {
-        state.formError?.let { ErrorBanner(it.localizedText()) }
 
         CodeField(
             value = state.code,
@@ -62,7 +62,7 @@ fun ResetPasswordScreen(
             text = stringResource(Res.string.reset_submit),
             onClick = { viewModel.submit(email) },
             loading = state.isSubmitting,
-            enabled = rememberWaitSecondsLeft(state.formError) == 0,
+            waitSecondsLeft = rememberWaitSecondsLeft(state.formError),
         )
         AuthLink(text = stringResource(Res.string.reset_back_to_login), onClick = onBackToLogin)
     }

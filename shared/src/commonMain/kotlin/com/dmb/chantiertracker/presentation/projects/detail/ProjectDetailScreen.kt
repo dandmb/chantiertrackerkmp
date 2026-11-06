@@ -64,11 +64,9 @@ import com.dmb.chantiertracker.presentation.projects.ProjectLocation
 import com.dmb.chantiertracker.presentation.projects.ProjectStatusMenu
 import com.dmb.chantiertracker.presentation.projects.export.ExportSection
 import com.dmb.chantiertracker.presentation.stages.StageStatusBadge
-import com.dmb.chantiertracker.presentation.SectionPrimaryButton
 import com.dmb.chantiertracker.resources.Res
 import com.dmb.chantiertracker.resources.detail_invitations_empty_admin
 import com.dmb.chantiertracker.resources.detail_members_empty_admin
-import com.dmb.chantiertracker.resources.detail_stages_empty_action
 import com.dmb.chantiertracker.resources.detail_currency
 import com.dmb.chantiertracker.resources.detail_danger_zone
 import com.dmb.chantiertracker.resources.detail_danger_zone_body
@@ -308,7 +306,6 @@ private fun StagesSection(stages: List<Stage>, currency: String, onAddStage: () 
     ) {
         if (stages.isEmpty()) {
             DetailEmptyHint(stringResource(Res.string.detail_stages_empty))
-            SectionPrimaryButton(stringResource(Res.string.detail_stages_empty_action), onAddStage)
         } else {
             stages.forEach { stage ->
                 StageRow(stage, currency = currency, onClick = { onStageClick(stage.localId) })
@@ -338,7 +335,6 @@ private fun MembersSection(members: List<ProjectMember>, isAdmin: Boolean, onInv
         removal?.error?.let { ErrorBanner(it) }
         if (members.isEmpty()) {
             DetailEmptyHint(stringResource(if (isAdmin) Res.string.detail_members_empty_admin else Res.string.detail_members_empty))
-            if (isAdmin) SectionPrimaryButton(stringResource(Res.string.detail_invite_member), onInviteMember)
         } else {
             members.forEach { member ->
                 MemberRow(
@@ -377,7 +373,6 @@ private fun InvitationsSection(
         invitationActionError?.let { ErrorBanner(it) }
         if (pendingInvitations.isEmpty()) {
             DetailEmptyHint(stringResource(Res.string.detail_invitations_empty_admin))
-            SectionPrimaryButton(stringResource(Res.string.detail_invite_member), onInviteMember)
         } else {
             pendingInvitations.forEach { invitation ->
                 InvitationRow(

@@ -24,7 +24,10 @@ enum class LoginNotice {
 data object OnboardingRoute
 
 @Serializable
-data object WelcomeRoute
+data class WelcomeRoute(val showPresentation: Boolean = false)
+
+@Serializable
+data class ValidateAccountRoute(val email: String? = null)
 
 @Serializable
 data object PlanSelectionRoute

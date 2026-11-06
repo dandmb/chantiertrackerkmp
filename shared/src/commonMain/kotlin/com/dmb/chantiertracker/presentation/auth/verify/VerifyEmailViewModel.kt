@@ -56,7 +56,7 @@ class VerifyEmailViewModel(
         val codeError = validateCode(current.code)
         val passwordError = Res.string.validation_password_required.takeIf { current.asksPassword && current.password.isEmpty() }
         if (codeError != null || passwordError != null) {
-            _state.update { it.copy(codeError = codeError, passwordError = passwordError) }
+            _state.update { it.copy(codeError = codeError, passwordError = passwordError, formError = null) }
             return
         }
         viewModelScope.launch {
@@ -72,7 +72,7 @@ class VerifyEmailViewModel(
 
     fun resendCode(email: String) {
         viewModelScope.launch {
-            _state.update { it.copy(isResending = true, formError = null, codeResent = false) }
+            _state.update { it.copy(isResending = true, formError = null, codeError = null, passwordError = null, codeResent = false) }
             try {
                 authRepository.resendCode(email)
                 _state.update { it.copy(isResending = false, codeResent = true) }
