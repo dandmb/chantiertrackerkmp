@@ -14,6 +14,7 @@ import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.yield
 import kotlin.test.Test
@@ -102,7 +103,7 @@ class TokenRefreshTest {
         val bothRefused = CompletableDeferred<Unit>()
         var refused = 0
         var refreshes = 0
-        val mock = RecordingMockClient(storage) { request ->
+        val mock = RecordingMockClient(storage, dispatcher = StandardTestDispatcher(testScheduler)) { request ->
             when (request.url.encodedPath) {
                 "/api/v1/users/me" -> if (request.headers[HttpHeaders.Authorization] == "Bearer stale") {
                     if (++refused == 2) bothRefused.complete(Unit)
@@ -137,7 +138,7 @@ class TokenRefreshTest {
         val secondSent = CompletableDeferred<Unit>()
         var refused = 0
         var refreshes = 0
-        val mock = RecordingMockClient(storage) { request ->
+        val mock = RecordingMockClient(storage, dispatcher = StandardTestDispatcher(testScheduler)) { request ->
             when (request.url.encodedPath) {
                 "/api/v1/users/me" -> if (request.headers[HttpHeaders.Authorization] == "Bearer stale") {
                     if (++refused == 1) {
