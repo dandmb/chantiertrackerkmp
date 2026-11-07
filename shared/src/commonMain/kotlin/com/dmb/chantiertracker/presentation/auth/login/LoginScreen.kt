@@ -17,7 +17,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dmb.chantiertracker.domain.model.DomainException
 import com.dmb.chantiertracker.presentation.auth.components.AuthFooterPrompt
 import com.dmb.chantiertracker.presentation.auth.components.AuthInlineLink
-import com.dmb.chantiertracker.presentation.auth.components.AuthLink
 import com.dmb.chantiertracker.presentation.auth.components.AuthLegalFooter
 import com.dmb.chantiertracker.presentation.auth.components.AuthPrimaryButton
 import com.dmb.chantiertracker.presentation.auth.components.AuthScreenLayout
@@ -42,6 +41,7 @@ import com.dmb.chantiertracker.resources.login_submit
 import com.dmb.chantiertracker.resources.login_subtitle
 import com.dmb.chantiertracker.resources.login_title
 import com.dmb.chantiertracker.resources.login_validate_account
+import com.dmb.chantiertracker.resources.login_validate_prompt
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -52,7 +52,7 @@ fun LoginScreen(
     onOpenLegalDocument: (LegalDocument) -> Unit,
     onBack: (() -> Unit)? = null,
     onVerificationRequired: () -> Unit = {},
-    onValidateAccount: () -> Unit = {},
+    onValidateAccount: (typedEmail: String) -> Unit = {},
     prefilledEmail: String? = null,
     notice: LoginNotice? = null,
     checkoutPlan: String? = null,
@@ -150,7 +150,12 @@ fun LoginScreen(
             action = stringResource(Res.string.login_no_account_action),
             onClick = onNavigateToRegister,
         )
-        AuthLink(text = stringResource(Res.string.login_validate_account), onClick = onValidateAccount)
+        AuthFooterPrompt(
+            prompt = stringResource(Res.string.login_validate_prompt),
+            action = stringResource(Res.string.login_validate_account),
+            onClick = { onValidateAccount(state.email.trim()) },
+            horizontalArrangement = Arrangement.Center,
+        )
         AuthLegalFooter(onOpenDocument = onOpenLegalDocument)
     }
 }

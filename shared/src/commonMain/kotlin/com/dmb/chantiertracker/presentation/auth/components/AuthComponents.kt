@@ -1,5 +1,13 @@
 package com.dmb.chantiertracker.presentation.auth.components
 
+import com.dmb.chantiertracker.resources.action_back
+import com.dmb.chantiertracker.presentation.theme.Ink
+import com.dmb.chantiertracker.presentation.branding.ConstructionIllustration
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -67,15 +75,12 @@ import androidx.compose.ui.text.style.TextDecoration
 import com.dmb.chantiertracker.presentation.AppOutlinedButton
 import com.dmb.chantiertracker.presentation.AppOutlinedTextField
 import com.dmb.chantiertracker.presentation.CapitalTitle
-import com.dmb.chantiertracker.presentation.BackSquareButton
-import com.dmb.chantiertracker.presentation.branding.AppLogo
 import com.dmb.chantiertracker.presentation.i18n.retryInLabel
 import com.dmb.chantiertracker.presentation.main.ChevronRightIcon
 import com.dmb.chantiertracker.presentation.theme.DisabledFill
 import com.dmb.chantiertracker.presentation.theme.DisabledText
 import com.dmb.chantiertracker.presentation.theme.Lemon
 import com.dmb.chantiertracker.presentation.theme.Orange
-import com.dmb.chantiertracker.resources.app_name
 import com.dmb.chantiertracker.resources.Res
 import com.dmb.chantiertracker.resources.field_code_label
 import com.dmb.chantiertracker.resources.field_email_label
@@ -86,6 +91,9 @@ import com.dmb.chantiertracker.resources.password_show
 import org.jetbrains.compose.resources.stringResource
 
 const val FORM_ERROR_SNACKBAR_TAG = "form-error-snackbar"
+
+private val CardCorner = 30.dp
+private val CardOverlap = 28.dp
 
 @Composable
 fun AuthScreenLayout(
@@ -99,99 +107,148 @@ fun AuthScreenLayout(
     submitting: Boolean = false,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    BoxWithConstraints(modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+    val keyboardVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
+
+    BoxWithConstraints(modifier.fillMaxSize()) {
+        // The 228dp floor below reads fine against a normal portrait height
+        // (700dp+) but was applied unconditionally — on a landscape phone
+        // (~400dp tall) it alone ate over half the screen, cropping the
+        // illustration and leaving the card barely enough room for a title.
+        // Confirmed by rendering at 892x412 before and after this change.
+        // Short on height is exactly the situation the keyboard-visible case
+        // already handles (hide the illustration, collapse to a slim band) —
+        // reused rather than inventing a second treatment.
         val shortOnHeight = maxHeight < 500.dp
+        val showIllustration = !keyboardVisible && !shortOnHeight
+        // Landscape has no room for a pinned block: it scrolls with the content instead.
         val footerPinned = pinnedFooter != null && !shortOnHeight
-        Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
-            AuthBrandRow(onBack)
-            if (centerContentVertically) {
-                Column(
-                    Modifier
-                        .fillMaxSize()
-                        .imePadding()
-                        .navigationBarsPadding()
-                        .padding(horizontal = 24.dp)
-                        .padding(top = 22.dp, bottom = 28.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Column(
-                        Modifier.widthIn(max = 440.dp).fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(14.dp),
-                    ) {
-                        AuthTitleBlock(title, subtitle)
-                    }
-                    Box(
-                        Modifier.widthIn(max = 440.dp).fillMaxWidth().weight(1f),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Column(
-                            Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(14.dp),
-                        ) {
-                            content()
-                        }
-                    }
+        val headerHeight by animateDpAsState(
+            targetValue = if (keyboardVisible || shortOnHeight) 128.dp else if (footerPinned) (maxHeight * 0.2f).coerceIn(128.dp, 200.dp) else (maxHeight * 0.38f).coerceIn(228.dp, 360.dp),
+            label = "authHeaderHeight",
+        )
+
+        Box(
+            Modifier
+                .fillMaxSize()
+                .background(Lemon),
+        ) {
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(headerHeight)
+                    .align(Alignment.TopCenter)
+                    .windowInsetsPadding(WindowInsets.statusBars)
+                    .padding(bottom = CardOverlap + 12.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                AnimatedVisibility(showIllustration) {
+                    ConstructionIllustration(Modifier.widthIn(max = 260.dp).fillMaxWidth(0.62f))
                 }
-            } else {
-                Column(
-                    Modifier
-                        .fillMaxWidth()
-                        .weight(1f)
-                        .verticalScroll(rememberScrollState())
-                        .imePadding()
-                        .then(if (footerPinned) Modifier else Modifier.navigationBarsPadding())
-                        .padding(horizontal = 24.dp)
-                        .padding(top = 22.dp, bottom = 28.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
+            }
+
+            if (onBack != null) {
+                IconButton(
+                    onClick = onBack,
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .windowInsetsPadding(WindowInsets.statusBars)
+                        .padding(4.dp),
                 ) {
-                    Column(
-                        Modifier.widthIn(max = 440.dp).fillMaxWidth(),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(14.dp),
-                    ) {
-                        AuthTitleBlock(title, subtitle)
-                        Spacer(Modifier.height(4.dp))
-                        content()
-                        if (!footerPinned) pinnedFooter?.invoke(this)
-                    }
-                }
-                if (footerPinned) {
-                    Column(
-                        Modifier
-                            .widthIn(max = 440.dp)
-                            .fillMaxWidth()
-                            .navigationBarsPadding()
-                            .padding(horizontal = 24.dp, vertical = 12.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        content = pinnedFooter!!,
+                    Icon(
+                        imageVector = BackArrowIcon,
+                        contentDescription = stringResource(Res.string.action_back),
+                        tint = Ink,
                     )
                 }
             }
-        }
-        FormErrorSnackbarHost(errorMessage, submitting, Modifier.align(Alignment.BottomCenter))
-    }
-}
 
-@Composable
-private fun AuthBrandRow(onBack: (() -> Unit)?) {
-    Row(
-        Modifier
-            .widthIn(max = 488.dp)
-            .fillMaxWidth()
-            .windowInsetsPadding(WindowInsets.statusBars)
-            .padding(start = if (onBack != null) 12.dp else 24.dp, end = 24.dp, top = 16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        if (onBack != null) BackSquareButton(onBack)
-        AppLogo(size = 40.dp, modifier = Modifier.clip(RoundedCornerShape(8.dp)))
-        Text(
-            text = stringResource(Res.string.app_name),
-            style = MaterialTheme.typography.titleMedium.copy(fontSize = 20.sp),
-            color = MaterialTheme.colorScheme.onBackground,
-        )
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .align(Alignment.TopCenter)
+                    .padding(top = (headerHeight - CardOverlap).coerceAtLeast(0.dp))
+                    .fillMaxHeight(),
+                shape = RoundedCornerShape(topStart = CardCorner, topEnd = CardCorner),
+                color = MaterialTheme.colorScheme.surface,
+            ) {
+                if (centerContentVertically) {
+                    Column(
+                        Modifier
+                            .fillMaxSize()
+                            .imePadding()
+                            .navigationBarsPadding()
+                            .padding(horizontal = 24.dp)
+                            .padding(top = 32.dp, bottom = 28.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        Column(
+                            Modifier.widthIn(max = 440.dp).fillMaxWidth(),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(14.dp),
+                        ) {
+                            AuthTitleBlock(title, subtitle)
+                        }
+                        Box(
+                            Modifier.widthIn(max = 440.dp).fillMaxWidth().weight(1f),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            // Scrollable as a safety net, not the normal case: this
+                            // content is short enough to just sit centered on any
+                            // height this app actually ships to (confirmed at
+                            // 892x412, the shortest real one) — but centering with
+                            // no way to reach an overflow would strand content
+                            // entirely on anything shorter still, unlike the
+                            // non-centered branch below, which already scrolls.
+                            Column(
+                                Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(14.dp),
+                            ) {
+                                content()
+                            }
+                        }
+                    }
+                } else {
+                    Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Column(
+                            Modifier
+                                .fillMaxWidth()
+                                .weight(1f)
+                                .verticalScroll(rememberScrollState())
+                                .imePadding()
+                                .then(if (footerPinned) Modifier else Modifier.navigationBarsPadding())
+                                .padding(horizontal = 24.dp)
+                                .padding(top = 32.dp, bottom = 28.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) {
+                            Column(
+                                Modifier.widthIn(max = 440.dp).fillMaxWidth(),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(14.dp),
+                            ) {
+                                AuthTitleBlock(title, subtitle)
+                                Spacer(Modifier.height(6.dp))
+                                content()
+                                if (!footerPinned) pinnedFooter?.invoke(this)
+                            }
+                        }
+                        if (footerPinned) {
+                            Column(
+                                Modifier
+                                    .widthIn(max = 440.dp)
+                                    .fillMaxWidth()
+                                    .navigationBarsPadding()
+                                    .padding(horizontal = 24.dp, vertical = 12.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                                content = pinnedFooter!!,
+                            )
+                        }
+                    }
+                }
+            }
+            FormErrorSnackbarHost(errorMessage, submitting, Modifier.align(Alignment.BottomCenter))
+        }
     }
 }
 
@@ -249,16 +306,17 @@ private fun ColumnScope.AuthTitleBlock(title: String, subtitle: String?) {
     CapitalTitle(
         text = title,
         modifier = Modifier.fillMaxWidth(),
-        style = MaterialTheme.typography.displaySmall,
-        color = MaterialTheme.colorScheme.onBackground,
-        isHeading = true,
+        style = MaterialTheme.typography.headlineMedium,
+        color = MaterialTheme.colorScheme.onSurface,
+        textAlign = TextAlign.Center,
     )
     if (subtitle != null) {
         Text(
             text = subtitle,
             modifier = Modifier.fillMaxWidth(),
-            style = MaterialTheme.typography.bodyLarge,
+            style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
         )
     }
 }
@@ -479,10 +537,16 @@ fun AuthInlineLink(text: String, onClick: () -> Unit, modifier: Modifier = Modif
 }
 
 @Composable
-fun AuthFooterPrompt(prompt: String, action: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+fun AuthFooterPrompt(
+    prompt: String,
+    action: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    horizontalArrangement: Arrangement.Horizontal = Arrangement.End,
+) {
     Row(
         modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.End,
+        horizontalArrangement = horizontalArrangement,
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(

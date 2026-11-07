@@ -54,7 +54,7 @@
     <string name="login_submit">Se connecter</string>
     <string name="login_no_account_prompt">Pas de compte ?</string>
     <string name="login_no_account_action">Créer un compte</string>
-    <string name="login_notice_account_activated">Compte activé. Tu peux te connecter.</string>
+    <string name="login_notice_account_activated">Compte vérifié, tu peux te connecter.</string>
     <string name="login_notice_password_reset">Mot de passe mis à jour. Tu peux te connecter.</string>
     <string name="login_notice_checkout_pending">Compte activé ! Connecte-toi pour finaliser ton abonnement %1$s.</string>
 
@@ -67,12 +67,12 @@
 
     <string name="verify_title">Vérifie ton email</string>
     <string name="verify_subtitle">Saisis le code à 6 chiffres envoyé à %1$s.</string>
-    <string name="verify_submit">Valider</string>
+    <string name="verify_submit">Vérifier</string>
     <string name="verify_resend">Renvoyer le code</string>
     <string name="verify_resending">Envoi…</string>
     <string name="verify_cancel">Annuler la vérification</string>
-    <string name="verify_code_resent">Un nouveau code est en route.</string>
-    <string name="verify_password_hint">Mot de passe choisi à l'inscription</string>
+    <string name="verify_code_resent">Un nouveau code a été envoyé.</string>
+    <string name="verify_password_hint">Celui que tu as choisi à l'inscription.</string>
     <string name="verify_wrong_code">Code incorrect. Après plusieurs essais, demande un nouveau code.</string>
     <string name="verify_wrong_code_or_password">Ce code ou ce mot de passe est incorrect, ou le code a expiré. Après plusieurs essais, demande un nouveau code.</string>
     <string name="verify_existing_account_hint">Si cette adresse a déjà un compte, tu reçois un e-mail pour te le dire : connecte-toi avec ce compte.</string>
@@ -868,8 +868,8 @@
     <string name="exit_confirm">Quitter</string>
     <string name="exit_stay">Rester</string>
     <string name="login_validate_account">Valider mon compte</string>
-    <string name="validate_account_title">Valider mon compte</string>
-    <string name="validate_account_subtitle">Saisis ton adresse et ton mot de passe : on t'envoie un nouveau code pour activer ton compte.</string>
-    <string name="validate_account_submit">Recevoir un code</string>
+    <string name="login_validate_prompt">Compte pas encore validé ?</string>
+    <string name="verify_from_login_subtitle">Saisis le code à 6 chiffres reçu par email à l'inscription. Tu ne le retrouves pas ? Demande un nouveau code.</string>
+    <string name="verify_resend_needs_email">Renseigne ton email avant de renvoyer un code.</string>
     <string name="material_existing_title">Matériaux existants</string>
 </resources>

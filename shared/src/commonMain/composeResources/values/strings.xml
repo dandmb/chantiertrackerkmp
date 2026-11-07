@@ -54,7 +54,7 @@
     <string name="login_submit">Sign in</string>
     <string name="login_no_account_prompt">No account yet?</string>
     <string name="login_no_account_action">Create one</string>
-    <string name="login_notice_account_activated">Account activated. You can sign in now.</string>
+    <string name="login_notice_account_activated">Account verified, you can sign in.</string>
     <string name="login_notice_password_reset">Password updated. You can sign in now.</string>
     <string name="login_notice_checkout_pending">Account activated! Sign in to complete your %1$s subscription.</string>
 
@@ -67,12 +67,12 @@
 
     <string name="verify_title">Verify your email</string>
     <string name="verify_subtitle">Enter the 6-digit code sent to %1$s.</string>
-    <string name="verify_submit">Confirm</string>
+    <string name="verify_submit">Verify</string>
     <string name="verify_resend">Resend code</string>
     <string name="verify_resending">Sending…</string>
     <string name="verify_cancel">Cancel verification</string>
-    <string name="verify_code_resent">A new code is on its way.</string>
-    <string name="verify_password_hint">Password chosen when you signed up</string>
+    <string name="verify_code_resent">A new code has been sent.</string>
+    <string name="verify_password_hint">The one you chose when you signed up.</string>
     <string name="verify_wrong_code">Incorrect code. After several attempts, ask for a new one.</string>
     <string name="verify_wrong_code_or_password">That code or password is incorrect, or the code has expired. After several attempts, request a new code.</string>
     <string name="verify_existing_account_hint">If this address already has an account, you'll get an email saying so: sign in with that account.</string>
@@ -868,8 +868,8 @@
     <string name="exit_confirm">Quit</string>
     <string name="exit_stay">Stay</string>
     <string name="login_validate_account">Validate my account</string>
-    <string name="validate_account_title">Validate my account</string>
-    <string name="validate_account_subtitle">Enter your address and your password: we'll send you a new code to activate your account.</string>
-    <string name="validate_account_submit">Get a code</string>
+    <string name="login_validate_prompt">Account not validated yet?</string>
+    <string name="verify_from_login_subtitle">Enter the 6-digit code you received by email when you signed up. Can't find it? Ask for a new code.</string>
+    <string name="verify_resend_needs_email">Enter your email before asking for a new code.</string>
     <string name="material_existing_title">Existing materials</string>
 </resources>

@@ -1,5 +1,15 @@
 package com.dmb.chantiertracker.presentation.auth.verify
 
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.input.ImeAction
+import com.dmb.chantiertracker.presentation.TextAction
+import com.dmb.chantiertracker.presentation.auth.components.EmailField
+import com.dmb.chantiertracker.resources.verify_from_login_subtitle
+import com.dmb.chantiertracker.resources.reset_back_to_login
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -94,5 +104,76 @@ fun VerifyEmailScreen(
             enabled = !state.isSubmitting && !state.isResending && waitSecondsLeft == 0,
         )
         AuthLink(text = stringResource(Res.string.verify_cancel), onClick = onCancelVerification)
+    }
+}
+
+@Composable
+fun VerifyAccountFromLoginScreen(
+    prefilledEmail: String?,
+    onVerified: (email: String) -> Unit,
+    onBackToLogin: () -> Unit,
+    onBack: (() -> Unit)? = null,
+    viewModel: VerifyEmailViewModel = koinViewModel(),
+) {
+    val state by viewModel.state.collectAsStateWithLifecycle()
+
+    LaunchedEffect(Unit) { viewModel.startFromLogin(prefilledEmail) }
+
+    LaunchedEffect(state.verified) {
+        if (state.verified) onVerified(state.email.trim())
+    }
+
+    val errorMessage = state.formError?.let { error ->
+        if (error == DomainException.InvalidCode) stringResource(Res.string.verify_wrong_code_or_password) else error.snackbarText()
+    }
+    val waitSecondsLeft = rememberWaitSecondsLeft(state.formError)
+
+    AuthScreenLayout(
+        title = stringResource(Res.string.verify_title),
+        subtitle = stringResource(Res.string.verify_from_login_subtitle),
+        onBack = onBack,
+        errorMessage = errorMessage,
+        submitting = state.isSubmitting || state.isResending,
+    ) {
+        if (state.codeResent) InfoBanner(stringResource(Res.string.verify_code_resent))
+
+        EmailField(
+            value = state.email,
+            onValueChange = viewModel::onEmailChange,
+            error = state.emailError?.let { stringResource(it) },
+            enabled = !state.isSubmitting,
+        )
+        PasswordField(
+            value = state.password,
+            onValueChange = viewModel::onPasswordChange,
+            hint = stringResource(Res.string.verify_password_hint),
+            error = state.passwordError?.let { stringResource(it) },
+            enabled = !state.isSubmitting,
+            imeAction = ImeAction.Next,
+        )
+        CodeField(
+            value = state.code,
+            onValueChange = viewModel::onCodeChange,
+            error = state.codeError?.let { stringResource(it) },
+            enabled = !state.isSubmitting,
+        )
+        AuthPrimaryButton(
+            text = stringResource(Res.string.verify_submit),
+            onClick = viewModel::submitFromLogin,
+            loading = state.isSubmitting,
+            waitSecondsLeft = waitSecondsLeft,
+        )
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            TextAction(
+                text = stringResource(if (state.isResending) Res.string.verify_resending else Res.string.verify_resend),
+                onClick = viewModel::resendFromLogin,
+                enabled = !state.isSubmitting && !state.isResending && waitSecondsLeft == 0,
+            )
+            TextAction(text = stringResource(Res.string.reset_back_to_login), onClick = onBackToLogin)
+        }
     }
 }
