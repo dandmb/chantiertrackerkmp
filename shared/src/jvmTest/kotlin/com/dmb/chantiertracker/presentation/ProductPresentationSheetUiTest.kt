@@ -144,7 +144,7 @@ class ProductPresentationSheetUiTest {
         awaitText("Créer un compte")
         check(onAllNodes(hasText(offlineSentence)).fetchSemanticsNodes().isEmpty()) { "no sheet at a later launch" }
 
-        onNodeWithText("Découvrir ChantierTracker").performScrollTo().performClick()
+        onNodeWithText("Découvrir ChantierTracker").performClick()
         awaitText(offlineSentence)
     }
 }

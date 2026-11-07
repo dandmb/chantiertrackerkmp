@@ -1,17 +1,13 @@
 package com.dmb.chantiertracker.presentation.auth.welcome
 
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.height
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import com.dmb.chantiertracker.presentation.auth.components.AuthHighlightCard
 import com.dmb.chantiertracker.presentation.auth.components.AuthLegalFooter
-import com.dmb.chantiertracker.presentation.auth.components.AuthLink
 import com.dmb.chantiertracker.presentation.auth.components.AuthPrimaryButton
 import com.dmb.chantiertracker.presentation.auth.components.AuthScreenLayout
 import com.dmb.chantiertracker.presentation.auth.components.AuthSecondaryButton
@@ -42,13 +38,15 @@ fun WelcomeScreen(
         pinnedFooter = {
             AuthPrimaryButton(text = stringResource(Res.string.welcome_create_account), onClick = onCreateAccount)
             AuthSecondaryButton(text = stringResource(Res.string.welcome_sign_in), onClick = onSignIn)
+            AuthSecondaryButton(
+                text = stringResource(Res.string.presentation_open),
+                onClick = { presentationOpen = true },
+                contentColor = MaterialTheme.colorScheme.onBackground,
+            )
             AuthLegalFooter(onOpenDocument = onOpenLegalDocument)
         },
     ) {
-        AuthLink(text = stringResource(Res.string.presentation_open), onClick = { presentationOpen = true })
-
         if (onDiscoverPlans != null) {
-            Spacer(Modifier.height(8.dp))
             AuthHighlightCard(
                 title = stringResource(Res.string.welcome_discover_plans),
                 subtitle = stringResource(Res.string.welcome_discover_plans_teaser),

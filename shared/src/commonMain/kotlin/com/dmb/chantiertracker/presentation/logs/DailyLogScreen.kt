@@ -33,7 +33,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -66,6 +65,8 @@ import com.dmb.chantiertracker.domain.model.MaterialStock
 import com.dmb.chantiertracker.domain.model.PurchaseLine
 import com.dmb.chantiertracker.presentation.ConfirmActionDialog
 import com.dmb.chantiertracker.presentation.DetailEmptyHint
+import com.dmb.chantiertracker.presentation.AdaptiveActions
+import com.dmb.chantiertracker.presentation.OutlinedActionButton
 import com.dmb.chantiertracker.presentation.SectionCard
 import com.dmb.chantiertracker.presentation.DashedEmptyHint
 import com.dmb.chantiertracker.presentation.SectionSubheading
@@ -404,10 +405,7 @@ private fun SubSection(
 
 @Composable
 private fun SubSectionAddAction(onAdd: () -> Unit) {
-    TextButton(onClick = onAdd) {
-        Icon(AddIcon, contentDescription = null, modifier = Modifier.size(16.dp))
-        Text(text = stringResource(Res.string.action_add), modifier = Modifier.padding(start = 4.dp))
-    }
+    OutlinedActionButton(stringResource(Res.string.action_add), AddIcon, onClick = onAdd)
 }
 
 @Composable
@@ -625,25 +623,13 @@ private fun AttachmentsSection(
         icon = PhotoCameraIcon,
     ) {
         if (canEdit) {
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                TextButton(onClick = { photoPicker.launch() }, enabled = !busy) {
-                    Icon(AddIcon, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Text(text = stringResource(Res.string.attachment_add), modifier = Modifier.padding(start = 4.dp))
-                }
+            AdaptiveActions {
+                OutlinedActionButton(stringResource(Res.string.attachment_add), AddIcon, onClick = { photoPicker.launch() }, enabled = !busy)
                 if (photoCapture != null) {
-                    TextButton(onClick = photoCapture::launch, enabled = !busy) {
-                        Icon(PhotoCameraIcon, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Text(text = stringResource(Res.string.attachment_take_photo), modifier = Modifier.padding(start = 4.dp))
-                    }
+                    OutlinedActionButton(stringResource(Res.string.attachment_take_photo), PhotoCameraIcon, onClick = photoCapture::launch, enabled = !busy)
                 }
                 if (state.canAddVideo) {
-                    TextButton(onClick = { videoPicker.launch() }, enabled = !busy) {
-                        Icon(VideocamIcon, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Text(
-                            text = stringResource(Res.string.attachment_add_video),
-                            modifier = Modifier.padding(start = 4.dp),
-                        )
-                    }
+                    OutlinedActionButton(stringResource(Res.string.attachment_add_video), VideocamIcon, onClick = { videoPicker.launch() }, enabled = !busy)
                 }
             }
         }

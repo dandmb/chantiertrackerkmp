@@ -1,5 +1,6 @@
 package com.dmb.chantiertracker.presentation.sync
 
+import com.dmb.chantiertracker.presentation.TextAction
 import androidx.compose.material3.Button
 import com.dmb.chantiertracker.presentation.destructiveButtonColors
 import androidx.compose.foundation.BorderStroke
@@ -325,12 +326,7 @@ private fun ActionButton(action: SyncIssueAction, enabled: Boolean, isRetrying: 
     val size = Modifier.heightIn(min = 48.dp)
     when (action) {
         SyncIssueAction.FIX -> FilledTonalButton(onClick = onClick, enabled = enabled, modifier = size) { content() }
-        SyncIssueAction.DISCARD -> TextButton(
-            onClick = onClick,
-            enabled = enabled,
-            modifier = size,
-            colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
-        ) { content() }
+        SyncIssueAction.DISCARD -> TextAction(onClick = onClick, enabled = enabled, destructive = true) { content() }
         SyncIssueAction.RETRY, SyncIssueAction.REVERT, SyncIssueAction.ACKNOWLEDGE ->
             AppOutlinedButton(onClick = onClick, enabled = enabled, modifier = size) { content() }
     }

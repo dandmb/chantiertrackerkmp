@@ -250,6 +250,7 @@ private fun ColumnScope.AuthTitleBlock(title: String, subtitle: String?) {
         text = title,
         modifier = Modifier.fillMaxWidth(),
         style = MaterialTheme.typography.displaySmall,
+        color = MaterialTheme.colorScheme.onBackground,
         isHeading = true,
     )
     if (subtitle != null) {
@@ -445,13 +446,14 @@ fun AuthSecondaryButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
+    contentColor: Color = MaterialTheme.colorScheme.onBackground,
 ) {
     AppOutlinedButton(
         onClick = onClick,
         modifier = modifier.fillMaxWidth().height(54.dp),
         enabled = enabled,
         shape = AuthButtonShape,
-        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.primary),
+        colors = ButtonDefaults.outlinedButtonColors(contentColor = contentColor),
     ) {
         Text(text, style = MaterialTheme.typography.titleMedium.copy(fontSize = 17.sp))
     }

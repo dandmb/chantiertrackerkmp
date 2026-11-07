@@ -1,5 +1,6 @@
 package com.dmb.chantiertracker.presentation.projects.detail
 
+import com.dmb.chantiertracker.presentation.TextAction
 import androidx.compose.material3.IconButton
 import com.dmb.chantiertracker.domain.model.SyncIssueTarget
 import com.dmb.chantiertracker.presentation.AppOutlinedButton
@@ -25,7 +26,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -581,9 +581,7 @@ private fun InvitationRow(invitation: Invitation, isCancelling: Boolean, onCance
                 )
             }
         }
-        TextButton(onClick = onCancel, enabled = !isCancelling) {
-            Text(stringResource(Res.string.detail_invitation_cancel))
-        }
+        TextAction(stringResource(Res.string.detail_invitation_cancel), onClick = onCancel, enabled = !isCancelling)
     }
 }
 

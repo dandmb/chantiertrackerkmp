@@ -1,5 +1,6 @@
 package com.dmb.chantiertracker.presentation.projects
 
+import com.dmb.chantiertracker.presentation.TextAction
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -19,7 +20,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -139,11 +139,7 @@ private fun SyncIssuesBanner(count: Int, onOpen: () -> Unit) {
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onErrorContainer,
             )
-            TextButton(
-                onClick = onOpen,
-                modifier = Modifier.align(Alignment.End).heightIn(min = 48.dp),
-                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onErrorContainer),
-            ) { Text(stringResource(Res.string.sync_issues_open)) }
+            TextAction(stringResource(Res.string.sync_issues_open), onClick = onOpen, modifier = Modifier.align(Alignment.End))
         }
     }
 }
@@ -233,9 +229,7 @@ private fun IncomingInvitationCard(
                 modifier = Modifier.align(Alignment.End),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                TextButton(onClick = onDecline, enabled = !busy) {
-                    Text(stringResource(Res.string.incoming_invitation_decline))
-                }
+                TextAction(stringResource(Res.string.incoming_invitation_decline), onClick = onDecline, enabled = !busy)
                 Button(onClick = onAccept, enabled = !busy) {
                     Text(stringResource(Res.string.incoming_invitation_accept))
                 }

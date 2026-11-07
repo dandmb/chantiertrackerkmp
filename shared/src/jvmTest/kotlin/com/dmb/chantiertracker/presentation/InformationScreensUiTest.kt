@@ -6,6 +6,16 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toPixelMap
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.test.assertHasClickAction
+import androidx.compose.ui.test.captureToImage
+import androidx.compose.ui.test.getBoundsInRoot
+import androidx.compose.ui.unit.height
+import androidx.compose.ui.unit.width
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.semantics.SemanticsProperties
@@ -155,6 +165,51 @@ class InformationScreensUiTest {
 
         assertEquals(1, created)
         assertEquals(1, signedIn)
+    }
+
+    private val discoverButton = hasText("Découvrir ChantierTracker") and SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button)
+
+    @Test
+    fun discover_is_a_full_width_outlined_button_under_the_two_main_buttons_that_opens_the_presentation() = runComposeUiTest {
+        welcome(BillingAvailability.CLOSED)
+
+        val discover = onNode(discoverButton).assertHasClickAction().getBoundsInRoot()
+        val create = onNodeWithText("Créer un compte").getBoundsInRoot()
+        val signIn = onNodeWithText("Se connecter").getBoundsInRoot()
+        assertTrue(discover.height >= 48.dp, "touch target ${discover.height}")
+        assertTrue(discover.top >= maxOf(create.bottom, signIn.bottom), "under both buttons: discover=$discover create=$create signIn=$signIn")
+        assertEquals(signIn.width, discover.width, "full width like the other buttons")
+
+        onNode(discoverButton).performClick()
+        waitForIdle()
+        assertTrue(onAllNodes(hasText("Ton chantier sous contrôle, même à distance", ignoreCase = true)).fetchSemanticsNodes().isNotEmpty(), "the presentation sheet is open")
+    }
+
+    @Test
+    fun at_night_the_discover_button_is_outlined_and_written_in_cream() = runComposeUiTest {
+        setContent {
+            customAppLocale = "fr"
+            AppEnvironment {
+                AppTheme(darkTheme = true) {
+                    CompositionLocalProvider(LocalDensity provides Density(1f), LocalServerBillingStatus provides BillingAvailability.CLOSED) {
+                        Surface {
+                            Box(Modifier.size(412.dp, 760.dp)) {
+                                WelcomeScreen(onCreateAccount = {}, onSignIn = {}, onDiscoverPlans = null, onOpenLegalDocument = {})
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        waitForIdle()
+
+        val pixels = onNode(discoverButton).captureToImage().toPixelMap()
+        val cream = Color(0xFFFBF7EA)
+        assertEquals(cream, pixels[pixels.width / 2, 0], "2 dp cream outline on top")
+        assertEquals(cream, pixels[pixels.width / 2, 1], "2 dp cream outline on top")
+        val all = (0 until pixels.height).flatMap { y -> (0 until pixels.width).map { x -> pixels[x, y] } }
+        assertTrue(all.count { it == cream } > pixels.width * 4 + 50, "cream text inside the outline")
+        assertEquals(0, all.count { it == Color(0xFFB6D45A) }, "no lemon text")
     }
 
     @Test

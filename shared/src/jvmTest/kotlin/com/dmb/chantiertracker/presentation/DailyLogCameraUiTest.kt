@@ -1,5 +1,16 @@
 package com.dmb.chantiertracker.presentation
 
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.getBoundsInRoot
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.height
+import androidx.compose.ui.unit.width
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.test.ComposeUiTest
@@ -46,6 +57,7 @@ import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 @OptIn(ExperimentalTestApi::class)
 class DailyLogCameraUiTest {
@@ -105,13 +117,19 @@ class DailyLogCameraUiTest {
         ).also { it.load("log-1") }
     }
 
-    private fun ComposeUiTest.mount(camera: PhotoCaptureFactory?, locale: String = "fr") {
+    private fun ComposeUiTest.mount(camera: PhotoCaptureFactory?, locale: String = "fr", phone: Boolean = false) {
         val viewModel = viewModel()
         setContent {
             customAppLocale = locale
             AppEnvironment {
                 AppTheme {
-                    if (camera == null) {
+                    if (phone) {
+                        CompositionLocalProvider(LocalPhotoCapture provides camera!!) {
+                            androidx.compose.foundation.layout.Box(Modifier.size(412.dp, 3000.dp)) {
+                                DailyLogScreen(dailyLogLocalId = "log-1", viewModel = viewModel)
+                            }
+                        }
+                    } else if (camera == null) {
                         DailyLogScreen(dailyLogLocalId = "log-1", viewModel = viewModel)
                     } else {
                         CompositionLocalProvider(LocalPhotoCapture provides camera) {
@@ -122,6 +140,26 @@ class DailyLogCameraUiTest {
             }
         }
         waitForIdle()
+    }
+
+    @Test
+    fun on_a_phone_the_attachment_actions_are_48_dp_buttons_stacked_full_width_on_one_line_each() = runComposeUiTest {
+        mount(cameraReturning(takenPhoto()), phone = true)
+        val labels = listOf("Ajouter une photo", "Prendre une photo")
+        val bounds = labels.map { label ->
+            onNode(hasText(label) and SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button)).getBoundsInRoot()
+        }
+        bounds.forEach { assertTrue(it.height >= 48.dp, "height $it") }
+        assertTrue(bounds[1].top >= bounds[0].bottom, "stacked: $bounds")
+        assertEquals(bounds[0].width, bounds[1].width, "full width: $bounds")
+        labels.forEach { label ->
+            val results = mutableListOf<androidx.compose.ui.text.TextLayoutResult>()
+            onNodeWithText(label, useUnmergedTree = true).fetchSemanticsNode().config[SemanticsActions.GetTextLayoutResult].action?.invoke(results)
+            assertEquals(1, results.single().lineCount, label)
+        }
+        onAllNodes(hasText("Ajouter") and SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button)).fetchSemanticsNodes()
+            .also { assertTrue(it.isNotEmpty(), "the add action of the lines is a button") }
+            .forEach { assertTrue(it.boundsInRoot.height >= 48f, "Ajouter ${it.boundsInRoot}") }
     }
 
     @Test
