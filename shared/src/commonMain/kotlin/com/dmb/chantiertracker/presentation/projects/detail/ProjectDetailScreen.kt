@@ -301,7 +301,7 @@ private fun InfoSection(detail: ProjectDetail) {
 private fun StagesSection(stages: List<Stage>, currency: String, onAddStage: () -> Unit, onStageClick: (String) -> Unit) {
     SectionCard(
         title = stringResource(Res.string.detail_section_stages),
-        tone = SectionTone.Yellow,
+        tone = SectionTone.Lilac,
         action = { SectionTextAction(Res.string.detail_stages_add, onAddStage) },
     ) {
         if (stages.isEmpty()) {

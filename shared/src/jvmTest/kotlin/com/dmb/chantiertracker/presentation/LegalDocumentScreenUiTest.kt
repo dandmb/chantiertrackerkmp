@@ -45,7 +45,7 @@ import com.dmb.chantiertracker.presentation.legal.LocalLegalPageOpener
 import com.dmb.chantiertracker.presentation.navigation.RootNavHost
 import com.dmb.chantiertracker.presentation.navigation.RootViewModel
 import com.dmb.chantiertracker.presentation.theme.AppTheme
-import com.dmb.chantiertracker.presentation.theme.Yellow
+import com.dmb.chantiertracker.presentation.theme.LemonPale
 import com.dmb.chantiertracker.support.FakeAuthRepository
 import com.dmb.chantiertracker.support.FakeBillingRepository
 import com.dmb.chantiertracker.support.FakeCheckoutLauncher
@@ -267,7 +267,7 @@ class LegalDocumentScreenUiTest {
         val french = annotatedTextContaining("[À COMPLÉTER : nom et prénom]")
         val pending = french.text.indexOf("[À COMPLÉTER")
         assertTrue(
-            french.spanStyles.any { it.item.background == Yellow && it.start == pending && it.end == french.text.indexOf(']', pending) + 1 },
+            french.spanStyles.any { it.item.background == LemonPale && it.start == pending && it.end == french.text.indexOf(']', pending) + 1 },
             "highlighted: ${french.spanStyles}",
         )
         assertTrue(annotatedTextContaining("Le Service est édité par").text.startsWith("Le Service est édité par ["), "escape removed")
@@ -279,7 +279,7 @@ class LegalDocumentScreenUiTest {
         assertShows("[TO BE COMPLETED: first and last name]")
 
         val english = annotatedTextContaining("[TO BE COMPLETED")
-        assertTrue(english.spanStyles.any { it.item.background == Yellow }, "highlighted: ${english.spanStyles}")
+        assertTrue(english.spanStyles.any { it.item.background == LemonPale }, "highlighted: ${english.spanStyles}")
     }
 
     @Test

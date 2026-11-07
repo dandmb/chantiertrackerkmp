@@ -8,6 +8,8 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onNodeWithText
@@ -231,6 +233,38 @@ class InformationScreensUiTest {
 
         awaitText("Projets : 1 sur 3")
         onNodeWithText("99", substring = true).assertDoesNotExist()
+    }
+
+    @Test
+    fun my_offer_shows_the_founder_band_one_bar_per_limit_and_the_pdf_export_and_history_as_text() = runComposeUiTest {
+        val viewModel = MyOfferViewModel(
+            FakeAccountRepository(founder.copy(historyDaysLimit = 180, historyDaysLimitKnown = true)),
+            FakeLaunchStatusRepository(BillingAvailability.CLOSED, offer),
+            FakeConnectivityObserver(initiallyOnline = true),
+        )
+        mount(height = 1400) { MyOfferScreen(viewModel = viewModel) }
+
+        awaitText("Projets : 1 sur 3")
+        onNodeWithText("Fondateur").assertExists()
+        onNodeWithText("Utilisation").assertExists()
+        onAllNodes(SemanticsMatcher.keyIsDefined(SemanticsProperties.ProgressBarRangeInfo)).assertCountEquals(4)
+        onNodeWithText("Export PDF inclus").assertExists()
+        onNodeWithText("Historique conservé 6 mois").assertExists()
+        onNodeWithText("€", substring = true).assertDoesNotExist()
+    }
+
+    @Test
+    fun my_offer_of_a_member_who_is_not_a_founder_has_no_founder_band_and_no_launch_offer_figure() = runComposeUiTest {
+        val viewModel = MyOfferViewModel(
+            FakeAccountRepository(founder.copy(isFounder = false)),
+            FakeLaunchStatusRepository(BillingAvailability.CLOSED, offer),
+            FakeConnectivityObserver(initiallyOnline = true),
+        )
+        mount(height = 1400) { MyOfferScreen(viewModel = viewModel) }
+
+        awaitText("Projets : 1 sur 3")
+        onNodeWithText("Fondateur").assertDoesNotExist()
+        onNodeWithText("Export PDF inclus").assertDoesNotExist()
     }
 
     @Test

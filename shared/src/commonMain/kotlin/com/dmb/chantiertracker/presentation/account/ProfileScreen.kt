@@ -28,7 +28,6 @@ import com.dmb.chantiertracker.domain.model.ProfileLanguage
 import com.dmb.chantiertracker.presentation.AppOutlinedTextField
 import com.dmb.chantiertracker.presentation.DetailInfoRow
 import com.dmb.chantiertracker.presentation.SectionCard
-import com.dmb.chantiertracker.presentation.SectionTone
 import com.dmb.chantiertracker.presentation.ResponsiveContent
 import com.dmb.chantiertracker.presentation.auth.components.AuthPrimaryButton
 import com.dmb.chantiertracker.presentation.auth.components.FormWithErrorSnackbar
@@ -82,7 +81,7 @@ private fun ProfileForm(state: ProfileUiState, viewModel: ProfileViewModel) {
         verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
 
-        SectionCard(stringResource(Res.string.profile_section_identity), tone = SectionTone.Yellow) {
+        SectionCard(stringResource(Res.string.profile_section_identity)) {
             DetailInfoRow(stringResource(Res.string.profile_email_label), state.email)
             Text(
                 text = stringResource(Res.string.profile_email_help),

@@ -1,6 +1,12 @@
 package com.dmb.chantiertracker.presentation.main
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -22,7 +28,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.text.style.TextOverflow
+import com.dmb.chantiertracker.presentation.branding.AppLogo
+import com.dmb.chantiertracker.presentation.theme.Ink
+import com.dmb.chantiertracker.presentation.theme.Salmon
 import androidx.compose.ui.semantics.hideFromAccessibility
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -70,7 +83,10 @@ fun AppTopBar(
 
     TopAppBar(
         title = {
-            CapitalTitle(text = stringResource(Res.string.app_name))
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                AppLogo(size = 40.dp, modifier = Modifier.clip(RoundedCornerShape(8.dp)))
+                CapitalTitle(text = stringResource(Res.string.app_name), style = MaterialTheme.typography.headlineSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
         },
         actions = {
             leadingActions()
@@ -78,7 +94,7 @@ fun AppTopBar(
                 SyncIssuesBadge(count = syncIssueCount, onClick = onOpenSyncIssues)
             }
             IconButton(onClick = { menuOpen = true }) {
-                Icon(AccountIcon, contentDescription = stringResource(Res.string.menu_open))
+                AccountAvatar(userName, stringResource(Res.string.menu_open))
             }
             DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                 AccountMenuBody(
@@ -117,11 +133,30 @@ fun AppTopBar(
         },
         modifier = Modifier.fillMaxWidth(),
         colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = MaterialTheme.colorScheme.primary,
-            titleContentColor = MaterialTheme.colorScheme.onPrimary,
-            actionIconContentColor = MaterialTheme.colorScheme.onPrimary,
+            containerColor = MaterialTheme.colorScheme.background,
+            scrolledContainerColor = MaterialTheme.colorScheme.background,
+            titleContentColor = MaterialTheme.colorScheme.onBackground,
+            actionIconContentColor = MaterialTheme.colorScheme.onBackground,
         ),
     )
+}
+
+internal fun initialsOf(name: String): String =
+    name.trim().split(Regex("\\s+")).filter { it.isNotEmpty() }.take(2).joinToString("") { it.first().uppercase() }
+
+@Composable
+private fun AccountAvatar(userName: String, description: String) {
+    val initials = initialsOf(userName)
+    Box(
+        Modifier.size(40.dp).clip(CircleShape).background(Salmon).clearAndSetSemantics { contentDescription = description },
+        contentAlignment = Alignment.Center,
+    ) {
+        if (initials.isEmpty()) {
+            Icon(AccountIcon, contentDescription = null, tint = Ink)
+        } else {
+            Text(initials, style = MaterialTheme.typography.labelLarge, color = Ink)
+        }
+    }
 }
 
 @Composable

@@ -47,9 +47,10 @@ class CharteContrastTest {
     fun outlines_and_the_warning_banner_are_readable() {
         assertTrue(contrast(LightColors.outline, LightColors.surface) >= 3.0, "light outline (WCAG 1.4.11)")
         assertTrue(contrast(DarkColors.outline, DarkColors.surface) >= 3.0, "dark outline (WCAG 1.4.11)")
-        assertTrue(contrast(Color.White, WarningAmber) >= 4.5, "white text on the warning banner")
-        assertTrue(contrast(WarningOnAmberLight, WarningAmberContainerLight) >= 4.5, "suspended badge, light")
-        assertTrue(contrast(WarningOnAmberDark, WarningAmberContainerDark) >= 4.5, "suspended badge, dark")
+        assertTrue(contrast(WarningOnContainerLight, WarningContainerLight) >= 4.5, "suspended badge, light")
+        assertTrue(contrast(WarningOnContainerDark, WarningContainerDark) >= 4.5, "suspended badge, dark")
+        assertTrue(contrast(OnBrick, Brick) >= 4.5, "white text on the delete and leave buttons")
+        assertTrue(contrast(OnOrange, Orange) >= 4.5, "dark text on the orange creation button")
     }
 
     @Test

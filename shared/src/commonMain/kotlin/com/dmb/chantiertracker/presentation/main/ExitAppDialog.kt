@@ -1,5 +1,7 @@
 package com.dmb.chantiertracker.presentation.main
 
+import androidx.compose.material3.Button
+import com.dmb.chantiertracker.presentation.destructiveButtonColors
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -24,7 +26,7 @@ fun ExitAppDialog(unsentChanges: Int, onExit: () -> Unit, onDismiss: () -> Unit)
         } else {
             null
         },
-        confirmButton = { TextButton(onClick = onExit) { Text(stringResource(Res.string.exit_confirm)) } },
+        confirmButton = { Button(onClick = onExit, colors = destructiveButtonColors()) { Text(stringResource(Res.string.exit_confirm)) } },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(Res.string.exit_stay)) } },
     )
 }

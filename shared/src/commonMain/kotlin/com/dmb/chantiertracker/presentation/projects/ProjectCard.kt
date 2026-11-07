@@ -21,6 +21,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.dmb.chantiertracker.domain.model.Project
+import androidx.compose.ui.unit.sp
+import com.dmb.chantiertracker.presentation.CapitalTitle
 import com.dmb.chantiertracker.presentation.main.ChevronRightIcon
 import com.dmb.chantiertracker.resources.Res
 import com.dmb.chantiertracker.resources.project_location_unset
@@ -33,8 +35,8 @@ fun ProjectCard(project: Project, onClick: () -> Unit, modifier: Modifier = Modi
         onClick = onClick,
         modifier = modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.large,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = BorderStroke(2.dp, MaterialTheme.colorScheme.outline),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLowest),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
     ) {
         Row(
             modifier = Modifier.padding(start = 16.dp, end = 12.dp, top = 16.dp, bottom = 16.dp),
@@ -42,10 +44,9 @@ fun ProjectCard(project: Project, onClick: () -> Unit, modifier: Modifier = Modi
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(
+                CapitalTitle(
                     text = project.name,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
+                    style = MaterialTheme.typography.titleLarge.copy(fontSize = 24.sp, letterSpacing = 0.sp),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )

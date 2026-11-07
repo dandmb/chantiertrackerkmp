@@ -1,5 +1,7 @@
 package com.dmb.chantiertracker.presentation
 
+import com.dmb.chantiertracker.resources.Res
+import com.dmb.chantiertracker.resources.projects_new
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -10,7 +12,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -202,7 +203,7 @@ class MainScreensSnapshotTest {
         }
         val fabContent: @Composable () -> Unit = {
             if (tab == MainTab.Projects) {
-                FloatingActionButton(onClick = {}) { Icon(AddIcon, contentDescription = null) }
+                CreateFab(org.jetbrains.compose.resources.stringResource(Res.string.projects_new), onClick = {})
             }
         }
         BoxWithConstraints(Modifier.fillMaxSize()) {
@@ -1010,7 +1011,7 @@ class MainScreensSnapshotTest {
                 DetailChrome(
                     title = if (locale == "fr") "Utilisateurs" else "Users",
                     floatingActionButton = {
-                        FloatingActionButton(onClick = {}) { Icon(AddIcon, contentDescription = null) }
+                        CreateFab(if (locale == "fr") "Ajouter un utilisateur" else "Add a user", onClick = {})
                     },
                 ) { m ->
                     com.dmb.chantiertracker.presentation.admin.AdminUsersScreen(
@@ -1051,7 +1052,7 @@ class MainScreensSnapshotTest {
                 DetailChrome(
                     title = if (locale == "fr") "Utilisateurs" else "Users",
                     floatingActionButton = {
-                        FloatingActionButton(onClick = {}) { Icon(AddIcon, contentDescription = null) }
+                        CreateFab(if (locale == "fr") "Ajouter un utilisateur" else "Add a user", onClick = {})
                     },
                 ) { m ->
                     com.dmb.chantiertracker.presentation.admin.AdminUsersScreen(

@@ -14,7 +14,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import com.dmb.chantiertracker.presentation.ResponsiveContent
 import com.dmb.chantiertracker.presentation.SectionCard
-import com.dmb.chantiertracker.presentation.SectionTone
 import com.dmb.chantiertracker.presentation.billing.LocalFounderOffer
 import com.dmb.chantiertracker.presentation.offer.historyKeptLabel
 import com.dmb.chantiertracker.presentation.main.AccountIcon
@@ -60,7 +59,7 @@ fun DiscoverScreen(modifier: Modifier = Modifier) {
                 .padding(start = 24.dp, end = 24.dp, top = 20.dp, bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
-            SectionCard(stringResource(Res.string.discover_intro_section), icon = ConstructionIcon, tone = SectionTone.Yellow) {
+            SectionCard(stringResource(Res.string.discover_intro_section), icon = ConstructionIcon) {
                 Body(Res.string.discover_intro_body)
                 Body(Res.string.discover_on_site)
                 Body(Res.string.discover_at_office)

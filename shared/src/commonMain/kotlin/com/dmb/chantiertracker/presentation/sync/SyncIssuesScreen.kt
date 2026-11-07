@@ -1,5 +1,7 @@
 package com.dmb.chantiertracker.presentation.sync
 
+import androidx.compose.material3.Button
+import com.dmb.chantiertracker.presentation.destructiveButtonColors
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.LaunchedEffect
@@ -252,8 +254,8 @@ private fun IssueCard(item: SyncIssueItem, state: SyncIssuesUiState, actions: Is
     Card(
         modifier = if (singledOut) Modifier.fillMaxWidth().semantics { selected = true } else Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.large,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = BorderStroke(if (singledOut) 3.dp else 2.dp, if (singledOut) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLowest),
+        border = BorderStroke(if (singledOut) 2.dp else 1.dp, if (singledOut) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.outlineVariant),
     ) {
         Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             StatusLabel(item.issue.kind)
@@ -359,10 +361,10 @@ private fun ConfirmRemovalDialog(confirmation: SyncIssueConfirmation, onConfirm:
             }
         },
         confirmButton = {
-            TextButton(
+            Button(
                 onClick = onConfirm,
                 modifier = Modifier.heightIn(min = 48.dp),
-                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                colors = destructiveButtonColors(),
             ) { Text(stringResource(confirmation.action.labelRes())) }
         },
         dismissButton = {

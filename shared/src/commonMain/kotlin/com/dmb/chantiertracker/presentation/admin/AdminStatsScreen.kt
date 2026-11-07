@@ -33,7 +33,6 @@ import com.dmb.chantiertracker.presentation.ClickableListRow
 import com.dmb.chantiertracker.presentation.DateField
 import com.dmb.chantiertracker.presentation.DetailEmptyHint
 import com.dmb.chantiertracker.presentation.SectionCard
-import com.dmb.chantiertracker.presentation.SectionTone
 import com.dmb.chantiertracker.presentation.ResponsiveContent
 import com.dmb.chantiertracker.presentation.i18n.localizedText
 import com.dmb.chantiertracker.presentation.main.AccountIcon
@@ -144,7 +143,7 @@ fun AdminStatsScreen(
                 state.stats != null -> {
                     val stats = state.stats!!
 
-                    SectionCard(stringResource(Res.string.admin_stats_overview), tone = SectionTone.Yellow) {
+                    SectionCard(stringResource(Res.string.admin_stats_overview)) {
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                             StatCounter(stringResource(Res.string.admin_stats_users), stats.totalUsers)
                             StatCounter(stringResource(Res.string.admin_stats_projects), stats.totalProjects)

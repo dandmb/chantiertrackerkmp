@@ -16,8 +16,6 @@ import androidx.compose.ui.unit.dp
 
 private const val DISABLED_BORDER_ALPHA = 0.38f
 
-// The web's outlined pill: a 2 dp border in the outline colour (black, white at night), where
-// Material 3 draws a thin light-grey one that its theme cannot thicken. Same parameters.
 @Composable
 fun AppOutlinedButton(
     onClick: () -> Unit,

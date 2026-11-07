@@ -1,5 +1,6 @@
 package com.dmb.chantiertracker.presentation.account
 
+import com.dmb.chantiertracker.presentation.destructiveButtonColors
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -226,10 +227,7 @@ private fun Confirmation(state: DeleteAccountUiState, viewModel: DeleteAccountVi
             Button(
                 onClick = viewModel::submit,
                 enabled = state.canSubmit,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.error,
-                    contentColor = MaterialTheme.colorScheme.onError,
-                ),
+                colors = destructiveButtonColors(),
             ) {
                 Text(stringResource(if (state.submitting) Res.string.delete_account_submitting else Res.string.delete_account_submit))
             }

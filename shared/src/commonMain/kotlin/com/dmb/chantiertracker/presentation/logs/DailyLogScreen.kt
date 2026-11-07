@@ -258,7 +258,7 @@ private fun PurchaseEntrySection(
 ) {
     EntrySection(
         title = stringResource(Res.string.entry_type_purchase),
-        tone = SectionTone.Yellow,
+        tone = SectionTone.Orange,
         icon = ShoppingCartIcon,
         entry = purchaseEntry,
         canEdit = state.canEdit,
@@ -301,6 +301,7 @@ private fun WorkEntrySection(
 ) {
     EntrySection(
         title = stringResource(Res.string.entry_type_work),
+        tone = SectionTone.Lemon,
         icon = ConstructionIcon,
         entry = workEntry,
         canEdit = state.canEdit,
@@ -331,7 +332,7 @@ private fun WorkEntrySection(
 @Composable
 private fun EntrySection(
     title: String,
-    tone: SectionTone = SectionTone.Ink,
+    tone: SectionTone = SectionTone.Neutral,
     icon: ImageVector,
     entry: DailyEntry?,
     canEdit: Boolean,
@@ -618,7 +619,11 @@ private fun AttachmentsSection(
         viewModel.onVideoSelected(entryLocalId, picked.asUploadFile(mimeString))
     }
 
-    SubSection(title = stringResource(Res.string.attachments_title)) {
+    SectionCard(
+        title = stringResource(Res.string.attachments_title),
+        tone = SectionTone.Salmon,
+        icon = PhotoCameraIcon,
+    ) {
         if (canEdit) {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 TextButton(onClick = { photoPicker.launch() }, enabled = !busy) {

@@ -25,10 +25,10 @@ import androidx.compose.ui.unit.dp
 import com.dmb.chantiertracker.domain.model.ProjectStatus
 import com.dmb.chantiertracker.presentation.main.ArrowDropDownIcon
 import com.dmb.chantiertracker.presentation.main.CheckIcon
-import com.dmb.chantiertracker.presentation.theme.WarningAmberContainerDark
-import com.dmb.chantiertracker.presentation.theme.WarningAmberContainerLight
-import com.dmb.chantiertracker.presentation.theme.WarningOnAmberDark
-import com.dmb.chantiertracker.presentation.theme.WarningOnAmberLight
+import com.dmb.chantiertracker.presentation.theme.WarningContainerDark
+import com.dmb.chantiertracker.presentation.theme.WarningContainerLight
+import com.dmb.chantiertracker.presentation.theme.WarningOnContainerDark
+import com.dmb.chantiertracker.presentation.theme.WarningOnContainerLight
 import com.dmb.chantiertracker.resources.Res
 import com.dmb.chantiertracker.resources.project_status_completed
 import com.dmb.chantiertracker.resources.project_status_in_progress
@@ -48,8 +48,8 @@ private fun projectStatusColors(status: ProjectStatus): Pair<Color, Color> {
     return when (status) {
         ProjectStatus.IN_PROGRESS -> MaterialTheme.colorScheme.primaryContainer to MaterialTheme.colorScheme.onPrimaryContainer
         ProjectStatus.COMPLETED -> MaterialTheme.colorScheme.tertiaryContainer to MaterialTheme.colorScheme.onTertiaryContainer
-        ProjectStatus.SUSPENDED, ProjectStatus.UNKNOWN -> (if (darkSurface) WarningAmberContainerDark else WarningAmberContainerLight) to
-            (if (darkSurface) WarningOnAmberDark else WarningOnAmberLight)
+        ProjectStatus.SUSPENDED, ProjectStatus.UNKNOWN -> (if (darkSurface) WarningContainerDark else WarningContainerLight) to
+            (if (darkSurface) WarningOnContainerDark else WarningOnContainerLight)
     }
 }
 

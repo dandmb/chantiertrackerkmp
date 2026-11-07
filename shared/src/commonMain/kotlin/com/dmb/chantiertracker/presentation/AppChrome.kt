@@ -25,13 +25,15 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.dmb.chantiertracker.presentation.main.WarningIcon
+import com.dmb.chantiertracker.presentation.theme.OnOrange
+import com.dmb.chantiertracker.presentation.theme.Orange
 import com.dmb.chantiertracker.resources.Res
 import com.dmb.chantiertracker.resources.staging_banner
 import org.jetbrains.compose.resources.stringResource
 
 /**
  * Wraps the whole app. On the pre-production distribution build ([showStagingBanner]),
- * a permanent yellow strip sits above every screen so a tester never mistakes this
+ * a permanent orange strip sits above every screen so a tester never mistakes this
  * build for a real production install — it runs against the production backend
  * with real data (see MOBILE_CONTEXT §14 / ADR-24).
  */
@@ -57,9 +59,8 @@ fun AppChrome(showStagingBanner: Boolean, content: @Composable () -> Unit) {
 
 @Composable
 private fun StagingBanner() {
-    val colors = MaterialTheme.colorScheme
     Column(Modifier.fillMaxWidth().testTag(STAGING_BANNER_TAG)) {
-        Surface(color = colors.primaryContainer, contentColor = colors.onPrimaryContainer) {
+        Surface(color = Orange, contentColor = OnOrange) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -76,7 +77,7 @@ private fun StagingBanner() {
                 )
             }
         }
-        Box(Modifier.fillMaxWidth().height(2.dp).background(colors.onPrimaryContainer))
+        Box(Modifier.fillMaxWidth().height(2.dp).background(OnOrange))
     }
 }
 

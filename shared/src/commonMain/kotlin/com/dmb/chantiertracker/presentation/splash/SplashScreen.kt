@@ -13,10 +13,11 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.dmb.chantiertracker.presentation.branding.AppGlyph
+import com.dmb.chantiertracker.presentation.theme.Cream
 import com.dmb.chantiertracker.presentation.theme.Ink
 import com.dmb.chantiertracker.resources.Res
 import com.dmb.chantiertracker.resources.app_name
@@ -39,13 +40,13 @@ fun SplashScreen() {
             Text(
                 text = stringResource(Res.string.app_name).uppercase(),
                 style = MaterialTheme.typography.headlineSmall,
-                color = Color.White,
+                color = Cream,
             )
             Text(
                 text = stringResource(Res.string.splash_tagline),
                 modifier = Modifier.padding(top = 8.dp).widthIn(max = 320.dp),
                 style = MaterialTheme.typography.bodyMedium,
-                color = Color.White.copy(alpha = 0.85f),
+                color = Cream.copy(alpha = 0.85f),
                 textAlign = TextAlign.Center,
             )
         }

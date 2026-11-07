@@ -1,5 +1,7 @@
 package com.dmb.chantiertracker.presentation.main
 
+import com.dmb.chantiertracker.presentation.CreateFab
+
 import com.dmb.chantiertracker.presentation.i18n.LocalAppLocale
 import com.dmb.chantiertracker.domain.model.ProfileLanguage
 import com.dmb.chantiertracker.domain.model.LegalLanguage
@@ -11,7 +13,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
@@ -452,14 +453,10 @@ fun MainScreen(
         }
     val fabContent: @Composable () -> Unit = {
         if (currentTab == MainTab.Projects) {
-            FloatingActionButton(onClick = { navController.navigate(CreateProjectRoute) }) {
-                Icon(AddIcon, contentDescription = stringResource(Res.string.projects_new))
-            }
+            CreateFab(stringResource(Res.string.projects_new), onClick = { navController.navigate(CreateProjectRoute) })
         }
         if (current == MainDestination.AdminUsers) {
-            FloatingActionButton(onClick = { navController.navigate(AdminCreateUserRoute) }) {
-                Icon(AddIcon, contentDescription = stringResource(Res.string.admin_users_create))
-            }
+            CreateFab(stringResource(Res.string.admin_users_create), onClick = { navController.navigate(AdminCreateUserRoute) })
         }
     }
 

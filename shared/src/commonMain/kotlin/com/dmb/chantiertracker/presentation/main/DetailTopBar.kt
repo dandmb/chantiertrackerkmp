@@ -12,10 +12,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.font.FontWeight
 import com.dmb.chantiertracker.presentation.CapitalTitle
-import com.dmb.chantiertracker.presentation.auth.components.BackArrowIcon
-import com.dmb.chantiertracker.resources.Res
-import com.dmb.chantiertracker.resources.action_back
-import org.jetbrains.compose.resources.stringResource
+import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import com.dmb.chantiertracker.presentation.BackSquareButton
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -25,18 +25,15 @@ fun DetailTopBar(
     actions: @Composable RowScope.() -> Unit = {},
 ) {
     TopAppBar(
-        title = { CapitalTitle(title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-        navigationIcon = {
-            IconButton(onClick = onBack) {
-                Icon(BackArrowIcon, contentDescription = stringResource(Res.string.action_back))
-            }
-        },
+        title = { CapitalTitle(title, style = MaterialTheme.typography.headlineSmall, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+        navigationIcon = { BackSquareButton(onBack, Modifier.padding(start = 12.dp, end = 4.dp)) },
         actions = actions,
         colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = MaterialTheme.colorScheme.primary,
-            titleContentColor = MaterialTheme.colorScheme.onPrimary,
-            navigationIconContentColor = MaterialTheme.colorScheme.onPrimary,
-            actionIconContentColor = MaterialTheme.colorScheme.onPrimary,
+            containerColor = MaterialTheme.colorScheme.background,
+            scrolledContainerColor = MaterialTheme.colorScheme.background,
+            titleContentColor = MaterialTheme.colorScheme.onBackground,
+            navigationIconContentColor = MaterialTheme.colorScheme.onBackground,
+            actionIconContentColor = MaterialTheme.colorScheme.onBackground,
         ),
     )
 }
