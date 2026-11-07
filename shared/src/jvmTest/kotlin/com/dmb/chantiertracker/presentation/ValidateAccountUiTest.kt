@@ -76,42 +76,87 @@ class ValidateAccountUiTest {
         AppEnvironment { AppTheme { Box(Modifier.fillMaxSize()) { content() } } }
     }
 
-    private fun ComposeUiTest.awaitText(text: String) =
-        waitUntil(timeoutMillis = 5_000L) { onAllNodes(hasText(text, substring = true)).fetchSemanticsNodes().isNotEmpty() }
+    private fun ComposeUiTest.awaitText(text: String, ignore: Boolean = false) =
+        waitUntil(timeoutMillis = 5_000L) { onAllNodes(hasText(text, substring = true, ignoreCase = ignore)).fetchSemanticsNodes().isNotEmpty() }
 
     private fun runPhoneTest(block: ComposeUiTest.() -> Unit) = runDesktopComposeUiTest(width = 412, height = 892) { block() }
 
     private fun ComposeUiTest.type(label: String, value: String) =
         onNode(hasSetTextAction() and hasText(label, substring = true)).performTextInput(value)
 
-    @Test
-    fun the_sign_in_screen_offers_to_validate_an_account() = runPhoneTest {
-        var opened = 0
-        mount { LoginScreen({}, {}, onOpenLegalDocument = {}, onValidateAccount = { opened++ }, viewModel = LoginViewModel(auth, FakeCheckoutLauncher(), FakeBillingRepository())) }
-
-        onNodeWithText("Valider mon compte").performScrollTo().performClick()
-        assertEquals(1, opened)
-    }
-
-    @Test
-    fun validating_an_account_asks_address_and_password_sends_a_code_and_opens_the_code_screen() = runPhoneTest {
+    private fun ComposeUiTest.openRootOnLogin() {
         auth.firstLoginCompleted = true
-        auth.heldVerificationEmail = "jean@chantier.dev"
         auth.emitState(AuthState.Unauthenticated)
         mount { RootNavHost(RootViewModel(auth, com.dmb.chantiertracker.data.session.SessionNotices())) }
         awaitText("Valider mon compte")
+    }
 
+    @Test
+    fun the_sign_in_screen_offers_to_validate_an_account_like_the_web_with_the_typed_address() = runPhoneTest {
+        var opened: String? = null
+        mount { LoginScreen({}, {}, onOpenLegalDocument = {}, onValidateAccount = { opened = it }, viewModel = LoginViewModel(auth, FakeCheckoutLauncher(), FakeBillingRepository())) }
+
+        onNodeWithText("Compte pas encore validé ?", substring = true).assertExists()
+        type("Email", "jean@chantier.dev")
         onNodeWithText("Valider mon compte").performScrollTo().performClick()
-        awaitText("Recevoir un code")
+        assertEquals("jean@chantier.dev", opened)
+    }
+
+    @Test
+    fun validate_my_account_opens_the_code_screen_of_the_web_without_signing_in_or_sending_a_code() = runPhoneTest {
+        openRootOnLogin()
+        type("Email", "jean@chantier.dev")
+        onNodeWithText("Valider mon compte").performScrollTo().performClick()
+
+        awaitText("Saisis le code à 6 chiffres reçu par email à l'inscription. Tu ne le retrouves pas ? Demande un nouveau code.")
+        onNodeWithText("Vérifie ton email", ignoreCase = true).assertExists()
+        onNode(hasSetTextAction() and hasText("jean@chantier.dev", substring = true)).assertExists()
+        onNodeWithText("Celui que tu as choisi à l'inscription.").assertExists()
+        onNodeWithText("Renvoyer le code").assertExists()
+        onNodeWithText("Retour à la connexion").assertExists()
+        waitForIdle()
+        assertTrue(auth.calls.none { it.startsWith("login:") || it.startsWith("resendCode:") }, "${auth.calls}")
+    }
+
+    @Test
+    fun the_code_and_the_password_activate_the_account_and_lead_back_to_the_sign_in() = runPhoneTest {
+        openRootOnLogin()
+        onNodeWithText("Valider mon compte").performScrollTo().performClick()
+        awaitText("Reçu par email", ignore = true)
         type("Email", "jean@chantier.dev")
         type("Mot de passe", "Password1234!")
-        auth.loginError = DomainException.AccountNotVerified
-        onNodeWithText("Recevoir un code").performScrollTo().performClick()
+        type("Code", "123456")
+        onNodeWithText("Vérifier").performScrollTo().performClick()
 
-        awaitText("Saisis le code à 6 chiffres envoyé à jean@chantier.dev.")
-        waitUntil(timeoutMillis = 5_000L) { "resendCode:jean@chantier.dev" in auth.calls }
-        assertTrue("login:jean@chantier.dev:Password1234!" in auth.calls, "${auth.calls}")
-        assertEquals(1, auth.calls.count { it == "resendCode:jean@chantier.dev" }, "one code, not two: ${auth.calls}")
+        awaitText("Compte vérifié, tu peux te connecter.")
+        assertTrue("verifyEmail:jean@chantier.dev:123456:Password1234!" in auth.calls, "${auth.calls}")
+        assertTrue(auth.calls.none { it.startsWith("login:") }, "${auth.calls}")
+    }
+
+    @Test
+    fun a_new_code_needs_the_address_then_is_sent_to_it() = runPhoneTest {
+        openRootOnLogin()
+        onNodeWithText("Valider mon compte").performScrollTo().performClick()
+        awaitText("Retour à la connexion")
+
+        onNodeWithText("Renvoyer le code").performScrollTo().performClick()
+        awaitText("Renseigne ton email avant de renvoyer un code.")
+        assertTrue(auth.calls.none { it.startsWith("resendCode:") }, "${auth.calls}")
+
+        type("Email", "jean@chantier.dev")
+        onNodeWithText("Renvoyer le code").performScrollTo().performClick()
+        awaitText("Un nouveau code a été envoyé.")
+        assertEquals(1, auth.calls.count { it == "resendCode:jean@chantier.dev" }, "${auth.calls}")
+    }
+
+    @Test
+    fun back_to_the_sign_in_from_the_code_screen() = runPhoneTest {
+        openRootOnLogin()
+        onNodeWithText("Valider mon compte").performScrollTo().performClick()
+        awaitText("Retour à la connexion")
+
+        onNodeWithText("Retour à la connexion").performScrollTo().performClick()
+        awaitText("Compte pas encore validé ?")
     }
 
     @Test

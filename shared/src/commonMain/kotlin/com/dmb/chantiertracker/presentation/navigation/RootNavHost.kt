@@ -21,7 +21,7 @@ import com.dmb.chantiertracker.presentation.auth.plans.PlanSelectionScreen
 import com.dmb.chantiertracker.presentation.auth.register.RegisterScreen
 import com.dmb.chantiertracker.presentation.auth.reset.ResetPasswordScreen
 import com.dmb.chantiertracker.presentation.auth.verify.VerifyEmailScreen
-import com.dmb.chantiertracker.presentation.auth.validate.ValidateAccountScreen
+import com.dmb.chantiertracker.presentation.auth.verify.VerifyAccountFromLoginScreen
 import com.dmb.chantiertracker.presentation.auth.welcome.WelcomeScreen
 import com.dmb.chantiertracker.presentation.billing.paidPlansAreOffered
 import com.dmb.chantiertracker.presentation.legal.LegalDocument
@@ -155,7 +155,7 @@ private fun AuthNavHost(
                     null
                 },
                 onVerificationRequired = { navController.navigate(LoginVerificationRoute(route.checkoutPlan, route.checkoutCycle)) },
-                onValidateAccount = { navController.navigate(ValidateAccountRoute(route.prefilledEmail)) },
+                onValidateAccount = { typed -> navController.navigate(ValidateAccountRoute(typed.ifBlank { null })) },
                 prefilledEmail = route.prefilledEmail,
                 notice = LoginNotice.fromArg(route.notice),
                 checkoutPlan = route.checkoutPlan,
@@ -163,10 +163,11 @@ private fun AuthNavHost(
             )
         }
         composable<ValidateAccountRoute> { entry ->
-            ValidateAccountScreen(
-                onVerificationRequired = { navController.navigate(LoginVerificationRoute()) },
-                onBack = { navController.popBackStack() },
+            VerifyAccountFromLoginScreen(
                 prefilledEmail = entry.toRoute<ValidateAccountRoute>().email,
+                onVerified = { email -> navController.backToLogin(neverLoggedIn, email, LoginNotice.AccountActivated) },
+                onBackToLogin = { navController.popBackStack() },
+                onBack = { navController.popBackStack() },
             )
         }
         composable<RegisterRoute> { entry ->

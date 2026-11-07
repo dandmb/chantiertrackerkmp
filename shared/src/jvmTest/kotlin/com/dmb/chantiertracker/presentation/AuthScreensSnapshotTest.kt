@@ -152,6 +152,16 @@ class AuthScreensSnapshotTest {
                     viewModel = VerifyEmailViewModel(repo),
                 )
             }
+            snapshot("03b-verify-from-login", locale) {
+                com.dmb.chantiertracker.presentation.auth.verify.VerifyAccountFromLoginScreen(
+                    prefilledEmail = "jean@chantier.dev", onVerified = {}, onBackToLogin = {}, onBack = {}, viewModel = VerifyEmailViewModel(repo),
+                )
+            }
+            snapshot("03c-verify-from-login-dark", locale, dark = true) {
+                com.dmb.chantiertracker.presentation.auth.verify.VerifyAccountFromLoginScreen(
+                    prefilledEmail = "jean@chantier.dev", onVerified = {}, onBackToLogin = {}, onBack = {}, viewModel = VerifyEmailViewModel(repo),
+                )
+            }
             snapshot("04-forgot", locale) {
                 ForgotPasswordScreen(onCodeSent = {}, onBack = {}, viewModel = ForgotPasswordViewModel(repo))
             }
