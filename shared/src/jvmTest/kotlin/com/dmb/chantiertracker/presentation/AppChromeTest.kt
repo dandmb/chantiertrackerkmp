@@ -4,8 +4,6 @@ import kotlin.test.assertTrue
 import kotlin.test.assertEquals
 import javax.imageio.ImageIO
 import java.io.File
-import com.dmb.chantiertracker.presentation.theme.LightColors
-import com.dmb.chantiertracker.presentation.theme.DarkColors
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.onNodeWithTag
@@ -65,7 +63,7 @@ class AppChromeTest {
     }
 
     @Test
-    fun the_banner_is_the_brand_yellow_with_black_text_above_the_screen_in_light_and_in_dark() {
+    fun the_banner_is_the_theme_orange_with_dark_text_above_the_screen_in_light_and_in_dark() {
         for (dark in listOf(false, true)) runComposeUiTest {
             setContent {
                 customAppLocale = "fr"
@@ -79,10 +77,12 @@ class AppChromeTest {
             }
             waitForIdle()
 
-            val scheme = if (dark) DarkColors else LightColors
+            val orange = androidx.compose.ui.graphics.Color(0xFFE8743B)
+            val onOrange = androidx.compose.ui.graphics.Color(0xFF2A1A0E)
             val banner = onNodeWithTag(STAGING_BANNER_TAG).captureToImage()
-            assertEquals(scheme.primaryContainer, banner.toPixelMap()[2, 2], "yellow fill (dark=$dark)")
-            val (hi, lo) = listOf(scheme.onPrimaryContainer.luminance() + 0.05f, scheme.primaryContainer.luminance() + 0.05f).sortedDescending()
+            assertEquals(orange, banner.toPixelMap()[2, 2], "orange fill (dark=$dark)")
+            assertEquals(onOrange, banner.toPixelMap()[2, banner.height - 1], "dark rule under the banner (dark=$dark)")
+            val (hi, lo) = listOf(onOrange.luminance() + 0.05f, orange.luminance() + 0.05f).sortedDescending()
             assertTrue(hi / lo >= 4.5f, "text contrast ${hi / lo} (dark=$dark)")
             onNodeWithText("PRÉPROD · DONNÉES RÉELLES").assertIsDisplayed()
             val bannerBottom = onNodeWithTag(STAGING_BANNER_TAG).getBoundsInRoot().bottom

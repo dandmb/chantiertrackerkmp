@@ -1,5 +1,6 @@
 package com.dmb.chantiertracker.presentation.projects.export
 
+import com.dmb.chantiertracker.presentation.TextAction
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
@@ -9,7 +10,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -114,9 +114,7 @@ fun ExportSection(
                         Text(text = stringResource(Res.string.detail_export_share), modifier = Modifier.padding(start = 6.dp))
                     }
                 }
-                TextButton(onClick = { viewModel.export(projectLocalId) }) {
-                    Text(stringResource(Res.string.detail_export_regenerate))
-                }
+                TextAction(stringResource(Res.string.detail_export_regenerate), onClick = { viewModel.export(projectLocalId) })
             }
 
             else -> {

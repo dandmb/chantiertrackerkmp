@@ -1,5 +1,6 @@
 package com.dmb.chantiertracker.presentation.onboarding
 
+import com.dmb.chantiertracker.presentation.TextAction
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloat
@@ -28,7 +29,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -95,9 +95,7 @@ fun OnboardingScreenContent(pagerState: PagerState, loop: Float, onFinish: () ->
             ) {
                 Box(Modifier.fillMaxWidth().height(48.dp)) {
                     if (!lastPage) {
-                        TextButton(onClick = onFinish, modifier = Modifier.align(Alignment.CenterEnd)) {
-                            Text(stringResource(Res.string.onboarding_skip), color = MaterialTheme.colorScheme.primary)
-                        }
+                        TextAction(stringResource(Res.string.onboarding_skip), onClick = onFinish, modifier = Modifier.align(Alignment.CenterEnd))
                     }
                 }
 

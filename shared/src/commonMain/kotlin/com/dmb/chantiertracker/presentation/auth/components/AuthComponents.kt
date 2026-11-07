@@ -1,7 +1,5 @@
 package com.dmb.chantiertracker.presentation.auth.components
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -12,11 +10,9 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -35,6 +31,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Snackbar
+import androidx.compose.material3.SnackbarData
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -54,7 +51,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.Clipboard
 import androidx.compose.ui.platform.LocalClipboard
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.NativeClipboard
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -64,16 +60,23 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.text.style.TextDecoration
 import com.dmb.chantiertracker.presentation.AppOutlinedButton
 import com.dmb.chantiertracker.presentation.AppOutlinedTextField
 import com.dmb.chantiertracker.presentation.CapitalTitle
-import com.dmb.chantiertracker.presentation.branding.ConstructionIllustration
+import com.dmb.chantiertracker.presentation.BackSquareButton
+import com.dmb.chantiertracker.presentation.branding.AppLogo
 import com.dmb.chantiertracker.presentation.i18n.retryInLabel
 import com.dmb.chantiertracker.presentation.main.ChevronRightIcon
-import com.dmb.chantiertracker.presentation.theme.Ink
-import com.dmb.chantiertracker.presentation.theme.Yellow
+import com.dmb.chantiertracker.presentation.theme.DisabledFill
+import com.dmb.chantiertracker.presentation.theme.DisabledText
+import com.dmb.chantiertracker.presentation.theme.Lemon
+import com.dmb.chantiertracker.presentation.theme.Orange
+import com.dmb.chantiertracker.resources.app_name
 import com.dmb.chantiertracker.resources.Res
-import com.dmb.chantiertracker.resources.action_back
 import com.dmb.chantiertracker.resources.field_code_label
 import com.dmb.chantiertracker.resources.field_email_label
 import com.dmb.chantiertracker.resources.field_name_label
@@ -83,9 +86,6 @@ import com.dmb.chantiertracker.resources.password_show
 import org.jetbrains.compose.resources.stringResource
 
 const val FORM_ERROR_SNACKBAR_TAG = "form-error-snackbar"
-
-private val CardCorner = 30.dp
-private val CardOverlap = 28.dp
 
 @Composable
 fun AuthScreenLayout(
@@ -99,148 +99,99 @@ fun AuthScreenLayout(
     submitting: Boolean = false,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    val keyboardVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
-
-    BoxWithConstraints(modifier.fillMaxSize()) {
-        // The 228dp floor below reads fine against a normal portrait height
-        // (700dp+) but was applied unconditionally — on a landscape phone
-        // (~400dp tall) it alone ate over half the screen, cropping the
-        // illustration and leaving the card barely enough room for a title.
-        // Confirmed by rendering at 892x412 before and after this change.
-        // Short on height is exactly the situation the keyboard-visible case
-        // already handles (hide the illustration, collapse to a slim band) —
-        // reused rather than inventing a second treatment.
+    BoxWithConstraints(modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         val shortOnHeight = maxHeight < 500.dp
-        val showIllustration = !keyboardVisible && !shortOnHeight
-        // Landscape has no room for a pinned block: it scrolls with the content instead.
         val footerPinned = pinnedFooter != null && !shortOnHeight
-        val headerHeight by animateDpAsState(
-            targetValue = if (keyboardVisible || shortOnHeight) 128.dp else if (footerPinned) (maxHeight * 0.2f).coerceIn(128.dp, 200.dp) else (maxHeight * 0.38f).coerceIn(228.dp, 360.dp),
-            label = "authHeaderHeight",
-        )
-
-        Box(
-            Modifier
-                .fillMaxSize()
-                .background(Yellow),
-        ) {
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .height(headerHeight)
-                    .align(Alignment.TopCenter)
-                    .windowInsetsPadding(WindowInsets.statusBars)
-                    .padding(bottom = CardOverlap + 12.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                AnimatedVisibility(showIllustration) {
-                    ConstructionIllustration(Modifier.widthIn(max = 260.dp).fillMaxWidth(0.62f))
-                }
-            }
-
-            if (onBack != null) {
-                IconButton(
-                    onClick = onBack,
-                    modifier = Modifier
-                        .align(Alignment.TopStart)
-                        .windowInsetsPadding(WindowInsets.statusBars)
-                        .padding(4.dp),
+        Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
+            AuthBrandRow(onBack)
+            if (centerContentVertically) {
+                Column(
+                    Modifier
+                        .fillMaxSize()
+                        .imePadding()
+                        .navigationBarsPadding()
+                        .padding(horizontal = 24.dp)
+                        .padding(top = 22.dp, bottom = 28.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    Icon(
-                        imageVector = BackArrowIcon,
-                        contentDescription = stringResource(Res.string.action_back),
-                        tint = Ink,
-                    )
-                }
-            }
-
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .align(Alignment.TopCenter)
-                    .padding(top = (headerHeight - CardOverlap).coerceAtLeast(0.dp))
-                    .fillMaxHeight(),
-                shape = RoundedCornerShape(topStart = CardCorner, topEnd = CardCorner),
-                color = MaterialTheme.colorScheme.surface,
-            ) {
-                if (centerContentVertically) {
                     Column(
-                        Modifier
-                            .fillMaxSize()
-                            .imePadding()
-                            .navigationBarsPadding()
-                            .padding(horizontal = 24.dp)
-                            .padding(top = 32.dp, bottom = 28.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
+                        Modifier.widthIn(max = 440.dp).fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(14.dp),
+                    ) {
+                        AuthTitleBlock(title, subtitle)
+                    }
+                    Box(
+                        Modifier.widthIn(max = 440.dp).fillMaxWidth().weight(1f),
+                        contentAlignment = Alignment.Center,
                     ) {
                         Column(
-                            Modifier.widthIn(max = 440.dp).fillMaxWidth(),
+                            Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.spacedBy(14.dp),
                         ) {
-                            AuthTitleBlock(title, subtitle)
-                        }
-                        Box(
-                            Modifier.widthIn(max = 440.dp).fillMaxWidth().weight(1f),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            // Scrollable as a safety net, not the normal case: this
-                            // content is short enough to just sit centered on any
-                            // height this app actually ships to (confirmed at
-                            // 892x412, the shortest real one) — but centering with
-                            // no way to reach an overflow would strand content
-                            // entirely on anything shorter still, unlike the
-                            // non-centered branch below, which already scrolls.
-                            Column(
-                                Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.spacedBy(14.dp),
-                            ) {
-                                content()
-                            }
-                        }
-                    }
-                } else {
-                    Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Column(
-                            Modifier
-                                .fillMaxWidth()
-                                .weight(1f)
-                                .verticalScroll(rememberScrollState())
-                                .imePadding()
-                                .then(if (footerPinned) Modifier else Modifier.navigationBarsPadding())
-                                .padding(horizontal = 24.dp)
-                                .padding(top = 32.dp, bottom = 28.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                        ) {
-                            Column(
-                                Modifier.widthIn(max = 440.dp).fillMaxWidth(),
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.spacedBy(14.dp),
-                            ) {
-                                AuthTitleBlock(title, subtitle)
-                                Spacer(Modifier.height(6.dp))
-                                content()
-                                if (!footerPinned) pinnedFooter?.invoke(this)
-                            }
-                        }
-                        if (footerPinned) {
-                            Column(
-                                Modifier
-                                    .widthIn(max = 440.dp)
-                                    .fillMaxWidth()
-                                    .navigationBarsPadding()
-                                    .padding(horizontal = 24.dp, vertical = 12.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.spacedBy(8.dp),
-                                content = pinnedFooter!!,
-                            )
+                            content()
                         }
                     }
                 }
+            } else {
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                        .verticalScroll(rememberScrollState())
+                        .imePadding()
+                        .then(if (footerPinned) Modifier else Modifier.navigationBarsPadding())
+                        .padding(horizontal = 24.dp)
+                        .padding(top = 22.dp, bottom = 28.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Column(
+                        Modifier.widthIn(max = 440.dp).fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(14.dp),
+                    ) {
+                        AuthTitleBlock(title, subtitle)
+                        Spacer(Modifier.height(4.dp))
+                        content()
+                        if (!footerPinned) pinnedFooter?.invoke(this)
+                    }
+                }
+                if (footerPinned) {
+                    Column(
+                        Modifier
+                            .widthIn(max = 440.dp)
+                            .fillMaxWidth()
+                            .navigationBarsPadding()
+                            .padding(horizontal = 24.dp, vertical = 12.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        content = pinnedFooter!!,
+                    )
+                }
             }
-            FormErrorSnackbarHost(errorMessage, submitting, Modifier.align(Alignment.BottomCenter))
         }
+        FormErrorSnackbarHost(errorMessage, submitting, Modifier.align(Alignment.BottomCenter))
+    }
+}
+
+@Composable
+private fun AuthBrandRow(onBack: (() -> Unit)?) {
+    Row(
+        Modifier
+            .widthIn(max = 488.dp)
+            .fillMaxWidth()
+            .windowInsetsPadding(WindowInsets.statusBars)
+            .padding(start = if (onBack != null) 12.dp else 24.dp, end = 24.dp, top = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        if (onBack != null) BackSquareButton(onBack)
+        AppLogo(size = 40.dp, modifier = Modifier.clip(RoundedCornerShape(8.dp)))
+        Text(
+            text = stringResource(Res.string.app_name),
+            style = MaterialTheme.typography.titleMedium.copy(fontSize = 20.sp),
+            color = MaterialTheme.colorScheme.onBackground,
+        )
     }
 }
 
@@ -274,13 +225,23 @@ fun FormErrorSnackbarHost(message: String?, submitting: Boolean, modifier: Modif
             .navigationBarsPadding()
             .padding(horizontal = 16.dp, vertical = 12.dp),
     ) { data ->
-        Snackbar(
-            snackbarData = data,
-            containerColor = MaterialTheme.colorScheme.errorContainer,
-            contentColor = MaterialTheme.colorScheme.onErrorContainer,
-            dismissActionContentColor = MaterialTheme.colorScheme.onErrorContainer,
-        )
+        AppSnackbar(data)
     }
+}
+
+@Composable
+fun AppSnackbar(data: SnackbarData, modifier: Modifier = Modifier) {
+    val colors = MaterialTheme.colorScheme
+    Snackbar(
+        snackbarData = data,
+        modifier = modifier.drawBehind { drawRect(Orange, size = size.copy(width = 6.dp.toPx())) },
+        shape = MaterialTheme.shapes.medium,
+        containerColor = colors.inverseSurface,
+        contentColor = colors.inverseOnSurface,
+        actionColor = Lemon,
+        actionContentColor = Lemon,
+        dismissActionContentColor = Lemon,
+    )
 }
 
 @Composable
@@ -288,16 +249,16 @@ private fun ColumnScope.AuthTitleBlock(title: String, subtitle: String?) {
     CapitalTitle(
         text = title,
         modifier = Modifier.fillMaxWidth(),
-        style = MaterialTheme.typography.headlineMedium,
-        textAlign = TextAlign.Center,
+        style = MaterialTheme.typography.displaySmall,
+        color = MaterialTheme.colorScheme.onBackground,
+        isHeading = true,
     )
     if (subtitle != null) {
         Text(
             text = subtitle,
             modifier = Modifier.fillMaxWidth(),
-            style = MaterialTheme.typography.bodyMedium,
+            style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
         )
     }
 }
@@ -440,9 +401,9 @@ fun InfoBanner(message: String, modifier: Modifier = Modifier) {
     ) {
         Text(
             text = message,
-            modifier = Modifier.padding(12.dp),
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
             color = MaterialTheme.colorScheme.onTertiaryContainer,
-            style = MaterialTheme.typography.bodySmall,
+            style = MaterialTheme.typography.labelLarge,
         )
     }
 }
@@ -463,9 +424,10 @@ fun AuthPrimaryButton(
         modifier = modifier.fillMaxWidth().height(54.dp),
         enabled = enabled && !loading && waitSecondsLeft == 0,
         shape = AuthButtonShape,
+        colors = ButtonDefaults.buttonColors(disabledContainerColor = DisabledFill, disabledContentColor = DisabledText),
     ) {
         if (waitSecondsLeft > 0) {
-            Text(retryInLabel(waitSecondsLeft), fontWeight = FontWeight.SemiBold)
+            Text(retryInLabel(waitSecondsLeft), style = MaterialTheme.typography.titleMedium.copy(fontSize = 17.sp))
         } else if (loading) {
             CircularProgressIndicator(
                 modifier = Modifier.size(18.dp),
@@ -473,7 +435,7 @@ fun AuthPrimaryButton(
                 color = MaterialTheme.colorScheme.onPrimary,
             )
         } else {
-            Text(text, fontWeight = FontWeight.SemiBold)
+            Text(text, style = MaterialTheme.typography.titleMedium.copy(fontSize = 17.sp))
         }
     }
 }
@@ -484,22 +446,23 @@ fun AuthSecondaryButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
+    contentColor: Color = MaterialTheme.colorScheme.onBackground,
 ) {
     AppOutlinedButton(
         onClick = onClick,
         modifier = modifier.fillMaxWidth().height(54.dp),
         enabled = enabled,
         shape = AuthButtonShape,
-        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.primary),
+        colors = ButtonDefaults.outlinedButtonColors(contentColor = contentColor),
     ) {
-        Text(text, fontWeight = FontWeight.Medium)
+        Text(text, style = MaterialTheme.typography.titleMedium.copy(fontSize = 17.sp))
     }
 }
 
 @Composable
 fun AuthLink(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) {
     TextButton(onClick = onClick, modifier = modifier, enabled = enabled) {
-        Text(text, color = MaterialTheme.colorScheme.primary)
+        Text(text, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge.copy(fontSize = 15.sp), textDecoration = TextDecoration.Underline)
     }
 }
 
@@ -510,7 +473,8 @@ fun AuthInlineLink(text: String, onClick: () -> Unit, modifier: Modifier = Modif
         modifier = modifier.clickable(onClick = onClick).padding(vertical = 4.dp),
         color = MaterialTheme.colorScheme.primary,
         style = MaterialTheme.typography.bodyMedium,
-        fontWeight = FontWeight.Medium,
+        fontWeight = FontWeight.Bold,
+        textDecoration = TextDecoration.Underline,
     )
 }
 
@@ -530,7 +494,8 @@ fun AuthFooterPrompt(prompt: String, action: String, onClick: () -> Unit, modifi
             text = action,
             modifier = Modifier.clickable(onClick = onClick).padding(vertical = 4.dp),
             style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.SemiBold,
+            fontWeight = FontWeight.Bold,
+            textDecoration = TextDecoration.Underline,
             color = MaterialTheme.colorScheme.primary,
         )
     }

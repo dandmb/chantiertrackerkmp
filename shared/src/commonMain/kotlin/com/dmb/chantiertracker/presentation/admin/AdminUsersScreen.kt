@@ -1,5 +1,6 @@
 package com.dmb.chantiertracker.presentation.admin
 
+import com.dmb.chantiertracker.presentation.PaginationBar
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -171,23 +172,16 @@ fun AdminUsersScreen(
 
             if (state.showPagination) {
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                Row(
-                    Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    TextButton(onClick = viewModel::previousPage, enabled = !state.isFirst && !state.isLoading) {
-                        Text(stringResource(Res.string.admin_users_prev))
-                    }
-                    Text(
-                        text = stringResource(Res.string.admin_users_page, state.page + 1, state.totalPages),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    TextButton(onClick = viewModel::nextPage, enabled = !state.isLast && !state.isLoading) {
-                        Text(stringResource(Res.string.admin_users_next))
-                    }
-                }
+                PaginationBar(
+                    pageLabel = stringResource(Res.string.admin_users_page, state.page + 1, state.totalPages),
+                    previousLabel = stringResource(Res.string.admin_users_prev),
+                    onPrevious = viewModel::previousPage,
+                    previousEnabled = !state.isFirst && !state.isLoading,
+                    nextLabel = stringResource(Res.string.admin_users_next),
+                    onNext = viewModel::nextPage,
+                    nextEnabled = !state.isLast && !state.isLoading,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                )
             }
         }
     }

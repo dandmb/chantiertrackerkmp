@@ -40,18 +40,20 @@ class SectionCardSnapshotTest {
                             SectionCard(
                                 title = "Achats",
                                 icon = ShoppingCartIcon,
-                                tone = SectionTone.Yellow,
+                                tone = SectionTone.Orange,
                                 subtitle = "Aucun résumé.",
                                 action = { SectionHeaderAction("Modifier", {}, icon = EditIcon) },
                             ) {
                                 Row(Modifier.fillMaxWidth()) { SectionSubheading("Articles achetés", Modifier.weight(1f)) }
                                 DetailEmptyHint("Aucun article pour l'instant.")
-                                SectionSubheading("Justificatifs")
-                                DashedEmptyHint("Aucune photo pour l'instant.")
+                                SectionCard(title = "Justificatifs", tone = SectionTone.Salmon) {
+                                    DashedEmptyHint("Aucune photo pour l'instant.")
+                                }
                             }
                             SectionCard(
                                 title = "Travaux",
                                 icon = ConstructionIcon,
+                                tone = SectionTone.Lemon,
                                 action = { SectionHeaderAction("Modifier", {}, icon = EditIcon) },
                             ) {
                                 SectionPrimaryButton("Ajouter une entrée", {}, Modifier.fillMaxWidth())

@@ -1,5 +1,7 @@
 package com.dmb.chantiertracker.presentation.projects.detail
 
+import androidx.compose.material3.Button
+import com.dmb.chantiertracker.presentation.destructiveButtonColors
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -55,10 +57,10 @@ fun DeleteProjectDialog(projectName: String, onDismiss: () -> Unit, onConfirm: (
             }
         },
         confirmButton = {
-            TextButton(
+            Button(
                 onClick = onConfirm,
                 enabled = matches,
-                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                colors = destructiveButtonColors(),
             ) {
                 Text(stringResource(Res.string.delete_project_confirm_button))
             }

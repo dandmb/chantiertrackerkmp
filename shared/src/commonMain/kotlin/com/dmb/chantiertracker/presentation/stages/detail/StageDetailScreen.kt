@@ -39,7 +39,6 @@ import com.dmb.chantiertracker.presentation.ClickableListRow
 import com.dmb.chantiertracker.presentation.DetailEmptyHint
 import com.dmb.chantiertracker.presentation.DetailInfoRow
 import com.dmb.chantiertracker.presentation.SectionCard
-import com.dmb.chantiertracker.presentation.SectionTone
 import com.dmb.chantiertracker.presentation.ResponsiveContent
 import com.dmb.chantiertracker.presentation.formatIsoDate
 import com.dmb.chantiertracker.presentation.format.formatMoney
@@ -189,7 +188,7 @@ private fun DaysSection(
         }
     }
 
-    SectionCard(stringResource(Res.string.stage_detail_section_days), tone = SectionTone.Yellow) {
+    SectionCard(stringResource(Res.string.stage_detail_section_days)) {
         // Full-width primary action on its own row — the label is long and must
         // never be squeezed against the section title (large font / narrow screen).
         Box(Modifier.fillMaxWidth()) {

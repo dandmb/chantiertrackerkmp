@@ -27,7 +27,6 @@ import com.dmb.chantiertracker.domain.model.DomainException
 import com.dmb.chantiertracker.domain.model.Plan
 import com.dmb.chantiertracker.domain.model.PlanUsage
 import com.dmb.chantiertracker.presentation.SectionCard
-import com.dmb.chantiertracker.presentation.SectionTone
 import com.dmb.chantiertracker.presentation.ResponsiveContent
 import com.dmb.chantiertracker.presentation.auth.components.ErrorBanner
 import com.dmb.chantiertracker.presentation.auth.components.InfoBanner
@@ -109,7 +108,7 @@ fun BillingScreen(
 
 @Composable
 private fun PlanSection(usage: PlanUsage) {
-    SectionCard(stringResource(Res.string.billing_plan_section), tone = SectionTone.Yellow) {
+    SectionCard(stringResource(Res.string.billing_plan_section)) {
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(stringResource(usage.plan.labelRes()), style = MaterialTheme.typography.headlineSmall)
             if (usage.isFounder) FounderBadge()

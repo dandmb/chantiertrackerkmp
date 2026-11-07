@@ -1,13 +1,13 @@
 package com.dmb.chantiertracker.presentation.branding
 
 import androidx.compose.ui.graphics.toArgb
-import com.dmb.chantiertracker.presentation.theme.Yellow
 import org.w3c.dom.Element
 import java.awt.image.BufferedImage
 import java.io.ByteArrayInputStream
 import java.io.File
 import javax.imageio.ImageIO
 import javax.xml.parsers.DocumentBuilderFactory
+import kotlin.math.abs
 import kotlin.math.hypot
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -63,7 +63,14 @@ class AppIconFilesTest {
     private fun BufferedImage.pixels(): Sequence<Triple<Int, Int, Int>> =
         (0 until height).asSequence().flatMap { y -> (0 until width).asSequence().map { x -> Triple(x, y, getRGB(x, y)) } }
 
-    private fun isYellow(argb: Int): Boolean {
+    private fun isOrange(argb: Int): Boolean {
+        val r = argb shr 16 and 0xFF
+        val g = argb shr 8 and 0xFF
+        val b = argb and 0xFF
+        return argb ushr 24 > 200 && r in 222..242 && g in 106..126 && b in 49..69
+    }
+
+    private fun isOldYellow(argb: Int): Boolean {
         val r = argb shr 16 and 0xFF
         val g = argb shr 8 and 0xFF
         val b = argb and 0xFF
@@ -73,11 +80,13 @@ class AppIconFilesTest {
     private fun isDrawn(argb: Int): Boolean {
         val r = argb shr 16 and 0xFF
         val g = argb shr 8 and 0xFF
-        return argb ushr 24 > 0 && maxOf(r, g) > 40
+        val b = argb and 0xFF
+        return argb ushr 24 > 0 && abs(r - 0x22) + abs(g - 0x30) + abs(b - 0x0D) > 60
     }
 
     private fun assertShowsTheNewLogo(image: BufferedImage, name: String) {
-        assertTrue(image.pixels().count { isYellow(it.third) } > image.width * image.height / 400, "$name: the yellow hook and load of the crane are missing")
+        assertTrue(image.pixels().count { isOrange(it.third) } > image.width * image.height / 400, "$name: the orange hook and load of the crane are missing")
+        assertEquals(0, image.pixels().count { isOldYellow(it.third) }, "$name: the old yellow is still drawn")
     }
 
     private fun assertDrawingInsideTheRoundMask(image: BufferedImage, name: String) {
@@ -88,18 +97,18 @@ class AppIconFilesTest {
     }
 
     @Test
-    fun both_adaptive_icons_use_the_black_background_the_logo_and_a_dedicated_monochrome_layer() {
+    fun both_adaptive_icons_use_the_ink_background_the_logo_and_a_dedicated_monochrome_layer() {
         listOf("mipmap-anydpi-v26/ic_launcher.xml", "mipmap-anydpi-v26/ic_launcher_round.xml").forEach { path ->
             val icon = xml(path)
             assertEquals("@color/ic_launcher_background", icon.children("background").single().android("drawable"), path)
             assertEquals("@drawable/ic_launcher_foreground", icon.children("foreground").single().android("drawable"), path)
             assertEquals("@drawable/ic_launcher_monochrome", icon.children("monochrome").single().android("drawable"), path)
         }
-        assertEquals("#0A0A0A", xml("color/ic_launcher_background.xml").children("item").single().android("color").uppercase())
+        assertEquals("#22300D", xml("color/ic_launcher_background.xml").children("item").single().android("color").uppercase())
     }
 
     @Test
-    fun the_launcher_foreground_draws_the_logo_of_the_app_in_white_and_yellow() {
+    fun the_launcher_foreground_draws_the_logo_of_the_app_in_cream_and_orange() {
         val foreground = vector("drawable/ic_launcher_foreground.xml")
         assertFalse(foreground.paths.any { it.pathData.startsWith(oldToolsGlyph) }, "the old tools glyph is still drawn")
         assertEquals(LogoScale, foreground.scale)
@@ -109,11 +118,11 @@ class AppIconFilesTest {
         assertEquals(LogoPaths.map { hex(it.color) }, foreground.paths.map { it.color })
         assertEquals(LogoPaths.map { it.strokeWidth }, foreground.paths.map { it.strokeWidth })
         assertEquals(LogoPaths.map { it.roundCap }, foreground.paths.map { it.roundCap })
-        assertEquals(setOf("#FFFFFF", "#FFD400"), foreground.paths.map { it.color }.toSet())
+        assertEquals(setOf("#FBF7EA", "#E8743B"), foreground.paths.map { it.color }.toSet())
     }
 
     @Test
-    fun the_monochrome_layer_is_the_same_drawing_in_white_only() {
+    fun the_monochrome_layer_is_the_same_drawing_in_cream_only() {
         val foreground = vector("drawable/ic_launcher_foreground.xml")
         val monochrome = vector("drawable/ic_launcher_monochrome.xml")
         assertEquals(foreground.scale, monochrome.scale)
@@ -121,11 +130,11 @@ class AppIconFilesTest {
         assertEquals(foreground.translateY, monochrome.translateY)
         assertEquals(foreground.paths.map { it.pathData }, monochrome.paths.map { it.pathData })
         assertEquals(foreground.paths.map { it.strokeWidth }, monochrome.paths.map { it.strokeWidth })
-        assertEquals(setOf("#FFFFFF"), monochrome.paths.map { it.color }.toSet())
+        assertEquals(setOf("#FBF7EA"), monochrome.paths.map { it.color }.toSet())
     }
 
     @Test
-    fun the_splash_screen_icon_is_the_launcher_drawing_on_the_black_background() {
+    fun the_splash_screen_icon_is_the_launcher_drawing_on_the_ink_background() {
         val foreground = vector("drawable/ic_launcher_foreground.xml")
         val splash = vector("drawable/splash_icon.xml")
         assertEquals(foreground.scale, splash.scale)
@@ -133,7 +142,7 @@ class AppIconFilesTest {
         assertEquals(foreground.translateY, splash.translateY)
         assertEquals(foreground.paths.map { it.pathData to it.color }, splash.paths.map { it.pathData to it.color })
         val theme = File(androidRes, "values/themes.xml").readText()
-        assertTrue("<item name=\"windowSplashScreenBackground\">#0A0A0A</item>" in theme)
+        assertTrue("<item name=\"windowSplashScreenBackground\">#22300D</item>" in theme)
         assertTrue("<item name=\"windowSplashScreenAnimatedIcon\">@drawable/splash_icon</item>" in theme)
     }
 
@@ -161,6 +170,12 @@ class AppIconFilesTest {
         assertFalse(image.colorModel.hasAlpha(), "the Play Store refuses an icon with transparency")
         assertShowsTheNewLogo(image, path)
         assertDrawingInsideTheRoundMask(image, path)
+    }
+
+    @Test
+    fun the_ios_launch_background_is_the_ink_of_the_theme() {
+        val json = File(repository, "iosApp/iosApp/Assets.xcassets/LaunchBackground.colorset/Contents.json").readText()
+        assertTrue("\"red\" : \"0.133\"" in json && "\"green\" : \"0.188\"" in json && "\"blue\" : \"0.051\"" in json, json)
     }
 
     @Test
@@ -202,7 +217,7 @@ class AppIconFilesTest {
     @Test
     fun the_drawing_is_the_logo_file_kept_as_is() {
         assertEquals(
-            listOf("#FFFFFF", "#FFD400", "#FFD400", "#FFD400", "#FFD400", "#FFFFFF", "#FFFFFF"),
+            listOf("#FBF7EA", "#E8743B", "#E8743B", "#E8743B", "#E8743B", "#FBF7EA", "#FBF7EA"),
             LogoPaths.map { hex(it.color) },
         )
         assertEquals("M83,19 V22 a5,5 0 1,1 -8,3", LogoPaths[2].pathData)

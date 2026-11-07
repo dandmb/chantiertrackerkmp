@@ -19,8 +19,10 @@ import com.dmb.chantiertracker.presentation.ClickableListRow
 import com.dmb.chantiertracker.presentation.DetailInfoRow
 import com.dmb.chantiertracker.presentation.ResponsiveContent
 import com.dmb.chantiertracker.presentation.SectionCard
-import com.dmb.chantiertracker.presentation.SectionPrimaryButton
-import com.dmb.chantiertracker.presentation.SectionTone
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.Button
+import androidx.compose.material3.Icon
 import com.dmb.chantiertracker.presentation.auth.components.ErrorBanner
 import com.dmb.chantiertracker.presentation.main.SendIcon
 import com.dmb.chantiertracker.resources.Res
@@ -82,7 +84,7 @@ fun HelpScreen(
                 .padding(start = 24.dp, end = 24.dp, top = 20.dp, bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
-            SectionCard(stringResource(Res.string.help_intro_section), tone = SectionTone.Yellow) {
+            SectionCard(stringResource(Res.string.help_intro_section)) {
                 ClickableListRow(onClick = onDiscover) {
                     Text(stringResource(Res.string.help_discover), style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
                 }
@@ -124,12 +126,10 @@ fun HelpScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     DetailInfoRow(stringResource(Res.string.settings_contact), address)
-                    SectionPrimaryButton(
-                        text = stringResource(Res.string.help_report),
-                        onClick = { viewModel.report(subject, body) },
-                        modifier = Modifier.fillMaxWidth(),
-                        icon = SendIcon,
-                    )
+                    Button(onClick = { viewModel.report(subject, body) }, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) {
+                        Icon(SendIcon, contentDescription = null, modifier = Modifier.size(20.dp))
+                        Text(stringResource(Res.string.help_report), style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(start = 8.dp))
+                    }
                 }
             }
         }

@@ -1,5 +1,6 @@
 package com.dmb.chantiertracker.presentation.logs
 
+import com.dmb.chantiertracker.presentation.TextAction
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -23,7 +24,6 @@ import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -241,7 +241,7 @@ private fun MaterialPicker(state: PurchaseLineFormUiState, viewModel: PurchaseLi
                 modifier = Modifier.fillMaxWidth(),
             )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextButton(onClick = viewModel::cancelCreateMaterial) { Text(stringResource(Res.string.action_cancel)) }
+                TextAction(stringResource(Res.string.action_cancel), onClick = viewModel::cancelCreateMaterial)
                 Button(onClick = viewModel::confirmCreateMaterial, enabled = unit.isNotBlank()) {
                     Text(stringResource(Res.string.action_create))
                 }

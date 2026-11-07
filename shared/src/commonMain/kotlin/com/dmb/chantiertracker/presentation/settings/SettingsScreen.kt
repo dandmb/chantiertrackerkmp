@@ -22,7 +22,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dmb.chantiertracker.presentation.ClickableListRow
 import com.dmb.chantiertracker.presentation.DetailInfoRow
 import com.dmb.chantiertracker.presentation.SectionCard
-import com.dmb.chantiertracker.presentation.SectionTone
 import com.dmb.chantiertracker.presentation.ResponsiveContent
 import com.dmb.chantiertracker.presentation.i18n.AppLanguage
 import com.dmb.chantiertracker.presentation.legal.LegalDocument
@@ -63,7 +62,7 @@ fun SettingsScreen(
                 .padding(start = 24.dp, end = 24.dp, top = 20.dp, bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
-            SectionCard(stringResource(Res.string.settings_language), tone = SectionTone.Yellow) {
+            SectionCard(stringResource(Res.string.settings_language)) {
                 ChoiceRow(
                     options = AppLanguage.entries,
                     selected = language,

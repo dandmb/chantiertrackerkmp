@@ -96,7 +96,7 @@ fun ProductPresentationContent(onClose: () -> Unit, modifier: Modifier = Modifie
         }
 
         if (LocalServerBillingStatus.current == BillingAvailability.CLOSED) {
-            SectionCard(stringResource(Res.string.welcome_founder_title), tone = SectionTone.Yellow) {
+            SectionCard(stringResource(Res.string.welcome_founder_title), tone = SectionTone.Orange) {
                 Text(stringResource(Res.string.welcome_founder_body), style = MaterialTheme.typography.bodyMedium)
                 LocalFounderOffer.current?.let { FounderOfferFigures(it) }
             }

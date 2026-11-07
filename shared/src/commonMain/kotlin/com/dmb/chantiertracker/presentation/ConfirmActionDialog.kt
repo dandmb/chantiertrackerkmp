@@ -1,11 +1,17 @@
 package com.dmb.chantiertracker.presentation
 
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonColors
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import com.dmb.chantiertracker.presentation.theme.Brick
+import com.dmb.chantiertracker.presentation.theme.DisabledFill
+import com.dmb.chantiertracker.presentation.theme.DisabledText
+import com.dmb.chantiertracker.presentation.theme.OnBrick
 import com.dmb.chantiertracker.resources.Res
 import com.dmb.chantiertracker.resources.action_cancel
 import org.jetbrains.compose.resources.stringResource
@@ -18,6 +24,14 @@ import org.jetbrains.compose.resources.stringResource
 // good), a plain one otherwise (e.g. cancelling an invitation is undoable by
 // just re-inviting).
 @Composable
+fun destructiveButtonColors(): ButtonColors = ButtonDefaults.buttonColors(
+    containerColor = Brick,
+    contentColor = OnBrick,
+    disabledContainerColor = DisabledFill,
+    disabledContentColor = DisabledText,
+)
+
+@Composable
 fun ConfirmActionDialog(
     title: String,
     body: String,
@@ -29,21 +43,16 @@ fun ConfirmActionDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { CapitalTitle(title) },
-        text = { Text(body, style = MaterialTheme.typography.bodyMedium) },
+        text = { Text(body, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) },
         confirmButton = {
-            TextButton(
-                onClick = onConfirm,
-                colors = if (destructive) {
-                    ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
-                } else {
-                    ButtonDefaults.textButtonColors()
-                },
-            ) {
+            Button(onClick = onConfirm, colors = if (destructive) destructiveButtonColors() else ButtonDefaults.buttonColors()) {
                 Text(confirmLabel)
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(Res.string.action_cancel)) }
+            TextButton(onClick = onDismiss, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurface)) {
+                Text(stringResource(Res.string.action_cancel))
+            }
         },
     )
 }

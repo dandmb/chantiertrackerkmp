@@ -54,10 +54,10 @@ import com.dmb.chantiertracker.presentation.ResponsiveContent
 import com.dmb.chantiertracker.presentation.formatIsoDate
 import com.dmb.chantiertracker.presentation.i18n.LocalAppLocale
 import com.dmb.chantiertracker.presentation.main.DetailTopBar
-import com.dmb.chantiertracker.presentation.theme.WarningAmberContainerDark
-import com.dmb.chantiertracker.presentation.theme.WarningAmberContainerLight
-import com.dmb.chantiertracker.presentation.theme.WarningOnAmberDark
-import com.dmb.chantiertracker.presentation.theme.WarningOnAmberLight
+import com.dmb.chantiertracker.presentation.theme.WarningContainerDark
+import com.dmb.chantiertracker.presentation.theme.WarningContainerLight
+import com.dmb.chantiertracker.presentation.theme.WarningOnContainerDark
+import com.dmb.chantiertracker.presentation.theme.WarningOnContainerLight
 import com.dmb.chantiertracker.resources.Res
 import com.dmb.chantiertracker.resources.legal_loading
 import com.dmb.chantiertracker.resources.legal_retry
@@ -154,14 +154,14 @@ private fun LegalDocumentContent(state: LegalDocumentUiState.Shown, onLink: (Leg
 private fun SavedCopyNotice() {
     val dark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
     Surface(
-        color = if (dark) WarningAmberContainerDark else WarningAmberContainerLight,
+        color = if (dark) WarningContainerDark else WarningContainerLight,
         shape = MaterialTheme.shapes.medium,
         modifier = Modifier.fillMaxWidth(),
     ) {
         Text(
             text = stringResource(Res.string.legal_saved_copy),
             style = MaterialTheme.typography.bodyMedium,
-            color = if (dark) WarningOnAmberDark else WarningOnAmberLight,
+            color = if (dark) WarningOnContainerDark else WarningOnContainerLight,
             modifier = Modifier.padding(16.dp),
         )
     }

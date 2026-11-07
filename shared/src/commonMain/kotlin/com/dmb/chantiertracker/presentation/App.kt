@@ -1,6 +1,8 @@
 package com.dmb.chantiertracker.presentation
 
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.tooling.preview.Preview
@@ -30,13 +32,20 @@ fun App() {
     // AppEnvironment re-keys the tree when the user changes it (via customAppLocale).
     AppEnvironment {
         AppTheme(darkTheme = darkTheme) {
-            AppChrome(showStagingBanner = koinInject<BuildInfo>().isStaging) {
-                BillingAvailabilityProvider {
-                    ServerBillingStatusProvider {
-                        RootNavHost()
+            AppSurface {
+                AppChrome(showStagingBanner = koinInject<BuildInfo>().isStaging) {
+                    BillingAvailabilityProvider {
+                        ServerBillingStatusProvider {
+                            RootNavHost()
+                        }
                     }
                 }
             }
         }
     }
+}
+
+@Composable
+fun AppSurface(content: @Composable () -> Unit) {
+    Surface(color = MaterialTheme.colorScheme.background, content = content)
 }

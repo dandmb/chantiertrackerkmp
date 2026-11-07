@@ -1,5 +1,7 @@
 package com.dmb.chantiertracker.presentation.main
 
+import androidx.compose.material3.Button
+import com.dmb.chantiertracker.presentation.destructiveButtonColors
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -93,9 +95,9 @@ fun LogoutPromptDialog(
                 }
             },
             confirmButton = {
-                TextButton(
+                Button(
                     onClick = onLogoutAnyway,
-                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                    colors = destructiveButtonColors(),
                 ) { Text(stringResource(Res.string.logout_anyway)) }
             },
             dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(Res.string.action_cancel)) } },

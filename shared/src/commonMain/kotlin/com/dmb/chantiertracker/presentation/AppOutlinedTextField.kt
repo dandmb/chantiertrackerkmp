@@ -8,6 +8,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.LocalTextStyle
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.TextFieldColors
 import androidx.compose.runtime.Composable
@@ -26,12 +27,26 @@ import com.dmb.chantiertracker.resources.Res
 import com.dmb.chantiertracker.resources.field_invalid_input
 import org.jetbrains.compose.resources.stringResource
 
-private val RestingBorder = 2.dp
-private val FocusedBorder = 3.dp
+private val RestingBorder = 1.dp
+private val FocusedBorder = 2.dp
 private val FloatingLabelRoom = 8.dp
 
-// The app's outlined field: Material 3's OutlinedTextField with the web's thick black border
-// (2 dp at rest, 3 dp focused), which its theme cannot set. Same parameters, same behaviour.
+@Composable
+fun appTextFieldColors(): TextFieldColors {
+    val scheme = MaterialTheme.colorScheme
+    return OutlinedTextFieldDefaults.colors(
+        focusedContainerColor = scheme.surfaceContainerLowest,
+        unfocusedContainerColor = scheme.surfaceContainerLowest,
+        disabledContainerColor = scheme.surfaceContainerLowest,
+        errorContainerColor = scheme.surfaceContainerLowest,
+        focusedBorderColor = scheme.outline,
+        unfocusedBorderColor = scheme.outlineVariant,
+        errorBorderColor = scheme.error,
+        focusedLabelColor = scheme.onSurface,
+        unfocusedLabelColor = scheme.onSurfaceVariant,
+    )
+}
+
 @Composable
 fun AppOutlinedTextField(
     value: String,
@@ -55,8 +70,8 @@ fun AppOutlinedTextField(
     maxLines: Int = if (singleLine) 1 else Int.MAX_VALUE,
     minLines: Int = 1,
     interactionSource: MutableInteractionSource? = null,
-    shape: Shape = OutlinedTextFieldDefaults.shape,
-    colors: TextFieldColors = OutlinedTextFieldDefaults.colors(),
+    shape: Shape = MaterialTheme.shapes.medium,
+    colors: TextFieldColors = appTextFieldColors(),
 ) {
     val source = interactionSource ?: remember { MutableInteractionSource() }
     val focused by source.collectIsFocusedAsState()
@@ -112,7 +127,7 @@ fun AppOutlinedTextField(
                         colors = colors,
                         shape = shape,
                         focusedBorderThickness = FocusedBorder,
-                        unfocusedBorderThickness = RestingBorder,
+                        unfocusedBorderThickness = if (isError) FocusedBorder else RestingBorder,
                     )
                 },
             )

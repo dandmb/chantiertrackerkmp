@@ -1,5 +1,6 @@
 package com.dmb.chantiertracker.presentation.projects.history
 
+import com.dmb.chantiertracker.presentation.PaginationBar
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,7 +15,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -110,23 +110,16 @@ fun ProjectHistoryScreen(
 
             if (state.showPagination) {
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                Row(
-                    Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    TextButton(onClick = viewModel::previousPage, enabled = !state.isFirst && !state.isLoading) {
-                        Text(stringResource(Res.string.history_prev))
-                    }
-                    Text(
-                        text = stringResource(Res.string.history_page, state.page + 1, state.totalPages),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    TextButton(onClick = viewModel::nextPage, enabled = !state.isLast && !state.isLoading) {
-                        Text(stringResource(Res.string.history_next))
-                    }
-                }
+                PaginationBar(
+                    pageLabel = stringResource(Res.string.history_page, state.page + 1, state.totalPages),
+                    previousLabel = stringResource(Res.string.history_prev),
+                    onPrevious = viewModel::previousPage,
+                    previousEnabled = !state.isFirst && !state.isLoading,
+                    nextLabel = stringResource(Res.string.history_next),
+                    onNext = viewModel::nextPage,
+                    nextEnabled = !state.isLast && !state.isLoading,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                )
             }
 
             historyRetentionNotice(state.ownerMaxHistoryDays)?.let { notice ->
