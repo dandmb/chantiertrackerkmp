@@ -55,7 +55,7 @@ class AdminCreateUserViewModel(
         val emailError = validateEmail(current.email)
         val passwordError = validateStrongPassword(current.password)
         if (nameError != null || emailError != null || passwordError != null) {
-            _state.update { it.copy(nameError = nameError, emailError = emailError, passwordError = passwordError) }
+            _state.update { it.copy(nameError = nameError, emailError = emailError, passwordError = passwordError, formError = null) }
             return
         }
         viewModelScope.launch {

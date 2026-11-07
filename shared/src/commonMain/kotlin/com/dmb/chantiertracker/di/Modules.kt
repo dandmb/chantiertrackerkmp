@@ -137,6 +137,7 @@ import com.dmb.chantiertracker.presentation.logs.DailyLogViewModel
 import com.dmb.chantiertracker.presentation.logs.EntrySummaryViewModel
 import com.dmb.chantiertracker.presentation.logs.PurchaseLineFormViewModel
 import com.dmb.chantiertracker.presentation.main.MainViewModel
+import com.dmb.chantiertracker.presentation.main.ExitPromptViewModel
 import com.dmb.chantiertracker.presentation.account.ProfileViewModel
 import com.dmb.chantiertracker.presentation.navigation.RootViewModel
 import com.dmb.chantiertracker.presentation.projects.ProjectSortHolder
@@ -307,6 +308,7 @@ val presentationModule: Module = module {
     viewModelOf(::ResetPasswordViewModel)
     viewModelOf(::ChangePasswordViewModel)
     viewModelOf(::MainViewModel)
+    viewModelOf(::ExitPromptViewModel)
     viewModelOf(::ProfileViewModel)
     viewModelOf(::SyncIssuesViewModel)
     viewModelOf(::SyncIssueCountViewModel)

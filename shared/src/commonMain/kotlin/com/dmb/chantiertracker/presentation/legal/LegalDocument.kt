@@ -29,7 +29,16 @@ enum class LegalDocument(val label: StringResource, val link: StringResource, va
     companion object {
         private val SITE_ORIGIN = Regex("^https?://(www\\.)?(chantiertracker\\.com|localhost(:\\d+)?)(?=/|$)", RegexOption.IGNORE_CASE)
 
+        private val FORGOT_PASSWORD_PATHS = setOf("/forgot-password", "/en/forgot-password", "/mot-de-passe-oublie")
+
         fun fromSlug(slug: String): LegalDocument? = entries.firstOrNull { it.slug == slug }
+
+        fun isForgotPasswordLink(target: String): Boolean {
+            val trimmed = target.trim()
+            val origin = SITE_ORIGIN.find(trimmed) ?: return false
+            val path = trimmed.removePrefix(origin.value).substringBefore('#').substringBefore('?').trimEnd('/').lowercase()
+            return path in FORGOT_PASSWORD_PATHS
+        }
 
         fun fromLink(target: String): LegalDocument? {
             val trimmed = target.trim()

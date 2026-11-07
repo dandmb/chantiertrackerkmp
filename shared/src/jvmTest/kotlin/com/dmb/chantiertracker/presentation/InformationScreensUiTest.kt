@@ -22,6 +22,7 @@ import com.dmb.chantiertracker.domain.model.Plan
 import com.dmb.chantiertracker.domain.model.PlanUsage
 import com.dmb.chantiertracker.domain.model.SyncIssueTarget
 import com.dmb.chantiertracker.presentation.auth.welcome.WelcomeScreen
+import com.dmb.chantiertracker.presentation.auth.welcome.ProductPresentationContent
 import com.dmb.chantiertracker.presentation.billing.LocalFounderOffer
 import com.dmb.chantiertracker.presentation.billing.LocalServerBillingStatus
 import com.dmb.chantiertracker.presentation.help.DiscoverScreen
@@ -137,14 +138,15 @@ class InformationScreensUiTest {
         WelcomeScreen(onCreateAccount = onCreate, onSignIn = onSignIn, onDiscoverPlans = null, onOpenLegalDocument = {})
     }
 
+    private fun ComposeUiTest.presentation(status: BillingAvailability) = mount(status) {
+        ProductPresentationContent(onClose = {})
+    }
+
     @Test
-    fun the_welcome_screen_presents_the_product_then_offers_its_two_buttons() = runComposeUiTest {
+    fun the_welcome_screen_offers_its_two_buttons() = runComposeUiTest {
         var created = 0
         var signedIn = 0
         welcome(BillingAvailability.CLOSED, { created++ }, { signedIn++ })
-
-        onNodeWithText("Ton chantier sous contrôle, même à distance", ignoreCase = true).assertExists()
-        onNodeWithText("Le stock se tient tout seul").assertExists()
         onNodeWithText("Créer un compte").performClick()
         onNodeWithText("Se connecter").performClick()
         waitForIdle()
@@ -154,14 +156,21 @@ class InformationScreensUiTest {
     }
 
     @Test
+    fun the_presentation_sheet_presents_the_product() = runComposeUiTest {
+        presentation(BillingAvailability.CLOSED)
+        onNodeWithText("Ton chantier sous contrôle, même à distance", ignoreCase = true).assertExists()
+        onNodeWithText("Le stock se tient tout seul").assertExists()
+    }
+
+    @Test
     fun the_founder_offer_shows_while_billing_is_closed() = runComposeUiTest {
-        welcome(BillingAvailability.CLOSED)
+        presentation(BillingAvailability.CLOSED)
         onNodeWithText("Offre fondateur", ignoreCase = true).assertExists()
     }
 
     @Test
     fun the_founder_offer_goes_once_billing_is_open() = runComposeUiTest {
-        welcome(BillingAvailability.OPEN)
+        presentation(BillingAvailability.OPEN)
         onNodeWithText("Offre fondateur", ignoreCase = true).assertDoesNotExist()
     }
 
@@ -177,7 +186,7 @@ class InformationScreensUiTest {
                 CompositionLocalProvider(LocalServerBillingStatus provides status, LocalFounderOffer provides founderOffer) {
                     Surface {
                         Box(Modifier.size(412.dp, 700.dp)) {
-                            WelcomeScreen(onCreateAccount = {}, onSignIn = {}, onDiscoverPlans = null, onOpenLegalDocument = {})
+                            ProductPresentationContent(onClose = {})
                         }
                     }
                 }
@@ -226,7 +235,7 @@ class InformationScreensUiTest {
 
     @Test
     fun an_unknown_switch_promises_nothing() = runComposeUiTest {
-        welcome(BillingAvailability.UNKNOWN)
+        presentation(BillingAvailability.UNKNOWN)
         onNodeWithText("Offre fondateur", ignoreCase = true).assertDoesNotExist()
     }
 

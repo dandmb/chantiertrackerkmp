@@ -40,7 +40,7 @@ class ForgotPasswordViewModel(
         val current = _state.value
         val emailError = validateEmail(current.email)
         if (emailError != null) {
-            _state.update { it.copy(emailError = emailError) }
+            _state.update { it.copy(emailError = emailError, formError = null) }
             return
         }
         viewModelScope.launch {

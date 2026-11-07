@@ -40,7 +40,7 @@ fun LegalLinkNoticeDialog(notice: LegalLinkNotice, onDismiss: () -> Unit) {
     }
     val address = when (val link = notice.link) {
         is LegalLink.Mail -> link.target.substringAfter(":").substringBefore("?")
-        is LegalLink.Web, is LegalLink.Document -> link.target
+        is LegalLink.Web, is LegalLink.Document, is LegalLink.ForgotPassword -> link.target
     }
     AlertDialog(
         onDismissRequest = onDismiss,

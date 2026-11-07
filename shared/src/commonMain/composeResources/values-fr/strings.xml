@@ -764,7 +764,6 @@
     <string name="projects_empty_action">Créer mon premier projet</string>
     <string name="detail_members_empty_admin">Aucun membre pour l'instant. Invite un superviseur pour qu'il saisisse depuis le chantier.</string>
     <string name="detail_invitations_empty_admin">Aucune invitation en attente. Invite un superviseur pour lui donner accès à ce projet.</string>
-    <string name="detail_stages_empty_action">Ajouter une étape</string>
     <string name="attachments_empty_can_add">Aucune photo pour l'instant. Ajoute la première avec les boutons ci-dessus.</string>
     <string name="help_title">Aide</string>
     <string name="help_intro_section">Bien démarrer</string>
@@ -782,9 +781,9 @@
     <string name="help_a_sync_issue">Le serveur a refusé une saisie : une limite atteinte, un doublon, un droit manquant. L'icône en haut de l'écran ouvre « Saisies à revoir », qui donne la raison et ce que tu peux faire.</string>
     <string name="help_faq_section_roles">Rôles</string>
     <string name="help_q_owner">Que peut faire le propriétaire ?</string>
-    <string name="help_a_owner">C'est la personne qui a créé le projet. Il a tous les droits d'un administrateur, et lui seul peut supprimer le projet. Il ne peut pas s'en retirer.</string>
+    <string name="help_a_owner">C'est la personne qui a créé le projet. Il a tous les droits d'un administrateur, et lui seul peut retirer un membre ou supprimer le projet. Il ne peut pas s'en retirer.</string>
     <string name="help_q_admin">Et un administrateur ?</string>
-    <string name="help_a_admin">Il gère les membres et les invitations du projet. Il peut saisir ou corriger à n'importe quelle date.</string>
+    <string name="help_a_admin">Il invite des superviseurs et gère les invitations du projet. Il peut saisir ou corriger à n'importe quelle date. Pour retirer un membre, seul le propriétaire peut le faire.</string>
     <string name="help_q_supervisor">Et un superviseur ?</string>
     <string name="help_a_supervisor">Il suit le chantier sur place, ajoute des étapes et ne saisit que sur la journée en cours. Il peut signaler une saisie à corriger.</string>
     <string name="help_faq_section_invite">Inviter quelqu'un</string>
@@ -835,4 +834,28 @@
     <string name="sync_hint_plan_limit_media_no_upgrade">Supprime des photos ou des vidéos, puis réessaie.</string>
     <string name="history_kept_months">Historique conservé %1$d mois</string>
     <string name="history_kept_days">Historique conservé %1$d jours</string>
+    <string name="retry_in">Réessayer dans %1$s</string>
+    <string name="wait_seconds_short">%1$d s</string>
+    <string name="error_wait_rate_limited_reason">Trop de tentatives.</string>
+    <string name="error_wait_locked_reason">Compte bloqué après trop de tentatives.</string>
+    <string name="error_wait_in_progress_reason">Ta demande précédente est encore en cours de traitement.</string>
+    <string name="error_cannot_invite_self">Tu ne peux pas t'inviter toi-même.</string>
+    <string name="error_already_project_member">Cette personne est déjà membre du projet.</string>
+    <string name="invite_member_self">C'est ton adresse : tu fais déjà partie du projet.</string>
+    <string name="invite_member_already_member">Cette personne est déjà membre du projet.</string>
+    <string name="presentation_close">C'est parti</string>
+    <string name="presentation_open">Découvrir ChantierTracker</string>
+    <string name="presentation_offline">L'app fonctionne avec ou sans connexion Internet : tes saisies sont gardées et envoyées dès que le réseau revient.</string>
+    <string name="exit_title">Quitter ChantierTracker ?</string>
+    <plurals name="exit_unsent">
+        <item quantity="one">%1$d modification sera envoyée au prochain lancement avec du réseau.</item>
+        <item quantity="other">%1$d modifications seront envoyées au prochain lancement avec du réseau.</item>
+    </plurals>
+    <string name="exit_confirm">Quitter</string>
+    <string name="exit_stay">Rester</string>
+    <string name="login_validate_account">Valider mon compte</string>
+    <string name="validate_account_title">Valider mon compte</string>
+    <string name="validate_account_subtitle">Saisis ton adresse et ton mot de passe : on t'envoie un nouveau code pour activer ton compte.</string>
+    <string name="validate_account_submit">Recevoir un code</string>
+    <string name="material_existing_title">Matériaux existants</string>
 </resources>

@@ -31,6 +31,8 @@ sealed class DomainException : Exception() {
     data class CreationInProgress(val retryAfterSeconds: Int? = null) : DomainException()
     data object InvitationAlreadyPending : DomainException()
     data object InvitationGone : DomainException()
+    data object CannotInviteSelf : DomainException()
+    data object AlreadyProjectMember : DomainException()
     data object CollaboratorLimitReached : DomainException()
     data object OwnerRequired : DomainException()
     data object OwnerCannotLeave : DomainException()

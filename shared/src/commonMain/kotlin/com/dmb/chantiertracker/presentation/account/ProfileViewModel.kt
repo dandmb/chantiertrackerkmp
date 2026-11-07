@@ -75,10 +75,10 @@ class ProfileViewModel(
         val nameError = Res.string.profile_name_invalid.takeIf { name.isEmpty() || name.length > MAX_NAME_LENGTH }
         val phoneError = Res.string.profile_phone_invalid.takeIf { phone.isNotEmpty() && !VALID_PHONE.matches(phone) }
         if (nameError != null || phoneError != null) {
-            _state.update { it.copy(nameError = nameError, phoneError = phoneError) }
+            _state.update { it.copy(nameError = nameError, phoneError = phoneError, languageError = null, formError = null) }
             return
         }
-        _state.update { it.copy(isSubmitting = true, formError = null) }
+        _state.update { it.copy(isSubmitting = true, formError = null, nameError = null, phoneError = null, languageError = null) }
         viewModelScope.launch {
             try {
                 authRepository.updateProfile(ProfileUpdate(name, phone, current.language))

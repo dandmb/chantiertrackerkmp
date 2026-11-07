@@ -1,6 +1,5 @@
 package com.dmb.chantiertracker.presentation.logs
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -16,12 +15,22 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuAnchorType
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
@@ -33,12 +42,15 @@ import com.dmb.chantiertracker.presentation.AppOutlinedTextField
 import com.dmb.chantiertracker.presentation.ResponsiveContent
 import com.dmb.chantiertracker.presentation.auth.components.AuthPrimaryButton
 import com.dmb.chantiertracker.presentation.format.formatMoney
+import com.dmb.chantiertracker.presentation.main.AddIcon
+import com.dmb.chantiertracker.presentation.main.ConstructionIcon
 import com.dmb.chantiertracker.resources.Res
 import com.dmb.chantiertracker.resources.action_back
 import com.dmb.chantiertracker.resources.action_cancel
 import com.dmb.chantiertracker.resources.action_create
 import com.dmb.chantiertracker.resources.action_save
 import com.dmb.chantiertracker.resources.error_not_found
+import com.dmb.chantiertracker.resources.material_existing_title
 import com.dmb.chantiertracker.resources.material_label
 import com.dmb.chantiertracker.resources.material_new_option
 import com.dmb.chantiertracker.resources.material_query_hint
@@ -52,6 +64,8 @@ import com.dmb.chantiertracker.resources.total_price_label
 import com.dmb.chantiertracker.resources.unit_price_label
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
+
+const val MATERIAL_SUGGESTIONS_TAG = "material-suggestions"
 
 @Composable
 fun PurchaseLineFormScreen(
@@ -148,27 +162,73 @@ fun PurchaseLineFormScreen(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun MaterialPicker(state: PurchaseLineFormUiState, viewModel: PurchaseLineFormViewModel) {
+    var expanded by remember { mutableStateOf(false) }
+    val suggestions = state.suggestions.take(MAX_SUGGESTIONS)
+    val offersCreate = state.canOfferCreate && state.creatingNewUnit == null
+    val menuShown = expanded && !state.isSubmitting && (suggestions.isNotEmpty() || offersCreate)
+
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        AppOutlinedTextField(
-            value = state.materialQuery,
-            onValueChange = viewModel::onMaterialQueryChange,
-            label = { Text(stringResource(Res.string.material_label)) },
-            placeholder = { Text(stringResource(Res.string.material_query_hint)) },
-            isError = state.materialError != null,
-            supportingText = state.materialError?.let { { Text(stringResource(it)) } },
-            singleLine = true,
-            enabled = !state.isSubmitting,
-            modifier = Modifier.fillMaxWidth(),
-        )
-
-        state.suggestions.take(6).forEach { material ->
-            PickerRow("${material.name} (${material.unit})") { viewModel.selectMaterial(material) }
-        }
-
-        if (state.canOfferCreate && state.creatingNewUnit == null) {
-            PickerRow(stringResource(Res.string.material_new_option, state.materialQuery.trim())) { viewModel.startCreateMaterial() }
+        ExposedDropdownMenuBox(expanded = menuShown, onExpandedChange = { expanded = it }) {
+            AppOutlinedTextField(
+                value = state.materialQuery,
+                onValueChange = {
+                    viewModel.onMaterialQueryChange(it)
+                    expanded = true
+                },
+                label = { Text(stringResource(Res.string.material_label)) },
+                placeholder = { Text(stringResource(Res.string.material_query_hint)) },
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = menuShown) },
+                isError = state.materialError != null,
+                supportingText = state.materialError?.let { { Text(stringResource(it)) } },
+                singleLine = true,
+                enabled = !state.isSubmitting,
+                modifier = Modifier.fillMaxWidth().menuAnchor(ExposedDropdownMenuAnchorType.PrimaryEditable),
+            )
+            ExposedDropdownMenu(
+                expanded = menuShown,
+                onDismissRequest = { expanded = false },
+                modifier = Modifier.testTag(MATERIAL_SUGGESTIONS_TAG),
+            ) {
+                if (suggestions.isNotEmpty()) {
+                    Text(
+                        text = stringResource(Res.string.material_existing_title),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    )
+                    suggestions.forEach { material ->
+                        DropdownMenuItem(
+                            text = { Text(material.name) },
+                            leadingIcon = { Icon(ConstructionIcon, contentDescription = null) },
+                            trailingIcon = {
+                                Text(
+                                    material.unit,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            },
+                            onClick = {
+                                viewModel.selectMaterial(material)
+                                expanded = false
+                            },
+                        )
+                    }
+                    if (offersCreate) HorizontalDivider()
+                }
+                if (offersCreate) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(Res.string.material_new_option, state.materialQuery.trim())) },
+                        leadingIcon = { Icon(AddIcon, contentDescription = null) },
+                        onClick = {
+                            viewModel.startCreateMaterial()
+                            expanded = false
+                        },
+                    )
+                }
+            }
         }
 
         state.creatingNewUnit?.let { unit ->
@@ -190,18 +250,7 @@ private fun MaterialPicker(state: PurchaseLineFormUiState, viewModel: PurchaseLi
     }
 }
 
-@Composable
-private fun PickerRow(text: String, onClick: () -> Unit) {
-    Surface(
-        onClick = onClick,
-        color = MaterialTheme.colorScheme.surface,
-        shape = MaterialTheme.shapes.small,
-        border = BorderStroke(2.dp, MaterialTheme.colorScheme.outline),
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Text(text, modifier = Modifier.padding(12.dp), style = MaterialTheme.typography.bodyMedium)
-    }
-}
+private const val MAX_SUGGESTIONS = 6
 
 @Composable
 internal fun BoxScope.MissingState(onBack: () -> Unit) {

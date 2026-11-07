@@ -17,14 +17,14 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dmb.chantiertracker.domain.model.DomainException
 import com.dmb.chantiertracker.presentation.auth.components.AuthFooterPrompt
 import com.dmb.chantiertracker.presentation.auth.components.AuthInlineLink
+import com.dmb.chantiertracker.presentation.auth.components.AuthLink
 import com.dmb.chantiertracker.presentation.auth.components.AuthLegalFooter
 import com.dmb.chantiertracker.presentation.auth.components.AuthPrimaryButton
 import com.dmb.chantiertracker.presentation.auth.components.AuthScreenLayout
 import com.dmb.chantiertracker.presentation.auth.components.EmailField
-import com.dmb.chantiertracker.presentation.auth.components.ErrorBanner
 import com.dmb.chantiertracker.presentation.auth.components.InfoBanner
 import com.dmb.chantiertracker.presentation.auth.components.PasswordField
-import com.dmb.chantiertracker.presentation.i18n.localizedText
+import com.dmb.chantiertracker.presentation.i18n.snackbarText
 import com.dmb.chantiertracker.presentation.i18n.rememberWaitSecondsLeft
 import com.dmb.chantiertracker.presentation.main.labelRes
 import com.dmb.chantiertracker.presentation.navigation.LoginNotice
@@ -41,6 +41,7 @@ import com.dmb.chantiertracker.resources.login_notice_password_reset
 import com.dmb.chantiertracker.resources.login_submit
 import com.dmb.chantiertracker.resources.login_subtitle
 import com.dmb.chantiertracker.resources.login_title
+import com.dmb.chantiertracker.resources.login_validate_account
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -51,6 +52,7 @@ fun LoginScreen(
     onOpenLegalDocument: (LegalDocument) -> Unit,
     onBack: (() -> Unit)? = null,
     onVerificationRequired: () -> Unit = {},
+    onValidateAccount: () -> Unit = {},
     prefilledEmail: String? = null,
     notice: LoginNotice? = null,
     checkoutPlan: String? = null,
@@ -78,6 +80,8 @@ fun LoginScreen(
         title = stringResource(Res.string.login_title),
         subtitle = stringResource(Res.string.login_subtitle),
         onBack = onBack,
+        errorMessage = state.formError?.snackbarText(),
+        submitting = state.isSubmitting,
     ) {
         // ADR-50 — a resolved checkout intent takes priority over the ordinary
         // `notice` banner: it can only be reached right after email
@@ -95,7 +99,6 @@ fun LoginScreen(
                 null -> Unit
             }
         }
-        state.formError?.let { ErrorBanner(it.localizedText()) }
         val locked = state.formError is DomainException.AccountLocked
         if (locked) {
             InfoBanner(stringResource(Res.string.login_locked_reset_hint))
@@ -138,7 +141,7 @@ fun LoginScreen(
             text = stringResource(Res.string.login_submit),
             onClick = viewModel::submit,
             loading = state.isSubmitting,
-            enabled = rememberWaitSecondsLeft(state.formError) == 0,
+            waitSecondsLeft = rememberWaitSecondsLeft(state.formError),
         )
 
         Spacer(Modifier.height(4.dp))
@@ -147,6 +150,7 @@ fun LoginScreen(
             action = stringResource(Res.string.login_no_account_action),
             onClick = onNavigateToRegister,
         )
+        AuthLink(text = stringResource(Res.string.login_validate_account), onClick = onValidateAccount)
         AuthLegalFooter(onOpenDocument = onOpenLegalDocument)
     }
 }

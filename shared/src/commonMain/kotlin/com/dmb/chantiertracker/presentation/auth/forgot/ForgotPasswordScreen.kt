@@ -8,8 +8,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dmb.chantiertracker.presentation.auth.components.AuthPrimaryButton
 import com.dmb.chantiertracker.presentation.auth.components.AuthScreenLayout
 import com.dmb.chantiertracker.presentation.auth.components.EmailField
-import com.dmb.chantiertracker.presentation.auth.components.ErrorBanner
-import com.dmb.chantiertracker.presentation.i18n.localizedText
+import com.dmb.chantiertracker.presentation.i18n.snackbarText
 import com.dmb.chantiertracker.presentation.i18n.rememberWaitSecondsLeft
 import com.dmb.chantiertracker.resources.Res
 import com.dmb.chantiertracker.resources.forgot_submit
@@ -40,8 +39,9 @@ fun ForgotPasswordScreen(
         subtitle = stringResource(Res.string.forgot_subtitle),
         onBack = onBack,
         centerContentVertically = true,
+        errorMessage = state.formError?.snackbarText(),
+        submitting = state.isSubmitting,
     ) {
-        state.formError?.let { ErrorBanner(it.localizedText()) }
 
         EmailField(
             value = state.email,
@@ -55,7 +55,7 @@ fun ForgotPasswordScreen(
             text = stringResource(Res.string.forgot_submit),
             onClick = viewModel::submit,
             loading = state.isSubmitting,
-            enabled = rememberWaitSecondsLeft(state.formError) == 0,
+            waitSecondsLeft = rememberWaitSecondsLeft(state.formError),
         )
     }
 }

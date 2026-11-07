@@ -10,10 +10,9 @@ import com.dmb.chantiertracker.presentation.auth.components.AuthPrimaryButton
 import com.dmb.chantiertracker.presentation.auth.components.AuthScreenLayout
 import com.dmb.chantiertracker.presentation.auth.components.AuthSecondaryButton
 import com.dmb.chantiertracker.presentation.auth.components.CodeField
-import com.dmb.chantiertracker.presentation.auth.components.ErrorBanner
 import com.dmb.chantiertracker.presentation.auth.components.InfoBanner
 import com.dmb.chantiertracker.presentation.auth.components.PasswordField
-import com.dmb.chantiertracker.presentation.i18n.localizedText
+import com.dmb.chantiertracker.presentation.i18n.snackbarText
 import com.dmb.chantiertracker.presentation.i18n.rememberWaitSecondsLeft
 import com.dmb.chantiertracker.resources.Res
 import com.dmb.chantiertracker.resources.verify_cancel
@@ -47,21 +46,23 @@ fun VerifyEmailScreen(
         if (state.verified) onVerified()
     }
 
+    val errorMessage = state.formError?.let { error ->
+        val wrongCode = error == DomainException.InvalidCode
+        when {
+            wrongCode && (state.asksPassword || unverifiedLogin) -> stringResource(Res.string.verify_wrong_code_or_password)
+            wrongCode -> stringResource(Res.string.verify_wrong_code)
+            else -> error.snackbarText()
+        }
+    }
+    val waitSecondsLeft = rememberWaitSecondsLeft(state.formError)
+
     AuthScreenLayout(
         title = stringResource(Res.string.verify_title),
         subtitle = stringResource(Res.string.verify_subtitle, email),
         onBack = onBack,
+        errorMessage = errorMessage,
+        submitting = state.isSubmitting || state.isResending,
     ) {
-        state.formError?.let { error ->
-            val wrongCode = error == DomainException.InvalidCode
-            ErrorBanner(
-                when {
-                    wrongCode && state.asksPassword -> stringResource(Res.string.verify_wrong_code_or_password)
-                    wrongCode -> stringResource(Res.string.verify_wrong_code)
-                    else -> error.localizedText()
-                },
-            )
-        }
         if (state.codeResent) InfoBanner(stringResource(Res.string.verify_code_resent))
         if (!unverifiedLogin) InfoBanner(stringResource(Res.string.verify_existing_account_hint))
 
@@ -85,12 +86,12 @@ fun VerifyEmailScreen(
             text = stringResource(Res.string.verify_submit),
             onClick = { viewModel.submit(email) },
             loading = state.isSubmitting,
-            enabled = rememberWaitSecondsLeft(state.formError) == 0,
+            waitSecondsLeft = waitSecondsLeft,
         )
         AuthSecondaryButton(
             text = stringResource(if (state.isResending) Res.string.verify_resending else Res.string.verify_resend),
             onClick = { viewModel.resendCode(email) },
-            enabled = !state.isSubmitting && !state.isResending && rememberWaitSecondsLeft(state.formError) == 0,
+            enabled = !state.isSubmitting && !state.isResending && waitSecondsLeft == 0,
         )
         AuthLink(text = stringResource(Res.string.verify_cancel), onClick = onCancelVerification)
     }

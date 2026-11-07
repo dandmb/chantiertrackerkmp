@@ -99,6 +99,7 @@ class CreateStageViewModel(
                     budgetError = budgetError,
                     startDateError = startDateError,
                     endDateError = endDateError,
+                    formError = null,
                 )
             }
             return

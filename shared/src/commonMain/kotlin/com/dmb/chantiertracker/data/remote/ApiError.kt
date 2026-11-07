@@ -17,6 +17,9 @@ private const val PROJECT_EXPORT_EMPTY_CODE = "PROJECT_EXPORT_EMPTY"
 private const val NEW_PASSWORD_SAME_AS_CURRENT_CODE = "NEW_PASSWORD_SAME_AS_CURRENT"
 private const val IDEMPOTENCY_KEY_IN_PROGRESS_CODE = "IDEMPOTENCY_KEY_IN_PROGRESS"
 private const val INVITATION_ALREADY_PENDING_CODE = "INVITATION_ALREADY_PENDING"
+private const val CANNOT_INVITE_SELF_CODE = "CANNOT_INVITE_SELF"
+private const val ALREADY_PROJECT_MEMBER_CODE = "ALREADY_PROJECT_MEMBER"
+private const val ACCOUNT_NOT_VERIFIED_CODE = "ACCOUNT_NOT_VERIFIED"
 private const val MEDIA_PROCESSING_BUSY_CODE = "MEDIA_PROCESSING_BUSY"
 private const val REQUEST_BODY_TOO_LARGE_CODE = "REQUEST_BODY_TOO_LARGE"
 private const val PROJECT_OWNER_REQUIRED_CODE = "PROJECT_OWNER_REQUIRED"
@@ -74,6 +77,9 @@ private fun ResponseException.toDomainException(problem: ProblemDetailDto?, onRe
     if (problem?.code == NEW_PASSWORD_SAME_AS_CURRENT_CODE) return DomainException.NewPasswordSameAsCurrent
     if (problem?.code == IDEMPOTENCY_KEY_IN_PROGRESS_CODE) return DomainException.CreationInProgress(retryAfterSeconds = waitOf(problem))
     if (problem?.code == INVITATION_ALREADY_PENDING_CODE) return DomainException.InvitationAlreadyPending
+    if (problem?.code == CANNOT_INVITE_SELF_CODE) return DomainException.CannotInviteSelf
+    if (problem?.code == ALREADY_PROJECT_MEMBER_CODE) return DomainException.AlreadyProjectMember
+    if (problem?.code == ACCOUNT_NOT_VERIFIED_CODE) return DomainException.AccountNotVerified
     if (problem?.code == MEDIA_PROCESSING_BUSY_CODE) return DomainException.RateLimited(retryAfterSeconds = waitOf(problem))
     if (problem?.code == REQUEST_BODY_TOO_LARGE_CODE) return DomainException.ContentTooLarge
     if (problem?.code == PROJECT_OWNER_REQUIRED_CODE) return DomainException.OwnerRequired

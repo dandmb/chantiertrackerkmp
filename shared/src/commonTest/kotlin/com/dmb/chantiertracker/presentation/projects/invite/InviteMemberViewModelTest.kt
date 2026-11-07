@@ -10,6 +10,13 @@ import com.dmb.chantiertracker.domain.model.ProjectMember
 import com.dmb.chantiertracker.domain.model.ProjectRole
 import com.dmb.chantiertracker.domain.model.ProjectStatus
 import com.dmb.chantiertracker.support.FakeInvitationRepository
+import com.dmb.chantiertracker.support.FakeAuthRepository
+import com.dmb.chantiertracker.domain.model.AuthState
+import com.dmb.chantiertracker.domain.model.GlobalRole
+import com.dmb.chantiertracker.domain.model.User
+import com.dmb.chantiertracker.resources.Res
+import com.dmb.chantiertracker.resources.invite_member_self
+import com.dmb.chantiertracker.resources.invite_member_already_member
 import com.dmb.chantiertracker.support.FakeProjectRepository
 import com.dmb.chantiertracker.support.founderOnFreeEntitlements
 import com.dmb.chantiertracker.support.ownerEntitlements
@@ -49,7 +56,12 @@ class InviteMemberViewModelTest {
     private fun vm(
         projects: FakeProjectRepository,
         invitations: FakeInvitationRepository = FakeInvitationRepository(),
-    ) = InviteMemberViewModel(projects, invitations)
+        auth: FakeAuthRepository = signedInAs("jean@chantier.dev"),
+    ) = InviteMemberViewModel(projects, invitations, auth)
+
+    private fun signedInAs(email: String) = FakeAuthRepository().apply {
+        emitState(AuthState.Authenticated(User(1, email, "Jean", true, GlobalRole.USER)))
+    }
 
     @Test
     fun opening_the_screen_pulls_the_project_for_a_fresh_owner_plan() = runTest {
@@ -206,7 +218,7 @@ class InviteMemberViewModelTest {
     @Test
     fun an_invitation_already_pending_can_be_replaced_from_the_form() = runTest {
         val invitations = FakeInvitationRepository().apply { inviteError = DomainException.InvitationAlreadyPending }
-        val vm = InviteMemberViewModel(FakeProjectRepository(detail = detail(ownerPlan = null)), invitations)
+        val vm = InviteMemberViewModel(FakeProjectRepository(detail = detail(ownerPlan = null)), invitations, FakeAuthRepository())
         vm.load("p1")
         vm.onEmailChange("sam@x.dev")
         vm.submit()
@@ -223,7 +235,7 @@ class InviteMemberViewModelTest {
     @Test
     fun replacing_is_refused_unless_the_server_said_an_invitation_was_pending() = runTest {
         val invitations = FakeInvitationRepository()
-        val vm = InviteMemberViewModel(FakeProjectRepository(detail = detail(ownerPlan = null)), invitations)
+        val vm = InviteMemberViewModel(FakeProjectRepository(detail = detail(ownerPlan = null)), invitations, FakeAuthRepository())
         vm.load("p1")
         vm.onEmailChange("sam@x.dev")
 
@@ -231,5 +243,61 @@ class InviteMemberViewModelTest {
         advanceUntilIdle()
 
         assertTrue(invitations.replaced.isEmpty())
+    }
+
+    @Test
+    fun the_signed_in_address_is_refused_at_typing_without_a_network_call() = runTest {
+        val invitations = FakeInvitationRepository()
+        val model = vm(FakeProjectRepository(detail = detail(Plan.SEMI_FLEX)), invitations)
+        model.load("p1")
+        advanceUntilIdle()
+
+        model.onEmailChange(" Jean@Chantier.dev ")
+        assertEquals(Res.string.invite_member_self, model.state.value.emailError, "refused as soon as it is typed")
+        assertFalse(model.state.value.canSubmit)
+
+        model.submit()
+        advanceUntilIdle()
+        assertTrue(invitations.invited.isEmpty())
+    }
+
+    @Test
+    fun the_address_of_a_member_already_in_the_project_is_refused_at_typing() = runTest {
+        val invitations = FakeInvitationRepository()
+        val projects = FakeProjectRepository(detail = detail(Plan.SEMI_FLEX), members = listOf(supervisor(9)))
+        val model = vm(projects, invitations)
+        model.load("p1")
+        advanceUntilIdle()
+
+        model.onEmailChange("S9@X.dev")
+        assertEquals(Res.string.invite_member_already_member, model.state.value.emailError)
+
+        model.submit()
+        advanceUntilIdle()
+        assertTrue(invitations.invited.isEmpty())
+
+        model.onEmailChange("sam@x.dev")
+        assertEquals(null, model.state.value.emailError)
+        assertTrue(model.state.value.canSubmit)
+    }
+
+    @Test
+    fun the_two_new_server_refusals_land_under_the_address_field() = runTest {
+        listOf(
+            DomainException.CannotInviteSelf to Res.string.invite_member_self,
+            DomainException.AlreadyProjectMember to Res.string.invite_member_already_member,
+        ).forEach { (refusal, message) ->
+            val invitations = FakeInvitationRepository().apply { inviteError = refusal }
+            val model = vm(FakeProjectRepository(detail = detail(Plan.SEMI_FLEX)), invitations)
+            model.load("p1")
+            advanceUntilIdle()
+
+            model.onEmailChange("sam@x.dev")
+            model.submit()
+            advanceUntilIdle()
+
+            assertEquals(message, model.state.value.emailError, "$refusal")
+            assertEquals(null, model.state.value.formError, "$refusal is not a general error")
+        }
     }
 }

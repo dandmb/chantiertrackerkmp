@@ -25,8 +25,8 @@ import com.dmb.chantiertracker.presentation.AppOutlinedButton
 import com.dmb.chantiertracker.presentation.AppOutlinedTextField
 import com.dmb.chantiertracker.presentation.ResponsiveContent
 import com.dmb.chantiertracker.presentation.auth.components.AuthPrimaryButton
-import com.dmb.chantiertracker.presentation.auth.components.ErrorBanner
-import com.dmb.chantiertracker.presentation.i18n.localizedText
+import com.dmb.chantiertracker.presentation.auth.components.FormWithErrorSnackbar
+import com.dmb.chantiertracker.presentation.i18n.snackbarText
 import com.dmb.chantiertracker.presentation.projects.CurrencyField
 import com.dmb.chantiertracker.presentation.projects.TimezoneField
 import com.dmb.chantiertracker.resources.Res
@@ -53,7 +53,8 @@ fun EditProjectScreen(
     LaunchedEffect(projectLocalId) { viewModel.load(projectLocalId) }
     LaunchedEffect(state.saved) { if (state.saved) onSaved() }
 
-    ResponsiveContent(modifier, maxContentWidth = 480.dp) {
+    FormWithErrorSnackbar(state.formError?.snackbarText(), state.isSubmitting, modifier) {
+    ResponsiveContent(Modifier, maxContentWidth = 480.dp) {
         Box(Modifier.fillMaxSize()) {
             when {
                 state.isMissing -> Column(
@@ -74,6 +75,7 @@ fun EditProjectScreen(
             }
         }
     }
+    }
 }
 
 @Composable
@@ -86,7 +88,6 @@ private fun EditForm(state: EditProjectUiState, viewModel: EditProjectViewModel)
             .padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        state.formError?.let { ErrorBanner(it.localizedText()) }
 
         AppOutlinedTextField(
             value = state.name,

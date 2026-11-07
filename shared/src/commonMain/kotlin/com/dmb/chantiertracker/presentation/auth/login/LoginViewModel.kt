@@ -87,7 +87,7 @@ class LoginViewModel(
         val emailError = validateEmail(current.email)
         val passwordError = validateRequiredPassword(current.password)
         if (emailError != null || passwordError != null) {
-            _state.update { it.copy(emailError = emailError, passwordError = passwordError) }
+            _state.update { it.copy(emailError = emailError, passwordError = passwordError, formError = null) }
             return
         }
         val checkoutPlan = current.checkoutPlan

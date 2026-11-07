@@ -82,4 +82,15 @@ class RefusalCodeMappingTest {
 
         assertEquals(emptyList(), reported)
     }
+
+    @Test
+    fun inviting_oneself_or_a_member_has_its_own_refusal_whatever_the_wording() = runTest {
+        assertEquals(DomainException.CannotInviteSelf, refusal(HttpStatusCode.BadRequest, "CANNOT_INVITE_SELF", detail = "You cannot invite yourself.").exception)
+        assertEquals(DomainException.AlreadyProjectMember, refusal(HttpStatusCode.Conflict, "ALREADY_PROJECT_MEMBER", detail = "Already a member.").exception)
+    }
+
+    @Test
+    fun an_account_not_verified_is_read_from_its_code_whatever_the_wording() = runTest {
+        assertEquals(DomainException.AccountNotVerified, refusal(HttpStatusCode.Forbidden, "ACCOUNT_NOT_VERIFIED", detail = "Konto nicht bestätigt.").exception)
+    }
 }

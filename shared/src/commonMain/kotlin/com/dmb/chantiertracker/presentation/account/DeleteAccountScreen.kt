@@ -38,6 +38,8 @@ import com.dmb.chantiertracker.domain.model.ProjectRole
 import com.dmb.chantiertracker.presentation.AppOutlinedButton
 import com.dmb.chantiertracker.presentation.SectionCard
 import com.dmb.chantiertracker.presentation.auth.components.ErrorBanner
+import com.dmb.chantiertracker.presentation.auth.components.FormErrorSnackbarHost
+import com.dmb.chantiertracker.presentation.i18n.snackbarText
 import com.dmb.chantiertracker.presentation.billing.LocalInAppPaymentsAllowed
 import com.dmb.chantiertracker.presentation.auth.components.PasswordField
 import com.dmb.chantiertracker.presentation.i18n.localizedText
@@ -109,6 +111,7 @@ fun DeleteAccountScreen(
                 }
             }
         }
+        FormErrorSnackbarHost(state.formError?.snackbarText(), state.submitting, Modifier.align(Alignment.BottomCenter))
     }
 }
 
@@ -201,7 +204,6 @@ private fun PreviewSections(preview: AccountDeletionPreview) {
 @Composable
 private fun Confirmation(state: DeleteAccountUiState, viewModel: DeleteAccountViewModel, onCancel: () -> Unit) {
     SectionCard(title = stringResource(Res.string.delete_account_confirm_title)) {
-        state.formError?.let { ErrorBanner(it.localizedText()) }
         Text(stringResource(Res.string.delete_account_password_prompt), style = MaterialTheme.typography.bodyMedium)
         PasswordField(
             value = state.password,

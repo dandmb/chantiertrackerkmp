@@ -15,6 +15,7 @@ sealed interface LegalLink {
     data class Web(override val target: String) : LegalLink
     data class Mail(override val target: String) : LegalLink
     data class Document(val document: LegalDocument, override val target: String) : LegalLink
+    data class ForgotPassword(override val target: String) : LegalLink
 }
 
 data class LegalSpan(
@@ -229,6 +230,7 @@ private typealias Heading = LegalBlock.Heading
 private fun legalLinkOrNull(destination: String): LegalLink? {
     val target = destination.trim()
     val lower = target.lowercase()
+    if (LegalDocument.isForgotPasswordLink(target)) return LegalLink.ForgotPassword(target)
     LegalDocument.fromLink(target)?.let { return LegalLink.Document(it, target) }
     return when {
         lower.startsWith("https://") -> LegalLink.Web(target)

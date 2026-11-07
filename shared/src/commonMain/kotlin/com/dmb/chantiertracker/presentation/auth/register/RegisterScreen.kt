@@ -15,10 +15,9 @@ import com.dmb.chantiertracker.presentation.auth.components.AuthPrimaryButton
 import com.dmb.chantiertracker.presentation.auth.components.RegisterLegalConsent
 import com.dmb.chantiertracker.presentation.auth.components.AuthScreenLayout
 import com.dmb.chantiertracker.presentation.auth.components.EmailField
-import com.dmb.chantiertracker.presentation.auth.components.ErrorBanner
 import com.dmb.chantiertracker.presentation.auth.components.NameField
 import com.dmb.chantiertracker.presentation.auth.components.PasswordField
-import com.dmb.chantiertracker.presentation.i18n.localizedText
+import com.dmb.chantiertracker.presentation.i18n.snackbarText
 import com.dmb.chantiertracker.presentation.i18n.rememberWaitSecondsLeft
 import com.dmb.chantiertracker.presentation.legal.LegalDocument
 import com.dmb.chantiertracker.resources.Res
@@ -48,8 +47,9 @@ fun RegisterScreen(
         title = stringResource(Res.string.register_title),
         subtitle = stringResource(Res.string.register_subtitle),
         onBack = onBack,
+        errorMessage = state.formError?.snackbarText(),
+        submitting = state.isSubmitting,
     ) {
-        state.formError?.let { ErrorBanner(it.localizedText()) }
 
         NameField(
             value = state.name,
@@ -75,7 +75,7 @@ fun RegisterScreen(
             text = stringResource(Res.string.register_submit),
             onClick = viewModel::submit,
             loading = state.isSubmitting,
-            enabled = rememberWaitSecondsLeft(state.formError) == 0,
+            waitSecondsLeft = rememberWaitSecondsLeft(state.formError),
         )
         RegisterLegalConsent(onOpenDocument = onOpenLegalDocument)
 

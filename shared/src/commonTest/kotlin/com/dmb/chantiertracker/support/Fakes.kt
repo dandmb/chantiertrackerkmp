@@ -71,8 +71,11 @@ class FakeAuthRepository : AuthRepository {
     override fun pendingVerificationEmail() = heldVerificationEmail
     override fun forgetVerificationPassword() { heldVerificationEmail = null }
     override suspend fun resendCode(email: String) = record("resendCode:$email")
+    var loginError: Throwable? = null
+
     override suspend fun login(email: String, password: String) {
         record("login:$email:$password")
+        loginError?.let { throw it }
         firstLoginCompleted = true
     }
     override suspend fun logout() = record("logout")
