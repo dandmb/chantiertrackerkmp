@@ -439,6 +439,8 @@
     <string name="error_email_already_used">Cette adresse email est déjà utilisée.</string>
     <string name="error_invitation_already_pending">Une invitation est déjà en attente pour cette adresse. Annule-la pour en envoyer une nouvelle.</string>
     <string name="error_invitation_gone">Cette invitation n'est plus disponible.</string>
+    <string name="error_invitation_other_account">Cette invitation est destinée à une autre adresse. Connecte-toi avec le bon compte.</string>
+    <string name="invitation_join_role_admin">Administrateur</string>
     <string name="error_collaborator_limit">Ce projet a atteint la limite de collaborateurs de sa formule, administrateurs compris.</string>
     <string name="error_owner_cannot_leave">Tu es propriétaire de ce projet : tu ne peux pas t'en retirer. Tu peux le supprimer.</string>
     <string name="error_owner_required">Seul le propriétaire du projet peut faire cette action.</string>

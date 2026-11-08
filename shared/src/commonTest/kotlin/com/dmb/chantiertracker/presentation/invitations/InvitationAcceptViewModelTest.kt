@@ -1,6 +1,10 @@
 package com.dmb.chantiertracker.presentation.invitations
 
+import com.dmb.chantiertracker.domain.model.AuthState
 import com.dmb.chantiertracker.domain.model.DomainException
+import com.dmb.chantiertracker.domain.model.GlobalRole
+import com.dmb.chantiertracker.domain.model.User
+import com.dmb.chantiertracker.support.FakeAuthRepository
 import com.dmb.chantiertracker.domain.model.IncomingInvitation
 import com.dmb.chantiertracker.domain.model.InvitationPreview
 import com.dmb.chantiertracker.domain.model.InvitationStatus
@@ -25,20 +29,27 @@ class InvitationAcceptViewModelTest {
     @BeforeTest fun setUp() { installTestMainDispatcher() }
     @AfterTest fun tearDown() = resetTestMainDispatcher()
 
-    private fun pending() = FakeInvitationRepository().apply {
-        preview = InvitationPreview(projectId = 7L, projectName = "Villa Vidal", status = InvitationStatus.PENDING)
+    private val links = InvitationDeepLinkDispatcher()
+    private val auth = FakeAuthRepository().apply {
+        emitState(AuthState.Authenticated(User(1, "u@x.dev", "U", true, GlobalRole.USER)))
     }
 
-    private val mine = IncomingInvitation(
-        id = 31L, projectId = 7L, projectName = "Villa Vidal", role = ProjectRole.SUPERVISOR,
-        invitedByName = "Paul", createdAt = null, expiresAt = null,
-    )
+    private fun vm(invitations: FakeInvitationRepository, projects: FakeProjectRepository = FakeProjectRepository()) =
+        InvitationAcceptViewModel(invitations, projects, links, auth)
+
+    private fun pending(invitedByName: String? = "Paul", role: ProjectRole? = ProjectRole.SUPERVISOR) = FakeInvitationRepository().apply {
+        preview = InvitationPreview(7L, "Villa Vidal", InvitationStatus.PENDING, role, invitedByName)
+    }
+
+    private fun opened(token: String = "tok") = links.apply { dispatch(token); consume() }
 
     @Test
-    fun opening_the_link_shows_the_invitation_without_accepting_it() = runTest {
-        val invitations = pending().apply { incoming = listOf(mine) }
+    fun opening_the_link_shows_the_project_the_inviter_and_the_role_from_the_link_without_accepting() = runTest {
+        val invitations = pending().apply {
+            incoming = listOf(IncomingInvitation(31L, 7L, "Autre", ProjectRole.ADMIN, "Quelqu un", null, null))
+        }
         val projects = FakeProjectRepository()
-        val vm = InvitationAcceptViewModel(invitations, projects)
+        val vm = vm(invitations, projects)
 
         vm.load("tok")
         advanceUntilIdle()
@@ -52,33 +63,97 @@ class InvitationAcceptViewModelTest {
     }
 
     @Test
-    fun the_inviter_and_role_stay_unknown_when_the_invitation_is_not_in_my_list() = runTest {
-        val vm = InvitationAcceptViewModel(pending(), FakeProjectRepository())
+    fun a_deleted_inviter_leaves_no_inviter() = runTest {
+        val vm = vm(pending(invitedByName = null))
 
         vm.load("tok")
         advanceUntilIdle()
 
-        val ready = assertIs<InvitationAcceptStatus.Ready>(vm.status.value)
-        assertNull(ready.invitedByName)
-        assertNull(ready.role)
+        assertNull(assertIs<InvitationAcceptStatus.Ready>(vm.status.value).invitedByName)
     }
 
     @Test
-    fun my_list_failing_still_shows_the_invitation() = runTest {
-        val invitations = pending().apply { listIncomingError = DomainException.Network }
-        val vm = InvitationAcceptViewModel(invitations, FakeProjectRepository())
-
+    fun joining_with_another_account_says_so_and_keeps_the_link_for_the_right_account() = runTest {
+        val invitations = pending().apply { acceptError = DomainException.InvitationForAnotherAccount }
+        opened()
+        val vm = vm(invitations)
         vm.load("tok")
         advanceUntilIdle()
 
-        assertIs<InvitationAcceptStatus.Ready>(vm.status.value)
+        vm.join()
+        advanceUntilIdle()
+
+        assertEquals(InvitationAcceptStatus.WrongAccount, vm.status.value)
+        auth.emitState(AuthState.Unauthenticated)
+        links.reopenHeld()
+        assertEquals("tok", links.pending.value)
+    }
+
+    @Test
+    fun declining_with_another_account_says_so_too() = runTest {
+        val invitations = pending().apply { declineError = DomainException.InvitationForAnotherAccount }
+        val vm = vm(invitations)
+        vm.load("tok")
+        advanceUntilIdle()
+
+        vm.decline()
+        advanceUntilIdle()
+
+        assertEquals(InvitationAcceptStatus.WrongAccount, vm.status.value)
+    }
+
+    @Test
+    fun a_settled_invitation_is_no_longer_held() = runTest {
+        opened()
+        val vm = vm(pending())
+        vm.load("tok")
+        advanceUntilIdle()
+
+        vm.join()
+        advanceUntilIdle()
+        links.reopenHeld()
+
+        assertNull(links.pending.value)
+    }
+
+    @Test
+    fun leaving_the_screen_while_signed_in_lets_the_link_go() = runTest {
+        opened()
+        val store = androidx.lifecycle.ViewModelStore()
+        val vm = vm(pending())
+        store.put("invitation", vm)
+        vm.load("tok")
+        advanceUntilIdle()
+
+        store.clear()
+        links.reopenHeld()
+
+        assertNull(links.pending.value)
+    }
+
+    @Test
+    fun a_session_ended_on_the_screen_keeps_the_link_for_the_next_sign_in() = runTest {
+        opened()
+        val store = androidx.lifecycle.ViewModelStore()
+        val vm = vm(pending().apply { acceptError = DomainException.InvalidCredentials })
+        store.put("invitation", vm)
+        vm.load("tok")
+        advanceUntilIdle()
+
+        vm.join()
+        advanceUntilIdle()
+        auth.emitState(AuthState.Unauthenticated)
+        store.clear()
+        links.reopenHeld()
+
+        assertEquals("tok", links.pending.value)
     }
 
     @Test
     fun joining_accepts_and_resolves_the_local_project_id() = runTest {
         val invitations = pending()
         val projects = FakeProjectRepository().apply { localIdByServerId = mapOf(7L to "local-1") }
-        val vm = InvitationAcceptViewModel(invitations, projects)
+        val vm = vm(invitations, projects)
         vm.load("tok")
         advanceUntilIdle()
 
@@ -94,7 +169,7 @@ class InvitationAcceptViewModelTest {
 
     @Test
     fun joined_but_not_yet_synced_locally_resolves_to_a_null_project_id() = runTest {
-        val vm = InvitationAcceptViewModel(pending(), FakeProjectRepository())
+        val vm = vm(pending())
         vm.load("tok")
         advanceUntilIdle()
 
@@ -107,7 +182,7 @@ class InvitationAcceptViewModelTest {
     @Test
     fun declining_refuses_by_the_link_and_never_accepts() = runTest {
         val invitations = pending()
-        val vm = InvitationAcceptViewModel(invitations, FakeProjectRepository())
+        val vm = vm(invitations)
         vm.load("tok")
         advanceUntilIdle()
 
@@ -122,7 +197,7 @@ class InvitationAcceptViewModelTest {
     @Test
     fun declining_a_link_gone_meanwhile_is_flagged_invalid() = runTest {
         val invitations = pending().apply { declineError = DomainException.NotFound }
-        val vm = InvitationAcceptViewModel(invitations, FakeProjectRepository())
+        val vm = vm(invitations)
         vm.load("tok")
         advanceUntilIdle()
 
@@ -135,10 +210,10 @@ class InvitationAcceptViewModelTest {
     @Test
     fun a_non_pending_invitation_is_flagged_invalid() = runTest {
         val invitations = FakeInvitationRepository().apply {
-            preview = InvitationPreview(projectId = 7L, projectName = "Villa Vidal", status = InvitationStatus.ACCEPTED)
+            preview = InvitationPreview(7L, "Villa Vidal", InvitationStatus.ACCEPTED, ProjectRole.SUPERVISOR, null)
         }
         val projects = FakeProjectRepository()
-        val vm = InvitationAcceptViewModel(invitations, projects)
+        val vm = vm(invitations, projects)
 
         vm.load("tok")
         advanceUntilIdle()
@@ -151,7 +226,7 @@ class InvitationAcceptViewModelTest {
     @Test
     fun an_unknown_token_is_flagged_invalid_not_a_generic_error() = runTest {
         val invitations = FakeInvitationRepository().apply { previewError = DomainException.NotFound }
-        val vm = InvitationAcceptViewModel(invitations, FakeProjectRepository())
+        val vm = vm(invitations)
 
         vm.load("tok")
         advanceUntilIdle()
@@ -162,7 +237,7 @@ class InvitationAcceptViewModelTest {
     @Test
     fun a_network_failure_fetching_the_preview_surfaces_as_a_generic_error() = runTest {
         val invitations = FakeInvitationRepository().apply { previewError = DomainException.Network }
-        val vm = InvitationAcceptViewModel(invitations, FakeProjectRepository())
+        val vm = vm(invitations)
 
         vm.load("tok")
         advanceUntilIdle()
@@ -174,7 +249,7 @@ class InvitationAcceptViewModelTest {
     fun a_refused_join_surfaces_the_error_without_refreshing_projects() = runTest {
         val invitations = pending().apply { acceptError = DomainException.Forbidden }
         val projects = FakeProjectRepository()
-        val vm = InvitationAcceptViewModel(invitations, projects)
+        val vm = vm(invitations, projects)
         vm.load("tok")
         advanceUntilIdle()
 
@@ -188,7 +263,7 @@ class InvitationAcceptViewModelTest {
     @Test
     fun a_link_refused_at_acceptance_because_its_sender_lost_their_rights_is_invalid() = runTest {
         val invitations = pending().apply { acceptError = DomainException.NotFound }
-        val vm = InvitationAcceptViewModel(invitations, FakeProjectRepository())
+        val vm = vm(invitations)
         vm.load("tok")
         advanceUntilIdle()
 
@@ -201,13 +276,13 @@ class InvitationAcceptViewModelTest {
     @Test
     fun retry_shows_the_invitation_again_without_accepting() = runTest {
         val invitations = FakeInvitationRepository().apply { previewError = DomainException.Network }
-        val vm = InvitationAcceptViewModel(invitations, FakeProjectRepository())
+        val vm = vm(invitations)
         vm.load("tok")
         advanceUntilIdle()
         assertEquals(InvitationAcceptStatus.Failed(DomainException.Network), vm.status.value)
 
         invitations.previewError = null
-        invitations.preview = InvitationPreview(projectId = 7L, projectName = "Villa Vidal", status = InvitationStatus.PENDING)
+        invitations.preview = InvitationPreview(7L, "Villa Vidal", InvitationStatus.PENDING, ProjectRole.SUPERVISOR, null)
         vm.retry()
         advanceUntilIdle()
 

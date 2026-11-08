@@ -31,6 +31,7 @@ private const val PROJECT_OWNER_REQUIRED_CODE = "PROJECT_OWNER_REQUIRED"
 private const val PROJECT_OWNER_CANNOT_LEAVE_CODE = "PROJECT_OWNER_CANNOT_LEAVE"
 private const val PLAN_LIMIT_EXCEEDED_CODE = "PLAN_LIMIT_EXCEEDED"
 private const val LOCKED_CODE = "LOCKED"
+private const val INVITATION_EMAIL_MISMATCH_CODE = "INVITATION_EMAIL_MISMATCH"
 private const val INVALID_QUERY_STRING_CODE = "INVALID_QUERY_STRING"
 private val PROBLEM_JSON = ContentType("application", "problem+json")
 
@@ -116,6 +117,7 @@ private fun ResponseException.toDomainException(problem: ProblemDetailDto?, onRe
     if (problem?.code == PROJECT_OWNER_REQUIRED_CODE) return DomainException.OwnerRequired
     if (problem?.code == PROJECT_OWNER_CANNOT_LEAVE_CODE) return DomainException.OwnerCannotLeave
     if (problem?.code == PLAN_LIMIT_EXCEEDED_CODE) return DomainException.PlanLimitReached
+    if (problem?.code == INVITATION_EMAIL_MISMATCH_CODE) return DomainException.InvitationForAnotherAccount
     if (problem?.code == LOCKED_CODE) return DomainException.AccountLocked(retryAfterSeconds = waitOf(problem))
     if (problem?.code == INVALID_QUERY_STRING_CODE) {
         apiLog("api: $INVALID_QUERY_STRING_CODE on ${response.call.request.url.encodedPath}")

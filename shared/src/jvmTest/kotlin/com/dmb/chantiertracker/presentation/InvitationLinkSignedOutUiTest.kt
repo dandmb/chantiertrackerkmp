@@ -138,4 +138,14 @@ class InvitationLinkSignedOutUiTest {
 
         awaitText("Connecte-toi pour rejoindre le projet.")
     }
+
+    @Test
+    fun an_invitation_left_open_when_the_session_ended_comes_back_on_the_sign_in() = runPhoneTest {
+        invitations.dispatch("jeton-42")
+        invitations.consume()
+        openRootOnLogin()
+
+        awaitText("Connecte-toi pour rejoindre le projet.")
+        assertEquals("jeton-42", invitations.pending.value)
+    }
 }

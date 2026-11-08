@@ -43,6 +43,8 @@ import androidx.compose.runtime.setValue
 import com.dmb.chantiertracker.domain.model.ProjectRole
 import com.dmb.chantiertracker.presentation.ConfirmActionDialog
 import com.dmb.chantiertracker.presentation.auth.components.AuthSecondaryButton
+import com.dmb.chantiertracker.resources.change_password_logout
+import com.dmb.chantiertracker.resources.error_invitation_other_account
 import com.dmb.chantiertracker.resources.incoming_invitation_decline_confirm_body
 import com.dmb.chantiertracker.resources.incoming_invitation_decline_confirm_title
 import com.dmb.chantiertracker.resources.invitation_declined_body
@@ -52,7 +54,7 @@ import com.dmb.chantiertracker.resources.invitation_join_decline
 import com.dmb.chantiertracker.resources.invitation_join_intro
 import com.dmb.chantiertracker.resources.invitation_join_invited_by
 import com.dmb.chantiertracker.resources.invitation_join_role
-import com.dmb.chantiertracker.resources.role_admin
+import com.dmb.chantiertracker.resources.invitation_join_role_admin
 import com.dmb.chantiertracker.resources.role_supervisor
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
@@ -61,6 +63,7 @@ import org.koin.compose.viewmodel.koinViewModel
 fun InvitationAcceptScreen(
     token: String,
     onAccepted: (projectLocalId: String?) -> Unit,
+    onSignOut: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: InvitationAcceptViewModel = koinViewModel(),
 ) {
@@ -94,6 +97,23 @@ fun InvitationAcceptScreen(
                     onJoin = viewModel::join,
                     onDecline = { confirmDecline = true },
                 )
+                InvitationAcceptStatus.WrongAccount -> ResultColumn {
+                    CapitalTitle(
+                        text = stringResource(Res.string.invitation_accept_error_title),
+                        style = MaterialTheme.typography.titleLarge,
+                        textAlign = TextAlign.Center,
+                    )
+                    Text(
+                        text = stringResource(Res.string.error_invitation_other_account),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                    )
+                    AuthPrimaryButton(
+                        text = stringResource(Res.string.change_password_logout),
+                        onClick = onSignOut,
+                    )
+                }
                 InvitationAcceptStatus.Declined -> ResultColumn {
                     CapitalTitle(
                         text = stringResource(Res.string.invitation_declined_title),
@@ -225,7 +245,7 @@ private fun BoxScope.ReadyColumn(
 
 @Composable
 private fun ProjectRole.roleLabel(): String? = when (this) {
-    ProjectRole.ADMIN -> stringResource(Res.string.role_admin)
+    ProjectRole.ADMIN -> stringResource(Res.string.invitation_join_role_admin)
     ProjectRole.SUPERVISOR -> stringResource(Res.string.role_supervisor)
     ProjectRole.UNKNOWN -> null
 }

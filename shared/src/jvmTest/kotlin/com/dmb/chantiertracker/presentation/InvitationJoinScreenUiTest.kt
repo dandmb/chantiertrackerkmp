@@ -7,7 +7,6 @@ import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.runDesktopComposeUiTest
-import com.dmb.chantiertracker.domain.model.IncomingInvitation
 import com.dmb.chantiertracker.domain.model.InvitationPreview
 import com.dmb.chantiertracker.domain.model.InvitationStatus
 import com.dmb.chantiertracker.domain.model.ProjectRole
@@ -29,11 +28,14 @@ import kotlin.test.assertEquals
 class InvitationJoinScreenUiTest {
 
     private val invitations = FakeInvitationRepository().apply {
-        preview = InvitationPreview(projectId = 7L, projectName = "Villa Vidal", status = InvitationStatus.PENDING)
-        incoming = listOf(
-            IncomingInvitation(31L, 7L, "Villa Vidal", ProjectRole.SUPERVISOR, "Paul Martin", null, null),
-        )
+        preview = InvitationPreview(7L, "Villa Vidal", InvitationStatus.PENDING, ProjectRole.SUPERVISOR, "Paul Martin")
     }
+    private val auth = com.dmb.chantiertracker.support.FakeAuthRepository().apply {
+        emitState(com.dmb.chantiertracker.domain.model.AuthState.Authenticated(
+            com.dmb.chantiertracker.domain.model.User(1, "moi@chantier.dev", "Moi", true, com.dmb.chantiertracker.domain.model.GlobalRole.USER),
+        ))
+    }
+    private var signOuts = 0
 
     @BeforeTest fun setUp() { installTestMainDispatcher() }
     @AfterTest fun tearDown() {
@@ -48,7 +50,11 @@ class InvitationJoinScreenUiTest {
                 InvitationAcceptScreen(
                     token = "tok",
                     onAccepted = {},
-                    viewModel = InvitationAcceptViewModel(invitations, FakeProjectRepository()),
+                    onSignOut = { signOuts++ },
+                    viewModel = InvitationAcceptViewModel(
+                        invitations, FakeProjectRepository(),
+                        com.dmb.chantiertracker.presentation.invitations.InvitationDeepLinkDispatcher(), auth,
+                    ),
                 )
             }
         }
@@ -96,5 +102,29 @@ class InvitationJoinScreenUiTest {
         awaitText("Invitation refusée")
         assertEquals(listOf("tok"), invitations.declinedTokens)
         assertEquals(emptyList(), invitations.accepted)
+    }
+
+    @Test
+    fun without_an_inviter_the_inviter_line_is_left_out() = runPhoneTest {
+        invitations.preview = InvitationPreview(7L, "Villa Vidal", InvitationStatus.PENDING, ProjectRole.ADMIN, null)
+        mount()
+
+        awaitText("Villa Vidal")
+        onNodeWithText("Rôle : Administrateur").assertExists()
+        assertEquals(0, onAllNodes(hasText("Invitation de", substring = true)).fetchSemanticsNodes().size)
+    }
+
+    @Test
+    fun another_account_is_told_to_sign_in_with_the_right_one_and_can_sign_out() = runPhoneTest {
+        invitations.acceptError = com.dmb.chantiertracker.domain.model.DomainException.InvitationForAnotherAccount
+        mount()
+        awaitText("Villa Vidal")
+
+        onNode(hasText("Rejoindre le projet") and hasClickAction()).performClick()
+
+        awaitText("Cette invitation est destinée à une autre adresse. Connecte-toi avec le bon compte.")
+        assertEquals(0, onAllNodes(hasText("@", substring = true)).fetchSemanticsNodes().size, "no address shown")
+        onNode(hasText("Se déconnecter") and hasClickAction()).performClick()
+        assertEquals(1, signOuts)
     }
 }

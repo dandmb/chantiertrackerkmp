@@ -661,6 +661,7 @@ fun MainScreen(
             composable<InvitationAcceptRoute> { entry ->
                 InvitationAcceptScreen(
                     token = entry.toRoute<InvitationAcceptRoute>().token,
+                    onSignOut = viewModel::logout,
                     onAccepted = { projectLocalId ->
                         val destination = if (projectLocalId != null) ProjectDetailRoute(projectLocalId) else ProjectsRoute
                         navController.navigate(destination) {

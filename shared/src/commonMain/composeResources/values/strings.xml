@@ -439,6 +439,8 @@
     <string name="error_email_already_used">This email address is already in use.</string>
     <string name="error_invitation_already_pending">An invitation is already pending for this address. Cancel it to send a new one.</string>
     <string name="error_invitation_gone">This invitation is no longer available.</string>
+    <string name="error_invitation_other_account">This invitation is meant for another address. Sign in with the right account.</string>
+    <string name="invitation_join_role_admin">Administrator</string>
     <string name="error_collaborator_limit">This project has reached its plan's collaborator limit, admins included.</string>
     <string name="error_owner_cannot_leave">You own this project, so you can't remove yourself from it. You can delete it instead.</string>
     <string name="error_owner_required">Only the project owner can do that.</string>

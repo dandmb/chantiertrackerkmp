@@ -2,9 +2,11 @@ package com.dmb.chantiertracker.presentation.invitations
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.dmb.chantiertracker.domain.model.AuthState
 import com.dmb.chantiertracker.domain.model.DomainException
 import com.dmb.chantiertracker.domain.model.InvitationStatus
 import com.dmb.chantiertracker.domain.model.ProjectRole
+import com.dmb.chantiertracker.domain.repository.AuthRepository
 import com.dmb.chantiertracker.domain.repository.InvitationRepository
 import com.dmb.chantiertracker.domain.repository.ProjectRepository
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -22,17 +24,16 @@ sealed interface InvitationAcceptStatus {
     data class Accepted(val projectName: String, val projectLocalId: String?) : InvitationAcceptStatus
     data class Ready(val projectName: String, val invitedByName: String?, val role: ProjectRole?, val working: Boolean = false) : InvitationAcceptStatus
     data object Declined : InvitationAcceptStatus
+    data object WrongAccount : InvitationAcceptStatus
     data object InvalidLink : InvitationAcceptStatus
     data class Failed(val error: DomainException) : InvitationAcceptStatus
 }
 
-// ADR-59 — reached only when InvitationDeepLinkBridge has already confirmed
-// the current user is authenticated; every field this needs (preview +
-// accept + the resulting local project id) is already-existing repository
-// surface, nothing reimplemented here.
 class InvitationAcceptViewModel(
     private val invitationRepository: InvitationRepository,
     private val projectRepository: ProjectRepository,
+    private val invitationLinks: InvitationDeepLinkDispatcher,
+    private val authRepository: AuthRepository,
 ) : ViewModel() {
 
     private val _status = MutableStateFlow<InvitationAcceptStatus>(InvitationAcceptStatus.Loading)
@@ -56,13 +57,8 @@ class InvitationAcceptViewModel(
                 _status.value = InvitationAcceptStatus.InvalidLink
                 return@launch
             }
-            val mine = try {
-                invitationRepository.listIncomingInvitations().firstOrNull { it.projectId == preview.projectId }
-            } catch (e: DomainException) {
-                null
-            }
             projectId = preview.projectId
-            _status.value = InvitationAcceptStatus.Ready(preview.projectName, mine?.invitedByName, mine?.role)
+            _status.value = InvitationAcceptStatus.Ready(preview.projectName, preview.invitedByName, preview.role)
         }
     }
 
@@ -70,11 +66,13 @@ class InvitationAcceptViewModel(
         invitationRepository.acceptInvitation(token)
         projectRepository.refresh()
         val localId = projectId?.let { projectRepository.findLocalIdByServerId(it) }
+        invitationLinks.release(token)
         InvitationAcceptStatus.Accepted(ready.projectName, localId)
     }
 
     fun decline() = act { _, token ->
         invitationRepository.declineInvitation(token)
+        invitationLinks.release(token)
         InvitationAcceptStatus.Declined
     }
 
@@ -86,14 +84,26 @@ class InvitationAcceptViewModel(
         viewModelScope.launch {
             _status.value = try {
                 block(ready, current)
+            } catch (e: DomainException.InvalidCredentials) {
+                ready
             } catch (e: DomainException) {
                 failure(e)
             }
         }
     }
 
-    private fun failure(e: DomainException) =
-        if (e == DomainException.NotFound) InvitationAcceptStatus.InvalidLink else InvitationAcceptStatus.Failed(e)
+    private fun failure(e: DomainException) = when (e) {
+        DomainException.NotFound -> InvitationAcceptStatus.InvalidLink
+        DomainException.InvitationForAnotherAccount -> InvitationAcceptStatus.WrongAccount
+        else -> InvitationAcceptStatus.Failed(e)
+    }.also { if (it.settles()) token?.let(invitationLinks::release) }
+
+    private fun InvitationAcceptStatus.settles() =
+        this is InvitationAcceptStatus.Accepted || this == InvitationAcceptStatus.Declined || this == InvitationAcceptStatus.InvalidLink
+
+    override fun onCleared() {
+        if (authRepository.authState.value is AuthState.Authenticated) token?.let(invitationLinks::release)
+    }
 
     fun retry() {
         val current = token ?: return

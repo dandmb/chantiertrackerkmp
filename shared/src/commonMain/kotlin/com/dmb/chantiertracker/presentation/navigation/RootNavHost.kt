@@ -100,6 +100,7 @@ private fun AuthNavHost(
     val paidPlansOffered = paidPlansAreOffered()
     val openLegalDocument: (LegalDocument) -> Unit = { navController.navigate(LegalDocumentRoute(it.slug)) }
     val invitationLinks = remember { KoinPlatformTools.defaultContext().getOrNull()?.getOrNull<InvitationDeepLinkDispatcher>() }
+    LaunchedEffect(invitationLinks) { invitationLinks?.reopenHeld() }
     val pendingInvitation by (invitationLinks?.pending ?: NoPendingInvitation).collectAsStateWithLifecycle()
     LaunchedEffect(pendingInvitation, backStackEntry) {
         val entry = backStackEntry ?: return@LaunchedEffect
