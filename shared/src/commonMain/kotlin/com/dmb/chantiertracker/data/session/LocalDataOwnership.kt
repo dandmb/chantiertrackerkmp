@@ -31,7 +31,7 @@ enum class SessionStart { LOGIN, BOOTSTRAP }
 
 /**
  * Erases everything this device holds for an account: Room, the attachment files, the cached PDF
- * exports, and the session-scoped state in memory (sync state, pending deep links).
+ * exports, and the session-scoped state in memory (sync state, pending payment return).
  * Device preferences (language, theme, sort, onboarding flags) are kept.
  */
 class LocalDataWiper(

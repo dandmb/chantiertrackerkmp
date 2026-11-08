@@ -9,6 +9,10 @@ import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isDialog
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
@@ -146,7 +150,29 @@ class DeleteAccountScreenUiTest {
         submit.assertIsEnabled().performClick()
         waitForIdle()
 
+        assertEquals(emptyList(), repo.deletions, "nothing is deleted before the dialog is confirmed")
+        onNodeWithText("Supprimer ton compte ?").assertExists()
+        onNode(hasText("Annuler") and hasAnyAncestor(isDialog())).assertExists()
+        onNode(hasText("Supprimer") and hasClickAction() and hasAnyAncestor(isDialog())).performClick()
+        waitForIdle()
+
         assertEquals(listOf("MonMotDePasse1!"), repo.deletions)
+    }
+
+    @Test
+    fun cancelling_the_confirmation_dialog_deletes_nothing() = runComposeUiTest {
+        val repo = FakeAccountDeletionRepository(fullPreview)
+        screen(repo)
+
+        onNode(hasSetTextAction()).performScrollTo().performTextInput("MonMotDePasse1!")
+        onNodeWithText("Je comprends que la suppression est définitive : mon compte et mes projets ne pourront pas être récupérés.").performScrollTo().performClick()
+        onNodeWithText("Supprimer définitivement mon compte").performScrollTo().performClick()
+        waitForIdle()
+        onNode(hasText("Annuler") and hasAnyAncestor(isDialog())).performClick()
+        waitForIdle()
+
+        onNodeWithText("Supprimer ton compte ?").assertDoesNotExist()
+        assertEquals(emptyList(), repo.deletions)
     }
 
     @Test
@@ -157,6 +183,8 @@ class DeleteAccountScreenUiTest {
         onNode(hasSetTextAction()).performScrollTo().performTextInput("faux")
         onNodeWithText("Je comprends que la suppression est définitive : mon compte et mes projets ne pourront pas être récupérés.").performScrollTo().performClick()
         onNodeWithText("Supprimer définitivement mon compte").performScrollTo().performClick()
+        waitForIdle()
+        onNode(hasText("Supprimer") and hasClickAction() and hasAnyAncestor(isDialog())).performClick()
         waitForIdle()
 
         onNodeWithText("Mot de passe incorrect.").assertExists()

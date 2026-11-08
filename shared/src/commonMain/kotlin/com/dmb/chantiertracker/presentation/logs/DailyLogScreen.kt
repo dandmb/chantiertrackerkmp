@@ -95,6 +95,8 @@ import com.dmb.chantiertracker.resources.action_add
 import com.dmb.chantiertracker.resources.action_delete
 import com.dmb.chantiertracker.resources.attachment_add
 import com.dmb.chantiertracker.resources.attachment_add_video
+import com.dmb.chantiertracker.resources.attachment_video_limits_unknown
+import com.dmb.chantiertracker.resources.attachment_video_needs_network
 import com.dmb.chantiertracker.resources.attachment_take_photo
 import com.dmb.chantiertracker.resources.attachment_close
 import com.dmb.chantiertracker.resources.attachment_delete
@@ -628,9 +630,26 @@ private fun AttachmentsSection(
                 if (photoCapture != null) {
                     OutlinedActionButton(stringResource(Res.string.attachment_take_photo), PhotoCameraIcon, onClick = photoCapture::launch, enabled = !busy)
                 }
-                if (state.canAddVideo) {
-                    OutlinedActionButton(stringResource(Res.string.attachment_add_video), VideocamIcon, onClick = { videoPicker.launch() }, enabled = !busy)
+                if (state.canAddVideo || state.videoLimitsUnknown) {
+                    OutlinedActionButton(
+                        stringResource(Res.string.attachment_add_video),
+                        VideocamIcon,
+                        onClick = { videoPicker.launch() },
+                        enabled = !busy && state.online && state.canAddVideo,
+                    )
                 }
+            }
+            val videoNote = when {
+                state.videoLimitsUnknown -> Res.string.attachment_video_limits_unknown
+                state.canAddVideo && !state.online -> Res.string.attachment_video_needs_network
+                else -> null
+            }
+            if (videoNote != null) {
+                Text(
+                    stringResource(videoNote),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
 

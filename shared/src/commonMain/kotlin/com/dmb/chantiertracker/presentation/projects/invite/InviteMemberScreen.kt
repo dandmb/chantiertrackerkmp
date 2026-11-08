@@ -102,6 +102,6 @@ fun InviteMemberScreen(
             }
         }
     }
-    FormErrorSnackbarHost(errorMessage, state.isSubmitting, Modifier.align(Alignment.BottomCenter))
+    FormErrorSnackbarHost(errorMessage, state.isSubmitting, Modifier.align(Alignment.TopCenter))
     }
 }

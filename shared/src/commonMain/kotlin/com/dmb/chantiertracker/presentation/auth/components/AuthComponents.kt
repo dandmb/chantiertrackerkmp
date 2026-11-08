@@ -1,5 +1,10 @@
 package com.dmb.chantiertracker.presentation.auth.components
 
+import com.dmb.chantiertracker.resources.action_close
+import com.dmb.chantiertracker.presentation.main.WarningIcon
+import com.dmb.chantiertracker.presentation.theme.Salmon
+import com.dmb.chantiertracker.presentation.theme.Cream
+import androidx.compose.ui.unit.Dp
 import com.dmb.chantiertracker.resources.action_back
 import com.dmb.chantiertracker.presentation.theme.Ink
 import com.dmb.chantiertracker.presentation.branding.ConstructionIllustration
@@ -70,7 +75,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.text.style.TextDecoration
 import com.dmb.chantiertracker.presentation.AppOutlinedButton
 import com.dmb.chantiertracker.presentation.AppOutlinedTextField
@@ -80,7 +84,6 @@ import com.dmb.chantiertracker.presentation.main.ChevronRightIcon
 import com.dmb.chantiertracker.presentation.theme.DisabledFill
 import com.dmb.chantiertracker.presentation.theme.DisabledText
 import com.dmb.chantiertracker.presentation.theme.Lemon
-import com.dmb.chantiertracker.presentation.theme.Orange
 import com.dmb.chantiertracker.resources.Res
 import com.dmb.chantiertracker.resources.field_code_label
 import com.dmb.chantiertracker.resources.field_email_label
@@ -247,7 +250,7 @@ fun AuthScreenLayout(
                     }
                 }
             }
-            FormErrorSnackbarHost(errorMessage, submitting, Modifier.align(Alignment.BottomCenter))
+            FormErrorSnackbarHost(errorMessage, submitting, Modifier.align(Alignment.TopCenter).windowInsetsPadding(WindowInsets.statusBars), topClearance = 56.dp)
         }
     }
 }
@@ -261,26 +264,25 @@ fun FormWithErrorSnackbar(
 ) {
     Box(modifier.fillMaxSize()) {
         content()
-        FormErrorSnackbarHost(errorMessage, submitting, Modifier.align(Alignment.BottomCenter))
+        FormErrorSnackbarHost(errorMessage, submitting, Modifier.align(Alignment.TopCenter))
     }
 }
 
 @Composable
-fun FormErrorSnackbarHost(message: String?, submitting: Boolean, modifier: Modifier = Modifier) {
+fun FormErrorSnackbarHost(message: String?, submitting: Boolean, modifier: Modifier = Modifier, topClearance: Dp = 8.dp) {
     val hostState = remember { SnackbarHostState() }
     LaunchedEffect(message, submitting) {
         hostState.currentSnackbarData?.dismiss()
         if (message != null && !submitting) {
-            hostState.showSnackbar(message, withDismissAction = true, duration = SnackbarDuration.Long)
+            hostState.showSnackbar(message, duration = SnackbarDuration.Long)
         }
     }
     SnackbarHost(
         hostState = hostState,
         modifier = modifier
             .testTag(FORM_ERROR_SNACKBAR_TAG)
-            .imePadding()
-            .navigationBarsPadding()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .padding(top = topClearance)
+            .padding(horizontal = 16.dp),
     ) { data ->
         AppSnackbar(data)
     }
@@ -288,17 +290,28 @@ fun FormErrorSnackbarHost(message: String?, submitting: Boolean, modifier: Modif
 
 @Composable
 fun AppSnackbar(data: SnackbarData, modifier: Modifier = Modifier) {
-    val colors = MaterialTheme.colorScheme
-    Snackbar(
-        snackbarData = data,
-        modifier = modifier.drawBehind { drawRect(Orange, size = size.copy(width = 6.dp.toPx())) },
-        shape = MaterialTheme.shapes.medium,
-        containerColor = colors.inverseSurface,
-        contentColor = colors.inverseOnSurface,
-        actionColor = Lemon,
-        actionContentColor = Lemon,
-        dismissActionContentColor = Lemon,
-    )
+    Surface(
+        modifier = modifier.fillMaxWidth().widthIn(max = 560.dp),
+        color = Ink,
+        contentColor = Cream,
+        shape = RoundedCornerShape(12.dp),
+        shadowElevation = 6.dp,
+    ) {
+        Row(
+            Modifier.padding(start = 14.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(WarningIcon, contentDescription = null, tint = Salmon, modifier = Modifier.size(18.dp))
+            Text(
+                text = data.visuals.message,
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.weight(1f).padding(start = 10.dp, top = 10.dp, bottom = 10.dp),
+            )
+            TextButton(onClick = { data.dismiss() }, colors = ButtonDefaults.textButtonColors(contentColor = Lemon)) {
+                Text(stringResource(Res.string.action_close), style = MaterialTheme.typography.labelLarge)
+            }
+        }
+    }
 }
 
 @Composable

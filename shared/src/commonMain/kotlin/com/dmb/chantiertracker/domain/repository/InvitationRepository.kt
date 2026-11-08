@@ -33,6 +33,8 @@ interface InvitationRepository {
     suspend fun acceptInvitation(token: String)
 
     /** Accept an invitation of [listIncomingInvitations]: the session replaces the e-mailed token. **Online only.** */
+    suspend fun declineInvitation(token: String)
+
     suspend fun acceptIncomingInvitation(id: Long)
 
     /** Explicitly decline an invitation of [listIncomingInvitations]. **Online only.** */

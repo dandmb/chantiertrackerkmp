@@ -265,7 +265,6 @@ val dataModule: Module = module {
         LocalDataWiper(get(), get(), get()) {
             get<SyncStateHolder>().update(SyncState.Idle)
             get<CheckoutDeepLinkDispatcher>().consume()
-            get<InvitationDeepLinkDispatcher>().consume()
         }
     }
     single { LocalDataOwnership(get(), get(), get()) }

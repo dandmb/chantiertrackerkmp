@@ -95,7 +95,7 @@ class LoginViewModel(
         viewModelScope.launch {
             _state.update { it.copy(isSubmitting = true, formError = null) }
             try {
-                authRepository.login(current.email.trim(), current.password)
+                authRepository.login(current.email.trim().lowercase(), current.password)
                 // ADR-50 — authRepository.login()'s last step flips AuthState to
                 // Authenticated, which RootNavHost reacts to by tearing this
                 // ViewModel down right away. checkoutLauncher.launch() is a plain

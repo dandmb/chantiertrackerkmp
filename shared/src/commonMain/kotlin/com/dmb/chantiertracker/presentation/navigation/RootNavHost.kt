@@ -1,5 +1,10 @@
 package com.dmb.chantiertracker.presentation.navigation
 
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import org.koin.mp.KoinPlatformTools
+import androidx.navigation.NavDestination.Companion.hasRoute
+import com.dmb.chantiertracker.presentation.invitations.InvitationDeepLinkDispatcher
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -94,6 +99,15 @@ private fun AuthNavHost(
     }
     val paidPlansOffered = paidPlansAreOffered()
     val openLegalDocument: (LegalDocument) -> Unit = { navController.navigate(LegalDocumentRoute(it.slug)) }
+    val invitationLinks = remember { KoinPlatformTools.defaultContext().getOrNull()?.getOrNull<InvitationDeepLinkDispatcher>() }
+    val pendingInvitation by (invitationLinks?.pending ?: NoPendingInvitation).collectAsStateWithLifecycle()
+    LaunchedEffect(pendingInvitation, backStackEntry) {
+        val entry = backStackEntry ?: return@LaunchedEffect
+        if (pendingInvitation == null || entry.destination.hasRoute<LoginRoute>()) return@LaunchedEffect
+        if (entry.destination.hasRoute<OnboardingRoute>() || entry.destination.hasRoute<WelcomeRoute>()) {
+            navController.navigate(LoginRoute(notice = LoginNotice.InvitationPending.toArg())) { launchSingleTop = true }
+        }
+    }
 
     NavHost(
         navController = navController,
@@ -157,7 +171,8 @@ private fun AuthNavHost(
                 onVerificationRequired = { navController.navigate(LoginVerificationRoute(route.checkoutPlan, route.checkoutCycle)) },
                 onValidateAccount = { typed -> navController.navigate(ValidateAccountRoute(typed.ifBlank { null })) },
                 prefilledEmail = route.prefilledEmail,
-                notice = LoginNotice.fromArg(route.notice),
+                notice = LoginNotice.fromArg(route.notice)
+                    ?: LoginNotice.InvitationPending.takeIf { pendingInvitation != null },
                 checkoutPlan = route.checkoutPlan,
                 checkoutCycle = route.checkoutCycle,
             )
@@ -268,3 +283,5 @@ private fun NavController.backToLogin(
         launchSingleTop = true
     }
 }
+
+private val NoPendingInvitation: StateFlow<String?> = MutableStateFlow(null)

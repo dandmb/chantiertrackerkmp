@@ -37,7 +37,7 @@ fun ResetPasswordScreen(
 
     AuthScreenLayout(
         title = stringResource(Res.string.reset_title),
-        subtitle = stringResource(Res.string.reset_subtitle, email),
+        subtitle = stringResource(Res.string.reset_subtitle),
         onBack = onBack,
         errorMessage = state.formError?.snackbarText(),
         submitting = state.isSubmitting,

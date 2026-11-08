@@ -6,7 +6,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.graphics.toPixelMap
+import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.captureToImage
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
@@ -82,6 +86,46 @@ class FormErrorDisplayUiTest {
         waitUntil(timeoutMillis = 5_000L) { onAllNodes(hasText("Email ou mot de passe incorrect.") and hasAnyAncestor(hasTestTag(FORM_ERROR_SNACKBAR_TAG))).fetchSemanticsNodes().isNotEmpty() }
         inSnackbar("Email ou mot de passe incorrect.").assertExists()
     }
+
+    @Test
+    fun the_snackbar_sits_at_the_top_on_ink_with_a_salmon_icon_a_lemon_close_and_never_covers_a_button() = runComposeUiTest {
+        val vm = login(DomainException.InvalidCredentials)
+        setContent {
+            customAppLocale = "fr"
+            AppEnvironment {
+                AppTheme(darkTheme = false) {
+                    androidx.compose.runtime.CompositionLocalProvider(androidx.compose.ui.platform.LocalDensity provides androidx.compose.ui.unit.Density(1f)) {
+                        Box(Modifier.size(412.dp, 892.dp)) { LoginScreen({}, {}, onOpenLegalDocument = {}, viewModel = vm) }
+                    }
+                }
+            }
+        }
+        vm.onEmailChange("jean@chantier.dev")
+        vm.onPasswordChange("Password1234!")
+        onNodeWithText("Se connecter").performClick()
+        waitUntil(timeoutMillis = 5_000L) { onAllNodes(hasText("Email ou mot de passe incorrect.") and hasAnyAncestor(hasTestTag(FORM_ERROR_SNACKBAR_TAG))).fetchSemanticsNodes().isNotEmpty() }
+        waitForIdle()
+
+        val snackbar = onAllNodes(hasTestTag(FORM_ERROR_SNACKBAR_TAG)).fetchSemanticsNodes().single().boundsInRoot
+        val close = inSnackbar("Fermer").assertHasClickAction().fetchSemanticsNode()
+        val card = onAllNodes(hasText("Email ou mot de passe incorrect.") and hasAnyAncestor(hasTestTag(FORM_ERROR_SNACKBAR_TAG))).fetchSemanticsNodes().single()
+        check(card.boundsInRoot.top < 892f / 3) { "at the top: ${card.boundsInRoot}" }
+        val buttons = onAllNodes(androidx.compose.ui.test.SemanticsMatcher.expectValue(androidx.compose.ui.semantics.SemanticsProperties.Role, androidx.compose.ui.semantics.Role.Button))
+            .fetchSemanticsNodes().filter { it.id != close.id }
+        val inkCard = onAllNodes(hasAnyAncestor(hasTestTag(FORM_ERROR_SNACKBAR_TAG)) and hasText("Email ou mot de passe incorrect.")).fetchSemanticsNodes().single().boundsInRoot
+        buttons.forEach { check(!it.boundsInRoot.overlaps(snackbarCard(inkCard, close.boundsInRoot))) { "covers a button at ${it.boundsInRoot}" } }
+
+        val pixels = onRoot().captureToImage().toPixelMap()
+        val area = snackbarCard(inkCard, close.boundsInRoot)
+        val colours = (area.top.toInt() until area.bottom.toInt()).flatMap { y -> (area.left.toInt() until area.right.toInt()).map { x -> pixels[x, y] } }.toSet()
+        check(androidx.compose.ui.graphics.Color(0xFF22300D) in colours) { "ink background" }
+        check(androidx.compose.ui.graphics.Color(0xFFE8743B) !in colours) { "no orange rule any more" }
+        check(androidx.compose.ui.graphics.Color(0xFFF2A182) in colours) { "salmon error icon" }
+        check(snackbar.width > 0f)
+    }
+
+    private fun snackbarCard(text: androidx.compose.ui.geometry.Rect, close: androidx.compose.ui.geometry.Rect) =
+        androidx.compose.ui.geometry.Rect(text.left - 40f, minOf(text.top, close.top) - 4f, close.right, maxOf(text.bottom, close.bottom) + 4f)
 
     @Test
     fun a_field_error_stays_under_its_field_and_never_reaches_the_snackbar() = runComposeUiTest {

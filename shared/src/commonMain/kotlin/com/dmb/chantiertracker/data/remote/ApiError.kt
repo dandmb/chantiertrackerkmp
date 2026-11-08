@@ -1,5 +1,6 @@
 package com.dmb.chantiertracker.data.remote
 
+import kotlinx.io.IOException
 import com.dmb.chantiertracker.data.remote.dto.ProblemDetailDto
 import com.dmb.chantiertracker.domain.model.DomainException
 import io.ktor.client.call.body
@@ -53,8 +54,11 @@ suspend fun <T> apiCallReportingRefusalCode(
         onRefusalStatus(e.response.status.value)
         problem?.errors?.keys?.let(onFieldErrors)
         throw e.toDomainException(problem, onRefusalCode)
-    } catch (e: Throwable) {
+    } catch (e: IOException) {
         throw DomainException.Network
+    } catch (e: Throwable) {
+        apiLog("api: unreadable answer (${e::class.simpleName})")
+        throw DomainException.Unexpected
     }
 
 suspend fun HttpResponse.comesFromAnUnavailableApi(): Boolean = isNotTheBackendsAnswer(problemOrNull())
@@ -92,6 +96,7 @@ private fun ResponseException.toDomainException(problem: ProblemDetailDto?, onRe
     }
 
     return when (response.status) {
+        HttpStatusCode.ServiceUnavailable, HttpStatusCode.BadGateway, HttpStatusCode.GatewayTimeout -> DomainException.ServiceUnavailable
         HttpStatusCode.Unauthorized -> DomainException.InvalidCredentials
         HttpStatusCode.Conflict -> DomainException.EmailAlreadyUsed
         HttpStatusCode.NotFound -> DomainException.NotFound

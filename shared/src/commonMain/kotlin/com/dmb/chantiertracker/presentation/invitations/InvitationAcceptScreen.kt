@@ -33,6 +33,27 @@ import com.dmb.chantiertracker.resources.invitation_accept_invalid_body
 import com.dmb.chantiertracker.resources.invitation_accept_invalid_title
 import com.dmb.chantiertracker.resources.invitation_accept_retry
 import com.dmb.chantiertracker.resources.invitation_accept_welcome
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import com.dmb.chantiertracker.domain.model.ProjectRole
+import com.dmb.chantiertracker.presentation.ConfirmActionDialog
+import com.dmb.chantiertracker.presentation.auth.components.AuthSecondaryButton
+import com.dmb.chantiertracker.resources.incoming_invitation_decline_confirm_body
+import com.dmb.chantiertracker.resources.incoming_invitation_decline_confirm_title
+import com.dmb.chantiertracker.resources.invitation_declined_body
+import com.dmb.chantiertracker.resources.invitation_declined_title
+import com.dmb.chantiertracker.resources.invitation_join_button
+import com.dmb.chantiertracker.resources.invitation_join_decline
+import com.dmb.chantiertracker.resources.invitation_join_intro
+import com.dmb.chantiertracker.resources.invitation_join_invited_by
+import com.dmb.chantiertracker.resources.invitation_join_role
+import com.dmb.chantiertracker.resources.role_admin
+import com.dmb.chantiertracker.resources.role_supervisor
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -45,12 +66,51 @@ fun InvitationAcceptScreen(
 ) {
     val status by viewModel.status.collectAsStateWithLifecycle()
 
+    var confirmDecline by remember { mutableStateOf(false) }
+
     LaunchedEffect(token) { viewModel.load(token) }
+
+    val readyForDecline = status as? InvitationAcceptStatus.Ready
+    if (confirmDecline && readyForDecline != null) {
+        ConfirmActionDialog(
+            title = stringResource(Res.string.incoming_invitation_decline_confirm_title),
+            body = stringResource(Res.string.incoming_invitation_decline_confirm_body, readyForDecline.projectName),
+            confirmLabel = stringResource(Res.string.invitation_join_decline),
+            destructive = false,
+            onDismiss = { confirmDecline = false },
+            onConfirm = {
+                confirmDecline = false
+                viewModel.decline()
+            },
+        )
+    }
 
     ResponsiveContent(modifier, maxContentWidth = 480.dp) {
         Box(Modifier.fillMaxSize()) {
             when (val current = status) {
                 InvitationAcceptStatus.Loading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
+                is InvitationAcceptStatus.Ready -> ReadyColumn(
+                    ready = current,
+                    onJoin = viewModel::join,
+                    onDecline = { confirmDecline = true },
+                )
+                InvitationAcceptStatus.Declined -> ResultColumn {
+                    CapitalTitle(
+                        text = stringResource(Res.string.invitation_declined_title),
+                        style = MaterialTheme.typography.titleLarge,
+                        textAlign = TextAlign.Center,
+                    )
+                    Text(
+                        text = stringResource(Res.string.invitation_declined_body),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                    )
+                    AuthPrimaryButton(
+                        text = stringResource(Res.string.invitation_accept_go_to_projects),
+                        onClick = { onAccepted(null) },
+                    )
+                }
                 is InvitationAcceptStatus.Accepted -> ResultColumn {
                     Icon(
                         CheckIcon,
@@ -111,6 +171,63 @@ fun InvitationAcceptScreen(
             }
         }
     }
+}
+
+@Composable
+private fun BoxScope.ReadyColumn(
+    ready: InvitationAcceptStatus.Ready,
+    onJoin: () -> Unit,
+    onDecline: () -> Unit,
+) {
+    Column(
+        modifier = Modifier.align(Alignment.Center).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 32.dp, vertical = 24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Text(
+            text = stringResource(Res.string.invitation_join_intro),
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+        )
+        CapitalTitle(
+            text = ready.projectName,
+            style = MaterialTheme.typography.headlineSmall,
+            textAlign = TextAlign.Center,
+        )
+        ready.invitedByName?.let {
+            Text(
+                text = stringResource(Res.string.invitation_join_invited_by, it),
+                style = MaterialTheme.typography.bodyMedium,
+                textAlign = TextAlign.Center,
+            )
+        }
+        ready.role?.roleLabel()?.let {
+            Text(
+                text = stringResource(Res.string.invitation_join_role, it),
+                style = MaterialTheme.typography.bodyMedium,
+                textAlign = TextAlign.Center,
+            )
+        }
+        Spacer(Modifier.height(12.dp))
+        AuthPrimaryButton(
+            text = stringResource(Res.string.invitation_join_button),
+            onClick = onJoin,
+            loading = ready.working,
+        )
+        AuthSecondaryButton(
+            text = stringResource(Res.string.invitation_join_decline),
+            onClick = onDecline,
+            enabled = !ready.working,
+        )
+    }
+}
+
+@Composable
+private fun ProjectRole.roleLabel(): String? = when (this) {
+    ProjectRole.ADMIN -> stringResource(Res.string.role_admin)
+    ProjectRole.SUPERVISOR -> stringResource(Res.string.role_supervisor)
+    ProjectRole.UNKNOWN -> null
 }
 
 @Composable

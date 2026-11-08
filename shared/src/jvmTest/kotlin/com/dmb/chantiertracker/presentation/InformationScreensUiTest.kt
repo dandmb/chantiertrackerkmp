@@ -392,15 +392,13 @@ class InformationScreensUiTest {
     }
 
     @Test
-    fun an_empty_project_list_explains_and_offers_the_action() = runComposeUiTest {
-        var created = 0
+    fun an_empty_project_list_explains_without_a_second_create_button() = runComposeUiTest {
         val viewModel = ProjectsViewModel(FakeProjectRepository(projects = emptyList()), FakeInvitationRepository(), ProjectSortHolder())
-        mount { ProjectsScreen(onProjectClick = {}, onCreateProject = { created++ }, viewModel = viewModel) }
+        mount { ProjectsScreen(onProjectClick = {}, viewModel = viewModel) }
 
         awaitText("Aucun projet pour l'instant")
-        onNodeWithText("Créer mon premier projet").performClick()
-        waitForIdle()
-        assertEquals(1, created)
+        onNodeWithText("Créer mon premier projet").assertDoesNotExist()
+        assertEquals(0, onAllNodes(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button)).fetchSemanticsNodes().size)
     }
 
     private val supportAddress = "aide@exemple.test"

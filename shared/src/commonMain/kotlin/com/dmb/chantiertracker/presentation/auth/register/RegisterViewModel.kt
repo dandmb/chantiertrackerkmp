@@ -62,4 +62,8 @@ class RegisterViewModel(
             }
         }
     }
+
+    fun onRegisteredHandled() {
+        _state.update { it.copy(registeredEmail = null) }
+    }
 }

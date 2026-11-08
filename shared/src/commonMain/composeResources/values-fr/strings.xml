@@ -52,7 +52,7 @@
     <string name="login_locked_reset_hint">Réinitialiser ton mot de passe débloque aussi ton compte.</string>
     <string name="login_forgot_password">Mot de passe oublié ?</string>
     <string name="login_submit">Se connecter</string>
-    <string name="login_no_account_prompt">Pas de compte ?</string>
+    <string name="login_no_account_prompt">Pas encore de compte ?</string>
     <string name="login_no_account_action">Créer un compte</string>
     <string name="login_notice_account_activated">Compte vérifié, tu peux te connecter.</string>
     <string name="login_notice_password_reset">Mot de passe mis à jour. Tu peux te connecter.</string>
@@ -82,7 +82,7 @@
     <string name="forgot_submit">Envoyer le code</string>
 
     <string name="reset_title">Nouveau mot de passe</string>
-    <string name="reset_subtitle">Code envoyé à %1$s.</string>
+    <string name="reset_subtitle">Si un compte existe pour cette adresse, un code vient d'être envoyé.</string>
     <string name="reset_submit">Réinitialiser</string>
     <string name="reset_back_to_login">Retour à la connexion</string>
 
@@ -154,7 +154,14 @@
     <string name="detail_invite_member">Inviter un superviseur</string>
     <string name="role_admin">Admin</string>
     <string name="role_supervisor">Superviseur</string>
-    <string name="invitation_accept_title">Invitation</string>
+    <string name="invitation_accept_title">Rejoindre le projet</string>
+    <string name="invitation_join_intro">Tu es invité·e à rejoindre</string>
+    <string name="invitation_join_invited_by">Invitation de %1$s</string>
+    <string name="invitation_join_role">Rôle : %1$s</string>
+    <string name="invitation_join_button">Rejoindre le projet</string>
+    <string name="invitation_join_decline">Refuser</string>
+    <string name="invitation_declined_title">Invitation refusée</string>
+    <string name="invitation_declined_body">Tu ne rejoindras pas ce projet. Il faudra une nouvelle invitation pour le rejoindre plus tard.</string>
     <string name="invitation_accept_welcome">Bienvenue dans %1$s</string>
     <string name="invitation_accept_go_to_project">Aller au projet</string>
     <string name="invitation_accept_go_to_projects">Aller à mes projets</string>
@@ -357,6 +364,8 @@
     <string name="attachment_close">Fermer</string>
     <string name="attachment_take_photo">Prendre une photo</string>
     <string name="attachment_add_video">Ajouter une vidéo</string>
+    <string name="attachment_video_needs_network">Disponible avec le réseau</string>
+    <string name="attachment_video_limits_unknown">Ouvre ce projet une fois avec le réseau pour activer les vidéos</string>
     <string name="attachment_video_delete">Supprimer la vidéo</string>
     <string name="attachment_delete_confirm_title">Supprimer ce justificatif ?</string>
     <string name="attachment_delete_confirm_body">Ce fichier sera définitivement supprimé.</string>
@@ -695,7 +704,11 @@
     <string name="delete_account_submit">Supprimer définitivement mon compte</string>
     <string name="delete_account_submitting">Suppression…</string>
     <string name="delete_account_wrong_password">Mot de passe incorrect.</string>
+    <string name="delete_account_dialog_title">Supprimer ton compte ?</string>
+    <string name="delete_account_dialog_body">Ton compte et les projets dont tu es propriétaire seront supprimés définitivement. Cette action est irréversible.</string>
+    <string name="delete_account_dialog_confirm">Supprimer</string>
     <string name="login_notice_account_deleted">Ton compte a été supprimé.</string>
+    <string name="login_notice_invitation_pending">Connecte-toi pour rejoindre le projet.</string>
     <plurals name="delete_account_lost_access">
         <item quantity="one">%1$s perdra l'accès.</item>
         <item quantity="other">%1$s perdront l'accès.</item>
@@ -775,7 +788,6 @@
     <string name="plan_limit_export">L'export PDF n'est pas inclus dans ta formule actuelle.</string>
     <string name="plan_limit_usage">Usage : %1$d sur %2$d.</string>
     <string name="plan_reminder_projects">%1$d projets sur %2$d</string>
-    <string name="projects_empty_action">Créer mon premier projet</string>
     <string name="detail_members_empty_admin">Aucun membre pour l'instant. Invite un superviseur pour qu'il saisisse depuis le chantier.</string>
     <string name="detail_invitations_empty_admin">Aucune invitation en attente. Invite un superviseur pour lui donner accès à ce projet.</string>
     <string name="attachments_empty_can_add">Aucune photo pour l'instant. Ajoute la première avec les boutons ci-dessus.</string>

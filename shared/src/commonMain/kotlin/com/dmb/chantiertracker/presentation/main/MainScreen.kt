@@ -479,7 +479,6 @@ fun MainScreen(
             composable<ProjectsRoute> {
                 ProjectsScreen(
                     onProjectClick = { localId -> navController.navigate(ProjectDetailRoute(localId)) },
-                    onCreateProject = { navController.navigate(CreateProjectRoute) },
                     syncIssueCount = syncIssueCount,
                     onOpenSyncIssues = openSyncIssues,
                 )

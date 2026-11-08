@@ -21,7 +21,7 @@ actual fun rememberExitApp(): () -> Unit {
         {
             var current: android.content.Context? = context
             while (current is android.content.ContextWrapper && current !is android.app.Activity) current = current.baseContext
-            (current as? android.app.Activity)?.finish()
+            (current as? android.app.Activity)?.finishAndRemoveTask()
         }
     }
 }
