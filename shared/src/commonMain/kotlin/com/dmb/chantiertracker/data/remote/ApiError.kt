@@ -1,5 +1,9 @@
 package com.dmb.chantiertracker.data.remote
 
+import com.dmb.chantiertracker.core.ErrorReportingScreen
+import com.dmb.chantiertracker.core.NonFatalErrors
+import kotlinx.coroutines.currentCoroutineContext
+
 import kotlinx.io.IOException
 import com.dmb.chantiertracker.data.remote.dto.ProblemDetailDto
 import com.dmb.chantiertracker.domain.model.DomainException
@@ -48,18 +52,41 @@ suspend fun <T> apiCallReportingRefusalCode(
         throw e
     } catch (e: ResponseException) {
         val problem = e.response.problemOrNull()
+        val status = e.response.status.value
         // While the API is redeployed the reverse proxy answers 404 in its own format:
         // the server is unreachable, nothing was found missing.
-        if (e.response.isNotTheBackendsAnswer(problem)) throw DomainException.ServiceUnavailable
-        onRefusalStatus(e.response.status.value)
-        problem?.errors?.keys?.let(onFieldErrors)
-        throw e.toDomainException(problem, onRefusalCode)
+        val failure = if (e.response.isNotTheBackendsAnswer(problem)) {
+            DomainException.ServiceUnavailable
+        } else {
+            onRefusalStatus(status)
+            problem?.errors?.keys?.let(onFieldErrors)
+            e.toDomainException(problem, onRefusalCode)
+        }
+        reportNonFatal(failure, httpStatus = status, errorCode = problem?.code)
+        throw failure
     } catch (e: IOException) {
+        reportNonFatal(DomainException.Network, cause = e::class.simpleName, networkFailure = true)
         throw DomainException.Network
     } catch (e: Throwable) {
         apiLog("api: unreadable answer (${e::class.simpleName})")
+        reportNonFatal(DomainException.Unexpected, cause = e::class.simpleName)
         throw DomainException.Unexpected
     }
+
+private suspend fun reportNonFatal(
+    failure: DomainException,
+    httpStatus: Int? = null,
+    errorCode: String? = null,
+    cause: String? = null,
+    networkFailure: Boolean = false,
+) = NonFatalErrors.report(
+    screen = currentCoroutineContext()[ErrorReportingScreen],
+    errorType = failure::class.simpleName ?: "DomainException",
+    httpStatus = httpStatus,
+    errorCode = errorCode,
+    cause = cause,
+    networkFailure = networkFailure,
+)
 
 suspend fun HttpResponse.comesFromAnUnavailableApi(): Boolean = isNotTheBackendsAnswer(problemOrNull())
 

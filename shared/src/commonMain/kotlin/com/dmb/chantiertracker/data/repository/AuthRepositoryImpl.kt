@@ -1,5 +1,8 @@
 package com.dmb.chantiertracker.data.repository
 
+import com.dmb.chantiertracker.core.ErrorReportingScreen
+import kotlinx.coroutines.withContext
+
 import com.dmb.chantiertracker.data.session.LocalDataOwnership
 import com.dmb.chantiertracker.data.session.SessionStart
 import com.dmb.chantiertracker.data.sync.AppCoroutineScope
@@ -119,7 +122,7 @@ class AuthRepositoryImpl(
         apiCall { api.resendCode(ResendCodeRequestDto(email)) }
     }
 
-    override suspend fun login(email: String, password: String) {
+    override suspend fun login(email: String, password: String): Unit = withContext(ErrorReportingScreen.Login) {
         val tokens = try {
             apiCall { api.login(LoginRequestDto(email, password)) }
         } catch (e: DomainException.AccountNotVerified) {

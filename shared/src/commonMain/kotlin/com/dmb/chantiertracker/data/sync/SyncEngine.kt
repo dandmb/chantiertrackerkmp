@@ -2,6 +2,9 @@
 
 package com.dmb.chantiertracker.data.sync
 
+import com.dmb.chantiertracker.core.ErrorReportingScreen
+import kotlinx.coroutines.withContext
+
 import com.dmb.chantiertracker.data.local.db.SyncedRow
 import com.dmb.chantiertracker.domain.model.RefusalReason
 import com.dmb.chantiertracker.domain.model.SyncIssueTarget
@@ -236,7 +239,7 @@ class SyncEngine(
     private suspend fun onePass(pass: suspend () -> SyncOutcome): SyncOutcome = mutex.withLock {
         stocksReadIncompletelyThisPass.clear()
         aPullReleasedARefusedCreation = false
-        pass().also { outcome ->
+        withContext(ErrorReportingScreen.Sync) { pass() }.also { outcome ->
             passAgainWhenAQuotaReturns()
             if (outcome != SyncOutcome.Skipped && aVideoWaitsToBeSent()) sendVideosAside()
         }

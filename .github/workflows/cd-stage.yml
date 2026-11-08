@@ -12,11 +12,16 @@
 #   FIREBASE_TESTER_GROUP      tester group alias to distribute to
 #   ANDROID_KEYSTORE_BASE64    base64 of the distribution keystore (.jks)
 #   ANDROID_KEYSTORE_PASSWORD  / ANDROID_KEY_ALIAS / ANDROID_KEY_PASSWORD
+#   FIREBASE_STAGING_API_KEY   "current_key" of the google-services.json of the staging app
+#   FIREBASE_PROJECT_ID        "project_id" of that file
+#                              (with FIREBASE_APP_ID above, they switch Crashlytics on in the
+#                              staging build; without them it is built with crash reports off,
+#                              and a warning says so)
 #
 # firebase-tools authenticates from GOOGLE_APPLICATION_CREDENTIALS (a service
 # account key file) — no `firebase login` / FIREBASE_TOKEN needed. It does NOT
-# use google-services.json (that's a build-time SDK config; the app has no
-# Firebase SDK, so the file is genuinely not needed anywhere).
+# use google-services.json: the build takes the three Crashlytics values from the
+# variables above instead (no Google-Services plugin).
 
 name: CD — stage
 
@@ -74,7 +79,13 @@ jobs:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          FIREBASE_STAGING_APP_ID: ${{ secrets.FIREBASE_APP_ID }}
+          FIREBASE_STAGING_API_KEY: ${{ secrets.FIREBASE_STAGING_API_KEY }}
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
         run: |
+          if [ -z "$FIREBASE_STAGING_APP_ID" ] || [ -z "$FIREBASE_STAGING_API_KEY" ] || [ -z "$FIREBASE_PROJECT_ID" ]; then
+            echo "::warning::Firebase staging values missing, this APK has no crash reports."
+          fi
           version_name="1.0-stage.${{ github.run_number }}+${GITHUB_SHA::7}"
           ./gradlew :androidApp:assembleStaging \
             -PversionCode="${{ github.run_number }}" \
