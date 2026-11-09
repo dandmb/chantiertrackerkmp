@@ -20,6 +20,7 @@
             android:exported="true"
             android:name=".MainActivity"
             android:launchMode="singleTask"
+            android:windowSoftInputMode="adjustResize"
             android:theme="@style/Theme.ChantierTracker.Starting">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

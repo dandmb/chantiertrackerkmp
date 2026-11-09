@@ -90,6 +90,10 @@ class InvitationRepositoryImpl(
         // Caller re-pulls the project list so the newly joined project shows up.
     }
 
+    override suspend fun declineInvitation(token: String) {
+        apiCall { api.decline(token) }
+    }
+
     override suspend fun acceptIncomingInvitation(id: Long) {
         try {
             acceptingWithinTheQuota { api.acceptMine(id) }
@@ -148,6 +152,12 @@ private fun InvitationDetailsDto.toInvitationPreview() = InvitationPreview(
     projectId = projectId,
     projectName = projectName,
     status = status.toInvitationStatus(),
+    role = when (role?.uppercase()) {
+        "ADMIN" -> ProjectRole.ADMIN
+        "SUPERVISOR" -> ProjectRole.SUPERVISOR
+        else -> null
+    },
+    invitedByName = invitedByName?.takeIf { it.isNotBlank() },
 )
 
 private fun String.toInvitationStatus(): InvitationStatus = when (uppercase()) {

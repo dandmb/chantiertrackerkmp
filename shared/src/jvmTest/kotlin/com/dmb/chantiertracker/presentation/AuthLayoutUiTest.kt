@@ -12,11 +12,14 @@ import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.runComposeUiTest
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import com.dmb.chantiertracker.presentation.auth.login.LoginScreen
 import com.dmb.chantiertracker.presentation.auth.login.LoginViewModel
+import com.dmb.chantiertracker.presentation.auth.register.RegisterScreen
+import com.dmb.chantiertracker.presentation.auth.register.RegisterViewModel
 import com.dmb.chantiertracker.presentation.i18n.AppEnvironment
 import com.dmb.chantiertracker.presentation.i18n.customAppLocale
 import com.dmb.chantiertracker.presentation.theme.AppTheme
@@ -69,5 +72,31 @@ class AuthLayoutUiTest {
             assertTrue(abs(middle.value - 206f) < 2f, "title centred: $title (dark=$dark)")
             assertTrue(title.top > 200.dp, "title in the card, under the band: $title (dark=$dark)")
         }
+    }
+
+    @Test
+    fun the_sign_in_prompt_of_the_sign_up_screen_is_centred_like_those_of_the_login() = androidx.compose.ui.test.runDesktopComposeUiTest(width = 412, height = 892) {
+        setContent {
+            customAppLocale = "fr"
+            AppEnvironment {
+                AppTheme {
+                    CompositionLocalProvider(LocalDensity provides Density(1f)) {
+                        AppSurface {
+                            Box(Modifier.size(412.dp, 892.dp)) {
+                                RegisterScreen(onRegistered = {}, onBackToLogin = {}, onOpenLegalDocument = {}, viewModel = RegisterViewModel(FakeAuthRepository()))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        waitForIdle()
+        onNodeWithText("Se connecter").performScrollTo()
+        waitForIdle()
+
+        val prompt = onNodeWithText("Déjà un compte ?", substring = true).getBoundsInRoot()
+        val action = onNodeWithText("Se connecter").getBoundsInRoot()
+        val middle = (prompt.left + action.right) / 2
+        assertTrue(abs(middle.value - 206f) < 2f, "prompt and action centred together: ${prompt.left}..${action.right}")
     }
 }

@@ -757,4 +757,24 @@ class AuthRepositoryImplTest {
         assertFailsWith<DomainException.NewPasswordSameAsCurrent> { f.repo.changePassword("Password1234!", "Password1234!") }
         assertFailsWith<DomainException.NewPasswordSameAsCurrent> { f.repo.resetPassword("jean@chantier.dev", "123456", "Password1234!") }
     }
+
+    @Test
+    fun a_sign_in_that_fails_after_the_password_was_accepted_is_reported_as_a_login_non_fatal() = runTest {
+        val reports = mutableListOf<com.dmb.chantiertracker.core.NonFatalReport>()
+        com.dmb.chantiertracker.core.NonFatalErrors.sink = { reports += it }
+        try {
+            val f = Fixture {
+                when (it.url.encodedPath) {
+                    "/api/v1/auth/login" -> respondJson(TOKENS_JSON)
+                    else -> respondProblem(HttpStatusCode.InternalServerError, "Erreur interne.", code = "INTERNAL_ERROR")
+                }
+            }
+
+            assertFailsWith<DomainException> { f.repo.login("jean@chantier.dev", "Password1234!") }
+
+            assertEquals(listOf(com.dmb.chantiertracker.core.NonFatalReport("login", "Unexpected", 500, "INTERNAL_ERROR", null)), reports)
+        } finally {
+            com.dmb.chantiertracker.core.NonFatalErrors.sink = {}
+        }
+    }
 }

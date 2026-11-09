@@ -40,7 +40,10 @@ fun RegisterScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
 
     LaunchedEffect(state.registeredEmail) {
-        state.registeredEmail?.let(onRegistered)
+        state.registeredEmail?.let { email ->
+            viewModel.onRegisteredHandled()
+            onRegistered(email)
+        }
     }
 
     AuthScreenLayout(

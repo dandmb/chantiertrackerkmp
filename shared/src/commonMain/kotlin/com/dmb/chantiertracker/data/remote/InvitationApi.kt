@@ -48,6 +48,10 @@ class InvitationApi(private val client: HttpClient) {
         client.post(ApiRoutes.acceptInvitation(token))
     }
 
+    suspend fun decline(token: String) {
+        client.post(ApiRoutes.declineInvitation(token))
+    }
+
     suspend fun acceptMine(id: Long) {
         client.post(ApiRoutes.acceptMyInvitation(id))
     }

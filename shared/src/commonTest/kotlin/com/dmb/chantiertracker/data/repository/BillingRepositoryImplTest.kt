@@ -80,7 +80,7 @@ class BillingRepositoryImplTest {
 
     @Test
     fun offline_surfaces_as_network() = runTest {
-        val client = RecordingMockClient(FakeTokenStorage(AuthTokens("a", "r"))) { throw kotlin.RuntimeException("no connection") }
+        val client = RecordingMockClient(FakeTokenStorage(AuthTokens("a", "r"))) { throw kotlinx.io.IOException("no connection") }
         val repo = BillingRepositoryImpl(BillingApi(client.client))
 
         assertFailsWith<DomainException.Network> { repo.openManageSubscription() }

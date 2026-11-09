@@ -1,5 +1,8 @@
 package com.dmb.chantiertracker.presentation
 
+import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasContentDescription
@@ -51,7 +54,7 @@ class DailyLogVideoUiTest {
         resetTestMainDispatcher()
     }
 
-    private fun vm(beingSent: Attachment? = null): DailyLogViewModel {
+    private fun vm(beingSent: Attachment? = null, online: Boolean = true, ownerPlan: Plan? = Plan.SEMI_FLEX): DailyLogViewModel {
         val logs = FakeDailyLogRepository(
             detail = DailyLogDetail(
                 localId = "log-1", stageLocalId = "s1", date = "2026-09-05",
@@ -68,7 +71,7 @@ class DailyLogVideoUiTest {
             detail = ProjectDetail(
                 localId = "p1", name = "Villa", description = null, location = null,
                 currency = "EUR", timezone = "Europe/Paris", status = ProjectStatus.IN_PROGRESS,
-                ownerId = 1L, ownerPlan = Plan.SEMI_FLEX,
+                ownerId = 1L, ownerPlan = ownerPlan,
             ),
         )
         val auth = FakeAuthRepository().apply {
@@ -82,7 +85,71 @@ class DailyLogVideoUiTest {
         return DailyLogViewModel(
             logs, stages, projects, auth, FakeMaterialRepository(),
             FakePurchaseLineRepository(), FakeConsumptionLineRepository(), attachments,
+            com.dmb.chantiertracker.support.FakeConnectivityObserver(initiallyOnline = online),
         ).also { it.load("log-1") }
+    }
+
+    @Test
+    fun offline_the_video_button_stays_disabled_and_says_it_needs_the_network() = runComposeUiTest {
+        setContent {
+            customAppLocale = "fr"
+            AppEnvironment { AppTheme { DailyLogScreen(dailyLogLocalId = "log-1", viewModel = vm(online = false)) } }
+        }
+        waitForIdle()
+
+        onNodeWithText("Ajouter une vidéo").performScrollTo().assertIsNotEnabled()
+        onNodeWithText("Disponible avec le réseau").performScrollTo().assertIsDisplayed()
+        onNodeWithText("Ajouter une photo").performScrollTo().assertIsEnabled()
+    }
+
+    @Test
+    fun unknown_owner_limits_show_the_video_button_disabled_with_how_to_enable_it() = runComposeUiTest {
+        setContent {
+            customAppLocale = "fr"
+            AppEnvironment { AppTheme { DailyLogScreen(dailyLogLocalId = "log-1", viewModel = vm(online = false, ownerPlan = null)) } }
+        }
+        waitForIdle()
+
+        onNodeWithText("Ajouter une vidéo").performScrollTo().assertIsNotEnabled()
+        onNodeWithText("Ouvre ce projet une fois avec le réseau pour activer les vidéos").performScrollTo().assertIsDisplayed()
+        onNodeWithText("Disponible avec le réseau").assertDoesNotExist()
+    }
+
+    @Test
+    fun unknown_owner_limits_keep_the_video_button_disabled_even_online() = runComposeUiTest {
+        setContent {
+            customAppLocale = "fr"
+            AppEnvironment { AppTheme { DailyLogScreen(dailyLogLocalId = "log-1", viewModel = vm(online = true, ownerPlan = null)) } }
+        }
+        waitForIdle()
+
+        onNodeWithText("Ajouter une vidéo").performScrollTo().assertIsNotEnabled()
+        onNodeWithText("Ouvre ce projet une fois avec le réseau pour activer les vidéos").performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
+    fun a_known_plan_without_videos_still_hides_the_video_button() = runComposeUiTest {
+        setContent {
+            customAppLocale = "fr"
+            AppEnvironment { AppTheme { DailyLogScreen(dailyLogLocalId = "log-1", viewModel = vm(online = true, ownerPlan = Plan.FREE)) } }
+        }
+        waitForIdle()
+
+        onNodeWithText("Ajouter une photo").performScrollTo().assertIsEnabled()
+        onNodeWithText("Ajouter une vidéo").assertDoesNotExist()
+        onNodeWithText("Ouvre ce projet une fois avec le réseau pour activer les vidéos").assertDoesNotExist()
+    }
+
+    @Test
+    fun online_the_video_button_is_enabled_without_the_network_note() = runComposeUiTest {
+        setContent {
+            customAppLocale = "fr"
+            AppEnvironment { AppTheme { DailyLogScreen(dailyLogLocalId = "log-1", viewModel = vm(online = true)) } }
+        }
+        waitForIdle()
+
+        onNodeWithText("Ajouter une vidéo").performScrollTo().assertIsEnabled()
+        onNodeWithText("Disponible avec le réseau").assertDoesNotExist()
     }
 
     @Test

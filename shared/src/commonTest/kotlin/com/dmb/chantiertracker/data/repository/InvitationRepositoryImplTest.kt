@@ -9,6 +9,8 @@ import com.dmb.chantiertracker.support.FakeProjectDao
 import com.dmb.chantiertracker.support.FakeSyncer
 import com.dmb.chantiertracker.support.localInvitation
 import com.dmb.chantiertracker.support.localProject
+import com.dmb.chantiertracker.support.respondJson
+import com.dmb.chantiertracker.support.respondProblem
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import io.ktor.http.HttpStatusCode
@@ -137,6 +139,31 @@ class InvitationRepositoryImplTest {
         assertEquals(9L, preview.projectId)
         assertEquals("Villa Vidal", preview.projectName)
         assertEquals(InvitationStatus.PENDING, preview.status)
+        assertEquals(ProjectRole.SUPERVISOR, preview.role)
+        assertEquals("Jean", preview.invitedByName)
+    }
+
+    @Test
+    fun get_invitation_preview_reads_a_deleted_inviter_as_null_and_an_admin_role() = runTest {
+        val backend = FakeProjectBackend().apply {
+            seedPendingForMe(com.dmb.chantiertracker.support.ServerPendingInvitation("tok", 9, "Villa Vidal", "ADMIN", null))
+        }
+
+        val preview = repo(backend = backend).getInvitationPreview("tok")
+
+        assertEquals(ProjectRole.ADMIN, preview.role)
+        assertEquals(null, preview.invitedByName)
+    }
+
+    @Test
+    fun accepting_an_invitation_meant_for_another_address_is_its_own_refusal() = runTest {
+        val backend = FakeProjectBackend().apply {
+            seedPendingForMe(com.dmb.chantiertracker.support.ServerPendingInvitation("tok", 9, "Villa"))
+            acceptStatus = HttpStatusCode.Forbidden
+            acceptRefusalCode = "INVITATION_EMAIL_MISMATCH"
+        }
+
+        assertFailsWith<DomainException.InvitationForAnotherAccount> { repo(backend = backend).acceptInvitation("tok") }
     }
 
     @Test
@@ -305,5 +332,48 @@ class InvitationRepositoryImplTest {
 
         assertFailsWith<DomainException.LastAdminRemoval> { repo(projectDao = projectDao, backend = backend, syncer = syncer).removeMember("p1", userId = 1) }
         assertEquals(listOf(1L, 9L), projectDao.observeMembers("p1").first().map { it.userId }.sorted())
+    }
+
+    private fun sessionRepo(mock: com.dmb.chantiertracker.support.RecordingMockClient) =
+        InvitationRepositoryImpl(FakeInvitationDao(), com.dmb.chantiertracker.data.remote.InvitationApi(mock.client), FakeProjectDao(), FakeSyncer())
+
+    @Test
+    fun an_expired_session_on_accept_is_renewed_then_the_accept_is_sent_once_more() = runTest {
+        val storage = com.dmb.chantiertracker.support.FakeTokenStorage(com.dmb.chantiertracker.data.local.AuthTokens("perime", "refresh-1"))
+        val mock = com.dmb.chantiertracker.support.RecordingMockClient(storage) { request ->
+            when (request.url.encodedPath) {
+                "/api/v1/auth/refresh-token" -> respondJson("""{"accessToken":"neuf","refreshToken":"refresh-2"}""")
+                "/api/v1/invitations/tok/accept" ->
+                    if (request.headers[io.ktor.http.HttpHeaders.Authorization] == "Bearer neuf") respondJson("""{"message":"ok"}""")
+                    else respondProblem(HttpStatusCode.Unauthorized, "Authentification requise.", code = "AUTHENTICATION_REQUIRED")
+                else -> error("unexpected ${request.url}")
+            }
+        }
+
+        sessionRepo(mock).acceptInvitation("tok")
+
+        assertEquals(
+            listOf("/api/v1/invitations/tok/accept", "/api/v1/auth/refresh-token", "/api/v1/invitations/tok/accept"),
+            mock.requests.map { it.url.encodedPath },
+        )
+        assertEquals("neuf", storage.tokens?.accessToken)
+    }
+
+    @Test
+    fun a_refused_renewal_on_decline_ends_the_session_without_a_second_try() = runTest {
+        val storage = com.dmb.chantiertracker.support.FakeTokenStorage(com.dmb.chantiertracker.data.local.AuthTokens("perime", "revoque"))
+        var expired = 0
+        val mock = com.dmb.chantiertracker.support.RecordingMockClient(storage, onSessionExpired = { expired++ }) { request ->
+            when (request.url.encodedPath) {
+                "/api/v1/auth/refresh-token" -> respondProblem(HttpStatusCode.Unauthorized, "Jeton invalide.", code = "INVALID_REFRESH_TOKEN")
+                else -> respondProblem(HttpStatusCode.Unauthorized, "Authentification requise.", code = "AUTHENTICATION_REQUIRED")
+            }
+        }
+
+        assertFailsWith<DomainException> { sessionRepo(mock).declineInvitation("tok") }
+
+        assertEquals(1, mock.requests.count { it.url.encodedPath == "/api/v1/invitations/tok/decline" })
+        assertEquals(null, storage.tokens)
+        assertEquals(1, expired)
     }
 }

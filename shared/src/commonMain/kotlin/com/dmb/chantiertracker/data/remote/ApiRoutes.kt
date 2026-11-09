@@ -32,6 +32,7 @@ object ApiRoutes {
     fun invitation(id: Long) = "invitations/$id"
     fun invitationByToken(token: String) = "invitations/$token"
     fun acceptInvitation(token: String) = "invitations/$token/accept"
+    fun declineInvitation(token: String) = "invitations/$token/decline"
     fun acceptMyInvitation(id: Long) = "users/me/invitations/$id/accept"
     fun declineMyInvitation(id: Long) = "users/me/invitations/$id/decline"
     fun projectStages(id: Long) = "projects/$id/stages"

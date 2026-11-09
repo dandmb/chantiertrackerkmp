@@ -6,6 +6,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onNodeWithText
@@ -100,6 +101,21 @@ class ValidateAccountUiTest {
         type("Email", "jean@chantier.dev")
         onNodeWithText("Valider mon compte").performScrollTo().performClick()
         assertEquals("jean@chantier.dev", opened)
+    }
+
+    @Test
+    fun both_prompts_of_the_sign_in_are_centred_like_the_web() = runPhoneTest {
+        mount { LoginScreen({}, {}, onOpenLegalDocument = {}, viewModel = LoginViewModel(auth, FakeCheckoutLauncher(), FakeBillingRepository())) }
+
+        val create = onNodeWithText("Pas encore de compte ?", substring = true).performScrollTo().getBoundsInRoot()
+        val createLink = onNodeWithText("Créer un compte").getBoundsInRoot()
+        val validate = onNodeWithText("Compte pas encore validé ?", substring = true).getBoundsInRoot()
+        val validateLink = onNodeWithText("Valider mon compte").getBoundsInRoot()
+        val middle = 206f
+        val createCentre = (create.left.value + createLink.right.value) / 2
+        val validateCentre = (validate.left.value + validateLink.right.value) / 2
+        assertTrue(kotlin.math.abs(createCentre - middle) < 3f, "Créer un compte centré : $createCentre")
+        assertTrue(kotlin.math.abs(validateCentre - middle) < 3f, "Valider mon compte centré : $validateCentre")
     }
 
     @Test

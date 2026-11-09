@@ -55,6 +55,15 @@ class LoginViewModelTest {
     }
 
     @Test
+    fun the_address_is_sent_trimmed_and_in_lower_case_like_the_web() = runTest {
+        viewModel.onEmailChange("  Jean.Marchand@Chantier.DEV ")
+        viewModel.onPasswordChange("secret")
+        viewModel.submit()
+        advanceUntilIdle()
+        assertEquals(listOf("login:jean.marchand@chantier.dev:secret"), repo.calls)
+    }
+
+    @Test
     fun valid_submission_calls_repository() = runTest {
         viewModel.onEmailChange("user@example.com")
         viewModel.onPasswordChange("secret")

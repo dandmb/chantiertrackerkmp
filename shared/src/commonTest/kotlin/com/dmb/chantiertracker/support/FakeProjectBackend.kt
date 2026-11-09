@@ -827,7 +827,7 @@ class FakeProjectBackend {
     // removed once accepted/declined (see the accept/decline branches above),
     // which is as far as this fake backend needs to model invitation status.
     private fun invitationDetailsJson(i: ServerPendingInvitation): String =
-        """{"projectId":${i.projectId},"projectName":${i.projectName.q()},"email":"invitee@x.dev","status":"PENDING","accountExists":true}"""
+        """{"projectId":${i.projectId},"projectName":${i.projectName.q()},"role":${i.role.q()},"invitedByName":${i.invitedByName?.q() ?: "null"},"status":"PENDING","accountExists":true}"""
 
     private fun logSummaryJson(l: ServerLog): String {
         val hasPurchase = entries.any { it.dailyLogId == l.id && it.type == "PURCHASE" }

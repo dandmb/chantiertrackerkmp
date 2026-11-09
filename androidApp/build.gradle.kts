@@ -48,6 +48,11 @@ val uploadKeystore = providers.environmentVariable("RELEASE_KEYSTORE_FILE").orNu
 val firebaseRelease = listOf("FIREBASE_RELEASE_APP_ID", "FIREBASE_RELEASE_API_KEY", "FIREBASE_PROJECT_ID")
     .map { providers.environmentVariable(it).orNull.orEmpty() }
     .takeIf { values -> values.all { it.isNotBlank() } }
+// Firebase of the staging build (package .staging, its own Firebase app): without them Crashlytics stays off.
+val firebaseStaging = listOf("FIREBASE_STAGING_APP_ID", "FIREBASE_STAGING_API_KEY", "FIREBASE_PROJECT_ID")
+    .map { providers.environmentVariable(it).orNull.orEmpty() }
+    .takeIf { values -> values.all { it.isNotBlank() } }
+    ?: listOf("", "", "")
 val crashlyticsTestCrash = providers.gradleProperty("crashlyticsTestCrash").orNull == "true"
 
 android {
@@ -116,7 +121,14 @@ android {
             matchingFallbacks += "release"
             signingConfig = signingConfigs.findByName("distribution")
             configure<CrashlyticsExtension> { mappingFileUploadEnabled = false }
+            val (appId, apiKey, projectId) = firebaseStaging
+            resValue("string", "google_app_id", appId)
+            resValue("string", "google_api_key", apiKey)
+            resValue("string", "project_id", projectId)
         }
+    }
+    sourceSets {
+        getByName("staging").kotlin.srcDir("src/release/kotlin")
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
@@ -126,4 +138,11 @@ android {
         compose = true
         resValues = true
     }
+}
+
+dependencies {
+    "stagingImplementation"(platform(libs.firebase.bom))
+    "stagingImplementation"(libs.firebase.crashlytics)
+    "stagingImplementation"(libs.kotlinx.coroutines.core)
+    "stagingImplementation"(libs.koin.core)
 }

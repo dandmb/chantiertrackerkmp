@@ -31,4 +31,6 @@ data class InvitationPreview(
     val projectId: Long,
     val projectName: String,
     val status: InvitationStatus,
+    val role: ProjectRole? = null,
+    val invitedByName: String? = null,
 )

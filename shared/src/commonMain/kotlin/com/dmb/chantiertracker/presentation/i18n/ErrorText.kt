@@ -48,6 +48,7 @@ import com.dmb.chantiertracker.resources.error_collaborator_limit
 import com.dmb.chantiertracker.resources.error_content_too_large
 import com.dmb.chantiertracker.resources.error_invitation_already_pending
 import com.dmb.chantiertracker.resources.error_invitation_gone
+import com.dmb.chantiertracker.resources.error_invitation_other_account
 import com.dmb.chantiertracker.resources.error_owner_cannot_leave
 import com.dmb.chantiertracker.resources.error_owner_required
 import com.dmb.chantiertracker.resources.error_not_found
@@ -81,6 +82,7 @@ fun DomainException.textRes(): StringResource = when (this) {
     }
     DomainException.InvitationAlreadyPending -> Res.string.error_invitation_already_pending
     DomainException.InvitationGone -> Res.string.error_invitation_gone
+    DomainException.InvitationForAnotherAccount -> Res.string.error_invitation_other_account
     DomainException.CannotInviteSelf -> Res.string.error_cannot_invite_self
     DomainException.AlreadyProjectMember -> Res.string.error_already_project_member
     DomainException.CollaboratorLimitReached -> Res.string.error_collaborator_limit

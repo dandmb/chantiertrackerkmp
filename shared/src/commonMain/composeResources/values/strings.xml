@@ -82,7 +82,7 @@
     <string name="forgot_submit">Send the code</string>
 
     <string name="reset_title">New password</string>
-    <string name="reset_subtitle">Code sent to %1$s.</string>
+    <string name="reset_subtitle">If an account exists for this address, a code has just been sent.</string>
     <string name="reset_submit">Reset password</string>
     <string name="reset_back_to_login">Back to sign in</string>
 
@@ -154,7 +154,14 @@
     <string name="detail_invite_member">Invite a supervisor</string>
     <string name="role_admin">Admin</string>
     <string name="role_supervisor">Supervisor</string>
-    <string name="invitation_accept_title">Invitation</string>
+    <string name="invitation_accept_title">Join the project</string>
+    <string name="invitation_join_intro">You are invited to join</string>
+    <string name="invitation_join_invited_by">Invitation from %1$s</string>
+    <string name="invitation_join_role">Role: %1$s</string>
+    <string name="invitation_join_button">Join the project</string>
+    <string name="invitation_join_decline">Decline</string>
+    <string name="invitation_declined_title">Invitation declined</string>
+    <string name="invitation_declined_body">You will not join this project. A new invitation will be needed to join it later.</string>
     <string name="invitation_accept_welcome">Welcome to %1$s</string>
     <string name="invitation_accept_go_to_project">Go to project</string>
     <string name="invitation_accept_go_to_projects">Go to my projects</string>
@@ -357,6 +364,8 @@
     <string name="attachment_close">Close</string>
     <string name="attachment_take_photo">Take a photo</string>
     <string name="attachment_add_video">Add a video</string>
+    <string name="attachment_video_needs_network">Available with a connection</string>
+    <string name="attachment_video_limits_unknown">Open this project once with the network to enable videos</string>
     <string name="attachment_video_delete">Delete video</string>
     <string name="attachment_delete_confirm_title">Delete this attachment?</string>
     <string name="attachment_delete_confirm_body">This file will be permanently deleted.</string>
@@ -430,6 +439,8 @@
     <string name="error_email_already_used">This email address is already in use.</string>
     <string name="error_invitation_already_pending">An invitation is already pending for this address. Cancel it to send a new one.</string>
     <string name="error_invitation_gone">This invitation is no longer available.</string>
+    <string name="error_invitation_other_account">This invitation is meant for another address. Sign in with the right account.</string>
+    <string name="invitation_join_role_admin">Administrator</string>
     <string name="error_collaborator_limit">This project has reached its plan's collaborator limit, admins included.</string>
     <string name="error_owner_cannot_leave">You own this project, so you can't remove yourself from it. You can delete it instead.</string>
     <string name="error_owner_required">Only the project owner can do that.</string>
@@ -695,7 +706,11 @@
     <string name="delete_account_submit">Delete my account for good</string>
     <string name="delete_account_submitting">Deleting…</string>
     <string name="delete_account_wrong_password">Wrong password.</string>
+    <string name="delete_account_dialog_title">Delete your account?</string>
+    <string name="delete_account_dialog_body">Your account and the projects you own will be deleted for good. This cannot be undone.</string>
+    <string name="delete_account_dialog_confirm">Delete</string>
     <string name="login_notice_account_deleted">Your account has been deleted.</string>
+    <string name="login_notice_invitation_pending">Sign in to join the project.</string>
     <plurals name="delete_account_lost_access">
         <item quantity="one">%1$s will lose access.</item>
         <item quantity="other">%1$s will lose access.</item>
@@ -774,8 +789,10 @@
     <string name="plan_limit_media">You've reached your plan's photo or video limit.</string>
     <string name="plan_limit_export">PDF export isn't included in your current plan.</string>
     <string name="plan_limit_usage">Usage: %1$d of %2$d.</string>
-    <string name="plan_reminder_projects">%1$d of %2$d projects</string>
-    <string name="projects_empty_action">Create my first project</string>
+    <plurals name="plan_reminder_projects">
+        <item quantity="one">%1$d of %2$d projects</item>
+        <item quantity="other">%1$d of %2$d projects</item>
+    </plurals>
     <string name="detail_members_empty_admin">No members yet. Invite a supervisor so they can log from the site.</string>
     <string name="detail_invitations_empty_admin">No pending invitations. Invite a supervisor to give them access to this project.</string>
     <string name="attachments_empty_can_add">No photos yet. Add the first one with the buttons above.</string>
@@ -872,4 +889,10 @@
     <string name="verify_from_login_subtitle">Enter the 6-digit code you received by email when you signed up. Can't find it? Ask for a new code.</string>
     <string name="verify_resend_needs_email">Enter your email before asking for a new code.</string>
     <string name="material_existing_title">Existing materials</string>
+    <string name="offline_banner_title">Offline</string>
+    <string name="offline_banner_body">Your entries stay on the phone and will be sent when the network is back.</string>
+    <plurals name="offline_banner_pending">
+        <item quantity="one">%1$d entry waiting to be sent. It will go out when the network is back.</item>
+        <item quantity="other">%1$d entries waiting to be sent. They will go out when the network is back.</item>
+    </plurals>
 </resources>

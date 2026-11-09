@@ -595,6 +595,13 @@ class FakeInvitationRepository(
         incoming = incoming.filterNot { it.id == id }
     }
 
+    val declinedTokens = mutableListOf<String>()
+
+    override suspend fun declineInvitation(token: String) {
+        declineError?.let { throw it }
+        declinedTokens += token
+    }
+
     var preview: com.dmb.chantiertracker.domain.model.InvitationPreview? = null
     var previewError: com.dmb.chantiertracker.domain.model.DomainException? = null
 

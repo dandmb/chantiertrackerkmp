@@ -1,5 +1,7 @@
 package com.dmb.chantiertracker.presentation.main
 
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.consumeWindowInsets
 import com.dmb.chantiertracker.presentation.CreateFab
 
 import com.dmb.chantiertracker.presentation.i18n.LocalAppLocale
@@ -93,6 +95,8 @@ import com.dmb.chantiertracker.resources.forgot_title
 import com.dmb.chantiertracker.presentation.navigation.reviewRoute
 import com.dmb.chantiertracker.presentation.navigation.fixRoute
 import com.dmb.chantiertracker.presentation.sync.SyncIssueCountViewModel
+import com.dmb.chantiertracker.presentation.sync.OfflineBannerViewModel
+import com.dmb.chantiertracker.presentation.sync.TopBarWithOfflineBanner
 import com.dmb.chantiertracker.presentation.sync.SyncIssuesScreen
 import com.dmb.chantiertracker.presentation.logs.ConsumptionLineFormScreen
 import com.dmb.chantiertracker.presentation.logs.DailyLogScreen
@@ -174,6 +178,7 @@ fun MainScreen(
     viewModel: MainViewModel = koinViewModel(),
     syncIssueCountViewModel: SyncIssueCountViewModel = koinViewModel(),
     exitPromptViewModel: ExitPromptViewModel = koinViewModel(),
+    offlineBannerViewModel: OfflineBannerViewModel = koinViewModel(),
 ) {
     val appLanguage = if (LegalLanguage.forLocale(LocalAppLocale.current) == LegalLanguage.English) ProfileLanguage.ENGLISH else ProfileLanguage.FRENCH
     LaunchedEffect(appLanguage) { viewModel.onAppLanguage(appLanguage) }
@@ -183,6 +188,7 @@ fun MainScreen(
     val account by viewModel.state.collectAsStateWithLifecycle()
     val exitPrompt by exitPromptViewModel.prompt.collectAsStateWithLifecycle()
     val syncIssueCount by syncIssueCountViewModel.count.collectAsStateWithLifecycle()
+    val offlineBanner by offlineBannerViewModel.state.collectAsStateWithLifecycle()
     val startDestination = remember(globalRole) { startDestinationFor(globalRole) }
     val openMyOffer: () -> Unit = remember(navController) { { navController.navigate(MyOfferRoute) { launchSingleTop = true } } }
     val openSyncIssues: () -> Unit = { navController.navigate(SyncIssuesRoute()) { launchSingleTop = true } }
@@ -470,7 +476,7 @@ fun MainScreen(
         NavHost(
             navController = navController,
             startDestination = startDestination,
-            modifier = Modifier.padding(padding),
+            modifier = Modifier.padding(padding).consumeWindowInsets(padding).imePadding(),
             enterTransition = { transitions.enter },
             exitTransition = { transitions.exit },
             popEnterTransition = { transitions.popEnter },
@@ -479,7 +485,6 @@ fun MainScreen(
             composable<ProjectsRoute> {
                 ProjectsScreen(
                     onProjectClick = { localId -> navController.navigate(ProjectDetailRoute(localId)) },
-                    onCreateProject = { navController.navigate(CreateProjectRoute) },
                     syncIssueCount = syncIssueCount,
                     onOpenSyncIssues = openSyncIssues,
                 )
@@ -662,6 +667,7 @@ fun MainScreen(
             composable<InvitationAcceptRoute> { entry ->
                 InvitationAcceptScreen(
                     token = entry.toRoute<InvitationAcceptRoute>().token,
+                    onSignOut = viewModel::logout,
                     onAccepted = { projectLocalId ->
                         val destination = if (projectLocalId != null) ProjectDetailRoute(projectLocalId) else ProjectsRoute
                         navController.navigate(destination) {
@@ -701,13 +707,13 @@ fun MainScreen(
                 }
                 Scaffold(
                     modifier = Modifier.weight(1f),
-                    topBar = topBarContent,
+                    topBar = { TopBarWithOfflineBanner(offlineBanner, topBarContent) },
                     floatingActionButton = fabContent,
                 ) { padding -> navHostContent(padding) }
             }
         } else {
             Scaffold(
-                topBar = topBarContent,
+                topBar = { TopBarWithOfflineBanner(offlineBanner, topBarContent) },
                 bottomBar = {
                     if (currentTab != null) {
                         AppBottomBar(current = currentTab, tabs = tabs, onSelect = onSelectTab)

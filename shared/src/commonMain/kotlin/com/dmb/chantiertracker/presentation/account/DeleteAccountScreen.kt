@@ -1,5 +1,12 @@
 package com.dmb.chantiertracker.presentation.account
 
+import com.dmb.chantiertracker.resources.delete_account_dialog_title
+import com.dmb.chantiertracker.resources.delete_account_dialog_confirm
+import com.dmb.chantiertracker.resources.delete_account_dialog_body
+import com.dmb.chantiertracker.presentation.ConfirmActionDialog
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
 import com.dmb.chantiertracker.presentation.destructiveButtonColors
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
@@ -112,7 +119,7 @@ fun DeleteAccountScreen(
                 }
             }
         }
-        FormErrorSnackbarHost(state.formError?.snackbarText(), state.submitting, Modifier.align(Alignment.BottomCenter))
+        FormErrorSnackbarHost(state.formError?.snackbarText(), state.submitting, Modifier.align(Alignment.TopCenter))
     }
 }
 
@@ -204,6 +211,19 @@ private fun PreviewSections(preview: AccountDeletionPreview) {
 
 @Composable
 private fun Confirmation(state: DeleteAccountUiState, viewModel: DeleteAccountViewModel, onCancel: () -> Unit) {
+    var confirming by remember { mutableStateOf(false) }
+    if (confirming) {
+        ConfirmActionDialog(
+            title = stringResource(Res.string.delete_account_dialog_title),
+            body = stringResource(Res.string.delete_account_dialog_body),
+            confirmLabel = stringResource(Res.string.delete_account_dialog_confirm),
+            onDismiss = { confirming = false },
+            onConfirm = {
+                confirming = false
+                viewModel.submit()
+            },
+        )
+    }
     SectionCard(title = stringResource(Res.string.delete_account_confirm_title)) {
         Text(stringResource(Res.string.delete_account_password_prompt), style = MaterialTheme.typography.bodyMedium)
         PasswordField(
@@ -225,7 +245,7 @@ private fun Confirmation(state: DeleteAccountUiState, viewModel: DeleteAccountVi
         }
         FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Button(
-                onClick = viewModel::submit,
+                onClick = { confirming = true },
                 enabled = state.canSubmit,
                 colors = destructiveButtonColors(),
             ) {

@@ -6,6 +6,7 @@ import android.os.Handler
 import android.os.Looper
 import com.dmb.chantiertracker.core.CrashReporter
 import com.dmb.chantiertracker.core.CrashReportingSession
+import com.dmb.chantiertracker.core.NonFatalErrors
 import com.dmb.chantiertracker.data.AuthStateHolder
 import com.google.firebase.FirebaseApp
 import com.google.firebase.crashlytics.FirebaseCrashlytics
@@ -17,8 +18,9 @@ import org.koin.core.context.GlobalContext
 
 private const val TEST_CRASH_DELAY_MS = 5_000L
 
-// Play Store build only: crashes go to Crashlytics with the app version and the account id,
-// never the e-mail or the name. Without the Firebase values of the CI, nothing is set up.
+// Play Store and staging builds: crashes go to Crashlytics with the app version and the account id,
+// never the e-mail or the name; sign-in and sync failures go as non-fatals (type, HTTP status, error
+// code, screen). Without the Firebase values of the CI, nothing is set up.
 object CrashReportingInstaller {
 
     fun install(application: Application) {
@@ -28,6 +30,7 @@ object CrashReportingInstaller {
             override fun setUserId(id: String) = crashlytics.setUserId(id)
             override fun setCustomKey(key: String, value: String) = crashlytics.setCustomKey(key, value)
         }
+        NonFatalErrors.sink = { report -> crashlytics.recordException(NonFatalApiError(report.message())) }
         val authState = GlobalContext.get().get<AuthStateHolder>().state
         CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
             CrashReportingSession(reporter, application.versionLabel()).follow(authState)
@@ -43,3 +46,5 @@ object CrashReportingInstaller {
         return "${info.versionName} ($code)"
     }
 }
+
+private class NonFatalApiError(message: String) : Exception(message)

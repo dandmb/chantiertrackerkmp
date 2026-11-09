@@ -24,6 +24,7 @@ val Night = Color(0xFF151A0C)
 val NightCard = Color(0xFF20280F)
 val NightRule = Color(0xFF34401F)
 val NightChip = Color(0xFF2C3618)
+val NightRaised = Color(0xFF3A4724)
 val NightText = Color(0xFFFBF7EA)
 val NightSoft = Color(0xFFC9D3A8)
 

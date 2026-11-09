@@ -1,5 +1,7 @@
 package com.dmb.chantiertracker.presentation.logs
 
+import kotlinx.coroutines.flow.StateFlow
+import com.dmb.chantiertracker.data.sync.ConnectivityObserver
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.dmb.chantiertracker.domain.model.Attachment
@@ -66,6 +68,7 @@ data class DailyLogUiState(
     // Project IN_PROGRESS and stage not COMPLETED — the only server-side gate on
     // creating a report (no date restriction, unlike a line).
     val projectAndStageActive: Boolean = false,
+    val online: Boolean = true,
 ) {
     val isMissing: Boolean get() = !isLoading && detail == null
 
@@ -74,6 +77,7 @@ data class DailyLogUiState(
     fun canDelete(attachment: Attachment): Boolean =
         canEdit && (isAdmin || !attachment.sentToTheServer || (currentUserId != null && attachment.uploadedById == currentUserId))
     val canAddVideo: Boolean get() = VideoLimit.canAdd(ownerVideoLimits)
+    val videoLimitsUnknown: Boolean get() = ownerVideoLimits?.known == false
 
     // "Flag an issue" is for a member who can see the entry but can't fix it
     // themselves — mirrors the web's `!isAdmin && !canEdit && projectAndStageActive`.
@@ -101,12 +105,17 @@ class DailyLogViewModel(
     private val purchaseLineRepository: PurchaseLineRepository,
     private val consumptionLineRepository: ConsumptionLineRepository,
     private val attachmentRepository: AttachmentRepository,
+    private val connectivity: ConnectivityObserver = AlwaysOnline,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(DailyLogUiState())
     val state = _state.asStateFlow()
 
     private var localId: String? = null
+
+    init {
+        viewModelScope.launch { connectivity.online.collect { online -> _state.update { it.copy(online = online) } } }
+    }
 
     fun load(dailyLogLocalId: String) {
         if (localId == dailyLogLocalId) return
@@ -289,4 +298,9 @@ class DailyLogViewModel(
         // is only a safety net so a stuck Flow can't pin the indicator forever.
         const val FINALIZE_TIMEOUT_MS = 4_000L
     }
+}
+
+private object AlwaysOnline : ConnectivityObserver {
+    override val online: StateFlow<Boolean> = MutableStateFlow(true)
+    override suspend fun isOnline(): Boolean = true
 }

@@ -1,5 +1,9 @@
 package com.dmb.chantiertracker.presentation.logs
 
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.material3.Surface
+import androidx.compose.foundation.BorderStroke
 import com.dmb.chantiertracker.presentation.TextAction
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -18,9 +22,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExposedDropdownMenuAnchorType
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -162,71 +163,73 @@ fun PurchaseLineFormScreen(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun MaterialPicker(state: PurchaseLineFormUiState, viewModel: PurchaseLineFormViewModel) {
     var expanded by remember { mutableStateOf(false) }
+    var focused by remember { mutableStateOf(false) }
     val suggestions = state.suggestions.take(MAX_SUGGESTIONS)
     val offersCreate = state.canOfferCreate && state.creatingNewUnit == null
-    val menuShown = expanded && !state.isSubmitting && (suggestions.isNotEmpty() || offersCreate)
+    val menuShown = expanded && focused && !state.isSubmitting && (suggestions.isNotEmpty() || offersCreate)
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        ExposedDropdownMenuBox(expanded = menuShown, onExpandedChange = { expanded = it }) {
-            AppOutlinedTextField(
-                value = state.materialQuery,
-                onValueChange = {
-                    viewModel.onMaterialQueryChange(it)
-                    expanded = true
-                },
-                label = { Text(stringResource(Res.string.material_label)) },
-                placeholder = { Text(stringResource(Res.string.material_query_hint)) },
-                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = menuShown) },
-                isError = state.materialError != null,
-                supportingText = state.materialError?.let { { Text(stringResource(it)) } },
-                singleLine = true,
-                enabled = !state.isSubmitting,
-                modifier = Modifier.fillMaxWidth().menuAnchor(ExposedDropdownMenuAnchorType.PrimaryEditable),
-            )
-            ExposedDropdownMenu(
-                expanded = menuShown,
-                onDismissRequest = { expanded = false },
-                modifier = Modifier.testTag(MATERIAL_SUGGESTIONS_TAG),
+        AppOutlinedTextField(
+            value = state.materialQuery,
+            onValueChange = {
+                viewModel.onMaterialQueryChange(it)
+                expanded = true
+            },
+            label = { Text(stringResource(Res.string.material_label)) },
+            placeholder = { Text(stringResource(Res.string.material_query_hint)) },
+            isError = state.materialError != null,
+            supportingText = state.materialError?.let { { Text(stringResource(it)) } },
+            singleLine = true,
+            enabled = !state.isSubmitting,
+            modifier = Modifier.fillMaxWidth().onFocusChanged { focused = it.isFocused },
+        )
+        if (menuShown) {
+            Surface(
+                modifier = Modifier.fillMaxWidth().testTag(MATERIAL_SUGGESTIONS_TAG),
+                shape = MaterialTheme.shapes.medium,
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
             ) {
-                if (suggestions.isNotEmpty()) {
-                    Text(
-                        text = stringResource(Res.string.material_existing_title),
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                    )
-                    suggestions.forEach { material ->
+                Column(Modifier.focusProperties { canFocus = false }.padding(vertical = 4.dp)) {
+                    if (suggestions.isNotEmpty()) {
+                        Text(
+                            text = stringResource(Res.string.material_existing_title),
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                        )
+                        suggestions.forEach { material ->
+                            DropdownMenuItem(
+                                text = { Text(material.name) },
+                                leadingIcon = { Icon(ConstructionIcon, contentDescription = null) },
+                                trailingIcon = {
+                                    Text(
+                                        material.unit,
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                },
+                                onClick = {
+                                    viewModel.selectMaterial(material)
+                                    expanded = false
+                                },
+                            )
+                        }
+                        if (offersCreate) HorizontalDivider()
+                    }
+                    if (offersCreate) {
                         DropdownMenuItem(
-                            text = { Text(material.name) },
-                            leadingIcon = { Icon(ConstructionIcon, contentDescription = null) },
-                            trailingIcon = {
-                                Text(
-                                    material.unit,
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            },
+                            text = { Text(stringResource(Res.string.material_new_option, state.materialQuery.trim())) },
+                            leadingIcon = { Icon(AddIcon, contentDescription = null) },
                             onClick = {
-                                viewModel.selectMaterial(material)
+                                viewModel.startCreateMaterial()
                                 expanded = false
                             },
                         )
                     }
-                    if (offersCreate) HorizontalDivider()
-                }
-                if (offersCreate) {
-                    DropdownMenuItem(
-                        text = { Text(stringResource(Res.string.material_new_option, state.materialQuery.trim())) },
-                        leadingIcon = { Icon(AddIcon, contentDescription = null) },
-                        onClick = {
-                            viewModel.startCreateMaterial()
-                            expanded = false
-                        },
-                    )
                 }
             }
         }

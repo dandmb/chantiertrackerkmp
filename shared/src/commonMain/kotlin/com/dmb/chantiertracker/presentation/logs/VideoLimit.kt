@@ -1,6 +1,7 @@
 package com.dmb.chantiertracker.presentation.logs
 
 import com.dmb.chantiertracker.domain.model.MAX_VIDEO_BYTES
+import com.dmb.chantiertracker.domain.model.Plan
 import com.dmb.chantiertracker.domain.model.ProjectDetail
 import com.dmb.chantiertracker.domain.model.hasUpgrade
 import com.dmb.chantiertracker.domain.model.ownerMaxVideoDurationSeconds
@@ -37,12 +38,13 @@ sealed interface VideoWeightCheck {
  * yet. `hasUpgrade` stays a property of the plan: founder status is a floor,
  * not a tier to sell.
  */
-data class OwnerVideoLimits(val maxVideos: Int, val maxDurationSeconds: Int?, val hasUpgrade: Boolean)
+data class OwnerVideoLimits(val maxVideos: Int, val maxDurationSeconds: Int?, val hasUpgrade: Boolean, val known: Boolean = true)
 
 fun ProjectDetail.ownerVideoLimits() = OwnerVideoLimits(
     maxVideos = ownerMaxVideos(),
     maxDurationSeconds = ownerMaxVideoDurationSeconds(),
     hasUpgrade = ownerPlan?.hasUpgrade() ?: true,
+    known = ownerEntitlements != null || (ownerPlan != null && ownerPlan != Plan.UNKNOWN),
 )
 
 object VideoLimit {

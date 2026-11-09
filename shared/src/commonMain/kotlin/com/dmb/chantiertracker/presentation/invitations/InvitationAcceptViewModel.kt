@@ -2,8 +2,11 @@ package com.dmb.chantiertracker.presentation.invitations
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.dmb.chantiertracker.domain.model.AuthState
 import com.dmb.chantiertracker.domain.model.DomainException
 import com.dmb.chantiertracker.domain.model.InvitationStatus
+import com.dmb.chantiertracker.domain.model.ProjectRole
+import com.dmb.chantiertracker.domain.repository.AuthRepository
 import com.dmb.chantiertracker.domain.repository.InvitationRepository
 import com.dmb.chantiertracker.domain.repository.ProjectRepository
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -19,23 +22,26 @@ sealed interface InvitationAcceptStatus {
     // synced into the local store by the time refresh() returns — the
     // screen falls back to the project list rather than a broken link.
     data class Accepted(val projectName: String, val projectLocalId: String?) : InvitationAcceptStatus
+    data class Ready(val projectName: String, val invitedByName: String?, val role: ProjectRole?, val working: Boolean = false) : InvitationAcceptStatus
+    data object Declined : InvitationAcceptStatus
+    data object WrongAccount : InvitationAcceptStatus
     data object InvalidLink : InvitationAcceptStatus
     data class Failed(val error: DomainException) : InvitationAcceptStatus
 }
 
-// ADR-59 — reached only when InvitationDeepLinkBridge has already confirmed
-// the current user is authenticated; every field this needs (preview +
-// accept + the resulting local project id) is already-existing repository
-// surface, nothing reimplemented here.
 class InvitationAcceptViewModel(
     private val invitationRepository: InvitationRepository,
     private val projectRepository: ProjectRepository,
+    private val invitationLinks: InvitationDeepLinkDispatcher,
+    private val authRepository: AuthRepository,
 ) : ViewModel() {
 
     private val _status = MutableStateFlow<InvitationAcceptStatus>(InvitationAcceptStatus.Loading)
     val status: StateFlow<InvitationAcceptStatus> = _status.asStateFlow()
 
     private var token: String? = null
+
+    private var projectId: Long? = null
 
     fun load(token: String) {
         if (this.token == token) return
@@ -44,29 +50,59 @@ class InvitationAcceptViewModel(
             val preview = try {
                 invitationRepository.getInvitationPreview(token)
             } catch (e: DomainException) {
-                // An unknown/malformed token reads the same as an expired or
-                // already-used one to the user — mirrors the web, which
-                // shows the same "Invitation invalide" message for both.
-                _status.value = if (e == DomainException.NotFound) InvitationAcceptStatus.InvalidLink else InvitationAcceptStatus.Failed(e)
+                _status.value = failure(e)
                 return@launch
             }
             if (preview.status != InvitationStatus.PENDING) {
                 _status.value = InvitationAcceptStatus.InvalidLink
                 return@launch
             }
-            try {
-                invitationRepository.acceptInvitation(token)
-            } catch (e: DomainException) {
-                _status.value = if (e == DomainException.NotFound) InvitationAcceptStatus.InvalidLink else InvitationAcceptStatus.Failed(e)
-                return@launch
-            }
-            // Best-effort: never throws (ProjectRepository.refresh's own
-            // contract) — a failed pull here still leaves a genuinely
-            // accepted invitation, just not synced into Room yet.
-            projectRepository.refresh()
-            val projectLocalId = projectRepository.findLocalIdByServerId(preview.projectId)
-            _status.value = InvitationAcceptStatus.Accepted(preview.projectName, projectLocalId)
+            projectId = preview.projectId
+            _status.value = InvitationAcceptStatus.Ready(preview.projectName, preview.invitedByName, preview.role)
         }
+    }
+
+    fun join() = act { ready, token ->
+        invitationRepository.acceptInvitation(token)
+        projectRepository.refresh()
+        val localId = projectId?.let { projectRepository.findLocalIdByServerId(it) }
+        invitationLinks.release(token)
+        InvitationAcceptStatus.Accepted(ready.projectName, localId)
+    }
+
+    fun decline() = act { _, token ->
+        invitationRepository.declineInvitation(token)
+        invitationLinks.release(token)
+        InvitationAcceptStatus.Declined
+    }
+
+    private fun act(block: suspend (InvitationAcceptStatus.Ready, String) -> InvitationAcceptStatus) {
+        val ready = _status.value as? InvitationAcceptStatus.Ready ?: return
+        val current = token ?: return
+        if (ready.working) return
+        _status.value = ready.copy(working = true)
+        viewModelScope.launch {
+            _status.value = try {
+                block(ready, current)
+            } catch (e: DomainException.InvalidCredentials) {
+                ready
+            } catch (e: DomainException) {
+                failure(e)
+            }
+        }
+    }
+
+    private fun failure(e: DomainException) = when (e) {
+        DomainException.NotFound -> InvitationAcceptStatus.InvalidLink
+        DomainException.InvitationForAnotherAccount -> InvitationAcceptStatus.WrongAccount
+        else -> InvitationAcceptStatus.Failed(e)
+    }.also { if (it.settles()) token?.let(invitationLinks::release) }
+
+    private fun InvitationAcceptStatus.settles() =
+        this is InvitationAcceptStatus.Accepted || this == InvitationAcceptStatus.Declined || this == InvitationAcceptStatus.InvalidLink
+
+    override fun onCleared() {
+        if (authRepository.authState.value is AuthState.Authenticated) token?.let(invitationLinks::release)
     }
 
     fun retry() {

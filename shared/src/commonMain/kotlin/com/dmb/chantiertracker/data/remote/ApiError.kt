@@ -1,5 +1,10 @@
 package com.dmb.chantiertracker.data.remote
 
+import com.dmb.chantiertracker.core.ErrorReportingScreen
+import com.dmb.chantiertracker.core.NonFatalErrors
+import kotlinx.coroutines.currentCoroutineContext
+
+import kotlinx.io.IOException
 import com.dmb.chantiertracker.data.remote.dto.ProblemDetailDto
 import com.dmb.chantiertracker.domain.model.DomainException
 import io.ktor.client.call.body
@@ -26,6 +31,7 @@ private const val PROJECT_OWNER_REQUIRED_CODE = "PROJECT_OWNER_REQUIRED"
 private const val PROJECT_OWNER_CANNOT_LEAVE_CODE = "PROJECT_OWNER_CANNOT_LEAVE"
 private const val PLAN_LIMIT_EXCEEDED_CODE = "PLAN_LIMIT_EXCEEDED"
 private const val LOCKED_CODE = "LOCKED"
+private const val INVITATION_EMAIL_MISMATCH_CODE = "INVITATION_EMAIL_MISMATCH"
 private const val INVALID_QUERY_STRING_CODE = "INVALID_QUERY_STRING"
 private val PROBLEM_JSON = ContentType("application", "problem+json")
 
@@ -47,15 +53,41 @@ suspend fun <T> apiCallReportingRefusalCode(
         throw e
     } catch (e: ResponseException) {
         val problem = e.response.problemOrNull()
+        val status = e.response.status.value
         // While the API is redeployed the reverse proxy answers 404 in its own format:
         // the server is unreachable, nothing was found missing.
-        if (e.response.isNotTheBackendsAnswer(problem)) throw DomainException.ServiceUnavailable
-        onRefusalStatus(e.response.status.value)
-        problem?.errors?.keys?.let(onFieldErrors)
-        throw e.toDomainException(problem, onRefusalCode)
-    } catch (e: Throwable) {
+        val failure = if (e.response.isNotTheBackendsAnswer(problem)) {
+            DomainException.ServiceUnavailable
+        } else {
+            onRefusalStatus(status)
+            problem?.errors?.keys?.let(onFieldErrors)
+            e.toDomainException(problem, onRefusalCode)
+        }
+        reportNonFatal(failure, httpStatus = status, errorCode = problem?.code)
+        throw failure
+    } catch (e: IOException) {
+        reportNonFatal(DomainException.Network, cause = e::class.simpleName, networkFailure = true)
         throw DomainException.Network
+    } catch (e: Throwable) {
+        apiLog("api: unreadable answer (${e::class.simpleName})")
+        reportNonFatal(DomainException.Unexpected, cause = e::class.simpleName)
+        throw DomainException.Unexpected
     }
+
+private suspend fun reportNonFatal(
+    failure: DomainException,
+    httpStatus: Int? = null,
+    errorCode: String? = null,
+    cause: String? = null,
+    networkFailure: Boolean = false,
+) = NonFatalErrors.report(
+    screen = currentCoroutineContext()[ErrorReportingScreen],
+    errorType = failure::class.simpleName ?: "DomainException",
+    httpStatus = httpStatus,
+    errorCode = errorCode,
+    cause = cause,
+    networkFailure = networkFailure,
+)
 
 suspend fun HttpResponse.comesFromAnUnavailableApi(): Boolean = isNotTheBackendsAnswer(problemOrNull())
 
@@ -85,6 +117,7 @@ private fun ResponseException.toDomainException(problem: ProblemDetailDto?, onRe
     if (problem?.code == PROJECT_OWNER_REQUIRED_CODE) return DomainException.OwnerRequired
     if (problem?.code == PROJECT_OWNER_CANNOT_LEAVE_CODE) return DomainException.OwnerCannotLeave
     if (problem?.code == PLAN_LIMIT_EXCEEDED_CODE) return DomainException.PlanLimitReached
+    if (problem?.code == INVITATION_EMAIL_MISMATCH_CODE) return DomainException.InvitationForAnotherAccount
     if (problem?.code == LOCKED_CODE) return DomainException.AccountLocked(retryAfterSeconds = waitOf(problem))
     if (problem?.code == INVALID_QUERY_STRING_CODE) {
         apiLog("api: $INVALID_QUERY_STRING_CODE on ${response.call.request.url.encodedPath}")
@@ -92,6 +125,7 @@ private fun ResponseException.toDomainException(problem: ProblemDetailDto?, onRe
     }
 
     return when (response.status) {
+        HttpStatusCode.ServiceUnavailable, HttpStatusCode.BadGateway, HttpStatusCode.GatewayTimeout -> DomainException.ServiceUnavailable
         HttpStatusCode.Unauthorized -> DomainException.InvalidCredentials
         HttpStatusCode.Conflict -> DomainException.EmailAlreadyUsed
         HttpStatusCode.NotFound -> DomainException.NotFound

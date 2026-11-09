@@ -1,5 +1,13 @@
 package com.dmb.chantiertracker.presentation.navigation
 
+import androidx.compose.material3.MaterialTheme
+import com.dmb.chantiertracker.presentation.theme.SystemBarIcons
+import com.dmb.chantiertracker.presentation.theme.systemBarIconsAreLight
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import org.koin.mp.KoinPlatformTools
+import androidx.navigation.NavDestination.Companion.hasRoute
+import com.dmb.chantiertracker.presentation.invitations.InvitationDeepLinkDispatcher
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -53,8 +61,11 @@ fun RootNavHost(
     val authenticatedUser = (authState as? AuthState.Authenticated)?.user
     val mustChangePasswordEmail = (authState as? AuthState.MustChangePassword)?.email
 
+    val showingSplash = authState is AuthState.Unknown || hasLoggedInBefore == null || hasSeenOnboarding == null
+    SystemBarIcons(light = systemBarIconsAreLight(showingSplash, MaterialTheme.colorScheme.background))
+
     when {
-        authState is AuthState.Unknown || hasLoggedInBefore == null || hasSeenOnboarding == null -> SplashScreen()
+        showingSplash -> SplashScreen()
         mustChangePasswordEmail != null -> ChangePasswordScreen(email = mustChangePasswordEmail)
         authenticatedUser != null -> MainScreen(globalRole = authenticatedUser.globalRole)
         else -> AuthNavHost(
@@ -94,6 +105,16 @@ private fun AuthNavHost(
     }
     val paidPlansOffered = paidPlansAreOffered()
     val openLegalDocument: (LegalDocument) -> Unit = { navController.navigate(LegalDocumentRoute(it.slug)) }
+    val invitationLinks = remember { KoinPlatformTools.defaultContext().getOrNull()?.getOrNull<InvitationDeepLinkDispatcher>() }
+    LaunchedEffect(invitationLinks) { invitationLinks?.reopenHeld() }
+    val pendingInvitation by (invitationLinks?.pending ?: NoPendingInvitation).collectAsStateWithLifecycle()
+    LaunchedEffect(pendingInvitation, backStackEntry) {
+        val entry = backStackEntry ?: return@LaunchedEffect
+        if (pendingInvitation == null || entry.destination.hasRoute<LoginRoute>()) return@LaunchedEffect
+        if (entry.destination.hasRoute<OnboardingRoute>() || entry.destination.hasRoute<WelcomeRoute>()) {
+            navController.navigate(LoginRoute(notice = LoginNotice.InvitationPending.toArg())) { launchSingleTop = true }
+        }
+    }
 
     NavHost(
         navController = navController,
@@ -157,7 +178,8 @@ private fun AuthNavHost(
                 onVerificationRequired = { navController.navigate(LoginVerificationRoute(route.checkoutPlan, route.checkoutCycle)) },
                 onValidateAccount = { typed -> navController.navigate(ValidateAccountRoute(typed.ifBlank { null })) },
                 prefilledEmail = route.prefilledEmail,
-                notice = LoginNotice.fromArg(route.notice),
+                notice = LoginNotice.fromArg(route.notice)
+                    ?: LoginNotice.InvitationPending.takeIf { pendingInvitation != null },
                 checkoutPlan = route.checkoutPlan,
                 checkoutCycle = route.checkoutCycle,
             )
@@ -268,3 +290,5 @@ private fun NavController.backToLogin(
         launchSingleTop = true
     }
 }
+
+private val NoPendingInvitation: StateFlow<String?> = MutableStateFlow(null)

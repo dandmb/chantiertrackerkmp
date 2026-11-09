@@ -8,6 +8,7 @@ import com.dmb.chantiertracker.domain.model.GlobalRole
 import com.dmb.chantiertracker.domain.model.ProfileLanguage
 import com.dmb.chantiertracker.domain.model.User
 import com.dmb.chantiertracker.domain.model.UnsentWrites
+import kotlinx.coroutines.flow.Flow
 
 fun interface LocalDataEraser {
     suspend fun eraseAll()
@@ -27,11 +28,19 @@ class RoomUnsyncedWriteCounter(private val dao: LocalDataDao) : UnsyncedWriteCou
     }
 }
 
+fun interface PendingWriteCounter {
+    fun observePending(): Flow<Int>
+}
+
+class RoomPendingWriteCounter(private val dao: LocalDataDao) : PendingWriteCounter {
+    override fun observePending(): Flow<Int> = dao.observePendingCount()
+}
+
 enum class SessionStart { LOGIN, BOOTSTRAP }
 
 /**
  * Erases everything this device holds for an account: Room, the attachment files, the cached PDF
- * exports, and the session-scoped state in memory (sync state, pending deep links).
+ * exports, and the session-scoped state in memory (sync state, pending payment return).
  * Device preferences (language, theme, sort, onboarding flags) are kept.
  */
 class LocalDataWiper(

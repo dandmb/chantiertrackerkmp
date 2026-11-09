@@ -10,7 +10,8 @@ import kotlinx.serialization.Serializable
 enum class LoginNotice {
     AccountActivated,
     PasswordReset,
-    AccountDeleted;
+    AccountDeleted,
+    InvitationPending;
 
     fun toArg(): String = name
 

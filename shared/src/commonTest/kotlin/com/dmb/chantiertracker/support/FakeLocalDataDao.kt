@@ -8,6 +8,8 @@ class FakeLocalDataDao(var unsynced: Int = 0) : LocalDataDao() {
 
     override suspend fun countUnsynced(): Int = unsynced
 
+    override fun observePendingCount(): kotlinx.coroutines.flow.Flow<Int> = kotlinx.coroutines.flow.flowOf(unsynced)
+
     override suspend fun countUnsentByKind() =
         com.dmb.chantiertracker.data.local.db.UnsentCounts(projects = 0, stages = 0, materials = 0, entries = unsynced, lines = 0, attachments = 0)
 

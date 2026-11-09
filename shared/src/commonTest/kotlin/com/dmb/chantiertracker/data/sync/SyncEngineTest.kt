@@ -3460,4 +3460,27 @@ class SyncEngineTest {
         assertEquals(SyncStatus.CONFLICTED, refused.syncStatus, "flagged for the user to pick an ISO code")
         assertEquals(2, f.backend.receivedMethods.count { it == "POST /projects" }, "one POST per row: the FCFA row is not sent again on the next pass")
     }
+
+    @Test
+    fun a_refused_push_during_a_sync_is_reported_as_a_non_fatal_without_what_was_typed() = runTest {
+        val reports = mutableListOf<com.dmb.chantiertracker.core.NonFatalReport>()
+        com.dmb.chantiertracker.core.NonFatalErrors.sink = { reports += it }
+        try {
+            val f = stockFixture()
+            f.siteWithCement(serverPurchase = 12.0)
+            f.dailyEntryDao.upsert(f.dailyEntryDao.findByLocalId("e900")!!.copy(summary = "Livraison chez Mme Martin", pendingOp = PendingOp.UPDATE, syncStatus = SyncStatus.PENDING))
+            f.backend.updateStatus = io.ktor.http.HttpStatusCode.Forbidden
+            f.backend.updateRefusalCode = "PROJECT_INSUFFICIENT_ROLE"
+
+            f.engine(backgroundScope).syncNow()
+
+            assertTrue(
+                com.dmb.chantiertracker.core.NonFatalReport("sync", "Forbidden", 403, "PROJECT_INSUFFICIENT_ROLE", null) in reports,
+                "reports: $reports",
+            )
+            assertTrue(reports.none { "Martin" in it.message() || "Martin" in it.toString() })
+        } finally {
+            com.dmb.chantiertracker.core.NonFatalErrors.sink = {}
+        }
+    }
 }

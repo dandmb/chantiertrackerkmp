@@ -35,6 +35,7 @@ import com.dmb.chantiertracker.resources.login_no_account_action
 import com.dmb.chantiertracker.resources.login_no_account_prompt
 import com.dmb.chantiertracker.resources.login_notice_account_activated
 import com.dmb.chantiertracker.resources.login_notice_account_deleted
+import com.dmb.chantiertracker.resources.login_notice_invitation_pending
 import com.dmb.chantiertracker.resources.login_notice_checkout_pending
 import com.dmb.chantiertracker.resources.login_notice_password_reset
 import com.dmb.chantiertracker.resources.login_submit
@@ -96,6 +97,7 @@ fun LoginScreen(
                 LoginNotice.AccountActivated -> InfoBanner(stringResource(Res.string.login_notice_account_activated))
                 LoginNotice.PasswordReset -> InfoBanner(stringResource(Res.string.login_notice_password_reset))
                 LoginNotice.AccountDeleted -> InfoBanner(stringResource(Res.string.login_notice_account_deleted))
+                LoginNotice.InvitationPending -> InfoBanner(stringResource(Res.string.login_notice_invitation_pending))
                 null -> Unit
             }
         }
@@ -154,7 +156,6 @@ fun LoginScreen(
             prompt = stringResource(Res.string.login_validate_prompt),
             action = stringResource(Res.string.login_validate_account),
             onClick = { onValidateAccount(state.email.trim()) },
-            horizontalArrangement = Arrangement.Center,
         )
         AuthLegalFooter(onOpenDocument = onOpenLegalDocument)
     }
