@@ -11,27 +11,33 @@ class AndroidHardeningFilesTest {
     private fun read(path: String) = File(androidApp, path).readText()
 
     @Test
-    fun the_shipped_manifest_refuses_cleartext_and_backups() {
+    fun the_shipped_manifest_refuses_cleartext_and_backups_without_a_network_config() {
         val manifest = read("src/main/AndroidManifest.xml")
-        assertTrue("android:networkSecurityConfig=\"@xml/network_security_config\"" in manifest)
+        assertFalse("networkSecurityConfig" in manifest, "release and staging carry no network config")
         assertTrue("android:usesCleartextTraffic=\"false\"" in manifest)
         assertTrue("android:allowBackup=\"false\"" in manifest)
         assertFalse("android:debuggable" in manifest)
+        assertFalse(File(androidApp, "src/main/res/xml/network_security_config.xml").exists())
     }
 
     @Test
-    fun the_shipped_network_config_trusts_only_the_system_over_https() {
-        val config = read("src/main/res/xml/network_security_config.xml")
-        assertTrue("cleartextTrafficPermitted=\"false\"" in config)
-        assertFalse("cleartextTrafficPermitted=\"true\"" in config)
+    fun only_the_debug_build_declares_the_network_config() {
+        assertTrue("android:networkSecurityConfig=\"@xml/network_security_config\"" in read("src/debug/AndroidManifest.xml"))
+        listOf("release", "staging").forEach { type ->
+            assertFalse(File(androidApp, "src/$type/AndroidManifest.xml").takeIf { it.exists() }?.readText().orEmpty().contains("networkSecurityConfig"), type)
+            assertFalse(File(androidApp, "src/$type/res/xml/network_security_config.xml").exists(), type)
+        }
+    }
+
+    @Test
+    fun the_debug_network_config_opens_cleartext_to_the_local_api_host_only() {
+        assertFalse(File(androidApp, "src/debug/res/xml/network_security_config.xml").exists(), "generated from local.properties, not versioned")
+        assertTrue("debug_network_security_config.xml" in read("build.gradle.kts"))
+        val config = read("network/debug_network_security_config.xml").replace("@LOCAL_API_HOST@", "10.0.2.2")
+        assertTrue("<base-config cleartextTrafficPermitted=\"false\">" in config)
+        assertTrue("<domain-config cleartextTrafficPermitted=\"true\">" in config)
+        assertTrue("<domain includeSubdomains=\"false\">10.0.2.2</domain>" in config)
         assertFalse("src=\"user\"" in config)
-        assertTrue("src=\"system\"" in config)
-    }
-
-    @Test
-    fun the_debug_exception_stays_in_the_debug_sources() {
-        assertFalse(File(androidApp, "src/release/res/xml/network_security_config.xml").exists())
-        assertFalse(File(androidApp, "src/staging/res/xml/network_security_config.xml").exists())
     }
 
     @Test
@@ -57,7 +63,7 @@ class AndroidHardeningFilesTest {
             "src/iosMain/kotlin/com/dmb/chantiertracker/core/BuildInfo.ios.kt",
             "build.gradle.kts",
             "../androidApp/build.gradle.kts",
-            "../androidApp/src/debug/res/xml/network_security_config.xml",
+            "../androidApp/network/debug_network_security_config.xml",
             "../desktopApp/build.gradle.kts",
         ).forEach { path -> assertFalse(localAddress.containsMatchIn(File(path).readText()), path) }
     }
