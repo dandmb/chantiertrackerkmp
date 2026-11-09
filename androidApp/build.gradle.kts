@@ -1,4 +1,5 @@
 import com.google.firebase.crashlytics.buildtools.gradle.CrashlyticsExtension
+import java.net.URI
 import java.util.Properties
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
@@ -32,6 +33,38 @@ dependencies {
 val devApiBaseUrl = Properties().apply {
     rootProject.file("local.properties").takeIf { it.exists() }?.reader()?.use { load(it) }
 }.getProperty("chantiertracker.devApiBaseUrl").orEmpty()
+
+abstract class DebugNetworkSecurityConfigTask : DefaultTask() {
+    @get:InputFile abstract val template: RegularFileProperty
+    @get:Input abstract val localApiHost: Property<String>
+    @get:OutputDirectory abstract val outputDir: DirectoryProperty
+
+    @TaskAction
+    fun write() {
+        val host = localApiHost.get()
+        val text = template.get().asFile.readText().let { config ->
+            if (host.isBlank()) config.replace(Regex("""\s*<domain-config[\s\S]*?</domain-config>"""), "")
+            else config.replace("@LOCAL_API_HOST@", host)
+        }
+        outputDir.get().file("xml/network_security_config.xml").asFile.apply {
+            parentFile.mkdirs()
+            writeText(text)
+        }
+    }
+}
+
+// Debug builds only: cleartext is allowed to the host of devApiBaseUrl and nowhere else.
+val debugNetworkSecurityConfig = tasks.register<DebugNetworkSecurityConfigTask>("generateDebugNetworkSecurityConfig") {
+    template.set(file("network/debug_network_security_config.xml"))
+    localApiHost.set(runCatching { URI(devApiBaseUrl).host }.getOrNull().orEmpty())
+    outputDir.set(layout.buildDirectory.dir("generated/debugNetworkSecurityConfig/res"))
+}
+
+androidComponents {
+    onVariants(selector().withBuildType("debug")) { variant ->
+        variant.sources.res?.addGeneratedSourceDirectory(debugNetworkSecurityConfig, DebugNetworkSecurityConfigTask::outputDir)
+    }
+}
 
 // Distribution signing: values come from CI env vars (see .github/workflows/cd-stage.yml).
 // Absent locally → the build stays unsigned, which is fine for local inspection.
