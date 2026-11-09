@@ -8,6 +8,7 @@ import com.dmb.chantiertracker.domain.model.GlobalRole
 import com.dmb.chantiertracker.domain.model.ProfileLanguage
 import com.dmb.chantiertracker.domain.model.User
 import com.dmb.chantiertracker.domain.model.UnsentWrites
+import kotlinx.coroutines.flow.Flow
 
 fun interface LocalDataEraser {
     suspend fun eraseAll()
@@ -25,6 +26,14 @@ class RoomUnsyncedWriteCounter(private val dao: LocalDataDao) : UnsyncedWriteCou
     override suspend fun unsentByKind(): UnsentWrites = dao.countUnsentByKind().let {
         UnsentWrites(it.projects, it.stages, it.materials, it.entries, it.lines, it.attachments)
     }
+}
+
+fun interface PendingWriteCounter {
+    fun observePending(): Flow<Int>
+}
+
+class RoomPendingWriteCounter(private val dao: LocalDataDao) : PendingWriteCounter {
+    override fun observePending(): Flow<Int> = dao.observePendingCount()
 }
 
 enum class SessionStart { LOGIN, BOOTSTRAP }

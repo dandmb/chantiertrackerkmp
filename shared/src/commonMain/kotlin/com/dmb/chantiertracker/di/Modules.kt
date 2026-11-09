@@ -11,6 +11,8 @@ import com.dmb.chantiertracker.data.session.LocalDataOwnerStore
 import com.dmb.chantiertracker.data.session.LocalDataOwnership
 import com.dmb.chantiertracker.data.session.LocalDataWiper
 import com.dmb.chantiertracker.data.session.RoomUnsyncedWriteCounter
+import com.dmb.chantiertracker.data.session.PendingWriteCounter
+import com.dmb.chantiertracker.data.session.RoomPendingWriteCounter
 import com.dmb.chantiertracker.data.session.UnsyncedWriteCounter
 import com.dmb.chantiertracker.data.repository.SignOutRepositoryImpl
 import com.dmb.chantiertracker.data.repository.SyncIssueRepositoryImpl
@@ -18,6 +20,7 @@ import com.dmb.chantiertracker.data.local.db.SyncIssueDao
 import com.dmb.chantiertracker.data.local.db.SyncIssueLocalActions
 import com.dmb.chantiertracker.domain.repository.SyncIssueRepository
 import com.dmb.chantiertracker.presentation.sync.SyncIssueCountViewModel
+import com.dmb.chantiertracker.presentation.sync.OfflineBannerViewModel
 import com.dmb.chantiertracker.presentation.sync.SyncIssueMarkersViewModel
 import com.dmb.chantiertracker.presentation.sync.SyncIssuesViewModel
 import com.dmb.chantiertracker.domain.repository.SignOutRepository
@@ -261,6 +264,7 @@ val syncModule: Module = module {
 val dataModule: Module = module {
     single { LocalDataOwnerStore(get()) }
     single<UnsyncedWriteCounter> { RoomUnsyncedWriteCounter(get()) }
+    single<PendingWriteCounter> { RoomPendingWriteCounter(get()) }
     single<LocalDataEraser> {
         LocalDataWiper(get(), get(), get()) {
             get<SyncStateHolder>().update(SyncState.Idle)
@@ -311,6 +315,7 @@ val presentationModule: Module = module {
     viewModelOf(::ProfileViewModel)
     viewModelOf(::SyncIssuesViewModel)
     viewModelOf(::SyncIssueCountViewModel)
+    viewModelOf(::OfflineBannerViewModel)
     viewModelOf(::SyncIssueMarkersViewModel)
     viewModelOf(::ProjectsViewModel)
     viewModelOf(::CreateProjectViewModel)

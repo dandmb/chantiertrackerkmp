@@ -151,13 +151,11 @@ fun LoginScreen(
             prompt = stringResource(Res.string.login_no_account_prompt),
             action = stringResource(Res.string.login_no_account_action),
             onClick = onNavigateToRegister,
-            horizontalArrangement = Arrangement.Center,
         )
         AuthFooterPrompt(
             prompt = stringResource(Res.string.login_validate_prompt),
             action = stringResource(Res.string.login_validate_account),
             onClick = { onValidateAccount(state.email.trim()) },
-            horizontalArrangement = Arrangement.Center,
         )
         AuthLegalFooter(onOpenDocument = onOpenLegalDocument)
     }

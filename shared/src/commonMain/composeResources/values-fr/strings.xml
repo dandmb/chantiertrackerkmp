@@ -789,7 +789,10 @@
     <string name="plan_limit_media">Tu as atteint la limite de photos ou de vidéos de ta formule.</string>
     <string name="plan_limit_export">L'export PDF n'est pas inclus dans ta formule actuelle.</string>
     <string name="plan_limit_usage">Usage : %1$d sur %2$d.</string>
-    <string name="plan_reminder_projects">%1$d projets sur %2$d</string>
+    <plurals name="plan_reminder_projects">
+        <item quantity="one">%1$d projet sur %2$d</item>
+        <item quantity="other">%1$d projets sur %2$d</item>
+    </plurals>
     <string name="detail_members_empty_admin">Aucun membre pour l'instant. Invite un superviseur pour qu'il saisisse depuis le chantier.</string>
     <string name="detail_invitations_empty_admin">Aucune invitation en attente. Invite un superviseur pour lui donner accès à ce projet.</string>
     <string name="attachments_empty_can_add">Aucune photo pour l'instant. Ajoute la première avec les boutons ci-dessus.</string>
@@ -886,4 +889,10 @@
     <string name="verify_from_login_subtitle">Saisis le code à 6 chiffres reçu par email à l'inscription. Tu ne le retrouves pas ? Demande un nouveau code.</string>
     <string name="verify_resend_needs_email">Renseigne ton email avant de renvoyer un code.</string>
     <string name="material_existing_title">Matériaux existants</string>
+    <string name="offline_banner_title">Hors ligne</string>
+    <string name="offline_banner_body">Tes saisies restent sur le téléphone et partiront au retour du réseau.</string>
+    <plurals name="offline_banner_pending">
+        <item quantity="one">%1$d saisie en attente d'envoi. Elle partira au retour du réseau.</item>
+        <item quantity="other">%1$d saisies en attente d'envoi. Elles partiront au retour du réseau.</item>
+    </plurals>
 </resources>

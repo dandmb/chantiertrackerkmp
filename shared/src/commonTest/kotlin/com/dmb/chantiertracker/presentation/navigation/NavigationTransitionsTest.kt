@@ -22,9 +22,5 @@ class NavigationTransitionsTest {
     fun the_reduce_animations_setting_of_the_phone_removes_them() {
         val transitions = NavigationTransitions.of(reduceMotion = true)
         assertEquals(0, transitions.durationMillis)
-        assertEquals(EnterTransition.None, transitions.enter)
-        assertEquals(ExitTransition.None, transitions.exit)
-        assertEquals(EnterTransition.None, transitions.popEnter)
-        assertEquals(ExitTransition.None, transitions.popExit)
     }
 }

@@ -19,6 +19,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import com.dmb.chantiertracker.presentation.main.CalendarIcon
 import com.dmb.chantiertracker.resources.Res
 import com.dmb.chantiertracker.resources.action_cancel
@@ -47,14 +52,16 @@ fun DateField(
     var showPicker by remember { mutableStateOf(false) }
     val minMillis = remember(minDate) { minDate.toUtcMillis() }
 
+    val shown = if (value.isBlank()) "" else formatIsoDate(value)
+    val spoken = if (shown.isEmpty()) label else "$label, $shown"
     Box(modifier) {
         AppOutlinedTextField(
             // Stored ISO, shown as JJ-MM-AAAA like every other date in the app.
-            value = if (value.isBlank()) "" else formatIsoDate(value),
+            value = shown,
             onValueChange = {},
             readOnly = true,
             enabled = enabled,
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().then(if (enabled) Modifier.clearAndSetSemantics {} else Modifier),
             label = { Text(label) },
             placeholder = placeholder?.let { { Text(it) } },
             singleLine = true,
@@ -69,6 +76,10 @@ fun DateField(
                 Modifier
                     .matchParentSize()
                     .testTag("dateFieldTap:$label")
+                    .semantics {
+                        contentDescription = spoken
+                        role = Role.Button
+                    }
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,

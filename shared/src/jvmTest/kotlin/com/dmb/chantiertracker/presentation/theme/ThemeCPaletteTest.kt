@@ -39,7 +39,7 @@ class ThemeCPaletteTest {
         assertEquals(Color(0xFF151A0C), DarkColors.background)
         assertEquals(Color(0xFF151A0C), DarkColors.surface)
         assertEquals(Color(0xFF20280F), DarkColors.surfaceContainerLowest)
-        assertEquals(Color(0xFF20280F), DarkColors.surfaceContainerHigh)
+        assertEquals(Color(0xFF3A4724), DarkColors.surfaceContainerHigh)
         assertEquals(Color(0xFF34401F), DarkColors.outlineVariant)
         assertEquals(Color(0xFFFBF7EA), DarkColors.onBackground)
         assertEquals(Color(0xFFFBF7EA), DarkColors.onSurface)

@@ -28,6 +28,7 @@ import com.dmb.chantiertracker.resources.plan_limit_media
 import com.dmb.chantiertracker.resources.plan_limit_see_offer
 import com.dmb.chantiertracker.resources.plan_limit_usage
 import com.dmb.chantiertracker.resources.plan_reminder_projects
+import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 
 // PLAN_LIMIT_EXCEEDED does not say which limit was hit: the action that was refused does.
@@ -96,7 +97,7 @@ fun ProjectLimitReminder() {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            stringResource(Res.string.plan_reminder_projects, usage.projectsUsed, limit),
+            pluralStringResource(Res.plurals.plan_reminder_projects, usage.projectsUsed, usage.projectsUsed, limit),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

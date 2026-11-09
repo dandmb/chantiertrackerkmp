@@ -3,6 +3,7 @@ package com.dmb.chantiertracker.data.local.db
 import androidx.room.Dao
 import androidx.room.Query
 import androidx.room.Transaction
+import kotlinx.coroutines.flow.Flow
 
 /**
  * Everything in Room that belongs to the signed-in account, as one unit (ADR-69): counted before
@@ -42,6 +43,20 @@ abstract class LocalDataDao {
         """,
     )
     abstract suspend fun countUnsentByKind(): UnsentCounts
+
+    @Query(
+        """
+        SELECT
+            (SELECT COUNT(*) FROM projects WHERE syncStatus = 'PENDING') +
+            (SELECT COUNT(*) FROM stages WHERE syncStatus = 'PENDING') +
+            (SELECT COUNT(*) FROM materials WHERE syncStatus = 'PENDING') +
+            (SELECT COUNT(*) FROM daily_entries WHERE syncStatus = 'PENDING') +
+            (SELECT COUNT(*) FROM purchase_lines WHERE syncStatus = 'PENDING') +
+            (SELECT COUNT(*) FROM consumption_lines WHERE syncStatus = 'PENDING') +
+            (SELECT COUNT(*) FROM attachments WHERE syncStatus = 'PENDING')
+        """,
+    )
+    abstract fun observePendingCount(): Flow<Int>
 
     @Query("DELETE FROM attachments") protected abstract suspend fun deleteAttachments()
     @Query("DELETE FROM purchase_lines") protected abstract suspend fun deletePurchaseLines()

@@ -555,11 +555,10 @@ fun AuthFooterPrompt(
     action: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    horizontalArrangement: Arrangement.Horizontal = Arrangement.End,
 ) {
     Row(
         modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = horizontalArrangement,
+        horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(

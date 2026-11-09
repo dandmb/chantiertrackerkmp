@@ -1,5 +1,8 @@
 package com.dmb.chantiertracker.presentation.navigation
 
+import androidx.compose.material3.MaterialTheme
+import com.dmb.chantiertracker.presentation.theme.SystemBarIcons
+import com.dmb.chantiertracker.presentation.theme.systemBarIconsAreLight
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.koin.mp.KoinPlatformTools
@@ -58,8 +61,11 @@ fun RootNavHost(
     val authenticatedUser = (authState as? AuthState.Authenticated)?.user
     val mustChangePasswordEmail = (authState as? AuthState.MustChangePassword)?.email
 
+    val showingSplash = authState is AuthState.Unknown || hasLoggedInBefore == null || hasSeenOnboarding == null
+    SystemBarIcons(light = systemBarIconsAreLight(showingSplash, MaterialTheme.colorScheme.background))
+
     when {
-        authState is AuthState.Unknown || hasLoggedInBefore == null || hasSeenOnboarding == null -> SplashScreen()
+        showingSplash -> SplashScreen()
         mustChangePasswordEmail != null -> ChangePasswordScreen(email = mustChangePasswordEmail)
         authenticatedUser != null -> MainScreen(globalRole = authenticatedUser.globalRole)
         else -> AuthNavHost(

@@ -789,7 +789,10 @@
     <string name="plan_limit_media">You've reached your plan's photo or video limit.</string>
     <string name="plan_limit_export">PDF export isn't included in your current plan.</string>
     <string name="plan_limit_usage">Usage: %1$d of %2$d.</string>
-    <string name="plan_reminder_projects">%1$d of %2$d projects</string>
+    <plurals name="plan_reminder_projects">
+        <item quantity="one">%1$d of %2$d projects</item>
+        <item quantity="other">%1$d of %2$d projects</item>
+    </plurals>
     <string name="detail_members_empty_admin">No members yet. Invite a supervisor so they can log from the site.</string>
     <string name="detail_invitations_empty_admin">No pending invitations. Invite a supervisor to give them access to this project.</string>
     <string name="attachments_empty_can_add">No photos yet. Add the first one with the buttons above.</string>
@@ -886,4 +889,10 @@
     <string name="verify_from_login_subtitle">Enter the 6-digit code you received by email when you signed up. Can't find it? Ask for a new code.</string>
     <string name="verify_resend_needs_email">Enter your email before asking for a new code.</string>
     <string name="material_existing_title">Existing materials</string>
+    <string name="offline_banner_title">Offline</string>
+    <string name="offline_banner_body">Your entries stay on the phone and will be sent when the network is back.</string>
+    <plurals name="offline_banner_pending">
+        <item quantity="one">%1$d entry waiting to be sent. It will go out when the network is back.</item>
+        <item quantity="other">%1$d entries waiting to be sent. They will go out when the network is back.</item>
+    </plurals>
 </resources>

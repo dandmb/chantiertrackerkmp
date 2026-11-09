@@ -44,6 +44,15 @@ class CharteContrastTest {
     fun every_text_colour_of_the_dark_theme_meets_wcag_aa() = assertAa(DarkColors, "sombre")
 
     @Test
+    fun a_dark_dialog_stands_out_from_the_cards_and_the_page_under_it() {
+        val dialog = DarkColors.surfaceContainerHigh
+        assertTrue(contrast(dialog, DarkColors.surfaceContainer) >= 1.5, "dialog / card: ${"%.2f".format(contrast(dialog, DarkColors.surfaceContainer))}:1")
+        assertTrue(contrast(dialog, DarkColors.background) >= 1.5, "dialog / page: ${"%.2f".format(contrast(dialog, DarkColors.background))}:1")
+        assertTrue(contrast(DarkColors.onSurface, dialog) >= 4.5, "dialog title")
+        assertTrue(contrast(DarkColors.onSurfaceVariant, dialog) >= 4.5, "dialog body")
+    }
+
+    @Test
     fun outlines_and_the_warning_banner_are_readable() {
         assertTrue(contrast(LightColors.outline, LightColors.surface) >= 3.0, "light outline (WCAG 1.4.11)")
         assertTrue(contrast(DarkColors.outline, DarkColors.surface) >= 3.0, "dark outline (WCAG 1.4.11)")

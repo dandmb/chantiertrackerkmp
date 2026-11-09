@@ -9,6 +9,7 @@ import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.runComposeUiTest
@@ -112,5 +113,23 @@ class MaterialPickerUiTest {
 
         inMenu("Existing materials").assertExists()
         inMenu("Create \"ci\"").assertExists()
+    }
+
+    @Test
+    fun touching_quantity_while_the_suggestions_are_open_moves_into_quantity() = runComposeUiTest {
+        val vm = showForm()
+        onNodeWithText("Matériau").performTextInput("Gravier")
+        waitForIdle()
+        inMenu("Créer « Gravier »").assertExists()
+
+        onNode(hasText("Quantité", substring = true) and androidx.compose.ui.test.hasSetTextAction()).performClick()
+        waitForIdle()
+        onNode(hasText("Quantité", substring = true) and androidx.compose.ui.test.hasSetTextAction()).performTextInput("10")
+        waitForIdle()
+
+        assertEquals(null, vm.state.value.creatingNewUnit, "the create option was not triggered")
+        assertEquals("Gravier", vm.state.value.materialQuery)
+        assertEquals("10", vm.state.value.quantity)
+        onNode(hasText("Quantité", substring = true) and androidx.compose.ui.test.hasSetTextAction()).assertIsFocused()
     }
 }
