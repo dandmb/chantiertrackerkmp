@@ -87,7 +87,7 @@ import com.dmb.chantiertracker.presentation.navigation.StageDetailRoute
 import com.dmb.chantiertracker.presentation.navigation.SyncIssuesRoute
 import com.dmb.chantiertracker.presentation.navigation.ForgotPasswordRoute
 import com.dmb.chantiertracker.presentation.navigation.ResetPasswordRoute
-import com.dmb.chantiertracker.presentation.navigation.RootBackExitGuard
+import com.dmb.chantiertracker.presentation.navigation.SignedInRootBackGuard
 import com.dmb.chantiertracker.presentation.navigation.rememberNavigationTransitions
 import com.dmb.chantiertracker.presentation.auth.forgot.ForgotPasswordScreen
 import com.dmb.chantiertracker.presentation.auth.reset.ResetPasswordScreen
@@ -253,11 +253,12 @@ fun MainScreen(
     }
 
     val backStackEntry by navController.currentBackStackEntryAsState()
-    RootBackExitGuard(
-        enabled = backStackEntry != null && navController.previousBackStackEntry == null,
+    SignedInRootBackGuard(
+        navController = navController,
         prompt = exitPrompt,
         onRequest = exitPromptViewModel::request,
         onDismiss = exitPromptViewModel::dismiss,
+        onSignOut = viewModel::logout,
     )
     val destination = backStackEntry?.destination
     val current = when {

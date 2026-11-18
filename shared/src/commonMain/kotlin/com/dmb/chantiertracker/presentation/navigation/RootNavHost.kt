@@ -94,7 +94,7 @@ private fun AuthNavHost(
     val navController = rememberNavController()
     val transitions = rememberNavigationTransitions()
     val backStackEntry by navController.currentBackStackEntryAsState()
-    SignedOutRootBackExitGuard(enabled = backStackEntry != null && navController.previousBackStackEntry == null)
+    SignedOutRootBackExit(navController)
     val neverLoggedIn = startPoint != AuthStartPoint.Login
     val startDestination: Any = remember {
         when (startPoint) {
