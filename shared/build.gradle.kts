@@ -131,6 +131,7 @@ kotlin {
         }
         jvmTest.dependencies {
             implementation(libs.compose.uiTest)
+            implementation(libs.androidx.navigationevent)
             implementation(compose.desktop.currentOs)
         }
     }

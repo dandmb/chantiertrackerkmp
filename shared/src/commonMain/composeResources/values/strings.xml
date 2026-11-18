@@ -877,13 +877,14 @@
     <string name="presentation_close">Let's go</string>
     <string name="presentation_open">Discover ChantierTracker</string>
     <string name="presentation_offline">The app works with or without an internet connection: what you enter is kept and sent as soon as the network is back.</string>
-    <string name="exit_title">Quit ChantierTracker?</string>
-    <plurals name="exit_unsent">
-        <item quantity="one">%1$d change will be sent the next time you open the app with a network connection.</item>
-        <item quantity="other">%1$d changes will be sent the next time you open the app with a network connection.</item>
+    <string name="back_signout_title">Sign out?</string>
+    <plurals name="back_signout_unsent">
+        <item quantity="one">%1$d entry has not been sent yet. Reconnect to the network to send it before signing out.</item>
+        <item quantity="other">%1$d entries have not been sent yet. Reconnect to the network to send them before signing out.</item>
     </plurals>
-    <string name="exit_confirm">Quit</string>
-    <string name="exit_stay">Stay</string>
+    <string name="back_signout_confirm">Sign me out</string>
+    <string name="back_signout_understood">Got it</string>
+    <string name="back_signout_stay">Stay</string>
     <string name="login_validate_account">Validate my account</string>
     <string name="login_validate_prompt">Account not validated yet?</string>
     <string name="verify_from_login_subtitle">Enter the 6-digit code you received by email when you signed up. Can't find it? Ask for a new code.</string>
