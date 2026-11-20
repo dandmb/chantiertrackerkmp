@@ -79,6 +79,7 @@ import com.dmb.chantiertracker.resources.admin_users_retry
 import com.dmb.chantiertracker.resources.admin_users_role_super_admin
 import com.dmb.chantiertracker.resources.admin_users_status_active
 import com.dmb.chantiertracker.resources.admin_users_status_inactive
+import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -247,7 +248,7 @@ fun AdminUsersScreen(
 }
 
 @Composable
-private fun AdminUserRow(
+internal fun AdminUserRow(
     user: AdminUser,
     isSelf: Boolean,
     isProcessing: Boolean,
@@ -321,7 +322,7 @@ private fun AdminUserRow(
 
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text(
-                text = stringResource(Res.string.admin_users_projects_count, user.projectCount.toInt()),
+                text = pluralStringResource(Res.plurals.admin_users_projects_count, user.projectCount.toInt(), user.projectCount.toInt()),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

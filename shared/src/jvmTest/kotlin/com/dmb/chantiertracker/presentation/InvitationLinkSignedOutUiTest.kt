@@ -53,6 +53,7 @@ class InvitationLinkSignedOutUiTest {
     private val auth = FakeAuthRepository()
     private val invitations = com.dmb.chantiertracker.presentation.invitations.InvitationDeepLinkDispatcher()
     private val opener = com.dmb.chantiertracker.support.FakeUrlOpener()
+    private val invitationRepository = com.dmb.chantiertracker.support.FakeInvitationRepository()
 
     @BeforeTest fun setUp() {
         Dispatchers.setMain(UnconfinedTestDispatcher())
@@ -65,6 +66,7 @@ class InvitationLinkSignedOutUiTest {
                     viewModelOf(::LoginViewModel)
                     viewModelOf(::VerifyEmailViewModel)
                     single { invitations }
+                    single<com.dmb.chantiertracker.domain.repository.InvitationRepository> { invitationRepository }
                     single<com.dmb.chantiertracker.presentation.billing.UrlOpener> { opener }
                     single { com.dmb.chantiertracker.data.sync.AppCoroutineScope() }
                     viewModelOf(::RegisterViewModel)
@@ -147,5 +149,73 @@ class InvitationLinkSignedOutUiTest {
 
         awaitText("Connecte-toi pour rejoindre le projet.")
         assertEquals("jeton-42", invitations.pending.value)
+    }
+    private fun invitationFor(accountExists: Boolean) {
+        invitationRepository.preview = com.dmb.chantiertracker.domain.model.InvitationPreview(
+            projectId = 9, projectName = "Villa Vidal",
+            status = com.dmb.chantiertracker.domain.model.InvitationStatus.PENDING,
+            accountExists = accountExists,
+        )
+    }
+
+    private fun ComposeUiTest.absent(text: String) =
+        assertEquals(0, onAllNodes(hasText(text, substring = true)).fetchSemanticsNodes().size, "« $text » ne doit pas s'afficher")
+
+    @Test
+    fun a_link_for_an_address_without_an_account_leads_straight_to_the_sign_up_with_the_join_notice() = runPhoneTest {
+        invitationFor(accountExists = false)
+        auth.onboardingSeen = true
+        auth.emitState(AuthState.Unauthenticated)
+        invitations.dispatch("jeton-42")
+        mount { RootNavHost(RootViewModel(auth, com.dmb.chantiertracker.data.session.SessionNotices())) }
+
+        awaitText("Crée ton compte pour rejoindre le projet.")
+        onNodeWithText("S'inscrire").assertExists()
+        absent("Valider mon compte")
+        assertEquals("jeton-42", invitations.pending.value)
+    }
+
+    @Test
+    fun a_link_without_an_account_on_a_phone_already_used_to_sign_in_also_opens_the_sign_up() = runPhoneTest {
+        invitationFor(accountExists = false)
+        invitations.dispatch("jeton-42")
+        auth.firstLoginCompleted = true
+        auth.emitState(AuthState.Unauthenticated)
+        mount { RootNavHost(RootViewModel(auth, com.dmb.chantiertracker.data.session.SessionNotices())) }
+
+        awaitText("Crée ton compte pour rejoindre le projet.")
+        assertEquals("jeton-42", invitations.pending.value)
+    }
+
+    @Test
+    fun choosing_sign_in_on_the_sign_up_opened_by_the_link_shows_the_sign_in_with_the_invitation_and_stays_there() = runPhoneTest {
+        invitationFor(accountExists = false)
+        auth.onboardingSeen = true
+        auth.emitState(AuthState.Unauthenticated)
+        invitations.dispatch("jeton-42")
+        mount { RootNavHost(RootViewModel(auth, com.dmb.chantiertracker.data.session.SessionNotices())) }
+        awaitText("Crée ton compte pour rejoindre le projet.")
+
+        onNodeWithText("Se connecter").performScrollTo().performClick()
+        awaitText("Connecte-toi pour rejoindre le projet.")
+        mainClock.advanceTimeBy(2_000)
+        waitForIdle()
+
+        onNodeWithText("Valider mon compte").assertExists()
+        absent("Crée ton compte pour rejoindre le projet.")
+        assertEquals("jeton-42", invitations.pending.value)
+    }
+
+    @Test
+    fun a_link_for_an_existing_account_still_leads_to_the_sign_in() = runPhoneTest {
+        invitationFor(accountExists = true)
+        auth.onboardingSeen = true
+        auth.emitState(AuthState.Unauthenticated)
+        invitations.dispatch("jeton-42")
+        mount { RootNavHost(RootViewModel(auth, com.dmb.chantiertracker.data.session.SessionNotices())) }
+
+        awaitText("Connecte-toi pour rejoindre le projet.")
+        onNodeWithText("Valider mon compte").assertExists()
+        absent("Crée ton compte")
     }
 }

@@ -16,24 +16,25 @@ import com.dmb.chantiertracker.resources.founder_offer_videos
 import com.dmb.chantiertracker.resources.founder_offer_videos_length
 import com.dmb.chantiertracker.resources.history_kept_days
 import com.dmb.chantiertracker.resources.history_kept_months
+import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 
 @Composable
 fun FounderOfferFigures(offer: FounderOffer) {
     val lines = buildList {
-        offer.projects?.let { add(stringResource(Res.string.founder_offer_projects, it)) }
-        offer.photos?.let { add(stringResource(Res.string.founder_offer_photos, it)) }
+        offer.projects?.let { add(pluralStringResource(Res.plurals.founder_offer_projects, it, it)) }
+        offer.photos?.let { add(pluralStringResource(Res.plurals.founder_offer_photos, it, it)) }
         offer.videos?.takeIf { it > 0 }?.let { videos ->
             val seconds = offer.videoMaxSeconds?.takeIf { it > 0 }
             add(
                 if (seconds != null) {
-                    stringResource(Res.string.founder_offer_videos_length, videos, formatVideoDuration(seconds))
+                    pluralStringResource(Res.plurals.founder_offer_videos_length, videos, videos, formatVideoDuration(seconds))
                 } else {
-                    stringResource(Res.string.founder_offer_videos, videos)
+                    pluralStringResource(Res.plurals.founder_offer_videos, videos, videos)
                 },
             )
         }
-        offer.supervisorsPerProject?.let { add(stringResource(Res.string.founder_offer_supervisors, it)) }
+        offer.supervisorsPerProject?.let { add(pluralStringResource(Res.plurals.founder_offer_supervisors, it, it)) }
         if (offer.pdfExport) add(stringResource(Res.string.founder_offer_pdf))
         offer.historyDays?.let { add(historyKeptLabel(it)) }
     }
@@ -50,4 +51,4 @@ fun wholeHistoryMonths(days: Int): Int? = (days / DAYS_PER_MONTH).takeIf { days 
 @Composable
 fun historyKeptLabel(days: Int): String =
     wholeHistoryMonths(days)?.let { stringResource(Res.string.history_kept_months, it) }
-        ?: stringResource(Res.string.history_kept_days, days)
+        ?: pluralStringResource(Res.plurals.history_kept_days, days, days)

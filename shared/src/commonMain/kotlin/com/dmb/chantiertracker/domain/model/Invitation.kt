@@ -33,4 +33,5 @@ data class InvitationPreview(
     val status: InvitationStatus,
     val role: ProjectRole? = null,
     val invitedByName: String? = null,
+    val accountExists: Boolean = true,
 )

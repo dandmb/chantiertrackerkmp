@@ -186,7 +186,7 @@ class BillingScreenUiTest {
         mount(usage(Plan.FREE, projectsUsed = 1, projectsLimit = 1), billing = FakeBillingRepository(BillingAvailability.CLOSED))
 
         onNodeWithText("Formule Gratuite").assertExists()
-        onNodeWithText("1/1 projets utilisés").assertExists()
+        onNodeWithText("1/1 projet utilisé").assertExists()
         onNodeWithText("Historique limité aux 30 derniers jours.").assertExists()
         assertNothingToBuy()
     }

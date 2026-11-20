@@ -53,6 +53,7 @@ import com.dmb.chantiertracker.resources.billing_usage_section
 import com.dmb.chantiertracker.resources.billing_usage_supervisors
 import com.dmb.chantiertracker.resources.billing_usage_supervisors_unlimited
 import com.dmb.chantiertracker.resources.billing_usage_videos
+import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -145,32 +146,32 @@ internal fun FounderBadge() {
 }
 
 @Composable
-private fun UsageSection(usage: PlanUsage) {
+internal fun UsageSection(usage: PlanUsage) {
     SectionCard(stringResource(Res.string.billing_usage_section)) {
         CountUsageRow(
             used = usage.projectsUsed,
             limit = usage.projectsLimit,
-            label = stringResource(Res.string.billing_usage_projects, usage.projectsUsed, usage.projectsLimit ?: 0),
+            label = pluralStringResource(Res.plurals.billing_usage_projects, usage.projectsLimit ?: 0, usage.projectsUsed, usage.projectsLimit ?: 0),
             unlimitedLabel = stringResource(Res.string.billing_usage_projects_unlimited),
         )
         CountUsageRow(
             used = usage.photosUsed,
             limit = usage.photosLimit,
-            label = stringResource(Res.string.billing_usage_photos, usage.photosUsed, usage.photosLimit ?: 0),
+            label = pluralStringResource(Res.plurals.billing_usage_photos, usage.photosLimit ?: 0, usage.photosUsed, usage.photosLimit ?: 0),
             unlimitedLabel = stringResource(Res.string.billing_usage_photos_unlimited),
         )
         if (usage.videosLimit > 0) {
             CountUsageRow(
                 used = usage.videosUsed,
                 limit = usage.videosLimit,
-                label = stringResource(Res.string.billing_usage_videos, usage.videosUsed, usage.videosLimit),
+                label = pluralStringResource(Res.plurals.billing_usage_videos, usage.videosLimit, usage.videosUsed, usage.videosLimit),
                 unlimitedLabel = null,
             )
         }
         CountUsageRow(
             used = usage.supervisorsUsed,
             limit = usage.supervisorsLimit,
-            label = stringResource(Res.string.billing_usage_supervisors, usage.supervisorsUsed, usage.supervisorsLimit ?: 0),
+            label = pluralStringResource(Res.plurals.billing_usage_supervisors, usage.supervisorsLimit ?: 0, usage.supervisorsUsed, usage.supervisorsLimit ?: 0),
             unlimitedLabel = stringResource(Res.string.billing_usage_supervisors_unlimited),
         )
         historyRetentionNotice(usage.maxHistoryDays())?.let { notice ->

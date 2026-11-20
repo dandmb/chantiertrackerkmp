@@ -144,6 +144,17 @@ class InvitationRepositoryImplTest {
     }
 
     @Test
+    fun get_invitation_preview_tells_whether_the_invited_address_has_an_account() = runTest {
+        val backend = FakeProjectBackend().apply {
+            seedPendingForMe(com.dmb.chantiertracker.support.ServerPendingInvitation("sans-compte", 9, "Villa Vidal", accountExists = false))
+            seedPendingForMe(com.dmb.chantiertracker.support.ServerPendingInvitation("avec-compte", 9, "Villa Vidal", accountExists = true))
+        }
+
+        assertEquals(false, repo(backend = backend).getInvitationPreview("sans-compte").accountExists)
+        assertEquals(true, repo(backend = backend).getInvitationPreview("avec-compte").accountExists)
+    }
+
+    @Test
     fun get_invitation_preview_reads_a_deleted_inviter_as_null_and_an_admin_role() = runTest {
         val backend = FakeProjectBackend().apply {
             seedPendingForMe(com.dmb.chantiertracker.support.ServerPendingInvitation("tok", 9, "Villa Vidal", "ADMIN", null))

@@ -7,6 +7,7 @@ import com.dmb.chantiertracker.resources.history_limit_6_months
 import com.dmb.chantiertracker.resources.history_limit_days
 import com.dmb.chantiertracker.resources.history_limit_free
 import com.dmb.chantiertracker.resources.history_limit_semi_flex
+import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 
 private const val FREE_TIER_HISTORY_DAYS = 30
@@ -26,6 +27,6 @@ fun historyRetentionNotice(maxHistoryDays: Int?): String? {
             stringResource(if (upgradeOffered) Res.string.history_limit_free else Res.string.history_limit_30_days)
         SEMI_FLEX_TIER_HISTORY_DAYS ->
             stringResource(if (upgradeOffered) Res.string.history_limit_semi_flex else Res.string.history_limit_6_months)
-        else -> stringResource(Res.string.history_limit_days, days)
+        else -> pluralStringResource(Res.plurals.history_limit_days, days, days)
     }
 }
