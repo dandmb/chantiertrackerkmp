@@ -202,7 +202,10 @@
     <string name="history_limit_semi_flex">History is limited to the last 6 months. Upgrade to Liberté for unlimited history.</string>
     <string name="history_limit_30_days">History is limited to the last 30 days.</string>
     <string name="history_limit_6_months">History is limited to the last 6 months.</string>
-    <string name="history_limit_days">History is limited to the last %1$d days.</string>
+    <plurals name="history_limit_days">
+        <item quantity="one">History is limited to %1$d day.</item>
+        <item quantity="other">History is limited to the last %1$d days.</item>
+    </plurals>
     <string name="history_action_creation">Creation</string>
     <string name="history_action_modification">Modification</string>
     <string name="history_action_deletion">Deletion</string>
@@ -224,12 +227,24 @@
     <string name="billing_founder_explanation">You are one of our first users. This permanent status gives you at least the benefits of the Semi-Flex plan (with half the photos), whatever your plan: your actual limits are the ones shown below.</string>
     <string name="billing_next_due">Next due date: %1$s</string>
     <string name="billing_usage_section">Usage</string>
-    <string name="billing_usage_projects">%1$d/%2$d projects used</string>
+    <plurals name="billing_usage_projects">
+        <item quantity="one">%1$d/%2$d project used</item>
+        <item quantity="other">%1$d/%2$d projects used</item>
+    </plurals>
     <string name="billing_usage_projects_unlimited">Projects: unlimited</string>
-    <string name="billing_usage_photos">%1$d/%2$d photos used</string>
+    <plurals name="billing_usage_photos">
+        <item quantity="one">%1$d/%2$d photo used</item>
+        <item quantity="other">%1$d/%2$d photos used</item>
+    </plurals>
     <string name="billing_usage_photos_unlimited">Photos: unlimited</string>
-    <string name="billing_usage_videos">%1$d/%2$d videos used</string>
-    <string name="billing_usage_supervisors">%1$d/%2$d supervisors per project</string>
+    <plurals name="billing_usage_videos">
+        <item quantity="one">%1$d/%2$d video used</item>
+        <item quantity="other">%1$d/%2$d videos used</item>
+    </plurals>
+    <plurals name="billing_usage_supervisors">
+        <item quantity="one">%1$d/%2$d supervisor per project</item>
+        <item quantity="other">%1$d/%2$d supervisors per project</item>
+    </plurals>
     <string name="billing_usage_supervisors_unlimited">Supervisors: unlimited per project</string>
     <string name="billing_manage_subscription">Manage my subscription</string>
     <string name="billing_no_action">No billing action is available for this plan.</string>
@@ -477,7 +492,10 @@
     <string name="admin_users_role_user">User</string>
     <string name="admin_users_plan_source_stripe">Paid (Stripe)</string>
     <string name="admin_users_plan_source_admin_granted">Gifted (admin)</string>
-    <string name="admin_users_projects_count">%1$d projects</string>
+    <plurals name="admin_users_projects_count">
+        <item quantity="one">%1$d project</item>
+        <item quantity="other">%1$d projects</item>
+    </plurals>
     <string name="admin_users_created_at">Created %1$s</string>
     <string name="admin_users_plan_expires">Expires %1$s</string>
     <string name="admin_users_page">Page %1$d / %2$d</string>
@@ -711,6 +729,7 @@
     <string name="delete_account_dialog_confirm">Delete</string>
     <string name="login_notice_account_deleted">Your account has been deleted.</string>
     <string name="login_notice_invitation_pending">Sign in to join the project.</string>
+    <string name="register_notice_invitation_pending">Create your account to join the project.</string>
     <plurals name="delete_account_lost_access">
         <item quantity="one">%1$s will lose access.</item>
         <item quantity="other">%1$s will lose access.</item>
@@ -784,7 +803,10 @@
     <string name="offer_value_not_included">Not included</string>
     <string name="offer_value_included">Included</string>
     <string name="offer_value_months">%1$d months</string>
-    <string name="offer_value_days">%1$d days</string>
+    <plurals name="offer_value_days">
+        <item quantity="one">%1$d day</item>
+        <item quantity="other">%1$d days</item>
+    </plurals>
     <string name="plan_limit_see_offer">See my offer</string>
     <string name="plan_limit_media">You've reached your plan's photo or video limit.</string>
     <string name="plan_limit_export">PDF export isn't included in your current plan.</string>
@@ -855,16 +877,34 @@
     <string name="settings_build">Build number</string>
     <string name="settings_contact">Contact</string>
     <string name="settings_help">Help and reports</string>
-    <string name="founder_offer_projects">%1$d projects</string>
-    <string name="founder_offer_photos">%1$d photos</string>
-    <string name="founder_offer_videos">%1$d videos</string>
-    <string name="founder_offer_videos_length">%1$d videos of up to %2$s</string>
-    <string name="founder_offer_supervisors">%1$d supervisors per project</string>
+    <plurals name="founder_offer_projects">
+        <item quantity="one">%1$d project</item>
+        <item quantity="other">%1$d projects</item>
+    </plurals>
+    <plurals name="founder_offer_photos">
+        <item quantity="one">%1$d photo</item>
+        <item quantity="other">%1$d photos</item>
+    </plurals>
+    <plurals name="founder_offer_videos">
+        <item quantity="one">%1$d video</item>
+        <item quantity="other">%1$d videos</item>
+    </plurals>
+    <plurals name="founder_offer_videos_length">
+        <item quantity="one">%1$d video of up to %2$s</item>
+        <item quantity="other">%1$d videos of up to %2$s</item>
+    </plurals>
+    <plurals name="founder_offer_supervisors">
+        <item quantity="one">%1$d supervisor per project</item>
+        <item quantity="other">%1$d supervisors per project</item>
+    </plurals>
     <string name="founder_offer_pdf">PDF export included</string>
     <string name="sync_hint_plan_limit_media">Change your plan or delete some photos or videos, then retry.</string>
     <string name="sync_hint_plan_limit_media_no_upgrade">Delete some photos or videos, then try again.</string>
     <string name="history_kept_months">History kept for %1$d months</string>
-    <string name="history_kept_days">History kept for %1$d days</string>
+    <plurals name="history_kept_days">
+        <item quantity="one">History kept for %1$d day</item>
+        <item quantity="other">History kept for %1$d days</item>
+    </plurals>
     <string name="retry_in">Try again in %1$s</string>
     <string name="wait_seconds_short">%1$d s</string>
     <string name="error_wait_rate_limited_reason">Too many attempts.</string>

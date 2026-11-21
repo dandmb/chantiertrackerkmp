@@ -11,7 +11,13 @@ import com.dmb.chantiertracker.presentation.invitations.InvitationDeepLinkDispat
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import com.dmb.chantiertracker.domain.repository.InvitationRepository
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.withTimeoutOrNull
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import androidx.navigation.compose.NavHost
@@ -108,10 +114,26 @@ private fun AuthNavHost(
     val invitationLinks = remember { KoinPlatformTools.defaultContext().getOrNull()?.getOrNull<InvitationDeepLinkDispatcher>() }
     LaunchedEffect(invitationLinks) { invitationLinks?.reopenHeld() }
     val pendingInvitation by (invitationLinks?.pending ?: NoPendingInvitation).collectAsStateWithLifecycle()
-    LaunchedEffect(pendingInvitation, backStackEntry) {
+    val invitationRepository = remember { KoinPlatformTools.defaultContext().getOrNull()?.getOrNull<InvitationRepository>() }
+    var accountCheck by remember { mutableStateOf<InvitationAccountCheck?>(null) }
+    var signUpOpenedFor by rememberSaveable { mutableStateOf<String?>(null) }
+    LaunchedEffect(pendingInvitation) {
+        val token = pendingInvitation ?: return@LaunchedEffect
+        if (accountCheck?.token == token) return@LaunchedEffect
+        accountCheck = InvitationAccountCheck(token, accountMissing = invitationRepository?.invitedAddressHasNoAccount(token) == true)
+    }
+    LaunchedEffect(pendingInvitation, backStackEntry, accountCheck) {
         val entry = backStackEntry ?: return@LaunchedEffect
-        if (pendingInvitation == null || entry.destination.hasRoute<LoginRoute>()) return@LaunchedEffect
-        if (entry.destination.hasRoute<OnboardingRoute>() || entry.destination.hasRoute<WelcomeRoute>()) {
+        val token = pendingInvitation ?: return@LaunchedEffect
+        val check = accountCheck?.takeIf { it.token == token } ?: return@LaunchedEffect
+        val destination = entry.destination
+        val onStartScreen = destination.hasRoute<OnboardingRoute>() || destination.hasRoute<WelcomeRoute>()
+        if (check.accountMissing && signUpOpenedFor != token) {
+            if (onStartScreen || destination.hasRoute<LoginRoute>()) {
+                signUpOpenedFor = token
+                navController.navigate(RegisterRoute()) { launchSingleTop = true }
+            }
+        } else if (onStartScreen) {
             navController.navigate(LoginRoute(notice = LoginNotice.InvitationPending.toArg())) { launchSingleTop = true }
         }
     }
@@ -201,6 +223,7 @@ private fun AuthNavHost(
                 onBackToLogin = { navController.backToLogin(neverLoggedIn) },
                 onOpenLegalDocument = openLegalDocument,
                 onBack = { navController.popBackStack() },
+                invitationPending = pendingInvitation != null,
             )
         }
         composable<LoginVerificationRoute> { entry ->
@@ -292,3 +315,16 @@ private fun NavController.backToLogin(
 }
 
 private val NoPendingInvitation: StateFlow<String?> = MutableStateFlow(null)
+
+private class InvitationAccountCheck(val token: String, val accountMissing: Boolean)
+
+private const val ACCOUNT_CHECK_TIMEOUT_MILLIS = 3_000L
+
+private suspend fun InvitationRepository.invitedAddressHasNoAccount(token: String): Boolean =
+    try {
+        withTimeoutOrNull(ACCOUNT_CHECK_TIMEOUT_MILLIS) { !getInvitationPreview(token).accountExists } ?: false
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        false
+    }

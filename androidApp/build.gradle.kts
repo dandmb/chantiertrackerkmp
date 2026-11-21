@@ -137,6 +137,7 @@ android {
                 "proguard-rules.pro"
             )
             signingConfig = signingConfigs.findByName("upload")
+            ndk { debugSymbolLevel = "SYMBOL_TABLE" }
             firebaseRelease?.let { (appId, apiKey, projectId) ->
                 resValue("string", "google_app_id", appId)
                 resValue("string", "google_api_key", apiKey)

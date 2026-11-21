@@ -60,6 +60,7 @@ class ServerPendingInvitation(
     val createdAt: String = "2026-09-01T10:00:00",
     val expiresAt: String = "2026-09-08T10:00:00",
     val id: Long = 500L + token.length,
+    val accountExists: Boolean = true,
 )
 
 class ServerStage(
@@ -827,7 +828,7 @@ class FakeProjectBackend {
     // removed once accepted/declined (see the accept/decline branches above),
     // which is as far as this fake backend needs to model invitation status.
     private fun invitationDetailsJson(i: ServerPendingInvitation): String =
-        """{"projectId":${i.projectId},"projectName":${i.projectName.q()},"role":${i.role.q()},"invitedByName":${i.invitedByName?.q() ?: "null"},"status":"PENDING","accountExists":true}"""
+        """{"projectId":${i.projectId},"projectName":${i.projectName.q()},"role":${i.role.q()},"invitedByName":${i.invitedByName?.q() ?: "null"},"status":"PENDING","accountExists":${i.accountExists}}"""
 
     private fun logSummaryJson(l: ServerLog): String {
         val hasPurchase = entries.any { it.dailyLogId == l.id && it.type == "PURCHASE" }

@@ -158,6 +158,7 @@ private fun InvitationDetailsDto.toInvitationPreview() = InvitationPreview(
         else -> null
     },
     invitedByName = invitedByName?.takeIf { it.isNotBlank() },
+    accountExists = accountExists,
 )
 
 private fun String.toInvitationStatus(): InvitationStatus = when (uppercase()) {

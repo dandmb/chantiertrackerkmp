@@ -67,6 +67,7 @@ import com.dmb.chantiertracker.resources.offer_value_included
 import com.dmb.chantiertracker.resources.offer_value_months
 import com.dmb.chantiertracker.resources.offer_value_not_included
 import com.dmb.chantiertracker.resources.offer_value_unlimited
+import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -123,7 +124,7 @@ private fun PlanSection(usage: PlanUsage, billingStatus: BillingAvailability) {
 }
 
 @Composable
-private fun UsageSection(usage: PlanUsage, pdfExportIncluded: Boolean) {
+internal fun UsageSection(usage: PlanUsage, pdfExportIncluded: Boolean) {
     val unlimited = stringResource(Res.string.offer_value_unlimited)
     SectionCard(stringResource(Res.string.offer_usage_section), flush = true) {
         CountRow(
@@ -176,14 +177,18 @@ private fun UsageSection(usage: PlanUsage, pdfExportIncluded: Boolean) {
         usage.maxHistoryDays()?.let { days ->
             TextRow(
                 label = stringResource(Res.string.offer_row_history),
-                value = wholeHistoryMonths(days)?.let { stringResource(Res.string.offer_value_months, it) }
-                    ?: stringResource(Res.string.offer_value_days, days),
+                value = historyValueLabel(days),
                 spoken = historyKeptLabel(days),
             )
         }
         SectionRow(divider = false) { Note(stringResource(Res.string.offer_limits_owner_note)) }
     }
 }
+
+@Composable
+internal fun historyValueLabel(days: Int): String =
+    wholeHistoryMonths(days)?.let { stringResource(Res.string.offer_value_months, it) }
+        ?: pluralStringResource(Res.plurals.offer_value_days, days, days)
 
 @Composable
 private fun LabelAndValue(label: String, value: String, spoken: String) {

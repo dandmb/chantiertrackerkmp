@@ -1,8 +1,12 @@
 package com.dmb.chantiertracker.presentation
 
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
@@ -12,7 +16,15 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.TextFieldColors
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Shape
@@ -30,6 +42,7 @@ import org.jetbrains.compose.resources.stringResource
 private val RestingBorder = 1.dp
 private val FocusedBorder = 2.dp
 private val FloatingLabelRoom = 8.dp
+private val FloatingLabelHeight = 24.dp
 
 @Composable
 fun appTextFieldColors(): TextFieldColors {
@@ -75,6 +88,19 @@ fun AppOutlinedTextField(
 ) {
     val source = interactionSource ?: remember { MutableInteractionSource() }
     val focused by source.collectIsFocusedAsState()
+    val floatingLabel = remember { BringIntoViewRequester() }
+    var fieldSize by remember { mutableStateOf(IntSize.Zero) }
+    val density = LocalDensity.current
+    val keyboardHeight = WindowInsets.ime.getBottom(density)
+    LaunchedEffect(focused, keyboardHeight) {
+        if (focused && fieldSize != IntSize.Zero) {
+            val topBand = with(density) { (FloatingLabelRoom + FloatingLabelHeight).toPx() }
+            val label = Rect(0f, 0f, fieldSize.width.toFloat(), minOf(fieldSize.height.toFloat(), topBand))
+            floatingLabel.bringIntoView(label)
+            repeat(2) { withFrameNanos {} }
+            floatingLabel.bringIntoView(label)
+        }
+    }
     val textColor = textStyle.color.takeOrElse {
         when {
             !enabled -> colors.disabledTextColor
@@ -88,6 +114,8 @@ fun AppOutlinedTextField(
         value = value,
         onValueChange = onValueChange,
         modifier = modifier
+            .onSizeChanged { fieldSize = it }
+            .bringIntoViewRequester(floatingLabel)
             .then(if (label != null) Modifier.semantics(mergeDescendants = true) {}.padding(top = FloatingLabelRoom) else Modifier)
             .then(if (isError) Modifier.semantics { error(invalidInput) } else Modifier)
             .defaultMinSize(minWidth = OutlinedTextFieldDefaults.MinWidth, minHeight = OutlinedTextFieldDefaults.MinHeight),

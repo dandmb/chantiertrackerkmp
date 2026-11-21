@@ -15,6 +15,7 @@ import com.dmb.chantiertracker.presentation.auth.components.AuthPrimaryButton
 import com.dmb.chantiertracker.presentation.auth.components.RegisterLegalConsent
 import com.dmb.chantiertracker.presentation.auth.components.AuthScreenLayout
 import com.dmb.chantiertracker.presentation.auth.components.EmailField
+import com.dmb.chantiertracker.presentation.auth.components.InfoBanner
 import com.dmb.chantiertracker.presentation.auth.components.NameField
 import com.dmb.chantiertracker.presentation.auth.components.PasswordField
 import com.dmb.chantiertracker.presentation.i18n.snackbarText
@@ -23,6 +24,7 @@ import com.dmb.chantiertracker.presentation.legal.LegalDocument
 import com.dmb.chantiertracker.resources.Res
 import com.dmb.chantiertracker.resources.register_have_account_action
 import com.dmb.chantiertracker.resources.register_have_account_prompt
+import com.dmb.chantiertracker.resources.register_notice_invitation_pending
 import com.dmb.chantiertracker.resources.register_submit
 import com.dmb.chantiertracker.resources.register_subtitle
 import com.dmb.chantiertracker.resources.register_title
@@ -35,6 +37,7 @@ fun RegisterScreen(
     onBackToLogin: () -> Unit,
     onOpenLegalDocument: (LegalDocument) -> Unit,
     onBack: (() -> Unit)? = null,
+    invitationPending: Boolean = false,
     viewModel: RegisterViewModel = koinViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -53,7 +56,7 @@ fun RegisterScreen(
         errorMessage = state.formError?.snackbarText(),
         submitting = state.isSubmitting,
     ) {
-
+        if (invitationPending) InfoBanner(stringResource(Res.string.register_notice_invitation_pending))
         NameField(
             value = state.name,
             onValueChange = viewModel::onNameChange,

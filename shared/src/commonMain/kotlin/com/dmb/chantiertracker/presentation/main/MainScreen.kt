@@ -97,6 +97,7 @@ import com.dmb.chantiertracker.presentation.navigation.fixRoute
 import com.dmb.chantiertracker.presentation.sync.SyncIssueCountViewModel
 import com.dmb.chantiertracker.presentation.sync.OfflineBannerViewModel
 import com.dmb.chantiertracker.presentation.sync.TopBarWithOfflineBanner
+import com.dmb.chantiertracker.presentation.navigation.TopBarFollowingContent
 import com.dmb.chantiertracker.presentation.sync.SyncIssuesScreen
 import com.dmb.chantiertracker.presentation.logs.ConsumptionLineFormScreen
 import com.dmb.chantiertracker.presentation.logs.DailyLogScreen
@@ -330,7 +331,8 @@ fun MainScreen(
     }
 
     val topBarContent: @Composable () -> Unit = {
-        when (current) {
+        TopBarFollowingContent(current to backStackEntry, transitions) { (shown, shownEntry) ->
+        when (shown) {
                 MainDestination.CreateProject -> DetailTopBar(
                     title = stringResource(Res.string.create_project_title),
                     onBack = { navController.popBackStack() },
@@ -386,7 +388,7 @@ fun MainScreen(
                     onBack = { navController.popBackStack() },
                 )
                 MainDestination.LegalDocumentPage -> DetailTopBar(
-                    title = backStackEntry?.toRoute<LegalDocumentRoute>()
+                    title = shownEntry?.toRoute<LegalDocumentRoute>()
                         ?.let { LegalDocument.fromSlug(it.document) }
                         ?.let { stringResource(it.link) }
                         .orEmpty(),
@@ -446,17 +448,18 @@ fun MainScreen(
                     syncIssueCount = syncIssueCount,
                     onOpenSyncIssues = openSyncIssues,
                     leadingActions = {
-                        if (current == MainDestination.Projects) {
+                        if (shown == MainDestination.Projects) {
                             val sortHolder = koinInject<ProjectSortHolder>()
                             val sort by sortHolder.sort.collectAsStateWithLifecycle()
                             ProjectSortControl(current = sort, onSelect = sortHolder::set)
                         }
-                        if (current == MainDestination.Administration) {
+                        if (shown == MainDestination.Administration) {
                             AdminStatsGranularityControl(current = statsGranularity, onSelect = { statsGranularity = it })
                         }
                     },
                 )
             }
+        }
         }
     val fabContent: @Composable () -> Unit = {
         if (currentTab == MainTab.Projects) {
