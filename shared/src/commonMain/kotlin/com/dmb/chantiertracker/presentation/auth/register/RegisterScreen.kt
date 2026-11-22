@@ -28,6 +28,7 @@ import com.dmb.chantiertracker.resources.register_notice_invitation_pending
 import com.dmb.chantiertracker.resources.register_submit
 import com.dmb.chantiertracker.resources.register_subtitle
 import com.dmb.chantiertracker.resources.register_title
+import com.dmb.chantiertracker.resources.invitation_notice_dismiss
 import org.jetbrains.compose.resources.stringResource
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -38,6 +39,7 @@ fun RegisterScreen(
     onOpenLegalDocument: (LegalDocument) -> Unit,
     onBack: (() -> Unit)? = null,
     invitationPending: Boolean = false,
+    onDismissInvitation: () -> Unit = {},
     viewModel: RegisterViewModel = koinViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -56,7 +58,13 @@ fun RegisterScreen(
         errorMessage = state.formError?.snackbarText(),
         submitting = state.isSubmitting,
     ) {
-        if (invitationPending) InfoBanner(stringResource(Res.string.register_notice_invitation_pending))
+        if (invitationPending) {
+            InfoBanner(
+                stringResource(Res.string.register_notice_invitation_pending),
+                dismissLabel = stringResource(Res.string.invitation_notice_dismiss),
+                onDismiss = onDismissInvitation,
+            )
+        }
         NameField(
             value = state.name,
             onValueChange = viewModel::onNameChange,

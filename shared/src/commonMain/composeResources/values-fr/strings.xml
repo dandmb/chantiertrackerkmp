@@ -729,6 +729,7 @@
     <string name="delete_account_dialog_confirm">Supprimer</string>
     <string name="login_notice_account_deleted">Ton compte a été supprimé.</string>
     <string name="login_notice_invitation_pending">Connecte-toi pour rejoindre le projet.</string>
+    <string name="invitation_notice_dismiss">Ignorer</string>
     <string name="register_notice_invitation_pending">Crée ton compte pour rejoindre le projet.</string>
     <plurals name="delete_account_lost_access">
         <item quantity="one">%1$s perdra l'accès.</item>

@@ -464,18 +464,26 @@ fun ErrorBanner(message: String, modifier: Modifier = Modifier) {
 }
 
 @Composable
-fun InfoBanner(message: String, modifier: Modifier = Modifier) {
+fun InfoBanner(message: String, modifier: Modifier = Modifier, dismissLabel: String? = null, onDismiss: (() -> Unit)? = null) {
     Surface(
         modifier = modifier.fillMaxWidth(),
         color = MaterialTheme.colorScheme.tertiaryContainer,
         shape = MaterialTheme.shapes.small,
     ) {
-        Text(
-            text = message,
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-            color = MaterialTheme.colorScheme.onTertiaryContainer,
-            style = MaterialTheme.typography.labelLarge,
-        )
+        androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+            Text(
+                text = message,
+                modifier = Modifier.weight(1f).padding(horizontal = 12.dp, vertical = 10.dp),
+                color = MaterialTheme.colorScheme.onTertiaryContainer,
+                style = MaterialTheme.typography.labelLarge,
+            )
+            if (dismissLabel != null && onDismiss != null) {
+                androidx.compose.material3.TextButton(
+                    onClick = onDismiss,
+                    colors = androidx.compose.material3.ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onTertiaryContainer),
+                ) { Text(dismissLabel) }
+            }
+        }
     }
 }
 

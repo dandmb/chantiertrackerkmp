@@ -3,6 +3,10 @@ package com.dmb.chantiertracker.presentation
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
@@ -51,11 +55,13 @@ import kotlin.test.assertTrue
 class InvitationLinkSignedOutUiTest {
 
     private val auth = FakeAuthRepository()
-    private val invitations = com.dmb.chantiertracker.presentation.invitations.InvitationDeepLinkDispatcher()
+    private val preferences = com.dmb.chantiertracker.support.FakeAppPreferences()
+    private var invitations = com.dmb.chantiertracker.presentation.invitations.InvitationDeepLinkDispatcher(preferences)
     private val opener = com.dmb.chantiertracker.support.FakeUrlOpener()
     private val invitationRepository = com.dmb.chantiertracker.support.FakeInvitationRepository()
 
     @BeforeTest fun setUp() {
+        invitationFor(accountExists = true)
         Dispatchers.setMain(UnconfinedTestDispatcher())
         startKoin {
             modules(
@@ -65,7 +71,7 @@ class InvitationLinkSignedOutUiTest {
                     single<CheckoutLauncher> { FakeCheckoutLauncher() }
                     viewModelOf(::LoginViewModel)
                     viewModelOf(::VerifyEmailViewModel)
-                    single { invitations }
+                    factory { invitations }
                     single<com.dmb.chantiertracker.domain.repository.InvitationRepository> { invitationRepository }
                     single<com.dmb.chantiertracker.presentation.billing.UrlOpener> { opener }
                     single { com.dmb.chantiertracker.data.sync.AppCoroutineScope() }
@@ -150,10 +156,10 @@ class InvitationLinkSignedOutUiTest {
         awaitText("Connecte-toi pour rejoindre le projet.")
         assertEquals("jeton-42", invitations.pending.value)
     }
-    private fun invitationFor(accountExists: Boolean) {
+    private fun invitationFor(accountExists: Boolean, status: com.dmb.chantiertracker.domain.model.InvitationStatus = com.dmb.chantiertracker.domain.model.InvitationStatus.PENDING) {
         invitationRepository.preview = com.dmb.chantiertracker.domain.model.InvitationPreview(
             projectId = 9, projectName = "Villa Vidal",
-            status = com.dmb.chantiertracker.domain.model.InvitationStatus.PENDING,
+            status = status,
             accountExists = accountExists,
         )
     }
@@ -204,6 +210,158 @@ class InvitationLinkSignedOutUiTest {
         onNodeWithText("Valider mon compte").assertExists()
         absent("Crée ton compte pour rejoindre le projet.")
         assertEquals("jeton-42", invitations.pending.value)
+    }
+
+    private var launches by mutableIntStateOf(0)
+
+    private fun ComposeUiTest.mountRelaunchable() =
+        mount { key(launches) { RootNavHost(RootViewModel(auth, com.dmb.chantiertracker.data.session.SessionNotices())) } }
+
+    private fun ComposeUiTest.relaunchFromTheIcon(afterARestart: Boolean = false) {
+        if (afterARestart) invitations = com.dmb.chantiertracker.presentation.invitations.InvitationDeepLinkDispatcher(preferences)
+        launches++
+        waitForIdle()
+        mainClock.advanceTimeBy(2_000)
+        waitForIdle()
+    }
+
+    private fun ComposeUiTest.openTheSignUpFromALinkWithoutAccount() {
+        invitationFor(accountExists = false)
+        auth.onboardingSeen = true
+        auth.emitState(AuthState.Unauthenticated)
+        invitations.dispatch("jeton-42")
+        mountRelaunchable()
+        awaitText("Crée ton compte pour rejoindre le projet.")
+    }
+
+    @Test
+    fun relaunching_after_a_link_opened_the_sign_up_shows_the_sign_in_with_the_invitation() = runPhoneTest {
+        openTheSignUpFromALinkWithoutAccount()
+
+        relaunchFromTheIcon()
+
+        awaitText("Connecte-toi pour rejoindre le projet.")
+        onNodeWithText("Valider mon compte").assertExists()
+        absent("Crée ton compte pour rejoindre le projet.")
+        assertEquals("jeton-42", invitations.pending.value)
+    }
+
+    @Test
+    fun after_a_phone_restart_the_sign_in_still_shows_the_invitation() = runPhoneTest {
+        openTheSignUpFromALinkWithoutAccount()
+
+        relaunchFromTheIcon(afterARestart = true)
+
+        awaitText("Connecte-toi pour rejoindre le projet.")
+        absent("Crée ton compte pour rejoindre le projet.")
+        assertEquals("jeton-42", invitations.pending.value)
+    }
+
+    @Test
+    fun create_an_account_from_the_relaunched_sign_in_shows_the_sign_up_with_the_invitation() = runPhoneTest {
+        openTheSignUpFromALinkWithoutAccount()
+        relaunchFromTheIcon()
+        awaitText("Connecte-toi pour rejoindre le projet.")
+
+        onNodeWithText("Créer un compte").performScrollTo().performClick()
+
+        awaitText("Crée ton compte pour rejoindre le projet.")
+        assertEquals("jeton-42", invitations.pending.value)
+    }
+
+    @Test
+    fun opening_the_link_again_after_a_relaunch_leads_to_the_sign_up_again() = runPhoneTest {
+        openTheSignUpFromALinkWithoutAccount()
+        relaunchFromTheIcon()
+        awaitText("Connecte-toi pour rejoindre le projet.")
+
+        invitations.dispatch("jeton-42")
+
+        awaitText("Crée ton compte pour rejoindre le projet.")
+    }
+
+    @Test
+    fun ignore_on_the_sign_in_forgets_the_invitation_even_after_a_restart() = runPhoneTest {
+        openTheSignUpFromALinkWithoutAccount()
+        relaunchFromTheIcon()
+        awaitText("Connecte-toi pour rejoindre le projet.")
+
+        onNodeWithText("Ignorer").performClick()
+        waitForIdle()
+
+        absent("Connecte-toi pour rejoindre le projet.")
+        onNodeWithText("Connecte-toi pour suivre tes chantiers.").assertExists()
+        assertEquals(null, invitations.pending.value)
+        relaunchFromTheIcon(afterARestart = true)
+        absent("pour rejoindre le projet.")
+        assertEquals(null, invitations.pending.value)
+        assertTrue(preferences.store.isEmpty(), "jeton gardé : ${preferences.store}")
+    }
+
+    @Test
+    fun ignore_on_the_sign_up_forgets_the_invitation() = runPhoneTest {
+        openTheSignUpFromALinkWithoutAccount()
+
+        onNodeWithText("Ignorer").performClick()
+        waitForIdle()
+
+        absent("Crée ton compte pour rejoindre le projet.")
+        assertEquals(null, invitations.pending.value)
+        assertTrue(preferences.store.isEmpty(), "jeton gardé : ${preferences.store}")
+    }
+
+    @Test
+    fun an_expired_invitation_is_forgotten_while_signed_out() = runPhoneTest {
+        invitationFor(accountExists = false, status = com.dmb.chantiertracker.domain.model.InvitationStatus.EXPIRED)
+        invitations.dispatch("jeton-42")
+        openRootOnLogin()
+
+        waitUntil(timeoutMillis = 5_000L) { invitations.pending.value == null }
+        absent("pour rejoindre le projet.")
+        assertTrue(preferences.store.isEmpty(), "jeton gardé : ${preferences.store}")
+    }
+
+    @Test
+    fun an_unknown_invitation_is_forgotten_while_signed_out() = runPhoneTest {
+        invitationRepository.preview = null
+        invitations.dispatch("jeton-42")
+        openRootOnLogin()
+
+        waitUntil(timeoutMillis = 5_000L) { invitations.pending.value == null }
+        absent("pour rejoindre le projet.")
+    }
+
+    @Test
+    fun an_unreachable_server_keeps_the_invitation() = runPhoneTest {
+        invitationRepository.previewError = DomainException.Network
+        invitations.dispatch("jeton-42")
+        openRootOnLogin()
+
+        awaitText("Connecte-toi pour rejoindre le projet.")
+        assertEquals("jeton-42", invitations.pending.value)
+    }
+
+    @Test
+    fun the_sign_in_opened_by_the_link_on_a_fresh_install_is_the_first_screen_so_back_leaves_the_app() = runPhoneTest {
+        auth.emitState(AuthState.Unauthenticated)
+        invitations.dispatch("jeton-42")
+        mount { RootNavHost(RootViewModel(auth, com.dmb.chantiertracker.data.session.SessionNotices())) }
+
+        awaitText("Connecte-toi pour rejoindre le projet.")
+        mainClock.advanceTimeBy(2_000)
+        waitForIdle()
+
+        assertEquals(0, onAllNodes(androidx.compose.ui.test.hasContentDescription("Retour")).fetchSemanticsNodes().size, "retour vers l'accueil")
+    }
+
+    @Test
+    fun relaunching_from_the_welcome_screen_also_makes_the_sign_in_the_first_screen() = runPhoneTest {
+        openTheSignUpFromALinkWithoutAccount()
+
+        relaunchFromTheIcon()
+
+        awaitText("Connecte-toi pour rejoindre le projet.")
+        assertEquals(0, onAllNodes(androidx.compose.ui.test.hasContentDescription("Retour")).fetchSemanticsNodes().size, "retour vers l'accueil")
     }
 
     @Test
