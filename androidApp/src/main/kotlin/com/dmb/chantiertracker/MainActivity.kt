@@ -10,6 +10,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import com.dmb.chantiertracker.presentation.App
 import com.dmb.chantiertracker.presentation.invitations.dispatchInvitationDeepLink
+import com.dmb.chantiertracker.presentation.invitations.launchLinkIsNew
 
 // ADR-59 — android:launchMode="singleTask" (manifest) means a real
 // https://chantiertracker.com/invitations/{token} App Link reaches THIS instance
@@ -23,7 +24,7 @@ class MainActivity : ComponentActivity() {
         installSplashScreen()
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
-        dispatchDeepLink(intent)
+        if (launchLinkIsNew(savedInstanceState != null, intent.flags)) dispatchDeepLink(intent)
 
         setContent {
             App()

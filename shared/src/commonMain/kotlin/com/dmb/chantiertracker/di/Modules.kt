@@ -301,7 +301,7 @@ val presentationModule: Module = module {
     single { ProjectSortHolder() }
     single<CheckoutLauncher> { AppScopeCheckoutLauncher(get<BillingRepository>(), get<UrlOpener>(), get<AppCoroutineScope>()) }
     single { CheckoutDeepLinkDispatcher() }
-    single { InvitationDeepLinkDispatcher() }
+    single { InvitationDeepLinkDispatcher(getOrNull()) }
     single { AppSettings(get(), get<AppCoroutineScope>()) }
     viewModelOf(::RootViewModel)
     viewModelOf(::LoginViewModel)

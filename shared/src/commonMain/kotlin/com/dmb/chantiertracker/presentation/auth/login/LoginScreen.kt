@@ -36,6 +36,7 @@ import com.dmb.chantiertracker.resources.login_no_account_prompt
 import com.dmb.chantiertracker.resources.login_notice_account_activated
 import com.dmb.chantiertracker.resources.login_notice_account_deleted
 import com.dmb.chantiertracker.resources.login_notice_invitation_pending
+import com.dmb.chantiertracker.resources.invitation_notice_dismiss
 import com.dmb.chantiertracker.resources.login_notice_checkout_pending
 import com.dmb.chantiertracker.resources.login_notice_password_reset
 import com.dmb.chantiertracker.resources.login_submit
@@ -56,6 +57,7 @@ fun LoginScreen(
     onValidateAccount: (typedEmail: String) -> Unit = {},
     prefilledEmail: String? = null,
     notice: LoginNotice? = null,
+    onDismissInvitation: () -> Unit = {},
     checkoutPlan: String? = null,
     checkoutCycle: String? = null,
     viewModel: LoginViewModel = koinViewModel(),
@@ -97,7 +99,11 @@ fun LoginScreen(
                 LoginNotice.AccountActivated -> InfoBanner(stringResource(Res.string.login_notice_account_activated))
                 LoginNotice.PasswordReset -> InfoBanner(stringResource(Res.string.login_notice_password_reset))
                 LoginNotice.AccountDeleted -> InfoBanner(stringResource(Res.string.login_notice_account_deleted))
-                LoginNotice.InvitationPending -> InfoBanner(stringResource(Res.string.login_notice_invitation_pending))
+                LoginNotice.InvitationPending -> InfoBanner(
+                    stringResource(Res.string.login_notice_invitation_pending),
+                    dismissLabel = stringResource(Res.string.invitation_notice_dismiss),
+                    onDismiss = onDismissInvitation,
+                )
                 null -> Unit
             }
         }

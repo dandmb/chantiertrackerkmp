@@ -729,6 +729,7 @@
     <string name="delete_account_dialog_confirm">Delete</string>
     <string name="login_notice_account_deleted">Your account has been deleted.</string>
     <string name="login_notice_invitation_pending">Sign in to join the project.</string>
+    <string name="invitation_notice_dismiss">Ignore</string>
     <string name="register_notice_invitation_pending">Create your account to join the project.</string>
     <plurals name="delete_account_lost_access">
         <item quantity="one">%1$s will lose access.</item>
